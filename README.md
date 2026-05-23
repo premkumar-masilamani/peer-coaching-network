@@ -1,2 +1,3 @@
-# peer-coaching-network
-Calendly for peer coaches, but mutual and open
+# Peer Coaching Network
+
+Collaborative Calendly for coaches
