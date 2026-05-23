@@ -23,7 +23,7 @@ Think of this app as a **cooperative booking journal**—a helper that handles t
 When you first open the application, you will be greeted by our login screen.
 * **How to sign in:** Simply click the colorful **"Sign in with Google"** button. This uses your existing Google email address to safely create your account without needing to remember a new password.
 * **The "Under Review" Page:** As a security measure to keep our community safe and professional, new accounts are put under review. You will see a friendly notice saying **"Application Under Review"**.
-* **While you wait:** You can fill in some starting details (like your gender, country, timezone, and a brief biography) so administrators can verify your profile and approve your access within 24 hours.
+* **While you wait:** You can fill in some starting details (like your gender, country, timezone, and a brief biography) so administrators can verify your profile and approve your access.
 
 ---
 
