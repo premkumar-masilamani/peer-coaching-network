@@ -1,4 +1,8 @@
 import type { UserProfile } from './firebaseService';
+import { db, auth, recalculateUserAvailability, DEFAULT_TEMPLATE } from './firebaseService';
+import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
+import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
+import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 
 export interface CalendarEvent {
   id: string;
@@ -9,41 +13,6 @@ export interface CalendarEvent {
   meetLink?: string;
   attendees?: { email: string; displayName?: string }[];
 }
-
-const SCHEDULED_MEETINGS_KEY = 'pcn_scheduled_meetings';
-
-// Seed default calendar events if empty (mock user's private calendar events)
-const getMockCalendarEvents = (): CalendarEvent[] => {
-  const localScheduled = JSON.parse(localStorage.getItem(SCHEDULED_MEETINGS_KEY) || '[]');
-  
-  // Seed some default blocks to show busy states
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-  
-  const seedEvents: CalendarEvent[] = [
-    {
-      id: 'busy-1',
-      summary: 'Focused Coaching Prep (Busy)',
-      start: { dateTime: new Date(today.setHours(9, 0, 0, 0)).toISOString() },
-      end: { dateTime: new Date(today.setHours(10, 0, 0, 0)).toISOString() },
-    },
-    {
-      id: 'busy-2',
-      summary: 'Client Session (Busy)',
-      start: { dateTime: new Date(today.setHours(14, 0, 0, 0)).toISOString() },
-      end: { dateTime: new Date(today.setHours(15, 30, 0, 0)).toISOString() },
-    },
-    {
-      id: 'busy-3',
-      summary: 'Team Alignment (Busy)',
-      start: { dateTime: new Date(tomorrow.setHours(11, 0, 0, 0)).toISOString() },
-      end: { dateTime: new Date(tomorrow.setHours(12, 0, 0, 0)).toISOString() },
-    }
-  ];
-
-  return [...seedEvents, ...localScheduled];
-};
 
 export const isCalendarSynced = (): boolean => {
   return sessionStorage.getItem('google_access_token') !== null;
@@ -70,6 +39,10 @@ interface GoogleCalendarEvent {
 
 export const getUpcomingEvents = async (isRealFirebase: boolean): Promise<CalendarEvent[]> => {
   const token = sessionStorage.getItem('google_access_token');
+  const events: CalendarEvent[] = [];
+  const seenIds = new Set<string>();
+  
+  // Try to load from Google Calendar if a valid token is present
   if (isRealFirebase && token && token !== 'mock_google_access_token') {
     try {
       const response = await fetch(
@@ -80,35 +53,86 @@ export const getUpcomingEvents = async (isRealFirebase: boolean): Promise<Calend
           },
         }
       );
-      if (!response.ok) {
-        throw new Error('Failed to fetch events from Google Calendar');
+      if (response.ok) {
+        const data = await response.json();
+        (data.items || []).forEach((item: GoogleCalendarEvent) => {
+          seenIds.add(item.id);
+          events.push({
+            id: item.id,
+            summary: item.summary || 'Busy Slot',
+            description: item.description,
+            start: { dateTime: item.start?.dateTime || item.start?.date || '' },
+            end: { dateTime: item.end?.dateTime || item.end?.date || '' },
+            meetLink: item.hangoutLink || undefined,
+            attendees: item.attendees?.map((a: { email: string; displayName?: string }) => ({ email: a.email, displayName: a.displayName }))
+          });
+        });
       }
-      const data = await response.json();
-      
-      // Map Google items to our simpler interface
-      return (data.items || []).map((item: GoogleCalendarEvent) => ({
-        id: item.id,
-        summary: item.summary || 'Busy Slot',
-        description: item.description,
-        start: { dateTime: item.start?.dateTime || item.start?.date || '' },
-        end: { dateTime: item.end?.dateTime || item.end?.date || '' },
-        meetLink: item.hangoutLink || undefined,
-        attendees: item.attendees?.map((a: { email: string; displayName?: string }) => ({ email: a.email, displayName: a.displayName }))
-      }));
     } catch (e) {
       console.error('Error fetching real Google Calendar events:', e);
-      return getMockCalendarEvents(); // Fallback to mock if API fails
     }
-  } else {
-    // Mock Mode
-    return getMockCalendarEvents();
   }
+
+  // Always query Firestore bookings where the current user is host or client and merge
+  const currentUser = auth?.currentUser;
+  if (currentUser && db) {
+    try {
+      const qClient = query(collection(db, 'bookings'), where('clientEmail', '==', currentUser.email));
+      const snapClient = await getDocs(qClient);
+
+      const qHost = query(collection(db, 'bookings'), where('hostEmail', '==', currentUser.email));
+      const snapHost = await getDocs(qHost);
+
+      const processSnap = (snap: QuerySnapshot<DocumentData>) => {
+        snap.forEach((d) => {
+          const data = d.data();
+          if (!seenIds.has(data.id)) {
+            // Check if there is already an event starting at the same time to avoid overlaps
+            const startStr: string = typeof data.start === 'string' ? data.start : (data.start?.dateTime || '');
+            const hasDuplicateTime = events.some(
+              e => new Date(e.start.dateTime).getTime() === new Date(startStr).getTime()
+            );
+            if (!hasDuplicateTime) {
+              seenIds.add(data.id);
+              events.push({
+                id: data.id,
+                summary: data.summary,
+                description: data.description,
+                start: { dateTime: startStr },
+                end: { dateTime: typeof data.end === 'string' ? data.end : (data.end?.dateTime || '') },
+                meetLink: data.meetLink,
+                attendees: [
+                  { email: data.hostEmail, displayName: data.hostName },
+                  { email: data.clientEmail, displayName: data.clientName }
+                ]
+              });
+            }
+          }
+        });
+      };
+
+      processSnap(snapClient);
+      processSnap(snapHost);
+    } catch (err) {
+      console.error('Error querying bookings from Firestore:', err);
+    }
+  }
+
+  events.sort((a, b) => {
+    const timeA = new Date(a.start.dateTime).getTime();
+    const timeB = new Date(b.start.dateTime).getTime();
+    return timeA - timeB;
+  });
+
+  return events;
 };
 
 export const scheduleMeeting = async (
   isRealFirebase: boolean,
+  coachUid: string,
   coachEmail: string,
   coachName: string,
+  menteeUid: string,
   clientName: string,
   startIso: string,
   endIso: string,
@@ -145,6 +169,9 @@ export const scheduleMeeting = async (
     },
   };
 
+  let realMeetLink = meetLink;
+  let googleEventId = `booking-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
   if (isRealFirebase && token && token !== 'mock_google_access_token') {
     try {
       // POST event to Google Calendar, with conferenceDataVersion=1 to generate Meet link
@@ -160,42 +187,181 @@ export const scheduleMeeting = async (
         }
       );
 
-      if (!response.ok) {
-        throw new Error('Failed to create calendar event');
+      if (response.ok) {
+        const data = await response.json();
+        googleEventId = data.id;
+        realMeetLink = data.hangoutLink || meetLink;
       }
-
-      const data = await response.json();
-      return {
-        id: data.id,
-        summary: data.summary,
-        description: data.description,
-        start: { dateTime: data.start.dateTime },
-        end: { dateTime: data.end.dateTime },
-        meetLink: data.hangoutLink || meetLink, // Fallback if Meet link generation pending
-        attendees: data.attendees
-      };
     } catch (e) {
       console.error('Error creating real Google Calendar event:', e);
-      // Fall back to Mock save
     }
   }
 
-  // Mock Calendar Save
-  const newMockEvent: CalendarEvent = {
-    id: `mock-event-${Date.now()}`,
+  // Always save booking to Firestore bookings collection
+  const currentUser = auth?.currentUser;
+  const clientEmail = currentUser?.email || '';
+  const clientUid = currentUser?.uid || '';
+  const resolvedClientName = currentUser?.displayName || clientName;
+
+  const newBooking: CalendarEvent = {
+    id: googleEventId,
     summary: eventPayload.summary,
     description: eventPayload.description,
     start: { dateTime: startIso },
     end: { dateTime: endIso },
-    meetLink: meetLink,
-    attendees: [{ email: coachEmail, displayName: coachName }]
+    meetLink: realMeetLink,
+    attendees: [
+      { email: coachEmail, displayName: coachName },
+      { email: clientEmail, displayName: resolvedClientName }
+    ]
   };
 
-  const currentScheduled = JSON.parse(localStorage.getItem(SCHEDULED_MEETINGS_KEY) || '[]');
-  currentScheduled.push(newMockEvent);
-  localStorage.setItem(SCHEDULED_MEETINGS_KEY, JSON.stringify(currentScheduled));
+  if (db) {
+    try {
+      const docRef = doc(db, 'bookings', googleEventId);
+      await setDoc(docRef, {
+        id: googleEventId,
+        summary: eventPayload.summary,
+        description: eventPayload.description,
+        start: { dateTime: startIso },
+        end: { dateTime: endIso },
+        meetLink: realMeetLink,
+        topic,
+        hostEmail: coachEmail,
+        hostName: coachName,
+        clientEmail,
+        clientName: resolvedClientName,
+        clientUid,
+        coachUid,
+        menteeUid,
+        createdAt: new Date().toISOString()
+      });
 
-  return newMockEvent;
+      // Trigger background recalculations
+      recalculateUserAvailability(coachUid).catch(err => {
+        console.error(`Error recalculating availability for coach ${coachUid}:`, err);
+      });
+      recalculateUserAvailability(menteeUid).catch(err => {
+        console.error(`Error recalculating availability for mentee ${menteeUid}:`, err);
+      });
+
+    } catch (err) {
+      console.error('Error saving booking to Firestore:', err);
+    }
+  }
+
+  return newBooking;
+};
+
+export const generateFallbackBusySlots = (
+  coach: UserProfile,
+  timeMinStr: string,
+  timeMaxStr: string
+): CalendarEvent[] => {
+  const timezone = coach.timezone || 'UTC';
+  const template = coach.availabilityTemplate || DEFAULT_TEMPLATE;
+  const weekly = template.weekly || DEFAULT_TEMPLATE.weekly;
+  const blockedDates = template.blockedDates || [];
+  
+  const timeMin = new Date(timeMinStr);
+  const timeMax = new Date(timeMaxStr);
+  
+  const localToday = getLocalDateInTimezone(timeMin, timezone);
+  const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  
+  const busyEvents: CalendarEvent[] = [];
+  
+  for (let i = 0; i < 56; i++) {
+    const currentDate = new Date(localToday);
+    currentDate.setDate(localToday.getDate() + i);
+    if (currentDate.getTime() > timeMax.getTime()) break;
+    
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1;
+    const day = currentDate.getDate();
+    
+    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (blockedDates.includes(dateStr)) {
+      const dayStart = getUtcForLocalDateTime(year, month, day, 0, 0, timezone);
+      const dayEnd = getUtcForLocalDateTime(year, month, day, 24, 0, timezone);
+      busyEvents.push({
+        id: `fallback-block-${coach.uid}-${dateStr}`,
+        summary: 'Busy',
+        start: { dateTime: dayStart.toISOString() },
+        end: { dateTime: dayEnd.toISOString() }
+      });
+      continue;
+    }
+    
+    const dayName = daysOfWeek[currentDate.getDay()];
+    const daySched = weekly[dayName as keyof typeof weekly] || { enabled: false, slots: [] };
+    
+    if (!daySched.enabled || !daySched.slots || daySched.slots.length === 0) {
+      const dayStart = getUtcForLocalDateTime(year, month, day, 0, 0, timezone);
+      const dayEnd = getUtcForLocalDateTime(year, month, day, 24, 0, timezone);
+      busyEvents.push({
+        id: `fallback-sched-${coach.uid}-${dateStr}`,
+        summary: 'Busy',
+        start: { dateTime: dayStart.toISOString() },
+        end: { dateTime: dayEnd.toISOString() }
+      });
+    } else {
+      const sortedSlots = [...daySched.slots].map(s => {
+        const parsedStart = parseLocalTime(s.start);
+        const parsedEnd = parseLocalTime(s.end);
+        return {
+          startMin: parsedStart.hour * 60 + parsedStart.minute,
+          endMin: parsedEnd.hour * 60 + parsedEnd.minute,
+          startStr: s.start,
+          endStr: s.end
+        };
+      }).sort((a, b) => a.startMin - b.startMin);
+      
+      if (sortedSlots[0].startMin > 0) {
+        const startUtc = getUtcForLocalDateTime(year, month, day, 0, 0, timezone);
+        const parsedS = parseLocalTime(sortedSlots[0].startStr);
+        const endUtc = getUtcForLocalDateTime(year, month, day, parsedS.hour, parsedS.minute, timezone);
+        busyEvents.push({
+          id: `fallback-gap1-${coach.uid}-${dateStr}`,
+          summary: 'Busy',
+          start: { dateTime: startUtc.toISOString() },
+          end: { dateTime: endUtc.toISOString() }
+        });
+      }
+      
+      for (let j = 0; j < sortedSlots.length - 1; j++) {
+        const currentSlot = sortedSlots[j];
+        const nextSlot = sortedSlots[j + 1];
+        if (nextSlot.startMin > currentSlot.endMin) {
+          const parsedC = parseLocalTime(currentSlot.endStr);
+          const parsedN = parseLocalTime(nextSlot.startStr);
+          const startUtc = getUtcForLocalDateTime(year, month, day, parsedC.hour, parsedC.minute, timezone);
+          const endUtc = getUtcForLocalDateTime(year, month, day, parsedN.hour, parsedN.minute, timezone);
+          busyEvents.push({
+            id: `fallback-gap2-${coach.uid}-${dateStr}-${j}`,
+            summary: 'Busy',
+            start: { dateTime: startUtc.toISOString() },
+            end: { dateTime: endUtc.toISOString() }
+          });
+        }
+      }
+      
+      const lastSlot = sortedSlots[sortedSlots.length - 1];
+      if (lastSlot.endMin < 24 * 60) {
+        const parsedL = parseLocalTime(lastSlot.endStr);
+        const startUtc = getUtcForLocalDateTime(year, month, day, parsedL.hour, parsedL.minute, timezone);
+        const endUtc = getUtcForLocalDateTime(year, month, day, 24, 0, timezone);
+        busyEvents.push({
+          id: `fallback-gap3-${coach.uid}-${dateStr}`,
+          summary: 'Busy',
+          start: { dateTime: startUtc.toISOString() },
+          end: { dateTime: endUtc.toISOString() }
+        });
+      }
+    }
+  }
+  
+  return busyEvents;
 };
 
 export const getCoachesAvailability = async (
@@ -207,6 +373,11 @@ export const getCoachesAvailability = async (
   const token = sessionStorage.getItem('google_access_token');
   const availability: Record<string, CalendarEvent[]> = {};
 
+  coaches.forEach((coach) => {
+    availability[coach.uid] = [];
+  });
+
+  // Try to load FreeBusy information from Google Calendar if a valid token is present
   if (isRealFirebase && token && token !== 'mock_google_access_token') {
     try {
       const response = await fetch(
@@ -225,74 +396,79 @@ export const getCoachesAvailability = async (
         }
       );
 
-      if (!response.ok) {
-        throw new Error('Failed to query FreeBusy status from Google Calendar API');
-      }
-
-      const data = await response.json();
-      
-      coaches.forEach((coach) => {
-        if (!coach.email) return;
-        const calendarData = data.calendars?.[coach.email];
-        const busyIntervals = calendarData?.busy || [];
+      if (response.ok) {
+        const data = await response.json();
         
-        availability[coach.uid] = busyIntervals.map((interval: { start: string; end: string }, idx: number) => ({
-          id: `busy-${coach.uid}-${idx}`,
-          summary: 'Busy',
-          start: { dateTime: interval.start },
-          end: { dateTime: interval.end },
-        }));
-      });
-
-      return availability;
+        coaches.forEach((coach) => {
+          if (!coach.email) return;
+          const calendarData = data.calendars?.[coach.email];
+          const busyIntervals = calendarData?.busy || [];
+          
+          availability[coach.uid] = busyIntervals.map((interval: { start: string; end: string }, idx: number) => ({
+            id: `busy-${coach.uid}-${idx}`,
+            summary: 'Busy',
+            start: { dateTime: interval.start },
+            end: { dateTime: interval.end },
+          }));
+        });
+      }
     } catch (e) {
       console.error('Error fetching real Google Calendar FreeBusy info:', e);
     }
   }
 
-  // Mock Fallback
-  const allScheduled = JSON.parse(localStorage.getItem(SCHEDULED_MEETINGS_KEY) || '[]');
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
+  // Load computed availability busy slots from Firestore
+  if (db) {
+    try {
+      const availabilityCol = collection(db, 'availability');
+      const querySnap = await getDocs(availabilityCol);
+      const foundUids = new Set<string>();
 
-  coaches.forEach((coach) => {
-    const mockEvents: CalendarEvent[] = [];
-    
-    if (coach.uid === 'coach-1') {
-      const d1Start = new Date(today);
-      d1Start.setUTCHours(14, 0, 0, 0);
-      const d1End = new Date(today);
-      d1End.setUTCHours(15, 0, 0, 0);
+      querySnap.forEach((d) => {
+        const data = d.data();
+        const matchingCoach = coaches.find(c => c.uid === data.uid);
+        if (matchingCoach) {
+          foundUids.add(matchingCoach.uid);
+          const busySlots = data.busySlots || [];
+          busySlots.forEach((slot: { start: string; end: string; id?: string }, idx: number) => {
+            const startStr = slot.start;
+            const endStr = slot.end;
+            // Avoid duplicate events if already loaded from Google Calendar FreeBusy
+            const isAlreadyAdded = availability[matchingCoach.uid].some((event) => {
+              return event.id === slot.id || 
+                (new Date(event.start.dateTime).getTime() === new Date(startStr).getTime());
+            });
 
-      mockEvents.push({
-        id: `mock-busy-${coach.uid}-1`,
-        summary: 'Focused Prep (Busy)',
-        start: { dateTime: d1Start.toISOString() },
-        end: { dateTime: d1End.toISOString() },
+            if (!isAlreadyAdded) {
+              availability[matchingCoach.uid].push({
+                id: slot.id || `busy-${matchingCoach.uid}-${idx}`,
+                summary: 'Busy',
+                start: { dateTime: startStr },
+                end: { dateTime: endStr }
+              });
+            }
+          });
+        }
       });
-    } else if (coach.uid === 'coach-2') {
-      const d2Start = new Date(tomorrow);
-      d2Start.setUTCHours(17, 0, 0, 0);
-      const d2End = new Date(tomorrow);
-      d2End.setUTCHours(18, 30, 0, 0);
 
-      mockEvents.push({
-        id: `mock-busy-${coach.uid}-1`,
-        summary: 'Executive Coaching (Busy)',
-        start: { dateTime: d2Start.toISOString() },
-        end: { dateTime: d2End.toISOString() },
-      });
+      // Self-healing fallback for missing availability documents
+      for (const coach of coaches) {
+        if (!foundUids.has(coach.uid)) {
+          console.log(`Availability document missing for coach ${coach.uid}, generating fallback and triggering recalculation...`);
+          const fallbackSlots = generateFallbackBusySlots(coach, timeMin, timeMax);
+          availability[coach.uid] = [...availability[coach.uid], ...fallbackSlots];
+          
+          // Trigger background recalculation
+          recalculateUserAvailability(coach.uid).catch(err => {
+            console.error(`Background recalculation error for coach ${coach.uid}:`, err);
+          });
+        }
+      }
+
+    } catch (err) {
+      console.error('Error fetching availability from Firestore:', err);
     }
-
-    const relevantSessions = allScheduled.filter((session: CalendarEvent) => {
-      const isAttendee = session.attendees?.some((att: { email: string; displayName?: string }) => att.email === coach.email);
-      const isSummaryMatch = session.summary.includes(coach.displayName || '');
-      return isAttendee || isSummaryMatch;
-    });
-
-    availability[coach.uid] = [...mockEvents, ...relevantSessions];
-  });
+  }
 
   return availability;
 };

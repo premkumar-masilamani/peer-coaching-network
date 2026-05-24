@@ -14,3 +14,6 @@ lint:
 
 clean:
 	rm -rf dist node_modules
+
+emulator:
+	firebase emulators:start
