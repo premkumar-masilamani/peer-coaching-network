@@ -1905,10 +1905,10 @@ export const getTimezoneCode = (date: Date, timeZone: string): string => {
 };
 
 export const getFormattedTimezones = (): TimezoneOption[] => {
-  let timezones: string[] = [];
+  let timezones: string[];
   try {
     timezones = Intl.supportedValuesOf('timeZone');
-  } catch (e) {
+  } catch {
     timezones = [
       'UTC',
       'America/New_York',

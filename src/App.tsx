@@ -5,13 +5,20 @@ import { Login } from './components/Login';
 import { VerificationNotice } from './components/VerificationNotice';
 import { CoachDashboard } from './components/CoachDashboard';
 import { ProfileEdit } from './components/ProfileEdit';
+import { AvailabilityEdit } from './components/AvailabilityEdit';
 import { AdminDashboard } from './components/AdminDashboard';
+import { LeftNav } from './components/LeftNav';
+import { MyBookings } from './components/MyBookings';
 import { Sparkles } from 'lucide-react';
 
 const AppContent: React.FC = () => {
   const { user, role, loading, profile } = useAuth();
   const [currentTab, setCurrentTab] = useState('dashboard');
   const [adminTabFilter, setAdminTabFilter] = useState<'all' | 'pending' | 'user' | 'admin'>('all');
+  const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
+    const saved = localStorage.getItem('peer-coaching-nav-collapsed');
+    return saved ? JSON.parse(saved) : true;
+  });
 
   // Sync theme with document class
   useEffect(() => {
@@ -25,14 +32,16 @@ const AppContent: React.FC = () => {
   // Automatically route user to their respective default panels on login
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (role === 'admin' || role === 'user') {
+      const isActive = profile?.userStatus === 'active';
+      const hasRole = role === 'admin' || role === 'user';
+      if (isActive && hasRole) {
         setCurrentTab('dashboard');
       } else {
         setCurrentTab('pending');
       }
     }, 0);
     return () => clearTimeout(timer);
-  }, [role]);
+  }, [role, profile?.userStatus]);
 
   // Loading Screen
   if (loading) {
@@ -84,8 +93,11 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Authenticated but unapproved (No Role Assigned)
-  if (role === null) {
+  const isActive = profile?.userStatus === 'active';
+  const hasRole = role === 'admin' || role === 'user';
+
+  // Authenticated but unapproved (No Role Assigned) or Inactive
+  if (!isActive || !hasRole) {
     return (
       <div className="app-container">
         <div className="bg-gradient-radial" />
@@ -111,16 +123,29 @@ const AppContent: React.FC = () => {
         setAdminTabFilter={setAdminTabFilter} 
       />
       
-      <main className="content-wrapper">
-        {currentTab === 'dashboard' && <CoachDashboard />}
-        {currentTab === 'profile' && <ProfileEdit />}
-        {currentTab === 'admin' && role === 'admin' && (
-          <AdminDashboard 
-            initialFilter={adminTabFilter} 
-            setInitialFilter={setAdminTabFilter} 
+      <div className="content-wrapper">
+        <div className="app-main-layout">
+          <LeftNav 
+            currentTab={currentTab} 
+            setCurrentTab={setCurrentTab} 
+            collapsed={navCollapsed} 
+            setCollapsed={setNavCollapsed} 
           />
-        )}
-      </main>
+          
+          <main style={{ flex: 1, minWidth: 0 }}>
+            {currentTab === 'dashboard' && <CoachDashboard />}
+            {currentTab === 'profile' && <ProfileEdit />}
+            {currentTab === 'availability' && <AvailabilityEdit />}
+            {currentTab === 'bookings' && <MyBookings />}
+            {currentTab === 'admin' && role === 'admin' && (
+              <AdminDashboard 
+                initialFilter={adminTabFilter} 
+                setInitialFilter={setAdminTabFilter} 
+              />
+            )}
+          </main>
+        </div>
+      </div>
     </div>
   );
 };

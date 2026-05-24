@@ -20,8 +20,6 @@ import {
   X,
   RefreshCw,
   Clock,
-  Video,
-  ExternalLink,
   AlertTriangle,
   Info,
   ChevronLeft,
@@ -29,6 +27,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
+import { getLocalDateInTimezone, getHour24 } from '../utils/timezoneHelpers';
 
 const getTimezoneCode = (date: Date, timeZone: string): string => {
   try {
@@ -42,20 +41,7 @@ const getTimezoneCode = (date: Date, timeZone: string): string => {
   }
 };
 
-const getLocalDateInTimezone = (date: Date, timeZone: string): Date => {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric'
-  }).formatToParts(date);
-  
-  const y = parseInt(parts.find(p => p.type === 'year')!.value);
-  const m = parseInt(parts.find(p => p.type === 'month')!.value);
-  const d = parseInt(parts.find(p => p.type === 'day')!.value);
-  
-  return new Date(y, m - 1, d);
-};
+
 
 const getUtcForSlot = (date: Date, hour: number, timeZone: string): Date => {
   const year = date.getFullYear();
@@ -78,7 +64,7 @@ const getUtcForSlot = (date: Date, hour: number, timeZone: string): Date => {
     const tzYear = parseInt(parts.find(p => p.type === 'year')!.value);
     const tzMonth = parseInt(parts.find(p => p.type === 'month')!.value);
     const tzDay = parseInt(parts.find(p => p.type === 'day')!.value);
-    const tzHour = parseInt(parts.find(p => p.type === 'hour')!.value);
+    const tzHour = getHour24(parts);
     const tzMinute = parseInt(parts.find(p => p.type === 'minute')!.value);
     
     const targetMinutes = hour * 60;
@@ -96,47 +82,10 @@ const getUtcForSlot = (date: Date, hour: number, timeZone: string): Date => {
   return utcGuess;
 };
 
-const isSlotInCoachWorkingHours = (slotStart: Date, slotEnd: Date, coachTimezone: string): boolean => {
-  const getHourAndMin = (date: Date) => {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone: coachTimezone,
-      year: 'numeric',
-      month: 'numeric',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      hourCycle: 'h23'
-    }).formatToParts(date);
-    
-    return {
-      year: parseInt(parts.find(p => p.type === 'year')!.value),
-      month: parseInt(parts.find(p => p.type === 'month')!.value),
-      day: parseInt(parts.find(p => p.type === 'day')!.value),
-      hour: parseInt(parts.find(p => p.type === 'hour')!.value),
-      minute: parseInt(parts.find(p => p.type === 'minute')!.value)
-    };
-  };
 
-  try {
-    const startLocal = getHourAndMin(slotStart);
-    const endLocal = getHourAndMin(slotEnd);
-
-    if (startLocal.year !== endLocal.year || startLocal.month !== endLocal.month || startLocal.day !== endLocal.day) {
-      return false;
-    }
-
-    const startVal = startLocal.hour + startLocal.minute / 60;
-    const endVal = endLocal.hour + endLocal.minute / 60;
-
-    return startVal >= 8 && endVal <= 20;
-  } catch (e) {
-    console.error('Error computing working hours for coach timezone:', coachTimezone, e);
-    return false;
-  }
-};
 
 export const CoachDashboard: React.FC = () => {
-  const { user: currentUser, profile } = useAuth();
+  const { user: currentUser, profile, role } = useAuth();
   
   // Ref for date carousel scrolling
   const carouselRef = React.useRef<HTMLDivElement>(null);
@@ -160,7 +109,6 @@ export const CoachDashboard: React.FC = () => {
   const [loadingCoaches, setLoadingCoaches] = useState(true);
   const [coachesBusy, setCoachesBusy] = useState<Record<string, CalendarEvent[]>>({});
   const [loadingCalendar, setLoadingCalendar] = useState(true);
-  const [upcomingSessions, setUpcomingSessions] = useState<CalendarEvent[]>([]);
   const [userBusyEvents, setUserBusyEvents] = useState<CalendarEvent[]>([]);
   const [now] = useState(() => Date.now());
   
@@ -209,9 +157,12 @@ export const CoachDashboard: React.FC = () => {
   // Fetch all peer coaches
   useEffect(() => {
     const unsub = subscribeToAllUsers((usersList) => {
-      const peerCoaches = usersList.filter(
-        (u) => (u.role === 'user' || u.role === 'admin') && u.uid !== currentUser?.uid
-      );
+      const peerCoaches = usersList.filter((u) => {
+        const uRole = u.userRole || u.role;
+        const uStatus = u.userStatus || (u.role !== null ? 'active' : 'inactive');
+        const isPeerActive = uStatus === 'active' && (uRole === 'user' || uRole === 'admin');
+        return isPeerActive && u.uid !== currentUser?.uid;
+      });
       setCoaches(peerCoaches);
       setLoadingCoaches(false);
     });
@@ -233,14 +184,11 @@ export const CoachDashboard: React.FC = () => {
       endDay.setDate(today.getDate() + 56);
       const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
 
-      const availability = await getCoachesAvailability(!!profile?.role, coaches, timeMin, timeMax);
+      const availability = await getCoachesAvailability(!!role, coaches, timeMin, timeMax);
       setCoachesBusy(availability);
 
-      const allEvents = await getUpcomingEvents(!!profile?.role);
+      const allEvents = await getUpcomingEvents(!!role);
       setUserBusyEvents(allEvents);
-      
-      const userSessions = allEvents.filter(e => e.summary.toLowerCase().includes('coaching'));
-      setUpcomingSessions(userSessions);
     } catch (e) {
       console.error('Error fetching dashboard calendar details:', e);
     } finally {
@@ -280,11 +228,6 @@ export const CoachDashboard: React.FC = () => {
     }
 
     setUserBusyEvents(prev => {
-      if (prev.some(e => e.id === newEvent.id)) return prev;
-      return [...prev, newEvent];
-    });
-
-    setUpcomingSessions(prev => {
       if (prev.some(e => e.id === newEvent.id)) return prev;
       return [...prev, newEvent];
     });
@@ -332,12 +275,7 @@ export const CoachDashboard: React.FC = () => {
   const getCoachesForSlot = (slotStart: Date, slotEnd: Date, ignoreFilters = false) => {
     // 1. First find coaches who are working and not busy
     const available = coaches.filter(coach => {
-      const coachTz = coach.timezone || 'UTC';
-      // Checks standard 8 AM - 8 PM local business hours in the coach's timezone
-      const inWorkingHours = isSlotInCoachWorkingHours(slotStart, slotEnd, coachTz);
-      if (!inWorkingHours) return false;
-
-      // Checks if coach has google calendar busy slots
+      // Checks if coach has busy slots (which includes template gaps, blocked dates, bookings, and google calendar)
       const busy = isCoachBusy(coach.uid, slotStart, slotEnd);
       return !busy;
     });
@@ -390,10 +328,7 @@ export const CoachDashboard: React.FC = () => {
       {/* Dynamic styles */}
       <style>{`
         .dashboard-layout {
-          display: grid;
-          grid-template-columns: 1fr 340px;
-          gap: 24px;
-          align-items: start;
+          width: 100%;
         }
 
         .carousel-wrapper {
@@ -615,16 +550,10 @@ export const CoachDashboard: React.FC = () => {
           border-color: rgba(255, 255, 255, 0.1);
         }
 
-        @media (max-width: 1024px) {
-          .dashboard-layout {
-            grid-template-columns: 1fr;
-          }
-        }
+        /* Removed multi-column layout media query */
       `}</style>
 
       <div className="dashboard-layout">
-        {/* Main schedule view (Left Column) */}
-        <div style={{ minWidth: 0 }}>
           {/* Advanced Filter panel */}
           <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
@@ -702,15 +631,17 @@ export const CoachDashboard: React.FC = () => {
                         top: '105%',
                         left: 0,
                         right: 0,
-                        background: 'hsl(var(--bg-card, 15 23 42))',
-                        border: '1px solid rgba(255, 255, 255, 0.08)',
-                        borderRadius: '8px',
+                        background: 'var(--glass-bg)',
+                        backdropFilter: 'var(--glass-blur)',
+                        WebkitBackdropFilter: 'var(--glass-blur)',
+                        border: '1px solid var(--glass-border)',
+                        borderRadius: '12px',
                         padding: '8px',
                         display: 'flex',
                         flexDirection: 'column',
                         gap: '6px',
                         zIndex: 100,
-                        boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5)'
+                        boxShadow: 'var(--glass-shadow)'
                       }}>
                         {['ICF ACC', 'ICF PCC', 'ICF MCC'].map(q => {
                           const isChecked = selectedQuals.includes(q);
@@ -725,7 +656,7 @@ export const CoachDashboard: React.FC = () => {
                                 borderRadius: '4px',
                                 cursor: 'pointer',
                                 fontSize: '0.8rem',
-                                color: 'white',
+                                color: 'hsl(var(--text-primary))',
                                 transition: 'background 0.2s ease'
                               }}
                               className="dropdown-item-label"
@@ -937,6 +868,9 @@ export const CoachDashboard: React.FC = () => {
                               else if (hasPCC) borderCol = 'hsl(var(--pcc-silver))';
                               else if (hasACC) borderCol = 'hsl(var(--acc-gold))';
 
+                              const coachBusy = isCoachBusy(coach.uid, slot.startTime, slot.endTime);
+                              const isDisabled = conflict || coachBusy;
+
                               return (
                                 <div key={coach.uid} className="mini-coach-card">
                                   <div>
@@ -977,6 +911,7 @@ export const CoachDashboard: React.FC = () => {
                                       setActiveBookingCoach(coach);
                                       setActiveBookingSlot({ startTime: slot.startTime, endTime: slot.endTime });
                                     }}
+                                    disabled={isDisabled}
                                     className="btn btn-primary"
                                     style={{
                                       width: '100%',
@@ -984,10 +919,12 @@ export const CoachDashboard: React.FC = () => {
                                       fontSize: '0.8rem',
                                       borderRadius: '8px',
                                       height: '32px',
-                                      boxShadow: 'none'
+                                      boxShadow: 'none',
+                                      opacity: isDisabled ? 0.5 : 1,
+                                      cursor: isDisabled ? 'not-allowed' : 'pointer'
                                     }}
                                   >
-                                    Book Session
+                                    {conflict ? 'Conflict' : coachBusy ? 'Unavailable' : 'Book Session'}
                                   </button>
                                 </div>
                               );
@@ -1057,92 +994,6 @@ export const CoachDashboard: React.FC = () => {
               })()}
             </div>
           )}
-        </div>
-
-        {/* Sidebar overview (Right Column) */}
-        <div className="glass-panel" style={{ padding: '24px', position: 'sticky', top: '24px' }}>
-          <h3 className="sidebar-title" style={{ fontSize: '1.15rem', fontWeight: 800, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Calendar size={18} color="hsl(var(--primary))" />
-            My Booked Sessions
-          </h3>
-
-          {(() => {
-            const todayStart = localToday.getTime();
-            const filteredSessions = upcomingSessions.filter(s => new Date(s.start.dateTime).getTime() >= todayStart);
-
-            if (loadingCalendar) {
-              return <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>Updating sessions...</p>;
-            }
-            if (filteredSessions.length === 0) {
-              return (
-                <div style={{ textAlign: 'center', padding: '24px 12px', color: 'hsl(var(--text-muted))' }}>
-                  <Clock size={28} style={{ marginBottom: '8px', opacity: 0.3 }} />
-                  <p style={{ fontSize: '0.8rem', lineHeight: '1.4' }}>No upcoming peer sessions. Select a coach in the schedule to book a session.</p>
-                </div>
-              );
-            }
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {filteredSessions.map((session) => {
-                  const start = new Date(session.start.dateTime);
-                  const isPassedSession = start.getTime() < now;
-                  
-                  const timeOpts = { hour: '2-digit', minute: '2-digit' } as const;
-                  const timeStr = start.toLocaleTimeString([], { timeZone: viewerTimezone, ...timeOpts });
-                  const dateStr = start.toLocaleDateString([], { timeZone: viewerTimezone, month: 'short', day: 'numeric', weekday: 'short' });
-                  
-                  return (
-                    <div 
-                      key={session.id} 
-                      className="session-card"
-                      style={{ 
-                        opacity: isPassedSession ? 0.6 : 1,
-                        borderLeftColor: isPassedSession ? 'hsl(var(--text-muted))' : 'hsl(var(--primary))'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <span className="badge badge-user" style={{ fontSize: '0.55rem', padding: '2px 6px', textTransform: 'none' }}>
-                          {isPassedSession ? 'Completed' : 'Confirmed'}
-                        </span>
-                        {!isPassedSession && session.meetLink && (
-                          <span style={{ fontSize: '0.65rem', color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <Video size={10} /> Meet Link
-                          </span>
-                        )}
-                      </div>
-                      
-                      <h4 style={{ fontSize: '0.85rem', fontWeight: 700, margin: '8px 0 4px 0', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                        {session.summary}
-                      </h4>
-                      <p style={{ fontSize: '0.75rem', color: 'hsl(var(--text-secondary))' }}>
-                        {dateStr} at {timeStr}
-                      </p>
-                      
-                      {!isPassedSession && session.meetLink && (
-                        <a 
-                          href={session.meetLink} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="btn btn-secondary" 
-                          style={{
-                            marginTop: '10px',
-                            padding: '6px 12px',
-                            fontSize: '0.75rem',
-                            height: '28px',
-                            gap: '4px'
-                          }}
-                        >
-                          Join Room
-                          <ExternalLink size={10} />
-                        </a>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
-        </div>
       </div>
 
       {/* Booking confirmation modal overlay */}
