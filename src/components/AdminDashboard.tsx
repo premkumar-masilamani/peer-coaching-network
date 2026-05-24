@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { subscribeToAllUsers, updateProfile, formatDisplayName } from '../services/firebaseService';
+import { subscribeToAllUsers, updateProfile, formatDisplayName, db } from '../services/firebaseService';
 import type { UserProfile } from '../services/firebaseService';
 import {
   Search,
@@ -9,6 +9,9 @@ import {
   ExternalLink,
   X
 } from 'lucide-react';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
+import type { CalendarEvent } from '../services/googleCalendar';
 import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
 
 interface AdminDashboardProps {
@@ -31,11 +34,64 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
     statusToSave: 'active' | 'inactive';
     qualificationsToSave: string[];
   } | null>(null);
+  const [coachMeetings, setCoachMeetings] = useState<CalendarEvent[]>([]);
 
   // Sync state if initialFilter changes
   useEffect(() => {
-    setRoleFilter(initialFilter);
+    setTimeout(() => {
+      setRoleFilter(initialFilter);
+    }, 0);
   }, [initialFilter]);
+
+  // Fetch coach meetings when a coach profile is opened
+  useEffect(() => {
+    if (!selectedCoachUid || !users) {
+      setTimeout(() => {
+        setCoachMeetings([]);
+      }, 0);
+      return;
+    }
+    const coach = users.find(u => u.uid === selectedCoachUid);
+    if (!coach || !coach.email || !db) {
+      setTimeout(() => {
+        setCoachMeetings([]);
+      }, 0);
+      return;
+    }
+
+    const fetchMeetings = async () => {
+      try {
+        const qClient = query(collection(db, 'bookings'), where('clientEmail', '==', coach.email));
+        const snapClient = await getDocs(qClient);
+
+        const qHost = query(collection(db, 'bookings'), where('hostEmail', '==', coach.email));
+        const snapHost = await getDocs(qHost);
+
+        const meetings: CalendarEvent[] = [];
+        const seenIds = new Set<string>();
+
+        const processSnap = (snap: QuerySnapshot<DocumentData>) => {
+          snap.forEach((docSnap) => {
+            const data = docSnap.data();
+            if (!seenIds.has(data.id)) {
+              seenIds.add(data.id);
+              meetings.push(data as CalendarEvent);
+            }
+          });
+        };
+
+        processSnap(snapClient);
+        processSnap(snapHost);
+
+        meetings.sort((a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime());
+        setCoachMeetings(meetings);
+      } catch (err) {
+        console.error('Error fetching coach meetings:', err);
+      }
+    };
+
+    fetchMeetings();
+  }, [selectedCoachUid, users]);
 
   const handleTabChange = (filter: 'all' | 'pending' | 'user' | 'admin') => {
     setRoleFilter(filter);
@@ -173,16 +229,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
       return null;
     }
 
-    // Retrieve scheduled meetings for this coach from localStorage
-    const allMeetings = JSON.parse(localStorage.getItem('pcn_scheduled_meetings') || '[]');
-    const coachMeetings = allMeetings.filter((meeting: any) => {
-      const isAttendee = meeting.attendees?.some((att: any) => att.email === coach.email);
-      const isSummaryMatch = meeting.summary?.toLowerCase().includes((coach.displayName || '').toLowerCase()) ||
-        meeting.summary?.toLowerCase().includes((formatDisplayName(coach) || '').toLowerCase());
-      return isAttendee || isSummaryMatch;
-    });
-
-    coachMeetings.sort((a: any, b: any) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime());
+    // coachMeetings are loaded from Firestore dynamically via useEffect
 
     return (
       <div className="animate-fade-in" style={{ width: '100%' }}>
@@ -318,7 +365,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                 </p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {coachMeetings.map((ev: any) => {
+                  {coachMeetings.map((ev: CalendarEvent) => {
                     const start = new Date(ev.start.dateTime);
                     const timeString = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     const dateString = start.toLocaleDateString([], { month: 'short', day: 'numeric', weekday: 'short' });

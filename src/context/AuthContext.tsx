@@ -18,7 +18,7 @@ interface AuthContextType {
   role: 'admin' | 'user' | null | undefined; // undefined = loading/unset, null = no role (pending)
   loading: boolean;
   isRealFirebase: boolean;
-  login: (mockUid?: string) => Promise<void>;
+  login: () => Promise<void>;
   logout: () => Promise<void>;
   updateProfileDetails: (updates: Partial<UserProfile>) => Promise<void>;
 }
@@ -56,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubProfile = subscribeToProfile(user.uid, (prof) => {
       if (prof) {
         setProfile(prof);
-        setRole(prof.role === undefined ? null : prof.role);
+        setRole(prof.userRole || prof.role || null);
       } else {
         setProfile(null);
         setRole(null);
@@ -67,10 +67,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubProfile();
   }, [user]);
 
-  const login = async (mockUid?: string) => {
+  const login = async () => {
     setLoading(true);
     try {
-      await loginWithGoogle(mockUid);
+      await loginWithGoogle();
     } catch (e) {
       console.error('Login error:', e);
       setLoading(false);
