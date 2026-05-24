@@ -7,18 +7,31 @@ Think of this app as a **cooperative booking journal**—a helper that handles t
 ---
 
 ## Table of Contents
-1. [Signing In & Setting Up Your Application](#1-signing-in--setting-up-your-application)
-2. [Managing Your Digital Profile](#2-managing-your-digital-profile)
-3. [Day Mode & Night Mode (Theme Toggling)](#3-day-mode--night-mode-theme-toggling)
-4. [Connecting Your Google Calendar](#4-connecting-your-google-calendar)
-5. [Finding Other Coaches (Browse Coaches)](#5-finding-other-coaches-browse-coaches)
-6. [Booking a Peer Coaching Session](#6-booking-a-peer-coaching-session)
-7. [Attending and Managing Your Sessions](#7-attending-and-managing-your-sessions)
-8. [For Administrators: The Approval Desk](#8-for-administrators-the-approval-desk)
+1. [Using the Left Navigation Bar](#1-using-the-left-navigation-bar)
+2. [Signing In & Setting Up Your Application](#2-signing-in--setting-up-your-application)
+3. [Managing Your Digital Profile](#3-managing-your-digital-profile)
+4. [Day Mode & Night Mode (Theme Toggling)](#4-day-mode--night-mode-theme-toggling)
+5. [Connecting Your Google Calendar](#5-connecting-your-google-calendar)
+6. [Finding Other Coaches (Browse Coaches)](#6-finding-other-coaches-browse-coaches)
+7. [Booking a Peer Coaching Session](#7-booking-a-peer-coaching-session)
+8. [Attending and Managing Your Sessions](#8-attending-and-managing-your-sessions)
+9. [For Administrators: The Approval Desk](#9-for-administrators-the-approval-desk)
 
 ---
 
-## 1. Signing In & Setting Up Your Application
+## 1. Using the Left Navigation Bar
+
+The application features a collapsible navigation sidebar on the left side of your screen to make switching between features smooth and intuitive:
+* **The Toggle Button:** At the bottom of the sidebar, you will find a toggle button (< or >). Click it to collapse the sidebar into an icon-only mode (ideal for maximizing your screen workspace) or expand it to see full navigation text labels.
+* **Home:** The main dashboard catalog where you can search, filter, and find other peer coaches.
+* **Admin Panel:** Visible only to approved network administrators, this page is where new member requests are processed.
+* **My Availability:** Configure your timezone, set your weekly active coaching slots, and connect your Google Calendar.
+* **My Bookings:** A dedicated page compiling all your scheduled sessions (both those you booked and those booked with you).
+* **My Profile:** View and edit your public display name, gender, country, and check your certifications.
+
+---
+
+## 2. Signing In & Setting Up Your Application
 
 When you first open the application, you will be greeted by our login screen.
 * **How to sign in:** Simply click the colorful **"Sign in with Google"** button. This uses your existing Google email address to safely create your account without needing to remember a new password.
@@ -27,76 +40,78 @@ When you first open the application, you will be greeted by our login screen.
 
 ---
 
-## 2. Managing Your Digital Profile
+## 3. Managing Your Digital Profile
 
-Your profile card is your digital introduction card to other coaches. To view or edit it, click on your profile picture in the top-right corner of the screen and select **"My Profile"**.
+Your profile details are shown to other coaches in the catalog. To view or edit it, click the **"My Profile"** tab on the left navigation bar.
 
 Here is what you can configure:
-* **Your Profile Info:** Displays your full name and email address at the top.
-* **Gender & Country:** Choose your country from a simple alphabetical list.
-* **Timezone Matching:** Once you select your country, the app will automatically filter the timezone dropdown to show only the timezones belonging to that country. For example, selecting "India" will display only "Asia/Kolkata (IST)". You don't have to guess or scroll through hundreds of world regions!
+* **Profile Info:** Displays your full name and email address at the top.
+* **Gender & Country:** Select your gender and choose your country from a simple alphabetical list.
+* **Timezone Matching:** Once you select your country, the app will automatically filter the timezone dropdown to show only the timezones belonging to that country. For example, selecting "India" will display only "Asia/Kolkata (IST)".
 * **Biography:** Write a short, friendly description about your coaching style, experience, or what you hope to practice.
-* **Your Credentials:** At the bottom, you will see your official coaching certifications listed clearly:
+* **Your Credentials:** At the bottom of your profile card, you will see your official coaching certifications listed clearly:
   * **ACC:** Associate Certified Coach
   * **PCC:** Professional Certified Coach
   * **MCC:** Master Certified Coach
-  * *Note: Credentials are set by the administrators to keep them verified.*
+  * *Note: Credentials can only be edited by administrators to maintain verification.*
 
 ---
 
-## 3. Day Mode & Night Mode (Theme Toggling)
+## 4. Day Mode & Night Mode (Theme Toggling)
 
-We know that bright screens can sometimes strain the eyes, especially in the evening.
-* **How to switch modes:** Look at the top header bar, right next to your profile picture. You will see a small circular button with a **Sun ☀️** or a **Moon 🌙** icon.
-* Click the **Moon** to switch to a soft, relaxing **Night Mode** (dark background with glowing light text).
-* Click the **Sun** to switch to a bright, clear **Day Mode** (crisp light background with dark text).
-* The app will remember your choice, so it will look exactly the way you left it next time you sign in!
+We know that bright screens can strain the eyes, especially in the evening.
+* **How to switch modes:** Look at the top-right corner of the header. Click on your profile block (which displays your name, email, and member since details next to your avatar photo).
+* An overlay options menu will slide open. Click **"Light Mode"** or **"Dark Mode"** to toggle your theme.
+* **Sign Out:** The same dropdown overlay menu is also where you can safely log out of your session by selecting **"Sign Out"**.
+* The app automatically remembers your theme choice for your next visit!
 
 ---
 
-## 4. Connecting Your Google Calendar
+## 5. Connecting Your Google Calendar
 
 To prevent other coaches from booking sessions when you are busy, you can sync your schedule with Google Calendar.
-* **How to connect:** On your **"My Profile"** page, you will see a card labeled **"Google Calendar Sync"**. Click the green **"Connect Calendar"** button.
-* **How it works:** Once connected, the app will check your personal calendar for commitments (like dentist appointments or family dinners) and cover those slots so nobody can schedule over them.
-* **Header Status:** A small pill badge labeled **"Calendar Synced"** will appear in the top header. You can click this badge at any time from any page to quickly return to your profile.
+* **How to connect:** Go to the **"My Availability"** page on your left navigation bar. Under the **"Google Calendar Sync"** section, click the green **"Connect Calendar"** button.
+* **How it works:** Once connected, the app will check your personal calendar for commitments (like external work blocks or personal appointments) and block those slots so nobody can schedule over them.
+* **Theme-responsive sync indicator:** An offline warning badge will display if calendar sync is inactive, guiding you to connect your calendar.
 
 ---
 
-## 5. Finding Other Coaches (Browse Coaches)
+## 6. Finding Other Coaches (Browse Coaches)
 
-Whenever you click the **"Peer Coaching Network"** logo in the top-left, you will return to your homepage dashboard: the coach catalog.
-* **Coach Cards:** You will see a list of your approved fellow coaches, showing their names, avatars, countries, short credentials (like ACC, PCC, or MCC), and summaries of their biographies.
-* **Searching by Name:** If you are looking for a specific colleague, there is a **"Search by Name"** text box at the dynamic filters area. Just start typing their name!
-* **Filtering by Credentials:** You can open the "Filter by Credentials" dropdown and check the boxes for specific certification levels (like MCC) to find coaches with those credentials.
-* **Clearing Filters:** Click the **"Clear Filters"** button to reset your search and view the full list again.
+Go to the **"Home"** tab on the left navigation bar to open the coach catalog.
+* **Coach Cards:** You will see a list of approved fellow coaches, showing their names, avatars, countries, short credentials (like ACC, PCC, or MCC), and summaries of their biographies.
+* **Searching by Name:** If you are looking for a specific colleague, start typing their name in the search box.
+* **Filtering by Credentials:** Open the "Qualifications" dropdown and check the certification levels (like ICF MCC) you want to filter by.
+* **Expanded View:** When you select one or more certifications, their full, expanded names (e.g. *Master Certified Coach* instead of *MCC*) will display clearly below the dropdown box, one per line.
+* **Clearing Filters:** Click the **"Clear Filters"** button to reset your search.
 
 ---
 
-## 6. Booking a Peer Coaching Session
+## 7. Booking a Peer Coaching Session
 
 When you find a coach you would like to meet with, booking is simple:
 1. Click the **"Book Peer"** button on their card.
-2. You will see a weekly calendar grid. If you want to look further out, click the **Left/Right Chevrons (< and >)** to flip the pages week-by-week (up to 2 months into the future).
-3. Click on a time slot that is highlighted as **"Available"**.
-4. A friendly window (modal pop-up) will open. Type the topic you would like to focus on (e.g., "Life coaching feedback" or "Active listening practice").
-5. Click **"Confirm Booking"**. The app will immediately schedule it on both of your Google Calendars and generate a secure **Google Meet video link**.
+2. You will see a weekly calendar grid. Click the **Left/Right Chevrons (< and >)** to flip the pages week-by-week (up to 2 months into the future).
+3. Click on a time slot highlighted as **"Available"**.
+4. **Conflict Safety:** If the slot conflicts with your own availability or calendar commitments, the booking button will be disabled, and a warning banner will appear to prevent double bookings.
+5. Type the topic you would like to focus on (e.g., "Life coaching feedback" or "Active listening practice").
+6. Click **"Confirm Booking"**. The app will immediately schedule it on both of your Google Calendars and generate a secure **Google Meet video link**.
 
 ---
 
-## 7. Attending and Managing Your Sessions
+## 8. Attending and Managing Your Sessions
 
-You never have to worry about where to find your meeting links!
-* **Upcoming Sessions:** In the sidebar on the main dashboard, you will see a list of all your scheduled peer coaching sessions starting from today onwards. Past sessions are automatically archived so your list stays clean.
-* **Meeting Titles:** The calendar invitation is named clearly: `"Other Coach Name / Your Name - Peer Coaching Session"`.
-* **Joining the Call:** When it's time for your meeting, simply go to your dashboard, find the session in your sidebar list, and click the green **"Join Google Meet"** button. This opens the video room instantly in a new window!
+Managing your scheduled peer coaching appointments is simple:
+* **The "My Bookings" Page:** Click the **"My Bookings"** tab on the left navigation bar to see a list of all your scheduled peer coaching sessions starting from today onwards.
+* **Localized Timezones:** The bookings list clearly states the timezone in which the meeting times are displayed, ensuring you never miss a slot due to calculations.
+* **Joining the Call:** When it's time for your meeting, go to your **"My Bookings"** page and click the green **"Join Google Meet"** button. This opens the video room instantly in a new window!
 
 ---
 
-## 8. For Administrators: The Approval Desk
+## 9. For Administrators: The Approval Desk
 
 If you are designated as an administrator for the network, you have access to extra controls to welcome and approve new members.
 * **Member Requests Notification:** If a new coach registers, a yellow badge saying **"Member Requests (N)"** (where N is the number of pending coaches) will light up in your top header. Click it to go directly to the Admin Desk's **"Pending"** tab.
 * **Reviewing Profiles:** Click on any coach's row to slide open their complete profile, read their biography, and review their timezone and location.
-* **Making Edits:** You can modify their system role (User or Admin), toggling their account status (Active or Inactive), or assigning credentials (ACC, PCC, MCC) using checkmarks.
+* **Making Edits:** You can modify their system role (User or Admin), toggle their account status (Active or Inactive), or assign credentials (ACC, PCC, MCC) using checkboxes.
 * **Approving Safely:** When you click the green **"Approve"** button, a clean window will pop up showing you exactly what is changing (for example: `System Role: "user" → "admin"`). Review this list, then click **"Confirm Approval"** to commit the changes!

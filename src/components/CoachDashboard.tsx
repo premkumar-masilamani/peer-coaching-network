@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { subscribeToAllUsers, formatDisplayName } from '../services/firebaseService';
-import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
+import { getShortCredential, getCredentialBadgeClass, getCredentialDescription } from '../utils/credentials';
 import type { UserProfile } from '../services/firebaseService';
 import { 
   getUpcomingEvents, 
@@ -609,7 +609,6 @@ export const CoachDashboard: React.FC = () => {
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       width: '100%',
-                      background: 'rgba(15, 23, 42, 0.4)',
                       cursor: 'pointer'
                     }}
                   >
@@ -631,10 +630,8 @@ export const CoachDashboard: React.FC = () => {
                         top: '105%',
                         left: 0,
                         right: 0,
-                        background: 'var(--glass-bg)',
-                        backdropFilter: 'var(--glass-blur)',
-                        WebkitBackdropFilter: 'var(--glass-blur)',
-                        border: '1px solid var(--glass-border)',
+                        background: 'hsl(var(--bg-surface-elevated))',
+                        border: '1px solid var(--border-light)',
                         borderRadius: '12px',
                         padding: '8px',
                         display: 'flex',
@@ -673,6 +670,24 @@ export const CoachDashboard: React.FC = () => {
                         })}
                       </div>
                     </>
+                  )}
+                  {selectedQuals.length > 0 && (
+                    <div style={{
+                      marginTop: '8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                      fontSize: '0.8rem',
+                      color: 'hsl(var(--text-secondary))',
+                      paddingLeft: '4px'
+                    }}>
+                      {selectedQuals.map(q => (
+                        <div key={q} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Award size={12} style={{ color: 'hsl(var(--primary))', flexShrink: 0 }} />
+                          <span>{getCredentialDescription(q)}</span>
+                        </div>
+                      ))}
+                    </div>
                   )}
                 </div>
               </div>
