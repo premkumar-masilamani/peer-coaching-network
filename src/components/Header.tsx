@@ -1,7 +1,8 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Sparkles, Shield, LogOut, Sun, Moon } from 'lucide-react';
-import { formatDisplayName, subscribeToAllUsers } from '../services/firebaseService';
+import { formatDisplayName, formatMemberSince, isApproved, subscribeToPendingUsersCount } from '../services/firebaseService';
+import { sanitizeImageUrl } from '../utils/url';
 
 interface HeaderProps {
   currentTab: string;
@@ -14,25 +15,18 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
   const [pendingCount, setPendingCount] = React.useState(0);
   const [menuOpen, setMenuOpen] = React.useState(false);
 
-  const isActive = profile?.userStatus === 'active';
+  const isActive = isApproved(profile);
   const isActiveAdmin = role === 'admin' && isActive;
 
   React.useEffect(() => {
-    if (role === 'admin' && profile?.userStatus === 'active') {
-      const unsub = subscribeToAllUsers((usersList) => {
-        const count = usersList.filter(u => {
-          const status = u.userStatus || (u.role !== null ? 'active' : 'inactive');
-          return status === 'inactive';
-        }).length;
-        setPendingCount(count);
-      });
+    if (role === 'admin' && isActive) {
+      // Subscribe to a count derived from only the pending docs, not the whole
+      // users collection. See BUG-006. (The badge is hidden for non-admins, so
+      // no explicit reset is needed when this branch is skipped.)
+      const unsub = subscribeToPendingUsersCount(setPendingCount);
       return () => unsub();
-    } else {
-      setTimeout(() => {
-        setPendingCount(0);
-      }, 0);
     }
-  }, [role, profile?.userStatus]);
+  }, [role, isActive]);
 
   if (!user) return null;
 
@@ -133,14 +127,14 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
                 </p>
                 {profile?.createdAt && (
                   <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))', margin: 0, marginTop: '2px' }}>
-                    Member since {profile.createdAt}
+                    Member since {formatMemberSince(profile.createdAt)}
                   </p>
                 )}
               </div>
 
-              <img 
-                src={profile?.photoURL || user.photoURL || 'https://api.dicebear.com/7.x/bottts/svg'} 
-                alt={formatDisplayName(profile || user) || 'User'} 
+              <img
+                src={sanitizeImageUrl(profile?.photoURL || user.photoURL)}
+                alt={formatDisplayName(profile || user) || 'User'}
                 style={{
                   width: '38px',
                   height: '38px',

@@ -2,6 +2,7 @@ import React from 'react';
 import type { UserProfile } from '../services/firebaseService';
 import { formatDisplayName } from '../services/firebaseService';
 import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
+import { sanitizeImageUrl } from '../utils/url';
 import { MapPin, Calendar, Award } from 'lucide-react';
 
 interface CoachCardProps {
@@ -46,9 +47,9 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
       <div>
         {/* Profile Avatar and Name */}
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '16px', zIndex: 1, position: 'relative' }}>
-          <img 
-            src={coach.photoURL || 'https://api.dicebear.com/7.x/bottts/svg'} 
-            alt={formatDisplayName(coach) || 'Coach'} 
+          <img
+            src={sanitizeImageUrl(coach.photoURL)}
+            alt={formatDisplayName(coach) || 'Coach'}
             style={{
               width: '56px',
               height: '56px',

@@ -1,29 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getUpcomingEvents, isCalendarSynced } from '../services/googleCalendar';
+import { getUpcomingEvents, cancelBooking, isCalendarSynced } from '../services/googleCalendar';
 import type { CalendarEvent } from '../services/googleCalendar';
-import { 
-  Calendar, 
-  Clock, 
-  Video, 
-  ExternalLink, 
-  RefreshCw, 
-  AlertTriangle 
+import {
+  Calendar,
+  Clock,
+  Video,
+  ExternalLink,
+  RefreshCw,
+  AlertTriangle,
+  XCircle
 } from 'lucide-react';
+import { sanitizeMeetLink } from '../utils/url';
 
 export const MyBookings: React.FC = () => {
-  const { user, role } = useAuth();
+  const { user } = useAuth();
   const [sessions, setSessions] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [now] = useState(() => Date.now());
   const synced = isCalendarSynced();
 
   const loadSessions = async () => {
     setLoading(true);
     try {
-      const list = await getUpcomingEvents(!!role);
-      // Filter events containing "coaching" in the summary
-      const coachingSessions = list.filter(e => e.summary.toLowerCase().includes('coaching'));
+      const list = await getUpcomingEvents();
+      // Identify peer-coaching sessions by an explicit type tag, falling back to
+      // the legacy summary heuristic for old bookings. See BUG-019.
+      const coachingSessions = list.filter(
+        e => e.type === 'peer-coaching' || (e.summary || '').toLowerCase().includes('coaching')
+      );
       setSessions(coachingSessions);
     } catch (e) {
       console.error('Error loading bookings:', e);
@@ -32,13 +38,38 @@ export const MyBookings: React.FC = () => {
     }
   };
 
+  const handleCancel = async (bookingId: string) => {
+    setCancellingId(bookingId);
+    try {
+      await cancelBooking(bookingId);
+      await loadSessions();
+    } catch (e) {
+      console.error('Error cancelling booking:', e);
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  // Initial load. Inlined (rather than calling loadSessions) so no setState runs
+  // synchronously in the effect body — loading already starts true. See BUG-015.
   useEffect(() => {
-    const timer = setTimeout(() => {
-      loadSessions();
-    }, 0);
-    return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await getUpcomingEvents();
+        if (cancelled) return;
+        const coachingSessions = list.filter(
+          e => e.type === 'peer-coaching' || (e.summary || '').toLowerCase().includes('coaching')
+        );
+        setSessions(coachingSessions);
+      } catch (e) {
+        console.error('Error loading bookings:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   if (!user) return null;
 
@@ -111,18 +142,20 @@ export const MyBookings: React.FC = () => {
                   const timeOpts = { hour: '2-digit', minute: '2-digit' } as const;
                   const timeStr = start.toLocaleTimeString([], timeOpts);
                   const dateStr = start.toLocaleDateString([], { month: 'short', day: 'numeric', weekday: 'short', year: 'numeric' });
-                  
+                  const safeMeetLink = sanitizeMeetLink(session.meetLink);
+                  const isCancellable = session.type === 'peer-coaching';
+
                   return (
-                    <div 
-                      key={session.id} 
-                      className="glass-panel glass-panel-interactive" 
+                    <div
+                      key={session.id}
+                      className="glass-panel glass-panel-interactive"
                       style={{ padding: '20px', borderLeft: '4px solid hsl(var(--primary))' }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                         <span className="badge badge-user" style={{ fontSize: '0.65rem', padding: '3px 8px', textTransform: 'none' }}>
                           Confirmed
                         </span>
-                        {session.meetLink && (
+                        {safeMeetLink && (
                           <span style={{ fontSize: '0.7rem', color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
                             <Video size={12} /> Google Meet
                           </span>
@@ -146,12 +179,12 @@ export const MyBookings: React.FC = () => {
                         </p>
                       )}
                       
-                      {session.meetLink && (
-                        <a 
-                          href={session.meetLink} 
-                          target="_blank" 
-                          rel="noopener noreferrer" 
-                          className="btn btn-primary" 
+                      {safeMeetLink && (
+                        <a
+                          href={safeMeetLink}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-primary"
                           style={{
                             width: '100%',
                             padding: '8px 16px',
@@ -163,6 +196,27 @@ export const MyBookings: React.FC = () => {
                           Join Google Meet
                           <ExternalLink size={12} />
                         </a>
+                      )}
+
+                      {isCancellable && (
+                        <button
+                          onClick={() => handleCancel(session.id)}
+                          disabled={cancellingId === session.id}
+                          className="btn btn-secondary"
+                          style={{
+                            width: '100%',
+                            padding: '8px 16px',
+                            fontSize: '0.8rem',
+                            height: '34px',
+                            gap: '6px',
+                            marginTop: '8px',
+                            borderColor: 'rgba(239, 68, 68, 0.2)',
+                            color: '#f87171'
+                          }}
+                        >
+                          <XCircle size={12} />
+                          {cancellingId === session.id ? 'Cancelling...' : 'Cancel Session'}
+                        </button>
                       )}
                     </div>
                   );

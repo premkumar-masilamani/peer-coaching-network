@@ -158,7 +158,7 @@ export const Login: React.FC = () => {
           </div>
           <h4 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>Verified Coaches</h4>
           <p style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>
-            Access is restricted through role-based authentication and administrative approval workflows. All new registrations are manually reviewed and verified within 24 hours.
+            Access is restricted through role-based authentication and administrative approval workflows. All new registrations are manually reviewed and approved by an administrator.
           </p>
         </div>
       </div>

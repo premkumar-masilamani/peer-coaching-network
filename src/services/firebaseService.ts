@@ -23,6 +23,7 @@ import {
 } from 'firebase/firestore';
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
+import { setGoogleToken, clearGoogleToken } from './googleToken';
 
 declare global {
   interface Window {
@@ -88,21 +89,50 @@ export interface UserProfile {
   availabilityTemplate?: AvailabilityTemplate;
 }
 
+const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+
+// Required config that has no safe default. Against the emulator these are not
+// needed, but a real (cloud) build must supply them — we never silently fall
+// back to dummy credentials. See BUG-013.
+const requiredConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || (useEmulator ? 'peer-coaching-network-dev' : undefined),
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+};
+
+const missingConfig = Object.entries(requiredConfig)
+  .filter(([, value]) => !value)
+  .map(([key]) => `VITE_FIREBASE_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`);
+
+if (!useEmulator && missingConfig.length > 0) {
+  const message = `Missing required Firebase configuration: ${missingConfig.join(', ')}. ` +
+    'Set these environment variables (see .env.prod / Firebase project settings).';
+  // Fail fast in production rather than booting with broken credentials.
+  if (import.meta.env.PROD) {
+    throw new Error(message);
+  } else {
+    console.error(message);
+  }
+}
+
+const projectId = requiredConfig.projectId || 'peer-coaching-network-dev';
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "dummy-api-key",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || `${import.meta.env.VITE_FIREBASE_PROJECT_ID || 'peer-coaching-network-dev'}.firebaseapp.com`,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'peer-coaching-network-dev',
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || `${import.meta.env.VITE_FIREBASE_PROJECT_ID || 'peer-coaching-network-dev'}.firebasestorage.app`,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "1234567890",
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:1234567890:web:1234567890",
+  apiKey: requiredConfig.apiKey,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || `${projectId}.firebaseapp.com`,
+  projectId,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || `${projectId}.firebasestorage.app`,
+  messagingSenderId: requiredConfig.messagingSenderId,
+  appId: requiredConfig.appId,
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Connect to Emulators during development/testing
-if (import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+// Connect to Emulators during development/testing if configured
+if (useEmulator) {
   if (!window._firebase_emulators_connected) {
     window._firebase_emulators_connected = true;
     try {
@@ -115,7 +145,9 @@ if (import.meta.env.DEV || window.location.hostname === 'localhost' || window.lo
   }
 }
 
-export const isFirebaseConfigured = true;
+// Reflects whether real config was supplied (or we're running against the
+// emulator), instead of being hardcoded true. See BUG-013.
+export const isFirebaseConfigured = useEmulator || missingConfig.length === 0;
 
 export { auth, db };
 
@@ -128,9 +160,9 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
   const result = await signInWithPopup(auth, provider);
   const credential = GoogleAuthProvider.credentialFromResult(result);
   
-  // Store access token in session storage for Calendar API calls
+  // Hold the access token in memory only (never persisted) for Calendar API calls
   if (credential?.accessToken) {
-    sessionStorage.setItem('google_access_token', credential.accessToken);
+    setGoogleToken(credential.accessToken);
   }
   
   // Check/create user document in firestore
@@ -154,7 +186,7 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
       location: { country: '' },
       bio: '',
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      createdAt: `${new Date().toLocaleString('en-US', { month: 'long' })}, ${new Date().getFullYear()}`,
+      createdAt: new Date().toISOString(),
       theme: 'dark',
       availabilityTemplate: DEFAULT_TEMPLATE
     };
@@ -171,7 +203,7 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
 };
 
 export const logout = async (): Promise<void> => {
-  sessionStorage.removeItem('google_access_token');
+  clearGoogleToken();
   await signOut(auth);
 };
 
@@ -191,9 +223,60 @@ export const subscribeToProfile = (uid: string, callback: (profile: UserProfile 
   });
 };
 
+// Generic mutator. Used by admin operations that legitimately write privileged
+// fields; server-side Firestore rules enforce that only admins may do so.
 export const updateProfile = async (uid: string, updates: Partial<UserProfile>): Promise<void> => {
   const docRef = doc(db, 'users', uid);
   await updateDoc(docRef, updates);
+};
+
+// Fields a user may change on their OWN profile. Privileged fields
+// (role/userRole/userStatus/qualifications) are intentionally excluded — they
+// are admin-controlled and enforced server-side by Firestore rules. See BUG-002.
+const OWN_EDITABLE_FIELDS: (keyof UserProfile)[] = [
+  'prefix', 'displayName', 'photoURL', 'gender', 'location',
+  'bio', 'timezone', 'calendarSynced', 'theme', 'availabilityTemplate'
+];
+
+export const updateOwnProfile = async (uid: string, updates: Partial<UserProfile>): Promise<void> => {
+  const safeUpdates: DocumentData = {};
+  for (const key of OWN_EDITABLE_FIELDS) {
+    const value = updates[key];
+    if (value !== undefined) {
+      safeUpdates[key] = value;
+    }
+  }
+  if (Object.keys(safeUpdates).length === 0) return;
+  await updateDoc(doc(db, 'users', uid), safeUpdates);
+};
+
+// Canonical approval/role helpers — the single source of truth reconciling the
+// legacy `role` field with the newer `userRole`/`userStatus` model. See BUG-012.
+export const getEffectiveStatus = (p?: UserProfile | null): 'active' | 'inactive' => {
+  if (!p) return 'inactive';
+  if (p.userStatus) return p.userStatus;
+  return p.role !== null && p.role !== undefined ? 'active' : 'inactive';
+};
+
+export const getEffectiveRole = (p?: UserProfile | null): 'admin' | 'user' => {
+  if (!p) return 'user';
+  if (p.userRole) return p.userRole;
+  return p.role === 'admin' ? 'admin' : 'user';
+};
+
+export const isApproved = (p?: UserProfile | null): boolean => {
+  return getEffectiveStatus(p) === 'active';
+};
+
+// Format a stored createdAt for display, accepting both ISO timestamps (new
+// format) and legacy "Month, Year" display strings. See BUG-020.
+export const formatMemberSince = (createdAt?: string): string => {
+  if (!createdAt) return '';
+  const date = new Date(createdAt);
+  if (!isNaN(date.getTime())) {
+    return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  }
+  return createdAt;
 };
 
 // Admin Specific Operations
@@ -206,6 +289,28 @@ export const subscribeToAllUsers = (callback: (users: UserProfile[]) => void): (
     });
     callback(users);
   });
+};
+
+// Live subscription to ACTIVE users only (peer coaches), avoiding a full
+// users-collection download for the dashboard (BUG-006). We filter on the
+// legacy `role` field because it is present on EVERY document (set on signup
+// and kept in sync with userStatus), whereas `userStatus` may be absent on
+// pre-migration docs — querying it would silently drop them. See BUG-002.
+export const subscribeToActiveCoaches = (callback: (users: UserProfile[]) => void): (() => void) => {
+  const q = query(collection(db, 'users'), where('role', 'in', ['admin', 'user']));
+  return onSnapshot(q, (querySnap) => {
+    const users: UserProfile[] = [];
+    querySnap.forEach((d) => users.push(d.data() as UserProfile));
+    callback(users);
+  });
+};
+
+// Live count of pending (inactive) users — transfers only pending documents
+// rather than the whole collection just to derive a badge number (BUG-006).
+// `role == null` is the canonical "pending" marker, present on every doc. See BUG-002.
+export const subscribeToPendingUsersCount = (callback: (count: number) => void): (() => void) => {
+  const q = query(collection(db, 'users'), where('role', '==', null));
+  return onSnapshot(q, (querySnap) => callback(querySnap.size));
 };
 
 export const setUserRole = async (uid: string, role: 'admin' | 'user' | null): Promise<void> => {
@@ -237,7 +342,22 @@ export const formatDisplayName = (user: { displayName?: string | null; prefix?: 
   return cleanName;
 };
 
-export const recalculateUserAvailability = async (uid: string): Promise<void> => {
+const recalcChains = new Map<string, Promise<void>>();
+
+// Serialize recalculations per-uid so concurrent triggers cannot interleave and
+// clobber each other's writes (lost update). Errors propagate so callers may
+// retry rather than silently dropping them. See BUG-009.
+export const recalculateUserAvailability = (uid: string): Promise<void> => {
+  const prev = recalcChains.get(uid) || Promise.resolve();
+  const next = prev.catch(() => {}).then(() => doRecalculateUserAvailability(uid));
+  recalcChains.set(uid, next);
+  next.finally(() => {
+    if (recalcChains.get(uid) === next) recalcChains.delete(uid);
+  }).catch(() => {});
+  return next;
+};
+
+const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
   if (!db) return;
   try {
     const userDocRef = doc(db, 'users', uid);
@@ -375,11 +495,15 @@ export const recalculateUserAvailability = async (uid: string): Promise<void> =>
       }
     }
     
-    // 2. Process active bookings
+    // 2. Process active bookings (skip cancelled and already-finished ones so
+    //    busy slots don't accrete forever). See BUG-016.
+    const nowMs = Date.now();
     bookings.forEach(b => {
+      if (b.status === 'cancelled') return;
       const bStart = b.start?.dateTime || b.start;
       const bEnd = b.end?.dateTime || b.end;
       if (bStart && bEnd) {
+        if (new Date(bEnd).getTime() < nowMs) return;
         busySlots.push({
           start: new Date(bStart).toISOString(),
           end: new Date(bEnd).toISOString(),
@@ -397,5 +521,6 @@ export const recalculateUserAvailability = async (uid: string): Promise<void> =>
     });
   } catch (err) {
     console.error('Error recalculating availability:', err);
+    throw err;
   }
 };

@@ -1,8 +1,9 @@
 import type { UserProfile } from './firebaseService';
 import { db, auth, recalculateUserAvailability, DEFAULT_TEMPLATE } from './firebaseService';
-import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, documentId, runTransaction } from 'firebase/firestore';
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
+import { getGoogleToken } from './googleToken';
 
 export interface CalendarEvent {
   id: string;
@@ -11,11 +12,27 @@ export interface CalendarEvent {
   start: { dateTime: string };
   end: { dateTime: string };
   meetLink?: string;
+  type?: string;
   attendees?: { email: string; displayName?: string }[];
 }
 
+// Split an array into chunks of at most `size` (for Firestore `in` queries,
+// which accept up to 30 values). See BUG-005.
+const chunkArray = <T>(arr: T[], size: number): T[][] => {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+};
+
+// A real, usable Google token (not absent and not the legacy mock sentinel).
+const hasLiveGoogleToken = (): boolean => {
+  const token = getGoogleToken();
+  return !!token && token !== 'mock_google_access_token';
+};
+
 export const isCalendarSynced = (): boolean => {
-  return sessionStorage.getItem('google_access_token') !== null;
+  // The mock sentinel does NOT count as synced — it never reaches Google. See BUG-017.
+  return hasLiveGoogleToken();
 };
 
 interface GoogleCalendarEvent {
@@ -37,13 +54,13 @@ interface GoogleCalendarEvent {
   }[];
 }
 
-export const getUpcomingEvents = async (isRealFirebase: boolean): Promise<CalendarEvent[]> => {
-  const token = sessionStorage.getItem('google_access_token');
+export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
+  const token = getGoogleToken();
   const events: CalendarEvent[] = [];
   const seenIds = new Set<string>();
-  
+
   // Try to load from Google Calendar if a valid token is present
-  if (isRealFirebase && token && token !== 'mock_google_access_token') {
+  if (token && token !== 'mock_google_access_token') {
     try {
       const response = await fetch(
         'https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=' + new Date().toISOString() + '&singleEvents=true&orderBy=startTime',
@@ -73,40 +90,38 @@ export const getUpcomingEvents = async (isRealFirebase: boolean): Promise<Calend
     }
   }
 
-  // Always query Firestore bookings where the current user is host or client and merge
+  // Always query Firestore bookings where the current user is host or client (by
+  // stable uid, not email) and merge. See BUG-019.
   const currentUser = auth?.currentUser;
   if (currentUser && db) {
     try {
-      const qClient = query(collection(db, 'bookings'), where('clientEmail', '==', currentUser.email));
+      const qClient = query(collection(db, 'bookings'), where('menteeUid', '==', currentUser.uid));
       const snapClient = await getDocs(qClient);
 
-      const qHost = query(collection(db, 'bookings'), where('hostEmail', '==', currentUser.email));
+      const qHost = query(collection(db, 'bookings'), where('coachUid', '==', currentUser.uid));
       const snapHost = await getDocs(qHost);
 
       const processSnap = (snap: QuerySnapshot<DocumentData>) => {
         snap.forEach((d) => {
           const data = d.data();
+          if (data.status === 'cancelled') return; // skip cancelled bookings (BUG-016)
+          // De-duplicate strictly by stable id, never by coincidental start time. See BUG-010.
           if (!seenIds.has(data.id)) {
-            // Check if there is already an event starting at the same time to avoid overlaps
+            seenIds.add(data.id);
             const startStr: string = typeof data.start === 'string' ? data.start : (data.start?.dateTime || '');
-            const hasDuplicateTime = events.some(
-              e => new Date(e.start.dateTime).getTime() === new Date(startStr).getTime()
-            );
-            if (!hasDuplicateTime) {
-              seenIds.add(data.id);
-              events.push({
-                id: data.id,
-                summary: data.summary,
-                description: data.description,
-                start: { dateTime: startStr },
-                end: { dateTime: typeof data.end === 'string' ? data.end : (data.end?.dateTime || '') },
-                meetLink: data.meetLink,
-                attendees: [
-                  { email: data.hostEmail, displayName: data.hostName },
-                  { email: data.clientEmail, displayName: data.clientName }
-                ]
-              });
-            }
+            events.push({
+              id: data.id,
+              summary: data.summary,
+              description: data.description,
+              start: { dateTime: startStr },
+              end: { dateTime: typeof data.end === 'string' ? data.end : (data.end?.dateTime || '') },
+              meetLink: data.meetLink,
+              type: data.type,
+              attendees: [
+                { email: data.hostEmail, displayName: data.hostName },
+                { email: data.clientEmail, displayName: data.clientName }
+              ]
+            });
           }
         });
       };
@@ -128,7 +143,6 @@ export const getUpcomingEvents = async (isRealFirebase: boolean): Promise<Calend
 };
 
 export const scheduleMeeting = async (
-  isRealFirebase: boolean,
   coachUid: string,
   coachEmail: string,
   coachName: string,
@@ -138,9 +152,9 @@ export const scheduleMeeting = async (
   endIso: string,
   topic: string
 ): Promise<CalendarEvent> => {
-  const token = sessionStorage.getItem('google_access_token');
-  const meetId = Math.random().toString(36).substring(2, 5) + '-' + 
-                 Math.random().toString(36).substring(2, 6) + '-' + 
+  const token = getGoogleToken();
+  const meetId = Math.random().toString(36).substring(2, 5) + '-' +
+                 Math.random().toString(36).substring(2, 6) + '-' +
                  Math.random().toString(36).substring(2, 5);
   const meetLink = `https://meet.google.com/${meetId}`;
 
@@ -169,88 +183,162 @@ export const scheduleMeeting = async (
     },
   };
 
+  // Deterministic per-slot document id so a coach can't be double-booked for the
+  // same time. See BUG-004.
+  const bookingId = `${coachUid}_${startIso}`;
+
+  const currentUser = auth?.currentUser;
+  const clientEmail = currentUser?.email || '';
+  const resolvedClientName = currentUser?.displayName || clientName;
+
   let realMeetLink = meetLink;
   let googleEventId = `booking-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
-  if (isRealFirebase && token && token !== 'mock_google_access_token') {
-    try {
-      // POST event to Google Calendar, with conferenceDataVersion=1 to generate Meet link
-      const response = await fetch(
-        'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(eventPayload),
-        }
-      );
+  if (db) {
+    const bookingRef = doc(db, 'bookings', bookingId);
+    // Per-mentee/per-slot lock so a mentee can't double-book themselves across
+    // coaches at the same time. See BUG-003.
+    const holdRef = doc(db, 'slotHolds', `${menteeUid}_${startIso}`);
 
-      if (response.ok) {
-        const data = await response.json();
-        googleEventId = data.id;
-        realMeetLink = data.hangoutLink || meetLink;
+    const bookingData = {
+      id: bookingId,
+      googleEventId,
+      type: 'peer-coaching',
+      status: 'confirmed',
+      summary: eventPayload.summary,
+      description: eventPayload.description,
+      start: { dateTime: startIso },
+      end: { dateTime: endIso },
+      meetLink: realMeetLink,
+      topic,
+      hostEmail: coachEmail,
+      hostName: coachName,
+      clientEmail,
+      clientName: resolvedClientName,
+      coachUid,
+      menteeUid,
+      createdAt: new Date().toISOString()
+    };
+
+    try {
+      // Claim the slot in Firestore FIRST — refuse if the coach slot is taken or
+      // the mentee already has a booking this slot — BEFORE creating any Google
+      // event, so we never orphan an external event on conflict. See BUG-003/004.
+      await runTransaction(db, async (tx) => {
+        const existing = await tx.get(bookingRef);
+        if (existing.exists() && existing.data()?.status !== 'cancelled') {
+          throw new Error('SLOT_TAKEN');
+        }
+        const hold = await tx.get(holdRef);
+        if (hold.exists()) {
+          throw new Error('SELF_CONFLICT');
+        }
+        tx.set(bookingRef, bookingData);
+        tx.set(holdRef, { menteeUid, coachUid, bookingId, startIso, createdAt: new Date().toISOString() });
+      });
+    } catch (err) {
+      if (err instanceof Error && (err.message === 'SLOT_TAKEN' || err.message === 'SELF_CONFLICT')) {
+        // Surface the conflict to the caller; no Google event was created.
+        throw err;
       }
-    } catch (e) {
-      console.error('Error creating real Google Calendar event:', e);
+      console.error('Error saving booking to Firestore:', err);
+    }
+
+    // Slot is claimed — only now create the real Google Calendar event (if
+    // synced) and patch the booking with the resulting id + Meet link. See BUG-004.
+    if (token && token !== 'mock_google_access_token') {
+      try {
+        const response = await fetch(
+          'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1',
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(eventPayload),
+          }
+        );
+        if (response.ok) {
+          const data = await response.json();
+          googleEventId = data.id;
+          realMeetLink = data.hangoutLink || meetLink;
+          await updateDoc(bookingRef, { googleEventId, meetLink: realMeetLink });
+        }
+      } catch (e) {
+        console.error('Error creating real Google Calendar event:', e);
+      }
+    }
+
+    // Recalculate ONLY the current user's own availability cache. The other
+    // participant's cache is owner-only now; their booked time is surfaced live
+    // from the bookings overlay in getCoachesAvailability. See BUG-001.
+    if (currentUser?.uid) {
+      recalculateUserAvailability(currentUser.uid).catch(err => {
+        console.error('Error recalculating availability:', err);
+      });
     }
   }
 
-  // Always save booking to Firestore bookings collection
-  const currentUser = auth?.currentUser;
-  const clientEmail = currentUser?.email || '';
-  const clientUid = currentUser?.uid || '';
-  const resolvedClientName = currentUser?.displayName || clientName;
-
   const newBooking: CalendarEvent = {
-    id: googleEventId,
+    id: bookingId,
     summary: eventPayload.summary,
     description: eventPayload.description,
     start: { dateTime: startIso },
     end: { dateTime: endIso },
     meetLink: realMeetLink,
+    type: 'peer-coaching',
     attendees: [
       { email: coachEmail, displayName: coachName },
       { email: clientEmail, displayName: resolvedClientName }
     ]
   };
 
-  if (db) {
+  return newBooking;
+};
+
+// Cancel a booking: mark it cancelled, release the mentee slot hold, best-effort
+// remove the Google event, and recompute the canceller's own availability. The
+// other participant's freed slot is reflected live from the bookings overlay in
+// getCoachesAvailability. See BUG-001/003/016.
+export const cancelBooking = async (bookingId: string): Promise<void> => {
+  if (!db) return;
+  const ref = doc(db, 'bookings', bookingId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+  const data = snap.data();
+
+  await updateDoc(ref, { status: 'cancelled', cancelledAt: new Date().toISOString() });
+
+  // Release the mentee's per-slot hold so that time can be rebooked. See BUG-003.
+  const startIso = typeof data.start === 'string' ? data.start : data.start?.dateTime;
+  if (data.menteeUid && startIso) {
     try {
-      const docRef = doc(db, 'bookings', googleEventId);
-      await setDoc(docRef, {
-        id: googleEventId,
-        summary: eventPayload.summary,
-        description: eventPayload.description,
-        start: { dateTime: startIso },
-        end: { dateTime: endIso },
-        meetLink: realMeetLink,
-        topic,
-        hostEmail: coachEmail,
-        hostName: coachName,
-        clientEmail,
-        clientName: resolvedClientName,
-        clientUid,
-        coachUid,
-        menteeUid,
-        createdAt: new Date().toISOString()
-      });
-
-      // Trigger background recalculations
-      recalculateUserAvailability(coachUid).catch(err => {
-        console.error(`Error recalculating availability for coach ${coachUid}:`, err);
-      });
-      recalculateUserAvailability(menteeUid).catch(err => {
-        console.error(`Error recalculating availability for mentee ${menteeUid}:`, err);
-      });
-
-    } catch (err) {
-      console.error('Error saving booking to Firestore:', err);
+      await deleteDoc(doc(db, 'slotHolds', `${data.menteeUid}_${startIso}`));
+    } catch (e) {
+      console.error('Error releasing slot hold:', e);
     }
   }
 
-  return newBooking;
+  const token = getGoogleToken();
+  if (token && token !== 'mock_google_access_token' && data.googleEventId) {
+    try {
+      await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${data.googleEventId}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+    } catch (e) {
+      console.error('Error deleting Google Calendar event:', e);
+    }
+  }
+
+  const currentUid = auth?.currentUser?.uid;
+  if (currentUid) {
+    recalculateUserAvailability(currentUid).catch(err => console.error('Recalc error:', err));
+  }
 };
 
 export const generateFallbackBusySlots = (
@@ -262,24 +350,24 @@ export const generateFallbackBusySlots = (
   const template = coach.availabilityTemplate || DEFAULT_TEMPLATE;
   const weekly = template.weekly || DEFAULT_TEMPLATE.weekly;
   const blockedDates = template.blockedDates || [];
-  
+
   const timeMin = new Date(timeMinStr);
   const timeMax = new Date(timeMaxStr);
-  
+
   const localToday = getLocalDateInTimezone(timeMin, timezone);
   const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-  
+
   const busyEvents: CalendarEvent[] = [];
-  
+
   for (let i = 0; i < 56; i++) {
     const currentDate = new Date(localToday);
     currentDate.setDate(localToday.getDate() + i);
     if (currentDate.getTime() > timeMax.getTime()) break;
-    
+
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth() + 1;
     const day = currentDate.getDate();
-    
+
     const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     if (blockedDates.includes(dateStr)) {
       const dayStart = getUtcForLocalDateTime(year, month, day, 0, 0, timezone);
@@ -292,10 +380,10 @@ export const generateFallbackBusySlots = (
       });
       continue;
     }
-    
+
     const dayName = daysOfWeek[currentDate.getDay()];
     const daySched = weekly[dayName as keyof typeof weekly] || { enabled: false, slots: [] };
-    
+
     if (!daySched.enabled || !daySched.slots || daySched.slots.length === 0) {
       const dayStart = getUtcForLocalDateTime(year, month, day, 0, 0, timezone);
       const dayEnd = getUtcForLocalDateTime(year, month, day, 24, 0, timezone);
@@ -316,7 +404,7 @@ export const generateFallbackBusySlots = (
           endStr: s.end
         };
       }).sort((a, b) => a.startMin - b.startMin);
-      
+
       if (sortedSlots[0].startMin > 0) {
         const startUtc = getUtcForLocalDateTime(year, month, day, 0, 0, timezone);
         const parsedS = parseLocalTime(sortedSlots[0].startStr);
@@ -328,7 +416,7 @@ export const generateFallbackBusySlots = (
           end: { dateTime: endUtc.toISOString() }
         });
       }
-      
+
       for (let j = 0; j < sortedSlots.length - 1; j++) {
         const currentSlot = sortedSlots[j];
         const nextSlot = sortedSlots[j + 1];
@@ -345,7 +433,7 @@ export const generateFallbackBusySlots = (
           });
         }
       }
-      
+
       const lastSlot = sortedSlots[sortedSlots.length - 1];
       if (lastSlot.endMin < 24 * 60) {
         const parsedL = parseLocalTime(lastSlot.endStr);
@@ -360,17 +448,16 @@ export const generateFallbackBusySlots = (
       }
     }
   }
-  
+
   return busyEvents;
 };
 
 export const getCoachesAvailability = async (
-  isRealFirebase: boolean,
   coaches: UserProfile[],
   timeMin: string,
   timeMax: string
 ): Promise<Record<string, CalendarEvent[]>> => {
-  const token = sessionStorage.getItem('google_access_token');
+  const token = getGoogleToken();
   const availability: Record<string, CalendarEvent[]> = {};
 
   coaches.forEach((coach) => {
@@ -378,7 +465,7 @@ export const getCoachesAvailability = async (
   });
 
   // Try to load FreeBusy information from Google Calendar if a valid token is present
-  if (isRealFirebase && token && token !== 'mock_google_access_token') {
+  if (token && token !== 'mock_google_access_token') {
     try {
       const response = await fetch(
         'https://www.googleapis.com/calendar/v3/freeBusy',
@@ -398,12 +485,12 @@ export const getCoachesAvailability = async (
 
       if (response.ok) {
         const data = await response.json();
-        
+
         coaches.forEach((coach) => {
           if (!coach.email) return;
           const calendarData = data.calendars?.[coach.email];
           const busyIntervals = calendarData?.busy || [];
-          
+
           availability[coach.uid] = busyIntervals.map((interval: { start: string; end: string }, idx: number) => ({
             id: `busy-${coach.uid}-${idx}`,
             summary: 'Busy',
@@ -417,57 +504,96 @@ export const getCoachesAvailability = async (
     }
   }
 
-  // Load computed availability busy slots from Firestore
   if (db) {
-    try {
-      const availabilityCol = collection(db, 'availability');
-      const querySnap = await getDocs(availabilityCol);
-      const foundUids = new Set<string>();
+    const activeDb = db;
+    const uids = coaches.map(c => c.uid);
+    const uidChunks = chunkArray(uids, 30);
 
-      querySnap.forEach((d) => {
-        const data = d.data();
-        const matchingCoach = coaches.find(c => c.uid === data.uid);
-        if (matchingCoach) {
-          foundUids.add(matchingCoach.uid);
-          const busySlots = data.busySlots || [];
-          busySlots.forEach((slot: { start: string; end: string; id?: string }, idx: number) => {
-            const startStr = slot.start;
-            const endStr = slot.end;
-            // Avoid duplicate events if already loaded from Google Calendar FreeBusy
-            const isAlreadyAdded = availability[matchingCoach.uid].some((event) => {
-              return event.id === slot.id || 
-                (new Date(event.start.dateTime).getTime() === new Date(startStr).getTime());
-            });
-
-            if (!isAlreadyAdded) {
-              availability[matchingCoach.uid].push({
-                id: slot.id || `busy-${matchingCoach.uid}-${idx}`,
-                summary: 'Busy',
-                start: { dateTime: startStr },
-                end: { dateTime: endStr }
-              });
-            }
-          });
-        }
-      });
-
-      // Self-healing fallback for missing availability documents
-      for (const coach of coaches) {
-        if (!foundUids.has(coach.uid)) {
-          console.log(`Availability document missing for coach ${coach.uid}, generating fallback and triggering recalculation...`);
-          const fallbackSlots = generateFallbackBusySlots(coach, timeMin, timeMax);
-          availability[coach.uid] = [...availability[coach.uid], ...fallbackSlots];
-          
-          // Trigger background recalculation
-          recalculateUserAvailability(coach.uid).catch(err => {
-            console.error(`Background recalculation error for coach ${coach.uid}:`, err);
-          });
-        }
+    // 1. Load each coach's template-derived busy-slot cache, reading only the
+    //    needed docs via batched `in` queries (not a whole-collection scan) and
+    //    tolerating partial failures. See BUG-005.
+    const foundUids = new Set<string>();
+    const availResults = await Promise.allSettled(
+      uidChunks.map(c =>
+        getDocs(query(collection(activeDb, 'availability'), where(documentId(), 'in', c)))
+      )
+    );
+    availResults.forEach((res) => {
+      if (res.status !== 'fulfilled') {
+        console.error('Error fetching availability chunk:', res.reason);
+        return;
       }
+      res.value.forEach((d) => {
+        const uid = d.id;
+        if (!(uid in availability)) return;
+        foundUids.add(uid);
+        const data = d.data();
+        const busySlots = data.busySlots || [];
+        busySlots.forEach((slot: { start: string; end: string; id?: string }, idx: number) => {
+          const isAlreadyAdded = availability[uid].some((event) =>
+            event.id === slot.id ||
+            new Date(event.start.dateTime).getTime() === new Date(slot.start).getTime()
+          );
+          if (!isAlreadyAdded) {
+            availability[uid].push({
+              id: slot.id || `busy-${uid}-${idx}`,
+              summary: 'Busy',
+              start: { dateTime: slot.start },
+              end: { dateTime: slot.end }
+            });
+          }
+        });
+      });
+    });
 
-    } catch (err) {
-      console.error('Error fetching availability from Firestore:', err);
+    // 2. In-memory fallback for coaches without a cache doc. We do NOT cross-write
+    //    their availability doc (owner-only writes now). See BUG-001/005.
+    for (const coach of coaches) {
+      if (!foundUids.has(coach.uid)) {
+        const fallbackSlots = generateFallbackBusySlots(coach, timeMin, timeMax);
+        availability[coach.uid] = [...availability[coach.uid], ...fallbackSlots];
+      }
     }
+
+    // 3. Overlay LIVE bookings (authoritative, readable by all) so a slot booked
+    //    by anyone shows as busy without requiring cross-user cache writes. A
+    //    coach is busy whether they are the coach or the mentee of a session.
+    //    See BUG-001.
+    const nowMs = Date.now();
+    const overlayBooking = (data: DocumentData, uid: string | undefined) => {
+      if (!uid || !(uid in availability)) return;
+      if (data.status === 'cancelled') return;
+      const startStr = typeof data.start === 'string' ? data.start : data.start?.dateTime;
+      const endStr = typeof data.end === 'string' ? data.end : data.end?.dateTime;
+      if (!startStr || !endStr) return;
+      if (new Date(endStr).getTime() < nowMs) return;
+      const already = availability[uid].some(e =>
+        new Date(e.start.dateTime).getTime() === new Date(startStr).getTime()
+      );
+      if (already) return;
+      availability[uid].push({
+        id: `booking-${data.id || `${uid}-${startStr}`}`,
+        summary: 'Busy',
+        start: { dateTime: startStr },
+        end: { dateTime: endStr }
+      });
+    };
+
+    const bookingResults = await Promise.allSettled([
+      ...uidChunks.map(c => getDocs(query(collection(activeDb, 'bookings'), where('coachUid', 'in', c)))),
+      ...uidChunks.map(c => getDocs(query(collection(activeDb, 'bookings'), where('menteeUid', 'in', c)))),
+    ]);
+    bookingResults.forEach((res) => {
+      if (res.status !== 'fulfilled') {
+        console.error('Error fetching bookings overlay chunk:', res.reason);
+        return;
+      }
+      res.value.forEach((d) => {
+        const data = d.data();
+        overlayBooking(data, data.coachUid);
+        overlayBooking(data, data.menteeUid);
+      });
+    });
   }
 
   return availability;
