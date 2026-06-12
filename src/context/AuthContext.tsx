@@ -1,13 +1,15 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { User } from 'firebase/auth';
-import { 
-  subscribeToAuth, 
-  subscribeToProfile, 
-  loginWithGoogle, 
-  logout as fbLogout, 
-  updateProfile, 
-  isFirebaseConfigured 
+import {
+  subscribeToAuth,
+  subscribeToProfile,
+  loginWithGoogle,
+  logout as fbLogout,
+  updateOwnProfile,
+  getEffectiveRole,
+  getEffectiveStatus,
+  isFirebaseConfigured
 } from '../services/firebaseService';
 import type { UserProfile } from '../services/firebaseService';
 
@@ -39,6 +41,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setProfile(null);
         setRole(undefined);
         setLoading(false);
+      } else {
+        // Re-enter loading until the profile snapshot resolves.
+        setLoading(true);
       }
     });
     return () => unsubAuth();
@@ -47,16 +52,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Subscribe to user profile updates once auth is resolved
   useEffect(() => {
     if (!user) return;
-    
-    // Set loading asynchronously to avoid synchronous setState warning
-    setTimeout(() => {
-      setLoading(true);
-    }, 0);
 
     const unsubProfile = subscribeToProfile(user.uid, (prof) => {
       if (prof) {
         setProfile(prof);
-        setRole(prof.userRole || prof.role || null);
+        setRole(getEffectiveStatus(prof) === 'active' ? getEffectiveRole(prof) : null);
       } else {
         setProfile(null);
         setRole(null);
@@ -95,7 +95,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateProfileDetails = async (updates: Partial<UserProfile>) => {
     if (!user) return;
     try {
-      await updateProfile(user.uid, updates);
+      await updateOwnProfile(user.uid, updates);
     } catch (e) {
       console.error('Update profile error:', e);
       throw e;

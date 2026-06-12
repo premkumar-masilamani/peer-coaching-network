@@ -4,6 +4,7 @@ import { scheduleMeeting, isCalendarSynced } from '../services/googleCalendar';
 import type { CalendarEvent } from '../services/googleCalendar';
 import type { UserProfile } from '../services/firebaseService';
 import { formatDisplayName } from '../services/firebaseService';
+import { sanitizeMeetLink } from '../utils/url';
 import { 
   X, 
   Calendar, 
@@ -46,6 +47,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   const [topic, setTopic] = useState('');
   const [bookingStatus, setBookingStatus] = useState<'idle' | 'booking' | 'success' | 'error'>('idle');
   const [createdEvent, setCreatedEvent] = useState<CalendarEvent | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const synced = isCalendarSynced();
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -73,10 +75,10 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     if (!topic.trim()) return;
 
     setBookingStatus('booking');
+    setErrorMsg('');
 
     try {
       const event = await scheduleMeeting(
-        !!profile?.role,
         coach.uid,
         coach.email || 'coach@example.com',
         coach.displayName || 'Coach',
@@ -93,6 +95,13 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       }
     } catch (err) {
       console.error(err);
+      let message = 'Something went wrong while booking. Please try again.';
+      if (err instanceof Error && err.message === 'SLOT_TAKEN') {
+        message = 'Sorry, this slot was just booked by someone else. Please pick another time.';
+      } else if (err instanceof Error && err.message === 'SELF_CONFLICT') {
+        message = 'You already have a session booked at this time. Please pick another slot.';
+      }
+      setErrorMsg(message);
       setBookingStatus('error');
     }
   };
@@ -145,21 +154,21 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 <strong>Time:</strong> {dateString} at {timeString}
               </p>
               
-              {createdEvent.meetLink && (
-                <div style={{ 
-                  borderTop: '1px solid rgba(255,255,255,0.05)', 
-                  paddingTop: '12px', 
-                  display: 'flex', 
-                  flexDirection: 'column', 
-                  gap: '8px' 
+              {sanitizeMeetLink(createdEvent.meetLink) && (
+                <div style={{
+                  borderTop: '1px solid rgba(255,255,255,0.05)',
+                  paddingTop: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: '#34d399', fontWeight: 600 }}>
                     <Video size={14} />
                     Google Meet Room Generated
                   </div>
-                  <a 
-                    href={createdEvent.meetLink} 
-                    target="_blank" 
+                  <a
+                    href={sanitizeMeetLink(createdEvent.meetLink)}
+                    target="_blank"
                     rel="noopener noreferrer"
                     className="btn btn-primary"
                     style={{ padding: '8px 16px', fontSize: '0.85rem', width: '100%', gap: '6px' }}
@@ -230,6 +239,24 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               }}>
                 <AlertCircle size={14} style={{ flexShrink: 0 }} />
                 <span>You haven't synced your Google Calendar. This booking will trigger in sandbox mode. Go to "My Profile" to sync.</span>
+              </div>
+            )}
+
+            {/* Error message (e.g. slot just taken) */}
+            {bookingStatus === 'error' && errorMsg && (
+              <div style={{
+                display: 'flex',
+                gap: '8px',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                background: 'rgba(239, 68, 68, 0.08)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                color: '#f87171',
+                fontSize: '0.8rem',
+                marginTop: '16px'
+              }}>
+                <AlertCircle size={14} style={{ flexShrink: 0 }} />
+                <span>{errorMsg}</span>
               </div>
             )}
 

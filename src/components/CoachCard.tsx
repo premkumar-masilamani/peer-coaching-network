@@ -2,6 +2,7 @@ import React from 'react';
 import type { UserProfile } from '../services/firebaseService';
 import { formatDisplayName } from '../services/firebaseService';
 import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
+import { sanitizeImageUrl } from '../utils/url';
 import { MapPin, Calendar, Award } from 'lucide-react';
 
 interface CoachCardProps {
@@ -46,9 +47,9 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
       <div>
         {/* Profile Avatar and Name */}
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '16px', zIndex: 1, position: 'relative' }}>
-          <img 
-            src={coach.photoURL || 'https://api.dicebear.com/7.x/bottts/svg'} 
-            alt={formatDisplayName(coach) || 'Coach'} 
+          <img
+            src={sanitizeImageUrl(coach.photoURL)}
+            alt={formatDisplayName(coach) || 'Coach'}
             style={{
               width: '56px',
               height: '56px',
@@ -69,7 +70,7 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
             </h3>
             
             {/* Location Tag */}
-            {coach.location?.country ? (
+            {coach.country ? (
               <span style={{ 
                 fontSize: '0.75rem', 
                 color: 'hsl(var(--text-secondary))', 
@@ -79,7 +80,7 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
                 marginTop: '2px'
               }}>
                 <MapPin size={11} color="hsl(var(--primary))" />
-                {coach.location.country}
+                {coach.country}
               </span>
             ) : (
               <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))' }}>Remote Coach</span>

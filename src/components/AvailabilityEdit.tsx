@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   recalculateUserAvailability,
   DEFAULT_TEMPLATE,
-  updateProfile
+  updateProfile,
+  loginWithGoogle
 } from '../services/firebaseService';
 import type { AvailabilityTemplate } from '../services/firebaseService';
+import { clearGoogleToken } from '../services/googleToken';
 import {
   Calendar,
   Plus,
@@ -65,14 +67,21 @@ export const AvailabilityEdit: React.FC = () => {
   const handleCalendarSyncToggle = async () => {
     if (synced) {
       // Disconnect
-      sessionStorage.removeItem('google_access_token');
+      clearGoogleToken();
       await updateProfileDetails({ calendarSynced: false });
       setSynced(false);
     } else {
-      // Sync
-      sessionStorage.setItem('google_access_token', 'mock_google_access_token');
-      await updateProfileDetails({ calendarSynced: true });
-      setSynced(true);
+      // Connect via a real Google OAuth flow (no mock token). See BUG-017.
+      try {
+        await loginWithGoogle();
+      } catch (e) {
+        console.error('Calendar connection failed:', e);
+      }
+      const connected = isCalendarSynced();
+      if (connected) {
+        await updateProfileDetails({ calendarSynced: true });
+      }
+      setSynced(connected);
     }
   };
 
@@ -98,66 +107,29 @@ export const AvailabilityEdit: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState('');
   const [blockErrorMsg, setBlockErrorMsg] = useState('');
 
-  // Synchronize state with profile updates if they arrive
-  useEffect(() => {
-    if (profile?.availabilityTemplate) {
-      const templateWeekly = profile.availabilityTemplate.weekly || DEFAULT_TEMPLATE.weekly;
-      const templateBlocked = profile.availabilityTemplate.blockedDates || DEFAULT_TEMPLATE.blockedDates;
-      setTimeout(() => {
-        setWeekly(templateWeekly);
-        setBlockedDates(templateBlocked);
-      }, 0);
-    }
-  }, [profile]);
+  // NOTE: the editable form is seeded once from the profile via the useState
+  // initializers above. We deliberately do NOT re-sync from later profile
+  // snapshots, which would clobber the user's unsaved edits. See BUG-008.
 
-  // Real-time validation: check if end time <= start time for any active slot
-  useEffect(() => {
-    let validationErrorMsg = '';
-
+  // Derive the slot-validation message during render — no effect, no setState,
+  // so it can never race or trip the cascading-render lint rule. See BUG-015.
+  const validationError = (() => {
     for (const day of DAYS_OF_WEEK) {
       const dayData = weekly[day.key];
-      if (dayData.enabled) {
-        for (let i = 0; i < dayData.slots.length; i++) {
-          const slot = dayData.slots[i];
-          const startParsed = parseLocalTime(slot.start);
-          const endParsed = parseLocalTime(slot.end);
-          const startMin = startParsed.hour * 60 + startParsed.minute;
-          const endMin = endParsed.hour * 60 + endParsed.minute;
-
-          if (endMin <= startMin) {
-            validationErrorMsg = `Invalid slot on ${day.label}: End time (${slot.end}) must be later than start time (${slot.start}).`;
-            break;
-          }
+      if (!dayData.enabled) continue;
+      for (const slot of dayData.slots) {
+        const startParsed = parseLocalTime(slot.start);
+        const endParsed = parseLocalTime(slot.end);
+        const startMin = startParsed.hour * 60 + startParsed.minute;
+        const endMin = endParsed.hour * 60 + endParsed.minute;
+        if (endMin <= startMin) {
+          return `Invalid slot on ${day.label}: End time (${slot.end}) must be later than start time (${slot.start}).`;
         }
       }
-      if (validationErrorMsg) break;
     }
-
-    setTimeout(() => {
-      setErrorMsg(prev => {
-        if (validationErrorMsg) {
-          return validationErrorMsg;
-        }
-        // If error is resolved, remove the validation error banner immediately
-        if (prev.startsWith('Invalid slot')) {
-          return '';
-        }
-        return prev;
-      });
-    }, 0);
-  }, [weekly]);
-
-  const hasValidationError = DAYS_OF_WEEK.some(day => {
-    const dayData = weekly[day.key];
-    if (!dayData.enabled) return false;
-    return dayData.slots.some(slot => {
-      const startParsed = parseLocalTime(slot.start);
-      const endParsed = parseLocalTime(slot.end);
-      const startMin = startParsed.hour * 60 + startParsed.minute;
-      const endMin = endParsed.hour * 60 + endParsed.minute;
-      return endMin <= startMin;
-    });
-  });
+    return '';
+  })();
+  const hasValidationError = validationError !== '';
 
   // Toggle enabling/disabling a day
   const handleDayToggle = (dayKey: keyof AvailabilityTemplate['weekly']) => {
@@ -504,10 +476,10 @@ export const AvailabilityEdit: React.FC = () => {
             <span>{successMsg}</span>
           </div>
         )}
-        {errorMsg && (
+        {(validationError || errorMsg) && (
           <div className="badge badge-pending" style={{ width: '100%', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '16px', gap: '8px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
             <AlertTriangle size={16} />
-            <span>{errorMsg}</span>
+            <span>{validationError || errorMsg}</span>
           </div>
         )}
 
