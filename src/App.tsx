@@ -9,6 +9,7 @@ import { AvailabilityEdit } from './components/AvailabilityEdit';
 import { AdminDashboard } from './components/AdminDashboard';
 import { LeftNav } from './components/LeftNav';
 import { MyBookings } from './components/MyBookings';
+import { isApproved } from './services/firebaseService';
 import { Sparkles } from 'lucide-react';
 
 const AppContent: React.FC = () => {
@@ -22,26 +23,52 @@ const AppContent: React.FC = () => {
 
   // Sync theme with document class
   useEffect(() => {
-    if (profile?.theme === 'light') {
+    const theme = profile?.theme || 'system';
+    
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
+      const handleThemeChange = (e: MediaQueryListEvent | MediaQueryList) => {
+        if (e.matches) {
+          document.documentElement.classList.add('light-theme');
+        } else {
+          document.documentElement.classList.remove('light-theme');
+        }
+      };
+      
+      // Initialize
+      handleThemeChange(mediaQuery);
+      
+      // Subscribe
+      if (mediaQuery.addEventListener) {
+        mediaQuery.addEventListener('change', handleThemeChange);
+      } else {
+        mediaQuery.addListener(handleThemeChange);
+      }
+      
+      return () => {
+        if (mediaQuery.removeEventListener) {
+          mediaQuery.removeEventListener('change', handleThemeChange);
+        } else {
+          mediaQuery.removeListener(handleThemeChange);
+        }
+      };
+    } else if (theme === 'light') {
       document.documentElement.classList.add('light-theme');
     } else {
       document.documentElement.classList.remove('light-theme');
     }
   }, [profile?.theme]);
 
-  // Automatically route user to their respective default panels on login
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const isActive = profile?.userStatus === 'active';
-      const hasRole = role === 'admin' || role === 'user';
-      if (isActive && hasRole) {
-        setCurrentTab('dashboard');
-      } else {
-        setCurrentTab('pending');
-      }
-    }, 0);
-    return () => clearTimeout(timer);
-  }, [role, profile?.userStatus]);
+  const approved = isApproved(profile) && (role === 'admin' || role === 'user');
+
+  // Route to the default panel when approval state transitions, using React's
+  // recommended "adjust state during render" pattern rather than an effect (no
+  // setTimeout hack, no cascading-render lint violation). See BUG-012/015.
+  const [prevApproved, setPrevApproved] = useState(approved);
+  if (approved !== prevApproved) {
+    setPrevApproved(approved);
+    setCurrentTab(approved ? 'dashboard' : 'pending');
+  }
 
   // Loading Screen
   if (loading) {
@@ -93,11 +120,8 @@ const AppContent: React.FC = () => {
     );
   }
 
-  const isActive = profile?.userStatus === 'active';
-  const hasRole = role === 'admin' || role === 'user';
-
   // Authenticated but unapproved (No Role Assigned) or Inactive
-  if (!isActive || !hasRole) {
+  if (!approved) {
     return (
       <div className="app-container">
         <div className="bg-gradient-radial" />
