@@ -19,7 +19,8 @@ import {
   connectFirestoreEmulator,
   query,
   where,
-  getDocs
+  getDocs,
+  Timestamp
 } from 'firebase/firestore';
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
@@ -56,36 +57,32 @@ export interface AvailabilityTemplate {
 
 export const DEFAULT_TEMPLATE: AvailabilityTemplate = {
   weekly: {
-    monday: { enabled: true, slots: [{ start: '10:00 AM', end: '4:00 PM' }] },
-    tuesday: { enabled: true, slots: [{ start: '10:00 AM', end: '4:00 PM' }] },
-    wednesday: { enabled: true, slots: [{ start: '10:00 AM', end: '4:00 PM' }] },
-    thursday: { enabled: true, slots: [{ start: '10:00 AM', end: '4:00 PM' }] },
-    friday: { enabled: true, slots: [{ start: '10:00 AM', end: '4:00 PM' }] },
-    saturday: { enabled: false, slots: [{ start: '10:00 AM', end: '4:00 PM' }] },
-    sunday: { enabled: false, slots: [{ start: '10:00 AM', end: '4:00 PM' }] }
+    monday: { enabled: true, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
+    tuesday: { enabled: true, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
+    wednesday: { enabled: true, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
+    thursday: { enabled: true, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
+    friday: { enabled: true, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
+    saturday: { enabled: false, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
+    sunday: { enabled: false, slots: [{ start: '9:00 AM', end: '5:00 PM' }] }
   },
   blockedDates: []
 };
 
 export interface UserProfile {
   uid: string;
-  email: string | null;
-  displayName: string | null;
-  prefix?: string;
+  email: string;
+  displayName: string;
   photoURL: string | null;
-  gender?: string;
-  location?: {
-    country: string;
-  };
-  qualifications?: string[];
+  gender?: 'Male' | 'Female' | 'Prefer not to say';
+  country?: string;
+  qualifications?: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
   bio?: string;
-  role?: 'admin' | 'user' | null;
   calendarSynced?: boolean;
   timezone?: string;
   userRole?: 'user' | 'admin';
   userStatus?: 'active' | 'inactive';
-  theme?: 'light' | 'dark';
-  createdAt?: string;
+  theme?: 'light' | 'dark' | 'system';
+  createdAt?: Timestamp;
   availabilityTemplate?: AvailabilityTemplate;
 }
 
@@ -119,12 +116,12 @@ if (!useEmulator && missingConfig.length > 0) {
 const projectId = requiredConfig.projectId || 'peer-coaching-network-dev';
 
 const firebaseConfig = {
-  apiKey: requiredConfig.apiKey,
+  apiKey: requiredConfig.apiKey || (useEmulator ? 'mock-api-key' : undefined),
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || `${projectId}.firebaseapp.com`,
   projectId,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || `${projectId}.firebasestorage.app`,
-  messagingSenderId: requiredConfig.messagingSenderId,
-  appId: requiredConfig.appId,
+  messagingSenderId: requiredConfig.messagingSenderId || (useEmulator ? 'mock-sender-id' : undefined),
+  appId: requiredConfig.appId || (useEmulator ? 'mock-app-id' : undefined),
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -170,23 +167,27 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
   const userDoc = await getDoc(userDocRef);
   
   if (!userDoc.exists()) {
+    const email = result.user.email;
+    const displayName = result.user.displayName;
+    if (!email || !displayName) {
+      throw new Error('Google Sign-In did not return a valid email or display name.');
+    }
+
     // Create new pending user
     const newProfile: UserProfile = {
       uid: result.user.uid,
-      email: result.user.email,
-      displayName: result.user.displayName,
-      prefix: '',
+      email,
+      displayName,
       photoURL: result.user.photoURL,
-      role: null, // No role = Pending
       userRole: 'user',
       userStatus: 'inactive',
       calendarSynced: false,
       qualifications: [],
-      gender: '',
-      location: { country: '' },
+      gender: 'Prefer not to say',
+      country: '',
       bio: '',
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      createdAt: new Date().toISOString(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      createdAt: Timestamp.now(),
       theme: 'dark',
       availabilityTemplate: DEFAULT_TEMPLATE
     };
@@ -233,8 +234,11 @@ export const updateProfile = async (uid: string, updates: Partial<UserProfile>):
 // Fields a user may change on their OWN profile. Privileged fields
 // (role/userRole/userStatus/qualifications) are intentionally excluded — they
 // are admin-controlled and enforced server-side by Firestore rules. See BUG-002.
+// Fields a user may change on their OWN profile. Privileged fields
+// (userRole/userStatus/qualifications) are intentionally excluded — they
+// are admin-controlled and enforced server-side by Firestore rules. See BUG-002.
 const OWN_EDITABLE_FIELDS: (keyof UserProfile)[] = [
-  'prefix', 'displayName', 'photoURL', 'gender', 'location',
+  'displayName', 'photoURL', 'gender', 'country',
   'bio', 'timezone', 'calendarSynced', 'theme', 'availabilityTemplate'
 ];
 
@@ -250,33 +254,29 @@ export const updateOwnProfile = async (uid: string, updates: Partial<UserProfile
   await updateDoc(doc(db, 'users', uid), safeUpdates);
 };
 
-// Canonical approval/role helpers — the single source of truth reconciling the
-// legacy `role` field with the newer `userRole`/`userStatus` model. See BUG-012.
+// Canonical approval/role helpers — the single source of truth for user status and role.
 export const getEffectiveStatus = (p?: UserProfile | null): 'active' | 'inactive' => {
-  if (!p) return 'inactive';
-  if (p.userStatus) return p.userStatus;
-  return p.role !== null && p.role !== undefined ? 'active' : 'inactive';
+  return p?.userStatus || 'inactive';
 };
 
 export const getEffectiveRole = (p?: UserProfile | null): 'admin' | 'user' => {
-  if (!p) return 'user';
-  if (p.userRole) return p.userRole;
-  return p.role === 'admin' ? 'admin' : 'user';
+  return p?.userRole || 'user';
 };
 
 export const isApproved = (p?: UserProfile | null): boolean => {
   return getEffectiveStatus(p) === 'active';
 };
 
-// Format a stored createdAt for display, accepting both ISO timestamps (new
-// format) and legacy "Month, Year" display strings. See BUG-020.
-export const formatMemberSince = (createdAt?: string): string => {
+// Format a stored createdAt for display, accepting both Firestore Timestamps and legacy ISO strings.
+export const formatMemberSince = (createdAt?: Timestamp | string | null): string => {
   if (!createdAt) return '';
-  const date = new Date(createdAt);
+  const date = (createdAt && typeof createdAt === 'object' && 'toDate' in createdAt && typeof (createdAt as Timestamp).toDate === 'function')
+    ? (createdAt as Timestamp).toDate()
+    : new Date(createdAt as string);
   if (!isNaN(date.getTime())) {
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   }
-  return createdAt;
+  return String(createdAt);
 };
 
 // Admin Specific Operations
@@ -293,11 +293,9 @@ export const subscribeToAllUsers = (callback: (users: UserProfile[]) => void): (
 
 // Live subscription to ACTIVE users only (peer coaches), avoiding a full
 // users-collection download for the dashboard (BUG-006). We filter on the
-// legacy `role` field because it is present on EVERY document (set on signup
-// and kept in sync with userStatus), whereas `userStatus` may be absent on
-// pre-migration docs — querying it would silently drop them. See BUG-002.
+// userStatus field.
 export const subscribeToActiveCoaches = (callback: (users: UserProfile[]) => void): (() => void) => {
-  const q = query(collection(db, 'users'), where('role', 'in', ['admin', 'user']));
+  const q = query(collection(db, 'users'), where('userStatus', '==', 'active'));
   return onSnapshot(q, (querySnap) => {
     const users: UserProfile[] = [];
     querySnap.forEach((d) => users.push(d.data() as UserProfile));
@@ -307,14 +305,9 @@ export const subscribeToActiveCoaches = (callback: (users: UserProfile[]) => voi
 
 // Live count of pending (inactive) users — transfers only pending documents
 // rather than the whole collection just to derive a badge number (BUG-006).
-// `role == null` is the canonical "pending" marker, present on every doc. See BUG-002.
 export const subscribeToPendingUsersCount = (callback: (count: number) => void): (() => void) => {
-  const q = query(collection(db, 'users'), where('role', '==', null));
+  const q = query(collection(db, 'users'), where('userStatus', '==', 'inactive'));
   return onSnapshot(q, (querySnap) => callback(querySnap.size));
-};
-
-export const setUserRole = async (uid: string, role: 'admin' | 'user' | null): Promise<void> => {
-  await updateProfile(uid, { role });
 };
 
 export const setUserRoleAndStatus = async (
@@ -322,24 +315,15 @@ export const setUserRoleAndStatus = async (
   role: 'user' | 'admin',
   status: 'active' | 'inactive'
 ): Promise<void> => {
-  const legacyRole = status === 'active' ? role : null;
   await updateProfile(uid, {
     userRole: role,
-    userStatus: status,
-    role: legacyRole
+    userStatus: status
   });
 };
 
-export const formatDisplayName = (user: { displayName?: string | null; prefix?: string } | null | undefined): string => {
+export const formatDisplayName = (user: { displayName?: string | null } | null | undefined): string => {
   if (!user) return '';
-  const cleanName = (user.displayName || '').replace(/\s*\([^)]*\)/g, '').trim();
-  if (user.prefix && user.prefix.trim() !== '') {
-    if (cleanName.startsWith(user.prefix)) {
-      return cleanName;
-    }
-    return `${user.prefix} ${cleanName}`;
-  }
-  return cleanName;
+  return (user.displayName || '').replace(/\s*\([^)]*\)/g, '').trim();
 };
 
 const recalcChains = new Map<string, Promise<void>>();
@@ -395,7 +379,7 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
     addSnap(snap2);
     
     // Generate busy intervals for next 56 days
-    const busySlots: { start: string; end: string; source: 'template' | 'booking' | 'block' }[] = [];
+    const busySlots: { start: string; end: string }[] = [];
     
     // 1. Process weekly template and blocked dates
     // Get local today in user's timezone
@@ -419,8 +403,7 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
         const dayEnd = getUtcForLocalDateTime(year, month, day, 24, 0, timezone);
         busySlots.push({
           start: dayStart.toISOString(),
-          end: dayEnd.toISOString(),
-          source: 'block'
+          end: dayEnd.toISOString()
         });
         continue;
       }
@@ -434,8 +417,7 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
         const dayEnd = getUtcForLocalDateTime(year, month, day, 24, 0, timezone);
         busySlots.push({
           start: dayStart.toISOString(),
-          end: dayEnd.toISOString(),
-          source: 'template'
+          end: dayEnd.toISOString()
         });
       } else {
         // Compute busy intervals (gaps outside the enabled slots)
@@ -458,8 +440,7 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
           const endUtc = getUtcForLocalDateTime(year, month, day, parsedS.hour, parsedS.minute, timezone);
           busySlots.push({
             start: startUtc.toISOString(),
-            end: endUtc.toISOString(),
-            source: 'template'
+            end: endUtc.toISOString()
           });
         }
         
@@ -474,8 +455,7 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
             const endUtc = getUtcForLocalDateTime(year, month, day, parsedN.hour, parsedN.minute, timezone);
             busySlots.push({
               start: startUtc.toISOString(),
-              end: endUtc.toISOString(),
-              source: 'template'
+              end: endUtc.toISOString()
             });
           }
         }
@@ -488,8 +468,7 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
           const endUtc = getUtcForLocalDateTime(year, month, day, 24, 0, timezone);
           busySlots.push({
             start: startUtc.toISOString(),
-            end: endUtc.toISOString(),
-            source: 'template'
+            end: endUtc.toISOString()
           });
         }
       }
@@ -500,14 +479,16 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
     const nowMs = Date.now();
     bookings.forEach(b => {
       if (b.status === 'cancelled') return;
-      const bStart = b.start?.dateTime || b.start;
-      const bEnd = b.end?.dateTime || b.end;
-      if (bStart && bEnd) {
-        if (new Date(bEnd).getTime() < nowMs) return;
+      
+      // Support both Firestore Timestamp and date strings/objects
+      const bStart = b.start && typeof b.start.toDate === 'function' ? b.start.toDate() : new Date(b.start?.dateTime || b.start);
+      const bEnd = b.end && typeof b.end.toDate === 'function' ? b.end.toDate() : new Date(b.end?.dateTime || b.end);
+      
+      if (bStart && bEnd && !isNaN(bStart.getTime()) && !isNaN(bEnd.getTime())) {
+        if (bEnd.getTime() < nowMs) return;
         busySlots.push({
-          start: new Date(bStart).toISOString(),
-          end: new Date(bEnd).toISOString(),
-          source: 'booking'
+          start: bStart.toISOString(),
+          end: bEnd.toISOString()
         });
       }
     });

@@ -19,4 +19,4 @@ emulator:
 	firebase emulators:start
 
 local:
-	firebase emulators:exec "npm run local"
+	npm run local

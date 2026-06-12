@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --mode dev",
-    "local": "vite --mode local",
+    "local": "vite --mode emulator",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"

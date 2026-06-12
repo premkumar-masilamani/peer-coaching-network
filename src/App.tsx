@@ -23,7 +23,36 @@ const AppContent: React.FC = () => {
 
   // Sync theme with document class
   useEffect(() => {
-    if (profile?.theme === 'light') {
+    const theme = profile?.theme || 'system';
+    
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
+      const handleThemeChange = (e: MediaQueryListEvent | MediaQueryList) => {
+        if (e.matches) {
+          document.documentElement.classList.add('light-theme');
+        } else {
+          document.documentElement.classList.remove('light-theme');
+        }
+      };
+      
+      // Initialize
+      handleThemeChange(mediaQuery);
+      
+      // Subscribe
+      if (mediaQuery.addEventListener) {
+        mediaQuery.addEventListener('change', handleThemeChange);
+      } else {
+        mediaQuery.addListener(handleThemeChange);
+      }
+      
+      return () => {
+        if (mediaQuery.removeEventListener) {
+          mediaQuery.removeEventListener('change', handleThemeChange);
+        } else {
+          mediaQuery.removeListener(handleThemeChange);
+        }
+      };
+    } else if (theme === 'light') {
       document.documentElement.classList.add('light-theme');
     } else {
       document.documentElement.classList.remove('light-theme');

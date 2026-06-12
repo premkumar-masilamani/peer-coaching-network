@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Sparkles, Shield, LogOut, Sun, Moon } from 'lucide-react';
+import { Sparkles, Shield, LogOut, Sun, Moon, Monitor } from 'lucide-react';
 import { formatDisplayName, formatMemberSince, isApproved, subscribeToPendingUsersCount } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
 
@@ -150,7 +150,7 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
                 onClick={async (e) => {
                   e.stopPropagation();
                   const currentTheme = profile?.theme || 'dark';
-                  const nextTheme = currentTheme === 'light' ? 'dark' : 'light';
+                  const nextTheme = currentTheme === 'light' ? 'dark' : currentTheme === 'dark' ? 'system' : 'light';
                   try {
                     await updateProfileDetails({ theme: nextTheme });
                   } catch (err) {
@@ -159,8 +159,20 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
                 }}
                 className="dropdown-item"
               >
-                {profile?.theme === 'light' ? <Moon size={14} /> : <Sun size={14} />}
-                <span>{profile?.theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
+                {profile?.theme === 'light' ? (
+                  <Moon size={14} />
+                ) : profile?.theme === 'dark' ? (
+                  <Monitor size={14} />
+                ) : (
+                  <Sun size={14} />
+                )}
+                <span>
+                  {profile?.theme === 'light'
+                    ? 'Dark Mode'
+                    : profile?.theme === 'dark'
+                    ? 'System Theme'
+                    : 'Light Mode'}
+                </span>
               </button>
 
               {/* Sign Out option */}

@@ -17,9 +17,9 @@ export const ProfileEdit: React.FC = () => {
   const { user, profile, updateProfileDetails } = useAuth();
 
   // State for editable profile details
-  const [gender, setGender] = useState(profile?.gender || '');
-  const [country, setCountry] = useState(profile?.location?.country || '');
-  const [qualifications] = useState<string[]>(profile?.qualifications || []);
+  const [gender, setGender] = useState<'Male' | 'Female' | 'Prefer not to say' | ''>(profile?.gender || '');
+  const [country, setCountry] = useState(profile?.country || '');
+  const [qualifications] = useState<('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]>(profile?.qualifications || []);
   const [bio, setBio] = useState(profile?.bio || '');
   const [timezone, setTimezone] = useState(profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
 
@@ -34,8 +34,8 @@ export const ProfileEdit: React.FC = () => {
     setSuccessMsg('');
     try {
       await updateProfileDetails({
-        gender,
-        location: { country },
+        gender: gender === '' ? undefined : gender,
+        country,
         qualifications,
         bio,
         timezone
@@ -110,7 +110,7 @@ export const ProfileEdit: React.FC = () => {
               id="gender-select-edit"
               className="input-field"
               value={gender}
-              onChange={(e) => setGender(e.target.value)}
+              onChange={(e) => setGender(e.target.value as 'Male' | 'Female' | 'Prefer not to say' | '')}
             >
               <option value="">Select Gender</option>
               <option value="Female">Female</option>
@@ -164,7 +164,7 @@ export const ProfileEdit: React.FC = () => {
               id="bio-input-edit"
               rows={4}
               className="input-field"
-              placeholder="Tell other coaches about your coaching focus..."
+              placeholder="Tell other coaches about your coaching style..."
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               style={{ resize: 'vertical' }}

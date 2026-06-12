@@ -79,7 +79,7 @@ export const CoachDashboard: React.FC = () => {
   const [nameSearch, setNameSearch] = useState('');
   const [genderFilter, setGenderFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
-  const [selectedQuals, setSelectedQuals] = useState<string[]>([]);
+  const [selectedQuals, setSelectedQuals] = useState<('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]>([]);
   const [qualsDropdownOpen, setQualsDropdownOpen] = useState(false);
   
   // Booking flow state
@@ -227,7 +227,7 @@ export const CoachDashboard: React.FC = () => {
   };
 
   // Handle qualification filter toggle
-  const toggleQualFilter = (qual: string) => {
+  const toggleQualFilter = (qual: 'ICF ACC' | 'ICF PCC' | 'ICF MCC') => {
     if (selectedQuals.includes(qual)) {
       setSelectedQuals(selectedQuals.filter(q => q !== qual));
     } else {
@@ -262,7 +262,7 @@ export const CoachDashboard: React.FC = () => {
 
       const matchesGender = genderFilter === '' ? true : coach.gender === genderFilter;
 
-      const matchesCountry = countryFilter === '' ? true : coach.location?.country === countryFilter;
+      const matchesCountry = countryFilter === '' ? true : coach.country === countryFilter;
 
       const matchesQuals = selectedQuals.length === 0 ? true : (
         selectedQuals.some(q => coach.qualifications?.includes(q))
@@ -628,7 +628,7 @@ export const CoachDashboard: React.FC = () => {
                         zIndex: 100,
                         boxShadow: 'var(--glass-shadow)'
                       }}>
-                        {['ICF ACC', 'ICF PCC', 'ICF MCC'].map(q => {
+                        {(['ICF ACC', 'ICF PCC', 'ICF MCC'] as ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]).map(q => {
                           const isChecked = selectedQuals.includes(q);
                           return (
                             <label
@@ -879,7 +879,7 @@ export const CoachDashboard: React.FC = () => {
                                         <div className="mini-coach-name">{formatDisplayName(coach)}</div>
                                         <div className="mini-coach-location">
                                           <MapPin size={10} color="hsl(var(--primary))" />
-                                          {coach.location?.country || 'Remote'}
+                                          {coach.country || 'Remote'}
                                         </div>
                                         <div className="mini-coach-quals">
                                           {coach.qualifications?.map(q => {

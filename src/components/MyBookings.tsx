@@ -25,11 +25,8 @@ export const MyBookings: React.FC = () => {
     setLoading(true);
     try {
       const list = await getUpcomingEvents();
-      // Identify peer-coaching sessions by an explicit type tag, falling back to
-      // the legacy summary heuristic for old bookings. See BUG-019.
-      const coachingSessions = list.filter(
-        e => e.type === 'peer-coaching' || (e.summary || '').toLowerCase().includes('coaching')
-      );
+      // Identify peer-coaching sessions by an explicit type tag.
+      const coachingSessions = list.filter(e => e.type === 'peer-coaching');
       setSessions(coachingSessions);
     } catch (e) {
       console.error('Error loading bookings:', e);
@@ -58,9 +55,7 @@ export const MyBookings: React.FC = () => {
       try {
         const list = await getUpcomingEvents();
         if (cancelled) return;
-        const coachingSessions = list.filter(
-          e => e.type === 'peer-coaching' || (e.summary || '').toLowerCase().includes('coaching')
-        );
+        const coachingSessions = list.filter(e => e.type === 'peer-coaching');
         setSessions(coachingSessions);
       } catch (e) {
         console.error('Error loading bookings:', e);

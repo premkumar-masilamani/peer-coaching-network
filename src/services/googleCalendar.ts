@@ -1,6 +1,6 @@
 import type { UserProfile } from './firebaseService';
 import { db, auth, recalculateUserAvailability, DEFAULT_TEMPLATE } from './firebaseService';
-import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, documentId, runTransaction } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, documentId, runTransaction, Timestamp } from 'firebase/firestore';
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { getGoogleToken } from './googleToken';
@@ -108,15 +108,21 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
           // De-duplicate strictly by stable id, never by coincidental start time. See BUG-010.
           if (!seenIds.has(data.id)) {
             seenIds.add(data.id);
-            const startStr: string = typeof data.start === 'string' ? data.start : (data.start?.dateTime || '');
+            const startStr: string = data.start && typeof data.start.toDate === 'function'
+              ? data.start.toDate().toISOString()
+              : (data.start?.dateTime || data.start || '');
+            const endStr: string = data.end && typeof data.end.toDate === 'function'
+              ? data.end.toDate().toISOString()
+              : (data.end?.dateTime || data.end || '');
+
             events.push({
               id: data.id,
               summary: data.summary,
               description: data.description,
               start: { dateTime: startStr },
-              end: { dateTime: typeof data.end === 'string' ? data.end : (data.end?.dateTime || '') },
+              end: { dateTime: endStr },
               meetLink: data.meetLink,
-              type: data.type,
+              type: 'peer-coaching',
               attendees: [
                 { email: data.hostEmail, displayName: data.hostName },
                 { email: data.clientEmail, displayName: data.clientName }
@@ -203,12 +209,11 @@ export const scheduleMeeting = async (
     const bookingData = {
       id: bookingId,
       googleEventId,
-      type: 'peer-coaching',
       status: 'confirmed',
       summary: eventPayload.summary,
       description: eventPayload.description,
-      start: { dateTime: startIso },
-      end: { dateTime: endIso },
+      start: Timestamp.fromDate(new Date(startIso)),
+      end: Timestamp.fromDate(new Date(endIso)),
       meetLink: realMeetLink,
       topic,
       hostEmail: coachEmail,
@@ -217,7 +222,7 @@ export const scheduleMeeting = async (
       clientName: resolvedClientName,
       coachUid,
       menteeUid,
-      createdAt: new Date().toISOString()
+      createdAt: Timestamp.now()
     };
 
     try {
@@ -234,7 +239,7 @@ export const scheduleMeeting = async (
           throw new Error('SELF_CONFLICT');
         }
         tx.set(bookingRef, bookingData);
-        tx.set(holdRef, { menteeUid, coachUid, bookingId, startIso, createdAt: new Date().toISOString() });
+        tx.set(holdRef, { menteeUid, coachUid, bookingId, startIso, createdAt: Timestamp.now() });
       });
     } catch (err) {
       if (err instanceof Error && (err.message === 'SLOT_TAKEN' || err.message === 'SELF_CONFLICT')) {
@@ -308,10 +313,12 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
   if (!snap.exists()) return;
   const data = snap.data();
 
-  await updateDoc(ref, { status: 'cancelled', cancelledAt: new Date().toISOString() });
+  await updateDoc(ref, { status: 'cancelled', cancelledAt: Timestamp.now() });
 
   // Release the mentee's per-slot hold so that time can be rebooked. See BUG-003.
-  const startIso = typeof data.start === 'string' ? data.start : data.start?.dateTime;
+  const startIso = data.start && typeof data.start.toDate === 'function'
+    ? data.start.toDate().toISOString()
+    : (data.start?.dateTime || data.start);
   if (data.menteeUid && startIso) {
     try {
       await deleteDoc(doc(db, 'slotHolds', `${data.menteeUid}_${startIso}`));
@@ -563,8 +570,8 @@ export const getCoachesAvailability = async (
     const overlayBooking = (data: DocumentData, uid: string | undefined) => {
       if (!uid || !(uid in availability)) return;
       if (data.status === 'cancelled') return;
-      const startStr = typeof data.start === 'string' ? data.start : data.start?.dateTime;
-      const endStr = typeof data.end === 'string' ? data.end : data.end?.dateTime;
+      const startStr = data.start && typeof data.start.toDate === 'function' ? data.start.toDate().toISOString() : (data.start?.dateTime || data.start);
+      const endStr = data.end && typeof data.end.toDate === 'function' ? data.end.toDate().toISOString() : (data.end?.dateTime || data.end);
       if (!startStr || !endStr) return;
       if (new Date(endStr).getTime() < nowMs) return;
       const already = availability[uid].some(e =>

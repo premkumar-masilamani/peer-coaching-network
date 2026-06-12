@@ -8,6 +8,7 @@ import {
   logout as fbLogout,
   updateOwnProfile,
   getEffectiveRole,
+  getEffectiveStatus,
   isFirebaseConfigured
 } from '../services/firebaseService';
 import type { UserProfile } from '../services/firebaseService';
@@ -55,7 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubProfile = subscribeToProfile(user.uid, (prof) => {
       if (prof) {
         setProfile(prof);
-        setRole(getEffectiveRole(prof));
+        setRole(getEffectiveStatus(prof) === 'active' ? getEffectiveRole(prof) : null);
       } else {
         setProfile(null);
         setRole(null);

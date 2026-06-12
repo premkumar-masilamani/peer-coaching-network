@@ -70,7 +70,7 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
             </h3>
             
             {/* Location Tag */}
-            {coach.location?.country ? (
+            {coach.country ? (
               <span style={{ 
                 fontSize: '0.75rem', 
                 color: 'hsl(var(--text-secondary))', 
@@ -80,7 +80,7 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
                 marginTop: '2px'
               }}>
                 <MapPin size={11} color="hsl(var(--primary))" />
-                {coach.location.country}
+                {coach.country}
               </span>
             ) : (
               <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))' }}>Remote Coach</span>

@@ -41,7 +41,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
     changes: string[];
     roleToSave: 'user' | 'admin';
     statusToSave: 'active' | 'inactive';
-    qualificationsToSave: string[];
+    qualificationsToSave: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
   } | null>(null);
   const [coachMeetings, setCoachMeetings] = useState<CalendarEvent[]>([]);
 
@@ -112,7 +112,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
       userStatus?: 'active' | 'inactive';
       gender?: string;
       country?: string;
-      qualifications?: string[];
+      qualifications?: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
     }
   >>({});
 
@@ -180,15 +180,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
     uid: string,
     roleToSave: 'user' | 'admin',
     statusToSave: 'active' | 'inactive',
-    qualificationsToSave: string[]
+    qualificationsToSave: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]
   ) => {
-    const legacyRole = statusToSave === 'active' ? roleToSave : null;
     setSavingId(uid);
     try {
       await updateProfile(uid, {
         userRole: roleToSave,
         userStatus: statusToSave,
-        role: legacyRole,
         qualifications: qualificationsToSave
       });
       setDrafts(prev => {
@@ -330,7 +328,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                   <h5 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '6px' }}>
                     Location
                   </h5>
-                  <p style={{ fontSize: '0.95rem', fontWeight: 600 }}>{coach.location?.country || 'Not specified'}</p>
+                  <p style={{ fontSize: '0.95rem', fontWeight: 600 }}>{coach.country || 'Not specified'}</p>
                 </div>
                 <div>
                   <h5 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '6px' }}>
@@ -526,7 +524,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                 {filteredUsers.map((u) => {
                   const currentRole = drafts[u.uid]?.userRole || getUserRole(u);
                   const currentStatus = drafts[u.uid]?.userStatus || getUserStatus(u);
-                  const currentQuals: string[] = drafts[u.uid]?.qualifications || u.qualifications || [];
+                  const currentQuals: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[] = (drafts[u.uid]?.qualifications || u.qualifications || []) as ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
 
                   return (
                     <tr
@@ -553,7 +551,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                       {/* Credentials Column */}
                       <td>
                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
-                          {['ICF ACC', 'ICF PCC', 'ICF MCC'].map((q) => {
+                          {(['ICF ACC', 'ICF PCC', 'ICF MCC'] as ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]).map((q) => {
                             const isActive = currentQuals.includes(q);
                             const shortCode = getShortCredential(q);
                             const cls = getCredentialBadgeClass(q);
