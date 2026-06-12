@@ -1,4 +1,4 @@
-.PHONY: install run build lint clean
+.PHONY: install run build lint clean emulator local
 
 install:
 	npm install
@@ -17,3 +17,6 @@ clean:
 
 emulator:
 	firebase emulators:start
+
+local:
+	firebase emulators:exec "npm run local"

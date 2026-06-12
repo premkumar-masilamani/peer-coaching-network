@@ -11,10 +11,11 @@ Peer Coaching Network ("collaborative Calendly for coaches") is a Single Page Ap
 The project contains a [Makefile](file:///Users/premkumar/Code/peer-coaching-network/Makefile) defining developer tasks. Use these shortcuts during development:
 
 ```bash
-make run          # Start the Vite dev server (runs: npm run dev)
+make run          # Start Vite dev server connecting to Firebase dev environment (runs: npm run dev)
+make local        # Start local Firebase emulators and run Vite connecting to it (runs: firebase emulators:exec "npm run local")
 make build        # Type-check TypeScript and build production bundle (runs: tsc -b && vite build)
 make lint         # Run ESLint validation checks (runs: eslint .)
-make emulator     # Start local Firebase emulator suite (Auth on :9099, Firestore on :8080, Hosting on :5002)
+make emulator     # Start local Firebase emulator suite only (Auth on :9099, Firestore on :8080, Hosting on :5002)
 make install      # Install all npm dependencies (runs: npm install)
 npm run preview   # Run a local web server previewing the production build folder (dist/)
 ```
