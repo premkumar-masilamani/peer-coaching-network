@@ -16,9 +16,9 @@ export const VerificationNotice: React.FC = () => {
   const { user, profile, updateProfileDetails } = useAuth();
 
   // State for editable profile details
-  const [gender, setGender] = useState(profile?.gender || '');
-  const [country, setCountry] = useState(profile?.location?.country || '');
-  const [qualifications] = useState<string[]>(profile?.qualifications || []);
+  const [gender, setGender] = useState<'Male' | 'Female' | 'Prefer not to say' | ''>(profile?.gender || '');
+  const [country, setCountry] = useState(profile?.country || '');
+  const [qualifications] = useState<('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]>(profile?.qualifications || []);
   const [bio, setBio] = useState(profile?.bio || '');
   const [timezone, setTimezone] = useState(profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
 
@@ -33,8 +33,8 @@ export const VerificationNotice: React.FC = () => {
     setSuccessMsg('');
     try {
       await updateProfileDetails({
-        gender,
-        location: { country },
+        gender: gender === '' ? undefined : gender,
+        country,
         qualifications,
         bio,
         timezone
@@ -144,7 +144,7 @@ export const VerificationNotice: React.FC = () => {
               id="gender-select"
               className="input-field"
               value={gender}
-              onChange={(e) => setGender(e.target.value)}
+              onChange={(e) => setGender(e.target.value as 'Male' | 'Female' | 'Prefer not to say' | '')}
             >
               <option value="">Select Gender</option>
               <option value="Female">Female</option>
@@ -198,7 +198,7 @@ export const VerificationNotice: React.FC = () => {
               id="bio-input"
               rows={4}
               className="input-field"
-              placeholder="Tell other coaches about your coaching focus, style, and ideal clients..."
+              placeholder="Tell other coaches about your coaching style, focus and ideal clients..."
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               style={{ resize: 'vertical' }}

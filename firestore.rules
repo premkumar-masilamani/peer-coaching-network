@@ -1,18 +1,101 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 6, 22);
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function currentUserDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // An admin is an active user whose role is 'admin'. NOTE: this is a
+    // document-based check. Promoting admin to a Firebase Auth custom claim
+    // (set only by a trusted backend) would add defense-in-depth and remove the
+    // per-check get(); that requires a server component this client-only app
+    // does not yet have. See BUG-008.
+    function isAdmin() {
+      return isSignedIn()
+        && currentUserDoc().userRole == 'admin'
+        && currentUserDoc().userStatus == 'active';
+    }
+
+    // Privileged fields may only be set by an admin. An owner editing their own
+    // profile must leave these unchanged.
+    function privilegedFieldsUnchanged() {
+      return request.resource.data.userRole == resource.data.userRole
+        && request.resource.data.userStatus == resource.data.userStatus
+        && request.resource.data.qualifications == resource.data.qualifications;
+    }
+
+    // Identity fields are immutable on a self-update (defense-in-depth). See BUG-008.
+    function selfUpdateAllowed() {
+      return privilegedFieldsUnchanged()
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    match /users/{uid} {
+      // Any signed-in user can read profiles (needed to browse peer coaches).
+      allow read: if isSignedIn();
+
+      // Self sign-up: a user may create only their own document and only as a
+      // pending account (inactive).
+      allow create: if isOwner(uid)
+        && request.resource.data.userStatus == 'inactive';
+
+      // Owners may edit their own non-privileged fields; admins may edit anything.
+      allow update: if isAdmin()
+        || (isOwner(uid) && selfUpdateAllowed());
+
+      allow delete: if isAdmin();
+    }
+
+    match /bookings/{bookingId} {
+      allow read: if isSignedIn();
+
+      // Only a participant may create a booking they are part of.
+      allow create: if isSignedIn()
+        && request.auth.uid in [
+          request.resource.data.coachUid,
+          request.resource.data.menteeUid
+        ];
+
+      // Participants (or admins) may modify/cancel a booking.
+      allow update, delete: if isSignedIn()
+        && (isAdmin()
+          || request.auth.uid in [
+            resource.data.coachUid,
+            resource.data.menteeUid
+          ]);
+    }
+
+    // Per-mentee/per-slot locks that prevent a mentee double-booking themselves
+    // across coaches in the same time slot. See BUG-003.
+    match /slotHolds/{holdId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.menteeUid == request.auth.uid;
+      allow delete: if isSignedIn()
+        && (isAdmin()
+          || resource.data.menteeUid == request.auth.uid
+          || resource.data.coachUid == request.auth.uid);
+    }
+
+    match /availability/{uid} {
+      // Derived busy-slot cache. Readable by any signed-in user, but only the
+      // OWNER may write their own cache — no cross-user writes. Live booking
+      // conflicts are surfaced from the authoritative `bookings` collection
+      // instead. See BUG-001.
+      allow read: if isSignedIn();
+      allow write: if isOwner(uid);
     }
   }
 }

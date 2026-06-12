@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { subscribeToAllUsers, updateProfile, formatDisplayName, db } from '../services/firebaseService';
+import {
+  subscribeToAllUsers,
+  updateProfile,
+  formatDisplayName,
+  formatMemberSince,
+  getEffectiveRole,
+  getEffectiveStatus,
+  db
+} from '../services/firebaseService';
 import type { UserProfile } from '../services/firebaseService';
+import { sanitizeImageUrl, sanitizeMeetLink } from '../utils/url';
 import {
   Search,
   UserCheck,
@@ -32,39 +41,33 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
     changes: string[];
     roleToSave: 'user' | 'admin';
     statusToSave: 'active' | 'inactive';
-    qualificationsToSave: string[];
+    qualificationsToSave: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
   } | null>(null);
   const [coachMeetings, setCoachMeetings] = useState<CalendarEvent[]>([]);
 
-  // Sync state if initialFilter changes
-  useEffect(() => {
-    setTimeout(() => {
-      setRoleFilter(initialFilter);
-    }, 0);
-  }, [initialFilter]);
+  // Mirror parent-driven filter changes using the adjust-during-render pattern
+  // (no effect, no setTimeout hack). See BUG-015.
+  const [prevInitialFilter, setPrevInitialFilter] = useState(initialFilter);
+  if (initialFilter !== prevInitialFilter) {
+    setPrevInitialFilter(initialFilter);
+    setRoleFilter(initialFilter);
+  }
 
   // Fetch coach meetings when a coach profile is opened
   useEffect(() => {
-    if (!selectedCoachUid || !users) {
-      setTimeout(() => {
-        setCoachMeetings([]);
-      }, 0);
-      return;
-    }
-    const coach = users.find(u => u.uid === selectedCoachUid);
-    if (!coach || !coach.email || !db) {
-      setTimeout(() => {
-        setCoachMeetings([]);
-      }, 0);
-      return;
-    }
+    const coach = selectedCoachUid && users ? users.find(u => u.uid === selectedCoachUid) : undefined;
 
     const fetchMeetings = async () => {
+      if (!coach || !db) {
+        setCoachMeetings([]);
+        return;
+      }
       try {
-        const qClient = query(collection(db, 'bookings'), where('clientEmail', '==', coach.email));
+        // Query by stable uid, not email. See BUG-019.
+        const qClient = query(collection(db, 'bookings'), where('menteeUid', '==', coach.uid));
         const snapClient = await getDocs(qClient);
 
-        const qHost = query(collection(db, 'bookings'), where('hostEmail', '==', coach.email));
+        const qHost = query(collection(db, 'bookings'), where('coachUid', '==', coach.uid));
         const snapHost = await getDocs(qHost);
 
         const meetings: CalendarEvent[] = [];
@@ -73,6 +76,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
         const processSnap = (snap: QuerySnapshot<DocumentData>) => {
           snap.forEach((docSnap) => {
             const data = docSnap.data();
+            if (data.status === 'cancelled') return;
             if (!seenIds.has(data.id)) {
               seenIds.add(data.id);
               meetings.push(data as CalendarEvent);
@@ -108,7 +112,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
       userStatus?: 'active' | 'inactive';
       gender?: string;
       country?: string;
-      qualifications?: string[];
+      qualifications?: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
     }
   >>({});
 
@@ -121,15 +125,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
     return () => unsub();
   }, []);
 
-  const getUserRole = (u: UserProfile): 'user' | 'admin' => {
-    if (u.userRole) return u.userRole;
-    return u.role === 'admin' ? 'admin' : 'user';
-  };
 
-  const getUserStatus = (u: UserProfile): 'active' | 'inactive' => {
-    if (u.userStatus) return u.userStatus;
-    return u.role !== null ? 'active' : 'inactive';
-  };
+  // Canonical role/status resolution lives in the service layer. See BUG-012.
+  const getUserRole = (u: UserProfile): 'user' | 'admin' => getEffectiveRole(u);
+  const getUserStatus = (u: UserProfile): 'active' | 'inactive' => getEffectiveStatus(u);
 
   const triggerApprove = (uid: string) => {
     const userToSave = users.find(u => u.uid === uid);
@@ -181,15 +180,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
     uid: string,
     roleToSave: 'user' | 'admin',
     statusToSave: 'active' | 'inactive',
-    qualificationsToSave: string[]
+    qualificationsToSave: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]
   ) => {
-    const legacyRole = statusToSave === 'active' ? roleToSave : null;
     setSavingId(uid);
     try {
       await updateProfile(uid, {
         userRole: roleToSave,
         userStatus: statusToSave,
-        role: legacyRole,
         qualifications: qualificationsToSave
       });
       setDrafts(prev => {
@@ -221,11 +218,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
 
   const pendingCount = users.filter(u => getUserStatus(u) === 'inactive').length;
 
+  // If the selected coach vanished from the list, drop back to the list view.
+  // Adjust-during-render (converges once selectedCoachUid is cleared) — avoids
+  // the previous unconditional setState-in-render. See BUG-015.
+  if (selectedCoachUid && !loading && users.length > 0 && !users.find(u => u.uid === selectedCoachUid)) {
+    setSelectedCoachUid(null);
+  }
+
   // Render Premium Coach Profile Page View
   if (selectedCoachUid) {
     const coach = users.find(u => u.uid === selectedCoachUid);
     if (!coach) {
-      setSelectedCoachUid(null);
       return null;
     }
 
@@ -257,7 +260,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
           {/* Left Column: Avatar & Quick Info */}
           <div className="glass-panel" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', alignSelf: 'start' }}>
             <img
-              src={coach.photoURL || 'https://api.dicebear.com/7.x/bottts/svg'}
+              src={sanitizeImageUrl(coach.photoURL)}
               alt={formatDisplayName(coach) || 'Coach'}
               style={{ width: '120px', height: '120px', borderRadius: '50%', border: '3px solid hsl(var(--primary))', marginBottom: '20px' }}
             />
@@ -269,7 +272,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
             </p>
             {coach.createdAt && (
               <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))', marginBottom: '16px' }}>
-                Member since {coach.createdAt}
+                Member since {formatMemberSince(coach.createdAt)}
               </p>
             )}
 
@@ -325,7 +328,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                   <h5 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '6px' }}>
                     Location
                   </h5>
-                  <p style={{ fontSize: '0.95rem', fontWeight: 600 }}>{coach.location?.country || 'Not specified'}</p>
+                  <p style={{ fontSize: '0.95rem', fontWeight: 600 }}>{coach.country || 'Not specified'}</p>
                 </div>
                 <div>
                   <h5 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '6px' }}>
@@ -369,6 +372,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                     const start = new Date(ev.start.dateTime);
                     const timeString = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                     const dateString = start.toLocaleDateString([], { month: 'short', day: 'numeric', weekday: 'short' });
+                    const safeMeetLink = sanitizeMeetLink(ev.meetLink);
 
                     return (
                       <div key={ev.id} className="glass-panel" style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.02)', borderColor: 'rgba(255,255,255,0.05)' }}>
@@ -379,10 +383,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                         <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-secondary))' }}>
                           {dateString} at {timeString}
                         </p>
-                        {ev.meetLink && (
+                        {safeMeetLink && (
                           <div style={{ marginTop: '12px' }}>
                             <a
-                              href={ev.meetLink}
+                              href={safeMeetLink}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="btn btn-secondary"
@@ -520,7 +524,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                 {filteredUsers.map((u) => {
                   const currentRole = drafts[u.uid]?.userRole || getUserRole(u);
                   const currentStatus = drafts[u.uid]?.userStatus || getUserStatus(u);
-                  const currentQuals: string[] = drafts[u.uid]?.qualifications || u.qualifications || [];
+                  const currentQuals: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[] = (drafts[u.uid]?.qualifications || u.qualifications || []) as ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
 
                   return (
                     <tr
@@ -533,7 +537,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <img
-                            src={u.photoURL || 'https://api.dicebear.com/7.x/bottts/svg'}
+                            src={sanitizeImageUrl(u.photoURL)}
                             alt={formatDisplayName(u) || 'Coach'}
                             style={{ width: '38px', height: '38px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.08)' }}
                           />
@@ -547,7 +551,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                       {/* Credentials Column */}
                       <td>
                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
-                          {['ICF ACC', 'ICF PCC', 'ICF MCC'].map((q) => {
+                          {(['ICF ACC', 'ICF PCC', 'ICF MCC'] as ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]).map((q) => {
                             const isActive = currentQuals.includes(q);
                             const shortCode = getShortCredential(q);
                             const cls = getCredentialBadgeClass(q);

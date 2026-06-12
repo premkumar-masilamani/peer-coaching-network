@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { subscribeToAllUsers, formatDisplayName } from '../services/firebaseService';
+import { subscribeToActiveCoaches, formatDisplayName } from '../services/firebaseService';
 import { getShortCredential, getCredentialBadgeClass, getCredentialDescription } from '../utils/credentials';
 import type { UserProfile } from '../services/firebaseService';
 import { 
@@ -27,7 +27,8 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
-import { getLocalDateInTimezone, getHour24 } from '../utils/timezoneHelpers';
+import { getLocalDateInTimezone, getUtcForSlot } from '../utils/timezoneHelpers';
+import { sanitizeImageUrl } from '../utils/url';
 
 const getTimezoneCode = (date: Date, timeZone: string): string => {
   try {
@@ -41,51 +42,8 @@ const getTimezoneCode = (date: Date, timeZone: string): string => {
   }
 };
 
-
-
-const getUtcForSlot = (date: Date, hour: number, timeZone: string): Date => {
-  const year = date.getFullYear();
-  const month = date.getMonth() + 1;
-  const day = date.getDate();
-  
-  let utcGuess = new Date(Date.UTC(year, month - 1, day, hour));
-  
-  for (let i = 0; i < 3; i++) {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      year: 'numeric',
-      month: 'numeric',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      hourCycle: 'h23'
-    }).formatToParts(utcGuess);
-    
-    const tzYear = parseInt(parts.find(p => p.type === 'year')!.value);
-    const tzMonth = parseInt(parts.find(p => p.type === 'month')!.value);
-    const tzDay = parseInt(parts.find(p => p.type === 'day')!.value);
-    const tzHour = getHour24(parts);
-    const tzMinute = parseInt(parts.find(p => p.type === 'minute')!.value);
-    
-    const targetMinutes = hour * 60;
-    const currentMinutes = tzHour * 60 + tzMinute;
-    
-    const targetDate = new Date(Date.UTC(year, month - 1, day, 0, 0));
-    const currentDate = new Date(Date.UTC(tzYear, tzMonth - 1, tzDay, 0, 0));
-    const dayDiff = (targetDate.getTime() - currentDate.getTime()) / (24 * 60 * 60 * 1000);
-    
-    const diffMinutes = dayDiff * 24 * 60 + (targetMinutes - currentMinutes);
-    if (diffMinutes === 0) break;
-    
-    utcGuess = new Date(utcGuess.getTime() + diffMinutes * 60 * 1000);
-  }
-  return utcGuess;
-};
-
-
-
 export const CoachDashboard: React.FC = () => {
-  const { user: currentUser, profile, role } = useAuth();
+  const { user: currentUser, profile } = useAuth();
   
   // Ref for date carousel scrolling
   const carouselRef = React.useRef<HTMLDivElement>(null);
@@ -114,14 +72,14 @@ export const CoachDashboard: React.FC = () => {
   
   // Tab states
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  const localToday = getLocalDateInTimezone(new Date(), viewerTimezone);
+  const localToday = useMemo(() => getLocalDateInTimezone(new Date(), viewerTimezone), [viewerTimezone]);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   
   // Filter states
   const [nameSearch, setNameSearch] = useState('');
   const [genderFilter, setGenderFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
-  const [selectedQuals, setSelectedQuals] = useState<string[]>([]);
+  const [selectedQuals, setSelectedQuals] = useState<('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]>([]);
   const [qualsDropdownOpen, setQualsDropdownOpen] = useState(false);
   
   // Booking flow state
@@ -133,36 +91,36 @@ export const CoachDashboard: React.FC = () => {
   const isInitialLoading = loadingCoaches || (loadingCalendar && Object.keys(coachesBusy).length === 0);
 
   // Generate 56 days (2 months) in viewer's local timezone
-  const days: Date[] = [];
-  for (let i = 0; i < 56; i++) {
-    const d = new Date(localToday);
-    d.setDate(localToday.getDate() + i);
-    days.push(d);
-  }
+  const days = useMemo(() => {
+    const arr: Date[] = [];
+    for (let i = 0; i < 56; i++) {
+      const d = new Date(localToday);
+      d.setDate(localToday.getDate() + i);
+      arr.push(d);
+    }
+    return arr;
+  }, [localToday]);
 
   const activeDayDate = days[selectedDayIndex] || localToday;
 
   // Generate slots for the active day
-  const slots = [];
-  for (let hour = 8; hour < 20; hour++) {
-    const startTime = getUtcForSlot(activeDayDate, hour, viewerTimezone);
-    const endTime = getUtcForSlot(activeDayDate, hour + 1, viewerTimezone);
-    slots.push({
-      hour,
-      startTime,
-      endTime
-    });
-  }
-
-  // Fetch all peer coaches
-  useEffect(() => {
-    const unsub = subscribeToAllUsers((usersList) => {
-      const peerCoaches = usersList.filter((u) => {
-        const uRole = u.userRole || u.role;
-        const uStatus = u.userStatus || (u.role !== null ? 'active' : 'inactive');
-        const isPeerActive = uStatus === 'active' && (uRole === 'user' || uRole === 'admin');
-        return isPeerActive && u.uid !== currentUser?.uid;
+  const slots = useMemo(() => {
+    const arr: { hour: number; startTime: Date; endTime: Date }[] = [];
+    for (let hour = 8; hour < 20; hour++) {
+      arr.push({
+        hour,
+        startTime: getUtcForSlot(activeDayDate, hour, viewerTimezone),
+        endTime: getUtcForSlot(activeDayDate, hour + 1, viewerTimezone)
       });
+    }
+    return arr;
+  }, [activeDayDate, viewerTimezone]);
+
+  // Fetch active peer coaches only (server-side filtered, not the whole users
+  // collection). See BUG-006.
+  useEffect(() => {
+    const unsub = subscribeToActiveCoaches((usersList) => {
+      const peerCoaches = usersList.filter((u) => u.uid !== currentUser?.uid);
       setCoaches(peerCoaches);
       setLoadingCoaches(false);
     });
@@ -184,10 +142,10 @@ export const CoachDashboard: React.FC = () => {
       endDay.setDate(today.getDate() + 56);
       const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
 
-      const availability = await getCoachesAvailability(!!role, coaches, timeMin, timeMax);
+      const availability = await getCoachesAvailability(coaches, timeMin, timeMax);
       setCoachesBusy(availability);
 
-      const allEvents = await getUpcomingEvents(!!role);
+      const allEvents = await getUpcomingEvents();
       setUserBusyEvents(allEvents);
     } catch (e) {
       console.error('Error fetching dashboard calendar details:', e);
@@ -196,22 +154,35 @@ export const CoachDashboard: React.FC = () => {
     }
   };
 
+  // Load calendar data when the coach list changes. Runs inside an async IIFE so
+  // no setState happens synchronously in the effect body (no setTimeout hack).
+  // loadingCalendar already starts true, so we don't re-show the spinner here.
+  // See BUG-007.
   useEffect(() => {
-    let active = true;
-    const timer = setTimeout(() => {
-      if (!active) return;
-      if (coaches.length > 0) {
-        loadCalendarData();
-      } else {
-        setLoadingCalendar(false);
+    let cancelled = false;
+    (async () => {
+      try {
+        const today = getLocalDateInTimezone(new Date(), viewerTimezone);
+        const timeMin = getUtcForSlot(today, 0, viewerTimezone).toISOString();
+        const endDay = new Date(today);
+        endDay.setDate(today.getDate() + 56);
+        const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
+
+        const availability = await getCoachesAvailability(coaches, timeMin, timeMax);
+        if (cancelled) return;
+        setCoachesBusy(availability);
+
+        const allEvents = await getUpcomingEvents();
+        if (cancelled) return;
+        setUserBusyEvents(allEvents);
+      } catch (e) {
+        console.error('Error fetching dashboard calendar details:', e);
+      } finally {
+        if (!cancelled) setLoadingCalendar(false);
       }
-    }, 0);
-    return () => {
-      active = false;
-      clearTimeout(timer);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coaches]);
+    })();
+    return () => { cancelled = true; };
+  }, [coaches, viewerTimezone]);
 
   // Handle booking success with optimistic updates
   const handleBookingSuccess = (newEvent: CalendarEvent) => {
@@ -256,7 +227,7 @@ export const CoachDashboard: React.FC = () => {
   };
 
   // Handle qualification filter toggle
-  const toggleQualFilter = (qual: string) => {
+  const toggleQualFilter = (qual: 'ICF ACC' | 'ICF PCC' | 'ICF MCC') => {
     if (selectedQuals.includes(qual)) {
       setSelectedQuals(selectedQuals.filter(q => q !== qual));
     } else {
@@ -291,7 +262,7 @@ export const CoachDashboard: React.FC = () => {
 
       const matchesGender = genderFilter === '' ? true : coach.gender === genderFilter;
 
-      const matchesCountry = countryFilter === '' ? true : coach.location?.country === countryFilter;
+      const matchesCountry = countryFilter === '' ? true : coach.country === countryFilter;
 
       const matchesQuals = selectedQuals.length === 0 ? true : (
         selectedQuals.some(q => coach.qualifications?.includes(q))
@@ -322,6 +293,23 @@ export const CoachDashboard: React.FC = () => {
     if (text.length <= limit) return text;
     return text.substring(0, limit) + '...';
   };
+
+  // Precompute, once per relevant-input change, the filtered coaches per slot —
+  // instead of calling getCoachesForSlot three times per render. See BUG-006.
+  const slotView = useMemo(() => {
+    const enriched = slots.map(slot => {
+      const isPassed = slot.endTime.getTime() < now;
+      const coachesForSlot = isPassed ? [] : getCoachesForSlot(slot.startTime, slot.endTime, false);
+      const anyAvailable = isPassed ? false : getCoachesForSlot(slot.startTime, slot.endTime, true).length > 0;
+      const conflict = hasUserConflict(slot.startTime, slot.endTime);
+      return { slot, isPassed, coaches: coachesForSlot, anyAvailable, conflict };
+    });
+    return {
+      displaySlots: enriched.filter(e => !e.isPassed && e.coaches.length > 0),
+      hasGeneralSlots: enriched.some(e => e.anyAvailable)
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slots, coaches, coachesBusy, userBusyEvents, now, nameSearch, genderFilter, countryFilter, selectedQuals]);
 
   return (
     <div className="animate-fade-in" style={{ width: '100%' }}>
@@ -640,7 +628,7 @@ export const CoachDashboard: React.FC = () => {
                         zIndex: 100,
                         boxShadow: 'var(--glass-shadow)'
                       }}>
-                        {['ICF ACC', 'ICF PCC', 'ICF MCC'].map(q => {
+                        {(['ICF ACC', 'ICF PCC', 'ICF MCC'] as ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]).map(q => {
                           const isChecked = selectedQuals.includes(q);
                           return (
                             <label
@@ -831,22 +819,12 @@ export const CoachDashboard: React.FC = () => {
           ) : (
             <div>
               {(() => {
-                // Filter slots to only those that:
-                // 1. Are not passed
-                // 2. Have at least one coach available matching the active filter criteria (skip empty slots)
-                const displaySlots = slots.filter(slot => {
-                  const isPassed = slot.endTime.getTime() < now;
-                  if (isPassed) return false;
-                  
-                  const slotCoaches = getCoachesForSlot(slot.startTime, slot.endTime, false);
-                  return slotCoaches.length > 0;
-                });
+                // Slots that are not passed and have at least one matching coach,
+                // precomputed in `slotView`. See BUG-006.
+                const displaySlots = slotView.displaySlots;
 
                 if (displaySlots.length > 0) {
-                  return displaySlots.map((slot) => {
-                    const conflict = hasUserConflict(slot.startTime, slot.endTime);
-                    const slotCoaches = getCoachesForSlot(slot.startTime, slot.endTime, false);
-                    
+                  return displaySlots.map(({ slot, conflict, coaches: slotCoaches }) => {
                     return (
                       <div 
                         key={slot.hour} 
@@ -883,16 +861,17 @@ export const CoachDashboard: React.FC = () => {
                               else if (hasPCC) borderCol = 'hsl(var(--pcc-silver))';
                               else if (hasACC) borderCol = 'hsl(var(--acc-gold))';
 
-                              const coachBusy = isCoachBusy(coach.uid, slot.startTime, slot.endTime);
-                              const isDisabled = conflict || coachBusy;
+                              // slotCoaches are already filtered to non-busy coaches,
+                              // so the only remaining disabler is the viewer's own conflict.
+                              const isDisabled = conflict;
 
                               return (
                                 <div key={coach.uid} className="mini-coach-card">
                                   <div>
                                     <div className="mini-coach-info">
-                                      <img 
-                                        src={coach.photoURL || 'https://api.dicebear.com/7.x/bottts/svg'} 
-                                        alt={formatDisplayName(coach) || 'Coach'} 
+                                      <img
+                                        src={sanitizeImageUrl(coach.photoURL)}
+                                        alt={formatDisplayName(coach) || 'Coach'}
                                         className="mini-coach-avatar"
                                         style={{ border: `1.5px solid ${borderCol}` }}
                                       />
@@ -900,7 +879,7 @@ export const CoachDashboard: React.FC = () => {
                                         <div className="mini-coach-name">{formatDisplayName(coach)}</div>
                                         <div className="mini-coach-location">
                                           <MapPin size={10} color="hsl(var(--primary))" />
-                                          {coach.location?.country || 'Remote'}
+                                          {coach.country || 'Remote'}
                                         </div>
                                         <div className="mini-coach-quals">
                                           {coach.qualifications?.map(q => {
@@ -939,7 +918,7 @@ export const CoachDashboard: React.FC = () => {
                                       cursor: isDisabled ? 'not-allowed' : 'pointer'
                                     }}
                                   >
-                                    {conflict ? 'Conflict' : coachBusy ? 'Unavailable' : 'Book Session'}
+                                    {conflict ? 'Conflict' : 'Book Session'}
                                   </button>
                                 </div>
                               );
@@ -951,12 +930,9 @@ export const CoachDashboard: React.FC = () => {
                   });
                 }
 
-                // If displaySlots.length === 0, check if there are general available slots (ignoring filters)
-                const hasGeneralSlots = slots.some(slot => {
-                  const isPassed = slot.endTime.getTime() < now;
-                  if (isPassed) return false;
-                  return getCoachesForSlot(slot.startTime, slot.endTime, true).length > 0;
-                });
+                // If displaySlots is empty, check whether any slot has coaches at
+                // all (ignoring filters), precomputed in slotView. See BUG-006.
+                const hasGeneralSlots = slotView.hasGeneralSlots;
 
                 if (hasGeneralSlots) {
                   // General slots exist, but filters filtered them all out
