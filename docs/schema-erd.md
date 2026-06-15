@@ -34,11 +34,13 @@ erDiagram
 
     bookings {
         string id PK
+        string googleEventId FK
+        string status
         string summary
         string description
         Timestamp start
-        string googleEventId
-        string status
+        Timestamp end
+        string meetLink
         string topic
         string hostEmail
         string hostName
@@ -48,7 +50,12 @@ erDiagram
         string menteeUid FK
         Timestamp createdAt
         Timestamp cancelledAt
-        Timestamp end
+    }
+
+    availability {
+        string uid PK
+        string lastUpdated
+        string_array busySlots
     }
 
     slotHolds {
@@ -57,12 +64,6 @@ erDiagram
         string bookingId FK
         string startIso
         Timestamp createdAt
-    }
-
-    availability {
-        string uid PK, FK
-        string lastUpdated
-        string_array busySlots
     }
 ```
 
