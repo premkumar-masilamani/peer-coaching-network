@@ -139,7 +139,7 @@ export const MyBookings: React.FC = () => {
                         )}
                       </div>
                       
-                      <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px', color: 'white', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px', color: 'hsl(var(--text-primary))', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
                         {session.summary}
                       </h4>
                       <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-secondary))', marginBottom: '8px' }}>
@@ -151,7 +151,7 @@ export const MyBookings: React.FC = () => {
                       </p>
 
                       {session.description && (
-                        <p style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', marginBottom: '16px', lineHeight: 1.4, background: 'rgba(255,255,255,0.01)', padding: '8px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.03)' }}>
+                        <p style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', marginBottom: '16px', lineHeight: 1.4, background: 'var(--panel-hover-bg)', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
                           {session.description}
                         </p>
                       )}
@@ -224,7 +224,7 @@ export const MyBookings: React.FC = () => {
                       style={{ padding: '20px', opacity: 0.65, borderLeft: '4px solid hsl(var(--text-muted))' }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                        <span className="badge" style={{ fontSize: '0.65rem', padding: '3px 8px', textTransform: 'none', background: 'rgba(255, 255, 255, 0.05)', color: 'hsl(var(--text-muted))' }}>
+                        <span className="badge" style={{ fontSize: '0.65rem', padding: '3px 8px', textTransform: 'none', background: 'var(--btn-secondary-bg)', color: 'hsl(var(--text-muted))' }}>
                           Completed
                         </span>
                       </div>

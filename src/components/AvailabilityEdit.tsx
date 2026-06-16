@@ -382,7 +382,7 @@ export const AvailabilityEdit: React.FC = () => {
           display: flex;
           align-items: flex-start;
           padding: 16px 0;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+          border-bottom: 1px solid var(--border-light);
           min-height: 72px;
         }
         .day-row:last-child {
@@ -407,8 +407,8 @@ export const AvailabilityEdit: React.FC = () => {
           gap: 12px;
         }
         .time-select {
-          background: rgba(255, 255, 255, 0.03);
-          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: var(--input-bg);
+          border: 1px solid var(--input-border);
           border-radius: 8px;
           color: hsl(var(--text-primary));
           padding: 8px 12px;
@@ -421,11 +421,11 @@ export const AvailabilityEdit: React.FC = () => {
         }
         .time-select:focus {
           border-color: hsl(var(--primary));
-          box-shadow: 0 0 8px rgba(139, 92, 246, 0.25);
+          box-shadow: 0 0 8px var(--primary-glow);
         }
         .time-select option {
-          background: #111;
-          color: #fff;
+          background: hsl(var(--bg-surface-elevated));
+          color: hsl(var(--text-primary));
         }
         .action-icon-btn {
           background: transparent;
@@ -440,7 +440,7 @@ export const AvailabilityEdit: React.FC = () => {
           transition: all 0.2s;
         }
         .action-icon-btn:hover {
-          background: rgba(255, 255, 255, 0.06);
+          background: var(--btn-secondary-hover-bg);
           color: hsl(var(--text-primary));
         }
         .action-icon-btn.remove:hover {
@@ -464,7 +464,7 @@ export const AvailabilityEdit: React.FC = () => {
           align-self: flex-start;
         }
         .apply-all-btn:hover {
-          background: rgba(139, 92, 246, 0.08);
+          background: var(--primary-glow);
           text-decoration: underline;
         }
         .blocked-date-item {
@@ -472,21 +472,21 @@ export const AvailabilityEdit: React.FC = () => {
           align-items: center;
           justify-content: space-between;
           padding: 8px 12px;
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: var(--panel-hover-bg);
+          border: 1px solid var(--border-light);
           border-radius: 8px;
           margin-bottom: 8px;
           font-size: 0.85rem;
         }
         .blocked-date-item:hover {
-          border-color: rgba(255, 255, 255, 0.1);
+          border-color: var(--border-light);
         }
       `}</style>
 
       {/* Main Weekly Schedule Panel */}
       <div className="glass-panel" style={{ padding: '32px', position: 'relative' }}>
         {/* Header Title with Save */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid var(--border-light)', paddingBottom: '16px' }}>
           <div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Default Availability</h2>
             <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))', marginTop: '4px' }}>

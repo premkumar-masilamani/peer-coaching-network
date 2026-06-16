@@ -147,7 +147,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               We have scheduled the calendar invite and sent it to <strong>{formatDisplayName(coach)}</strong>.
             </p>
 
-            <div className="glass-panel" style={{ padding: '20px', background: 'rgba(255, 255, 255, 0.02)', textAlign: 'left', marginBottom: '24px' }}>
+            <div className="glass-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', textAlign: 'left', marginBottom: '24px' }}>
               <p style={{ fontSize: '0.85rem', marginBottom: '6px' }}><strong>Topic:</strong> {topic}</p>
               <p style={{ fontSize: '0.85rem', marginBottom: '12px' }}>
                 <strong>Time:</strong> {dateString} at {timeString}
@@ -155,7 +155,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               
               {sanitizeMeetLink(createdEvent.meetLink) && (
                 <div style={{
-                  borderTop: '1px solid rgba(255,255,255,0.05)',
+                  borderTop: '1px solid var(--border-light)',
                   paddingTop: '12px',
                   display: 'flex',
                   flexDirection: 'column',
@@ -198,7 +198,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             )}
 
             {/* Date & Time details read-only block */}
-            <div className="glass-panel" style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.02)', marginBottom: '20px' }}>
+            <div className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', fontSize: '0.9rem' }}>
                 <Calendar size={15} color="hsl(var(--primary))" />
                 <span><strong>Date:</strong> {dateString}</span>

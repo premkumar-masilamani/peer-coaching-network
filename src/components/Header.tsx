@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Sparkles, Shield, LogOut, Sun, Moon, Monitor } from 'lucide-react';
+import { Sparkles, Shield } from 'lucide-react';
 import { formatDisplayName, formatMemberSince, isApproved, subscribeToPendingUsersCount } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
 
@@ -11,9 +11,8 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter }) => {
-  const { user, profile, role, logout, updateProfileDetails } = useAuth();
+  const { user, profile, role } = useAuth();
   const [pendingCount, setPendingCount] = React.useState(0);
-  const [menuOpen, setMenuOpen] = React.useState(false);
 
   const isActive = isApproved(profile);
   const isActiveAdmin = role === 'admin' && isActive;
@@ -34,10 +33,9 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
     <header className="glass-panel" style={{ 
       borderRadius: '0 0 16px 16px', 
       borderTop: 'none',
-      position: 'sticky',
-      top: 0,
+      flexShrink: 0,
       zIndex: 50,
-      marginBottom: '24px'
+      marginBottom: '16px'
     }}>
       <div className="content-wrapper" style={{ 
         padding: '16px', 
@@ -49,14 +47,14 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => (role === 'user' || role === 'admin') && setCurrentTab('dashboard')}>
           <div style={{
-            background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
+            background: 'hsl(var(--primary))',
             width: '40px',
             height: '40px',
             borderRadius: '10px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)'
+            boxShadow: '0 4px 12px var(--primary-glow)'
           }}>
             <Sparkles size={20} color="#fff" />
           </div>
@@ -101,113 +99,46 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
             </button>
           )}
 
-          {/* Profile Dropdown */}
-          <div className="profile-dropdown" style={{ zIndex: 100 }}>
-            <button 
-              onClick={() => setMenuOpen(!menuOpen)}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '4px',
-                borderRadius: '8px',
-                textAlign: 'right'
-              }}
-            >
-              {/* User details displayed to the left of the profile picture */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right' }}>
-                <p style={{ fontSize: '0.95rem', fontWeight: 600, color: 'hsl(var(--text-primary))', margin: 0 }}>
-                  {formatDisplayName(profile || user) || 'Coaching Peer'}
+          {/* User Details & Avatar (Static) */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              padding: '4px',
+              borderRadius: '8px',
+              textAlign: 'right'
+            }}
+          >
+            {/* User details displayed to the left of the profile picture */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right' }}>
+              <p style={{ fontSize: '0.95rem', fontWeight: 600, color: 'hsl(var(--text-primary))', margin: 0 }}>
+                {formatDisplayName(profile || user) || 'Coaching Peer'}
+              </p>
+              <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))', margin: 0, marginTop: '2px' }}>
+                {profile?.email || user.email}
+              </p>
+              {profile?.createdAt && (
+                <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))', margin: 0, marginTop: '2px' }}>
+                  Member since {formatMemberSince(profile.createdAt)}
                 </p>
-                <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))', margin: 0, marginTop: '2px' }}>
-                  {profile?.email || user.email}
-                </p>
-                {profile?.createdAt && (
-                  <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))', margin: 0, marginTop: '2px' }}>
-                    Member since {formatMemberSince(profile.createdAt)}
-                  </p>
-                )}
-              </div>
-
-              <img
-                src={sanitizeImageUrl(profile?.photoURL || user.photoURL)}
-                alt={formatDisplayName(profile || user) || 'User'}
-                style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '50%',
-                  objectFit: 'cover',
-                  border: '2px solid var(--border-light)'
-                }}
-              />
-            </button>
-            <div className="dropdown-menu" style={{ display: menuOpen ? 'flex' : 'none', width: '180px' }}>
-              {/* Theme Toggle option */}
-              <button
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  const currentTheme = profile?.theme || 'dark';
-                  const nextTheme = currentTheme === 'light' ? 'dark' : currentTheme === 'dark' ? 'system' : 'light';
-                  try {
-                    await updateProfileDetails({ theme: nextTheme });
-                  } catch (err) {
-                    console.error('Failed to toggle theme:', err);
-                  }
-                }}
-                className="dropdown-item"
-              >
-                {profile?.theme === 'light' ? (
-                  <Moon size={14} />
-                ) : profile?.theme === 'dark' ? (
-                  <Monitor size={14} />
-                ) : (
-                  <Sun size={14} />
-                )}
-                <span>
-                  {profile?.theme === 'light'
-                    ? 'Dark Mode'
-                    : profile?.theme === 'dark'
-                    ? 'System Theme'
-                    : 'Light Mode'}
-                </span>
-              </button>
-
-              {/* Sign Out option */}
-              <button
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  setMenuOpen(false);
-                  await logout();
-                }}
-                className="dropdown-item"
-                style={{ color: '#f87171' }}
-              >
-                <LogOut size={14} />
-                <span>Sign Out</span>
-              </button>
+              )}
             </div>
+
+            <img
+              src={sanitizeImageUrl(profile?.photoURL || user.photoURL)}
+              alt={formatDisplayName(profile || user) || 'User'}
+              style={{
+                width: '38px',
+                height: '38px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: '2px solid var(--border-light)'
+              }}
+            />
           </div>
         </div>
       </div>
-
-      {/* Close background overlay when menu is open */}
-      {menuOpen && (
-        <div 
-          onClick={() => setMenuOpen(false)}
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 90,
-            cursor: 'default'
-          }}
-        />
-      )}
     </header>
   );
 };
