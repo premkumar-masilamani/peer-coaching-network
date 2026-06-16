@@ -137,24 +137,11 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
         borderTop: '1px solid rgba(255, 255, 255, 0.05)',
         paddingTop: '16px',
         marginTop: 'auto'
       }}>
-        {/* Calendar Synced indicator */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-          <div style={{
-            width: '6px',
-            height: '6px',
-            borderRadius: '50%',
-            backgroundColor: coach.calendarSynced ? '#10b981' : 'rgba(255, 255, 255, 0.2)'
-          }} />
-          <span style={{ fontSize: '0.7rem', color: 'hsl(var(--text-muted))' }}>
-            {coach.calendarSynced ? 'Synced Calendar' : 'Offline Calendar'}
-          </span>
-        </div>
-
         {/* Action Button */}
         <button 
           onClick={() => onSchedule(coach)}

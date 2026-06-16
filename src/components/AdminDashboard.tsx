@@ -18,7 +18,7 @@ import {
   ExternalLink,
   X
 } from 'lucide-react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
@@ -55,7 +55,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
 
   // Fetch coach meetings when a coach profile is opened
   useEffect(() => {
-    const coach = selectedCoachUid && users ? users.find(u => u.uid === selectedCoachUid) : undefined;
+    const coach = selectedCoachUid && users ? users.find(u => u.userId === selectedCoachUid) : undefined;
 
     const fetchMeetings = async () => {
       if (!coach || !db) {
@@ -63,29 +63,67 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
         return;
       }
       try {
-        // Query by stable uid, not email. See BUG-019.
-        const qClient = query(collection(db, 'bookings'), where('menteeUid', '==', coach.uid));
+        // Query by stable userId, not email. See BUG-019.
+        const qClient = query(collection(db, 'bookings'), where('clientUid', '==', coach.userId));
         const snapClient = await getDocs(qClient);
 
-        const qHost = query(collection(db, 'bookings'), where('coachUid', '==', coach.uid));
+        const qHost = query(collection(db, 'bookings'), where('coachUid', '==', coach.userId));
         const snapHost = await getDocs(qHost);
 
         const meetings: CalendarEvent[] = [];
         const seenIds = new Set<string>();
 
-        const processSnap = (snap: QuerySnapshot<DocumentData>) => {
-          snap.forEach((docSnap) => {
-            const data = docSnap.data();
-            if (data.status === 'cancelled') return;
-            if (!seenIds.has(data.id)) {
-              seenIds.add(data.id);
-              meetings.push(data as CalendarEvent);
-            }
-          });
+        const profileCache = new Map<string, UserProfile>();
+        const getProfile = async (uid: string): Promise<UserProfile | null> => {
+          if (profileCache.has(uid)) return profileCache.get(uid)!;
+          const userSnap = await getDoc(doc(db, 'users', uid));
+          if (userSnap.exists()) {
+            const profile = userSnap.data() as UserProfile;
+            profileCache.set(uid, profile);
+            return profile;
+          }
+          return null;
         };
 
-        processSnap(snapClient);
-        processSnap(snapHost);
+        const processSnap = async (snap: QuerySnapshot<DocumentData>) => {
+          for (const docSnap of snap.docs) {
+            const data = docSnap.data();
+            if (data.status === 'cancelled') continue;
+            if (!seenIds.has(data.bookingId)) {
+              seenIds.add(data.bookingId);
+              
+              const startStr: string = data.startTime && typeof data.startTime.toDate === 'function'
+                ? data.startTime.toDate().toISOString()
+                : (data.startTime?.dateTime || data.startTime || '');
+              const endStr: string = data.endTime && typeof data.endTime.toDate === 'function'
+                ? data.endTime.toDate().toISOString()
+                : (data.endTime?.dateTime || data.endTime || '');
+
+              const coachProfile = await getProfile(data.coachUid);
+              const clientProfile = await getProfile(data.clientUid);
+
+              const coachFirstName = coachProfile ? coachProfile.displayName.split(' ')[0] : 'Coach';
+              const clientFirstName = clientProfile ? clientProfile.displayName.split(' ')[0] : 'Peer';
+
+              meetings.push({
+                id: data.bookingId,
+                summary: `${coachFirstName} / ${clientFirstName} - Peer Coaching Session`,
+                description: `Topic: ${data.topic}`,
+                start: { dateTime: startStr },
+                end: { dateTime: endStr },
+                meetLink: data.googleMeetLink,
+                type: 'peer-coaching',
+                attendees: [
+                  { email: coachProfile?.email || '', displayName: coachProfile?.displayName || '' },
+                  { email: clientProfile?.email || '', displayName: clientProfile?.displayName || '' }
+                ]
+              });
+            }
+          }
+        };
+
+        await processSnap(snapClient);
+        await processSnap(snapHost);
 
         meetings.sort((a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime());
         setCoachMeetings(meetings);
@@ -131,7 +169,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
   const getUserStatus = (u: UserProfile): 'active' | 'inactive' => getEffectiveStatus(u);
 
   const triggerApprove = (uid: string) => {
-    const userToSave = users.find(u => u.uid === uid);
+    const userToSave = users.find(u => u.userId === uid);
     if (!userToSave) return;
 
     const draft = drafts[uid];
@@ -221,13 +259,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
   // If the selected coach vanished from the list, drop back to the list view.
   // Adjust-during-render (converges once selectedCoachUid is cleared) — avoids
   // the previous unconditional setState-in-render. See BUG-015.
-  if (selectedCoachUid && !loading && users.length > 0 && !users.find(u => u.uid === selectedCoachUid)) {
+  if (selectedCoachUid && !loading && users.length > 0 && !users.find(u => u.userId === selectedCoachUid)) {
     setSelectedCoachUid(null);
   }
 
   // Render Premium Coach Profile Page View
   if (selectedCoachUid) {
-    const coach = users.find(u => u.uid === selectedCoachUid);
+    const coach = users.find(u => u.userId === selectedCoachUid);
     if (!coach) {
       return null;
     }
@@ -335,14 +373,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                     Timezone
                   </h5>
                   <p style={{ fontSize: '0.95rem', fontWeight: 600 }}>{coach.timezone || 'Not specified'}</p>
-                </div>
-                <div>
-                  <h5 style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '6px' }}>
-                    Google Calendar Sync
-                  </h5>
-                  <p style={{ fontSize: '0.95rem', fontWeight: 600, color: coach.calendarSynced ? '#34d399' : 'hsl(var(--text-muted))' }}>
-                    {coach.calendarSynced ? 'Synced' : 'Not Connected'}
-                  </p>
                 </div>
               </div>
 
@@ -522,14 +552,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
               </thead>
               <tbody>
                 {filteredUsers.map((u) => {
-                  const currentRole = drafts[u.uid]?.userRole || getUserRole(u);
-                  const currentStatus = drafts[u.uid]?.userStatus || getUserStatus(u);
-                  const currentQuals: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[] = (drafts[u.uid]?.qualifications || u.qualifications || []) as ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
+                  const currentRole = drafts[u.userId]?.userRole || getUserRole(u);
+                  const currentStatus = drafts[u.userId]?.userStatus || getUserStatus(u);
+                  const currentQuals: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[] = (drafts[u.userId]?.qualifications || u.qualifications || []) as ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
 
                   return (
                     <tr
-                      key={u.uid}
-                      onClick={() => setSelectedCoachUid(u.uid)}
+                      key={u.userId}
+                      onClick={() => setSelectedCoachUid(u.userId)}
                       style={{ cursor: 'pointer' }}
                       className="hover-row"
                     >
@@ -562,8 +592,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                                 : [...currentQuals, q];
                               setDrafts(prev => ({
                                 ...prev,
-                                [u.uid]: {
-                                  ...prev[u.uid],
+                                [u.userId]: {
+                                  ...prev[u.userId],
                                   qualifications: nextQuals
                                 }
                               }));
@@ -615,8 +645,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                             const newRole = e.target.value as 'user' | 'admin';
                             setDrafts(prev => ({
                               ...prev,
-                              [u.uid]: {
-                                ...prev[u.uid],
+                              [u.userId]: {
+                                ...prev[u.userId],
                                 userRole: newRole
                               }
                             }));
@@ -647,8 +677,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                               const newStatus = e.target.checked ? 'active' : 'inactive';
                               setDrafts(prev => ({
                                 ...prev,
-                                [u.uid]: {
-                                  ...prev[u.uid],
+                                [u.userId]: {
+                                  ...prev[u.userId],
                                   userStatus: newStatus
                                 }
                               }));
@@ -671,7 +701,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            triggerApprove(u.uid);
+                            triggerApprove(u.userId);
                           }}
                           disabled={savingId !== null}
                           className="btn btn-primary"
