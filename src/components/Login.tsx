@@ -1,10 +1,10 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { 
-  Sparkles, 
-  Calendar, 
-  Video, 
-  ShieldCheck
+import {
+  Sparkles,
+  Target,
+  Compass,
+  Users
 } from 'lucide-react';
 
 export const Login: React.FC = () => {
@@ -49,7 +49,7 @@ export const Login: React.FC = () => {
           <Sparkles size={14} />
           Exclusive Peer-to-Peer Coaching Platform
         </div>
-        
+
         <h1 style={{
           fontSize: '3.5rem',
           lineHeight: '1.15',
@@ -60,7 +60,7 @@ export const Login: React.FC = () => {
         }}>
           Elevate Your Practice Through Peer Coaching
         </h1>
-        
+
         <p style={{
           fontSize: '1.2rem',
           maxWidth: '600px',
@@ -68,13 +68,13 @@ export const Login: React.FC = () => {
           color: 'hsl(var(--text-secondary))',
           lineHeight: '1.6'
         }}>
-          Connect with credentialed life coaches, align your schedules, and arrange mutual coaching sessions with automated Google Meet links.
+          Find, connect, and partner with fellow credentialed life coaches to master your craft through a dedicated peer-to-peer coaching sessions.
         </p>
 
         {/* Real Sign In Action */}
         <div>
-          <button 
-            onClick={handleRealLogin} 
+          <button
+            onClick={handleRealLogin}
             className="btn btn-primary"
             style={{ fontSize: '1.05rem', padding: '14px 32px' }}
           >
@@ -112,11 +112,11 @@ export const Login: React.FC = () => {
             color: 'hsl(var(--accent))',
             marginBottom: '16px'
           }}>
-            <Calendar size={22} />
+            <Target size="{22}"/>
           </div>
-          <h4 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>Google Calendar Integration</h4>
+          <h4 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>Verified Coaches</h4>
           <p style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>
-            Real-time Google Calendar integration helps prevent scheduling conflicts by automatically overlaying existing commitments and identifying mutually available coaching slots.
+            Access is restricted through role-based authentication and administrative approval workflows. All new registrations are manually reviewed and approved by an administrator.
           </p>
         </div>
 
@@ -132,11 +132,11 @@ export const Login: React.FC = () => {
             color: 'hsl(var(--primary))',
             marginBottom: '16px'
           }}>
-            <Video size={22} />
+            <Compass size="{22}"/>
           </div>
-          <h4 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>Google Meet Integration</h4>
+          <h4 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>Elevate Your Skills</h4>
           <p style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>
-            Confirmed sessions automatically generate secure Google Meet conference links, providing free, reliable video meetings along with synchronized calendar invitations for both participants.
+            Transform theory into practice. Hone your core competencies by regularly giving and receiving feedback in an environment tailored for life coaching excellence.
           </p>
         </div>
 
@@ -152,11 +152,11 @@ export const Login: React.FC = () => {
             color: 'hsl(var(--success))',
             marginBottom: '16px'
           }}>
-            <ShieldCheck size={22} />
+            <Users size="{22}"/>
           </div>
-          <h4 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>Verified Coaches</h4>
+          <h4 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>Broaden Your Network</h4>
           <p style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>
-            Access is restricted through role-based authentication and administrative approval workflows. All new registrations are manually reviewed and approved by an administrator.
+            Join a trusted community of credentialed professionals. Find a dedicated accountability partner, create lasting professional relationships, and open doors to future collaborations.
           </p>
         </div>
       </div>
