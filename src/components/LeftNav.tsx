@@ -114,7 +114,7 @@ export const LeftNav: React.FC<LeftNavProps> = ({
             }
           }}
           className="sidebar-nav-item"
-          style={{ marginBottom: '8px', cursor: 'pointer' }}
+          style={{ cursor: 'pointer' }}
           title={collapsed ? (profile?.theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode') : undefined}
         >
           <span className="nav-icon">
@@ -131,7 +131,7 @@ export const LeftNav: React.FC<LeftNavProps> = ({
             await logout();
           }}
           className="sidebar-nav-item"
-          style={{ color: '#f87171', marginBottom: '16px', cursor: 'pointer' }}
+          style={{ color: '#f87171', cursor: 'pointer' }}
           title={collapsed ? 'Sign Out' : undefined}
         >
           <span className="nav-icon">

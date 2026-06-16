@@ -545,9 +545,10 @@ p {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  height: calc(100vh - 100px); /* Subtract header height and margin */
+  height: calc(100vh - 124px); /* Subtract header height and margin */
   position: sticky;
-  top: 80px; /* Sticky below header */
+  top: 100px; /* Sticky below header */
+  align-self: start; /* Prevent flex stretching to enable sticky scroll */
   z-index: 40;
   transition: width 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   overflow-x: hidden;
@@ -632,7 +633,7 @@ p {
   border-top: 1px solid var(--border-light);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
 }
 
 .sidebar-toggle-btn {
@@ -647,6 +648,7 @@ p {
   color: hsl(var(--text-secondary));
   cursor: pointer;
   transition: all 0.2s ease;
+  margin-top: 8px;
 }
 
 .sidebar-toggle-btn:hover {
