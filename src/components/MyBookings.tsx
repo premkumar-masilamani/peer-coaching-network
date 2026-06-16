@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getUpcomingEvents, cancelBooking, isCalendarSynced } from '../services/googleCalendar';
+import { getUpcomingEvents, cancelBooking } from '../services/googleCalendar';
 import type { CalendarEvent } from '../services/googleCalendar';
 import {
   Calendar,
@@ -8,7 +8,6 @@ import {
   Video,
   ExternalLink,
   RefreshCw,
-  AlertTriangle,
   XCircle
 } from 'lucide-react';
 import { sanitizeMeetLink } from '../utils/url';
@@ -19,7 +18,6 @@ export const MyBookings: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [now] = useState(() => Date.now());
-  const synced = isCalendarSynced();
 
   const loadSessions = async () => {
     setLoading(true);
@@ -75,7 +73,7 @@ export const MyBookings: React.FC = () => {
     <div className="animate-fade-in" style={{ width: '100%' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
         <div>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: 800 }}>My Bookings</h2>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: 800 }}>My Sessions</h2>
           <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-muted))', marginTop: '4px' }}>
             Centralised registry of all your upcoming and past peer coaching sessions.
           </p>
@@ -91,23 +89,7 @@ export const MyBookings: React.FC = () => {
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Refresh List
           </button>
-          
-          {!synced && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              background: 'rgba(245, 158, 11, 0.08)',
-              border: '1px solid rgba(245, 158, 11, 0.15)',
-              padding: '8px 12px',
-              borderRadius: '8px',
-              color: '#fbbf24',
-              fontSize: '0.8rem'
-            }}>
-              <AlertTriangle size={14} />
-              <span>Calendar Offline</span>
-            </div>
-          )}
+
         </div>
       </div>
 
@@ -128,7 +110,7 @@ export const MyBookings: React.FC = () => {
             {upcoming.length === 0 ? (
               <div className="glass-panel" style={{ textAlign: 'center', padding: '48px 24px', color: 'hsl(var(--text-muted))' }}>
                 <Clock size={32} style={{ marginBottom: '12px', opacity: 0.4 }} />
-                <p style={{ fontSize: '0.9rem' }}>No upcoming sessions booked. Browse the Home tab to schedule a session with a peer coach.</p>
+                <p style={{ fontSize: '0.9rem' }}>No upcoming sessions scheduled. Browse the Home tab to schedule a session with a peer coach.</p>
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }}>

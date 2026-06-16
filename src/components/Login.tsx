@@ -70,7 +70,7 @@ export const Login: React.FC = () => {
           color: 'hsl(var(--text-secondary))',
           lineHeight: '1.6'
         }}>
-          Connect with credentialed life coaches, sync your Google Calendar schedules, and arrange mutual coaching sessions with automated Google Meet links.
+          Connect with credentialed life coaches, align your schedules, and arrange mutual coaching sessions with automated Google Meet links.
         </p>
 
         {/* Real Sign In Action */}
@@ -118,7 +118,7 @@ export const Login: React.FC = () => {
           </div>
           <h4 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>Google Calendar Integration</h4>
           <p style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>
-            Real-time Google Calendar synchronization helps prevent scheduling conflicts by automatically overlaying existing commitments and identifying mutually available coaching slots.
+            Real-time Google Calendar integration helps prevent scheduling conflicts by automatically overlaying existing commitments and identifying mutually available coaching slots.
           </p>
         </div>
 

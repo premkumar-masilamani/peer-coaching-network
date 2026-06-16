@@ -37,7 +37,7 @@ service cloud.firestore {
     // Identity fields are immutable on a self-update (defense-in-depth). See BUG-008.
     function selfUpdateAllowed() {
       return privilegedFieldsUnchanged()
-        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.userId == resource.data.userId
         && request.resource.data.email == resource.data.email
         && request.resource.data.createdAt == resource.data.createdAt;
     }
@@ -56,6 +56,11 @@ service cloud.firestore {
         || (isOwner(uid) && selfUpdateAllowed());
 
       allow delete: if isAdmin();
+
+      match /schedule/{docId} {
+        allow read: if isSignedIn();
+        allow write: if isOwner(uid);
+      }
     }
 
     match /bookings/{bookingId} {
@@ -65,7 +70,7 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.auth.uid in [
           request.resource.data.coachUid,
-          request.resource.data.menteeUid
+          request.resource.data.clientUid
         ];
 
       // Participants (or admins) may modify/cancel a booking.
@@ -73,7 +78,7 @@ service cloud.firestore {
         && (isAdmin()
           || request.auth.uid in [
             resource.data.coachUid,
-            resource.data.menteeUid
+            resource.data.clientUid
           ]);
     }
 
@@ -82,10 +87,10 @@ service cloud.firestore {
     match /slotHolds/{holdId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
-        && request.resource.data.menteeUid == request.auth.uid;
+        && request.resource.data.clientUid == request.auth.uid;
       allow delete: if isSignedIn()
         && (isAdmin()
-          || resource.data.menteeUid == request.auth.uid
+          || resource.data.clientUid == request.auth.uid
           || resource.data.coachUid == request.auth.uid);
     }
 

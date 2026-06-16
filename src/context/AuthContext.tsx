@@ -15,7 +15,7 @@ import type { UserProfile } from '../services/firebaseService';
 
 
 interface AuthContextType {
-  user: User | UserProfile | null;
+  user: User | null;
   profile: UserProfile | null;
   role: 'admin' | 'user' | null | undefined; // undefined = loading/unset, null = no role (pending)
   loading: boolean;
@@ -28,7 +28,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | UserProfile | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [role, setRole] = useState<'admin' | 'user' | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
