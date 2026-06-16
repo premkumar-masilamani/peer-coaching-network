@@ -1,9 +1,10 @@
-import type { UserProfile } from './firebaseService';
-import { db, auth, recalculateUserAvailability, DEFAULT_TEMPLATE } from './firebaseService';
+import type { UserProfile, AvailableDays } from './firebaseService';
+import { db, auth, recalculateUserAvailability, getSchedule, timestampToTimeString } from './firebaseService';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, documentId, runTransaction, Timestamp } from 'firebase/firestore';
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { getGoogleToken } from './googleToken';
+import { BOOKING_HORIZON_DAYS } from '../config';
 
 export interface CalendarEvent {
   id: string;
@@ -13,6 +14,8 @@ export interface CalendarEvent {
   end: { dateTime: string };
   meetLink?: string;
   type?: string;
+  coachUid?: string;
+  clientUid?: string;
   attendees?: { email: string; displayName?: string }[];
 }
 
@@ -24,16 +27,6 @@ const chunkArray = <T>(arr: T[], size: number): T[][] => {
   return out;
 };
 
-// A real, usable Google token (not absent and not the legacy mock sentinel).
-const hasLiveGoogleToken = (): boolean => {
-  const token = getGoogleToken();
-  return !!token && token !== 'mock_google_access_token';
-};
-
-export const isCalendarSynced = (): boolean => {
-  // The mock sentinel does NOT count as synced — it never reaches Google. See BUG-017.
-  return hasLiveGoogleToken();
-};
 
 interface GoogleCalendarEvent {
   id: string;
@@ -91,49 +84,69 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
   }
 
   // Always query Firestore bookings where the current user is host or client (by
-  // stable uid, not email) and merge. See BUG-019.
+  // stable userId, not email) and merge. See BUG-019.
   const currentUser = auth?.currentUser;
   if (currentUser && db) {
     try {
-      const qClient = query(collection(db, 'bookings'), where('menteeUid', '==', currentUser.uid));
+      const qClient = query(collection(db, 'bookings'), where('clientUid', '==', currentUser.uid));
       const snapClient = await getDocs(qClient);
 
       const qHost = query(collection(db, 'bookings'), where('coachUid', '==', currentUser.uid));
       const snapHost = await getDocs(qHost);
 
-      const processSnap = (snap: QuerySnapshot<DocumentData>) => {
-        snap.forEach((d) => {
+      const profileCache = new Map<string, UserProfile>();
+      const getProfile = async (uid: string): Promise<UserProfile | null> => {
+        if (profileCache.has(uid)) return profileCache.get(uid)!;
+        const userSnap = await getDoc(doc(db, 'users', uid));
+        if (userSnap.exists()) {
+          const profile = userSnap.data() as UserProfile;
+          profileCache.set(uid, profile);
+          return profile;
+        }
+        return null;
+      };
+
+      const processSnap = async (snap: QuerySnapshot<DocumentData>) => {
+        for (const d of snap.docs) {
           const data = d.data();
-          if (data.status === 'cancelled') return; // skip cancelled bookings (BUG-016)
+          if (data.status === 'cancelled') continue; // skip cancelled bookings (BUG-016)
           // De-duplicate strictly by stable id, never by coincidental start time. See BUG-010.
-          if (!seenIds.has(data.id)) {
-            seenIds.add(data.id);
-            const startStr: string = data.start && typeof data.start.toDate === 'function'
-              ? data.start.toDate().toISOString()
-              : (data.start?.dateTime || data.start || '');
-            const endStr: string = data.end && typeof data.end.toDate === 'function'
-              ? data.end.toDate().toISOString()
-              : (data.end?.dateTime || data.end || '');
+          if (!seenIds.has(data.bookingId)) {
+            seenIds.add(data.bookingId);
+            const startStr: string = data.startTime && typeof data.startTime.toDate === 'function'
+              ? data.startTime.toDate().toISOString()
+              : (data.startTime?.dateTime || data.startTime || '');
+            const endStr: string = data.endTime && typeof data.endTime.toDate === 'function'
+              ? data.endTime.toDate().toISOString()
+              : (data.endTime?.dateTime || data.endTime || '');
+
+            const coachProfile = await getProfile(data.coachUid);
+            const clientProfile = await getProfile(data.clientUid);
+
+            const coachFirstName = coachProfile ? coachProfile.displayName.split(' ')[0] : 'Coach';
+            const clientFirstName = clientProfile ? clientProfile.displayName.split(' ')[0] : 'Peer';
 
             events.push({
-              id: data.id,
-              summary: data.summary,
-              description: data.description,
+              id: data.bookingId,
+              summary: `${coachFirstName} / ${clientFirstName} - Peer Coaching Session`,
+              description: `Peer Coaching Network session on the topic: ${data.topic}. Created via PCN.`,
               start: { dateTime: startStr },
               end: { dateTime: endStr },
-              meetLink: data.meetLink,
+              meetLink: data.googleMeetLink,
               type: 'peer-coaching',
+              coachUid: data.coachUid,
+              clientUid: data.clientUid,
               attendees: [
-                { email: data.hostEmail, displayName: data.hostName },
-                { email: data.clientEmail, displayName: data.clientName }
+                { email: coachProfile?.email || '', displayName: coachProfile?.displayName || '' },
+                { email: clientProfile?.email || '', displayName: clientProfile?.displayName || '' }
               ]
             });
           }
-        });
+        }
       };
 
-      processSnap(snapClient);
-      processSnap(snapHost);
+      await processSnap(snapClient);
+      await processSnap(snapHost);
     } catch (err) {
       console.error('Error querying bookings from Firestore:', err);
     }
@@ -152,7 +165,7 @@ export const scheduleMeeting = async (
   coachUid: string,
   coachEmail: string,
   coachName: string,
-  menteeUid: string,
+  clientUid: string,
   clientName: string,
   startIso: string,
   endIso: string,
@@ -204,24 +217,18 @@ export const scheduleMeeting = async (
     const bookingRef = doc(db, 'bookings', bookingId);
     // Per-mentee/per-slot lock so a mentee can't double-book themselves across
     // coaches at the same time. See BUG-003.
-    const holdRef = doc(db, 'slotHolds', `${menteeUid}_${startIso}`);
+    const holdRef = doc(db, 'slotHolds', `${clientUid}_${startIso}`);
 
     const bookingData = {
-      id: bookingId,
+      bookingId,
       googleEventId,
+      googleMeetLink: realMeetLink,
       status: 'confirmed',
-      summary: eventPayload.summary,
-      description: eventPayload.description,
-      start: Timestamp.fromDate(new Date(startIso)),
-      end: Timestamp.fromDate(new Date(endIso)),
-      meetLink: realMeetLink,
+      startTime: Timestamp.fromDate(new Date(startIso)),
+      endTime: Timestamp.fromDate(new Date(endIso)),
       topic,
-      hostEmail: coachEmail,
-      hostName: coachName,
-      clientEmail,
-      clientName: resolvedClientName,
       coachUid,
-      menteeUid,
+      clientUid,
       createdAt: Timestamp.now()
     };
 
@@ -239,7 +246,7 @@ export const scheduleMeeting = async (
           throw new Error('SELF_CONFLICT');
         }
         tx.set(bookingRef, bookingData);
-        tx.set(holdRef, { menteeUid, coachUid, bookingId, startIso, createdAt: Timestamp.now() });
+        tx.set(holdRef, { clientUid, coachUid, bookingId, startIso, createdAt: Timestamp.now() });
       });
     } catch (err) {
       if (err instanceof Error && (err.message === 'SLOT_TAKEN' || err.message === 'SELF_CONFLICT')) {
@@ -268,7 +275,7 @@ export const scheduleMeeting = async (
           const data = await response.json();
           googleEventId = data.id;
           realMeetLink = data.hangoutLink || meetLink;
-          await updateDoc(bookingRef, { googleEventId, meetLink: realMeetLink });
+          await updateDoc(bookingRef, { googleEventId, googleMeetLink: realMeetLink });
         }
       } catch (e) {
         console.error('Error creating real Google Calendar event:', e);
@@ -316,12 +323,12 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
   await updateDoc(ref, { status: 'cancelled', cancelledAt: Timestamp.now() });
 
   // Release the mentee's per-slot hold so that time can be rebooked. See BUG-003.
-  const startIso = data.start && typeof data.start.toDate === 'function'
-    ? data.start.toDate().toISOString()
-    : (data.start?.dateTime || data.start);
-  if (data.menteeUid && startIso) {
+  const startIso = data.startTime && typeof data.startTime.toDate === 'function'
+    ? data.startTime.toDate().toISOString()
+    : (data.startTime?.dateTime || data.startTime);
+  if (data.clientUid && startIso) {
     try {
-      await deleteDoc(doc(db, 'slotHolds', `${data.menteeUid}_${startIso}`));
+      await deleteDoc(doc(db, 'slotHolds', `${data.clientUid}_${startIso}`));
     } catch (e) {
       console.error('Error releasing slot hold:', e);
     }
@@ -350,13 +357,13 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
 
 export const generateFallbackBusySlots = (
   coach: UserProfile,
+  schedule: { availableDays: AvailableDays; blockedDates: string[] },
   timeMinStr: string,
   timeMaxStr: string
 ): CalendarEvent[] => {
   const timezone = coach.timezone || 'UTC';
-  const template = coach.availabilityTemplate || DEFAULT_TEMPLATE;
-  const weekly = template.weekly || DEFAULT_TEMPLATE.weekly;
-  const blockedDates = template.blockedDates || [];
+  const { availableDays, blockedDates } = schedule;
+  const weekly = availableDays;
 
   const timeMin = new Date(timeMinStr);
   const timeMax = new Date(timeMaxStr);
@@ -366,7 +373,7 @@ export const generateFallbackBusySlots = (
 
   const busyEvents: CalendarEvent[] = [];
 
-  for (let i = 0; i < 56; i++) {
+  for (let i = 0; i < BOOKING_HORIZON_DAYS; i++) {
     const currentDate = new Date(localToday);
     currentDate.setDate(localToday.getDate() + i);
     if (currentDate.getTime() > timeMax.getTime()) break;
@@ -380,7 +387,7 @@ export const generateFallbackBusySlots = (
       const dayStart = getUtcForLocalDateTime(year, month, day, 0, 0, timezone);
       const dayEnd = getUtcForLocalDateTime(year, month, day, 24, 0, timezone);
       busyEvents.push({
-        id: `fallback-block-${coach.uid}-${dateStr}`,
+        id: `fallback-block-${coach.userId}-${dateStr}`,
         summary: 'Busy',
         start: { dateTime: dayStart.toISOString() },
         end: { dateTime: dayEnd.toISOString() }
@@ -395,20 +402,22 @@ export const generateFallbackBusySlots = (
       const dayStart = getUtcForLocalDateTime(year, month, day, 0, 0, timezone);
       const dayEnd = getUtcForLocalDateTime(year, month, day, 24, 0, timezone);
       busyEvents.push({
-        id: `fallback-sched-${coach.uid}-${dateStr}`,
+        id: `fallback-sched-${coach.userId}-${dateStr}`,
         summary: 'Busy',
         start: { dateTime: dayStart.toISOString() },
         end: { dateTime: dayEnd.toISOString() }
       });
     } else {
       const sortedSlots = [...daySched.slots].map(s => {
-        const parsedStart = parseLocalTime(s.start);
-        const parsedEnd = parseLocalTime(s.end);
+        const startTimeString = timestampToTimeString(s.startTime);
+        const endTimeString = timestampToTimeString(s.endTime);
+        const parsedStart = parseLocalTime(startTimeString);
+        const parsedEnd = parseLocalTime(endTimeString);
         return {
           startMin: parsedStart.hour * 60 + parsedStart.minute,
           endMin: parsedEnd.hour * 60 + parsedEnd.minute,
-          startStr: s.start,
-          endStr: s.end
+          startStr: startTimeString,
+          endStr: endTimeString
         };
       }).sort((a, b) => a.startMin - b.startMin);
 
@@ -417,7 +426,7 @@ export const generateFallbackBusySlots = (
         const parsedS = parseLocalTime(sortedSlots[0].startStr);
         const endUtc = getUtcForLocalDateTime(year, month, day, parsedS.hour, parsedS.minute, timezone);
         busyEvents.push({
-          id: `fallback-gap1-${coach.uid}-${dateStr}`,
+          id: `fallback-gap1-${coach.userId}-${dateStr}`,
           summary: 'Busy',
           start: { dateTime: startUtc.toISOString() },
           end: { dateTime: endUtc.toISOString() }
@@ -433,7 +442,7 @@ export const generateFallbackBusySlots = (
           const startUtc = getUtcForLocalDateTime(year, month, day, parsedC.hour, parsedC.minute, timezone);
           const endUtc = getUtcForLocalDateTime(year, month, day, parsedN.hour, parsedN.minute, timezone);
           busyEvents.push({
-            id: `fallback-gap2-${coach.uid}-${dateStr}-${j}`,
+            id: `fallback-gap2-${coach.userId}-${dateStr}-${j}`,
             summary: 'Busy',
             start: { dateTime: startUtc.toISOString() },
             end: { dateTime: endUtc.toISOString() }
@@ -447,7 +456,7 @@ export const generateFallbackBusySlots = (
         const startUtc = getUtcForLocalDateTime(year, month, day, parsedL.hour, parsedL.minute, timezone);
         const endUtc = getUtcForLocalDateTime(year, month, day, 24, 0, timezone);
         busyEvents.push({
-          id: `fallback-gap3-${coach.uid}-${dateStr}`,
+          id: `fallback-gap3-${coach.userId}-${dateStr}`,
           summary: 'Busy',
           start: { dateTime: startUtc.toISOString() },
           end: { dateTime: endUtc.toISOString() }
@@ -468,7 +477,7 @@ export const getCoachesAvailability = async (
   const availability: Record<string, CalendarEvent[]> = {};
 
   coaches.forEach((coach) => {
-    availability[coach.uid] = [];
+    availability[coach.userId] = [];
   });
 
   // Try to load FreeBusy information from Google Calendar if a valid token is present
@@ -498,8 +507,8 @@ export const getCoachesAvailability = async (
           const calendarData = data.calendars?.[coach.email];
           const busyIntervals = calendarData?.busy || [];
 
-          availability[coach.uid] = busyIntervals.map((interval: { start: string; end: string }, idx: number) => ({
-            id: `busy-${coach.uid}-${idx}`,
+          availability[coach.userId] = busyIntervals.map((interval: { start: string; end: string }, idx: number) => ({
+            id: `busy-${coach.userId}-${idx}`,
             summary: 'Busy',
             start: { dateTime: interval.start },
             end: { dateTime: interval.end },
@@ -513,7 +522,7 @@ export const getCoachesAvailability = async (
 
   if (db) {
     const activeDb = db;
-    const uids = coaches.map(c => c.uid);
+    const uids = coaches.map(c => c.userId);
     const uidChunks = chunkArray(uids, 30);
 
     // 1. Load each coach's template-derived busy-slot cache, reading only the
@@ -556,9 +565,52 @@ export const getCoachesAvailability = async (
     // 2. In-memory fallback for coaches without a cache doc. We do NOT cross-write
     //    their availability doc (owner-only writes now). See BUG-001/005.
     for (const coach of coaches) {
-      if (!foundUids.has(coach.uid)) {
-        const fallbackSlots = generateFallbackBusySlots(coach, timeMin, timeMax);
-        availability[coach.uid] = [...availability[coach.uid], ...fallbackSlots];
+      if (!foundUids.has(coach.userId)) {
+        const schedule = await getSchedule(coach.userId);
+        const fallbackSlots = generateFallbackBusySlots(coach, schedule, timeMin, timeMax);
+        availability[coach.userId] = [...availability[coach.userId], ...fallbackSlots];
+      } else {
+        // Fix the "Infinite Availability" Bug:
+        // Ensure there is at least one busy slot for each day in the 56-day rolling window.
+        // If a day has no busy slots at all, mark the entire day as unavailable.
+        const timezone = coach.timezone || 'UTC';
+        const startSearch = new Date(timeMin);
+        const timeMaxObj = new Date(timeMax);
+        const localToday = getLocalDateInTimezone(startSearch, timezone);
+        
+        const coachBusyEvents = availability[coach.userId];
+        
+        for (let i = 0; i < BOOKING_HORIZON_DAYS; i++) {
+          const currentDate = new Date(localToday);
+          currentDate.setDate(localToday.getDate() + i);
+          if (currentDate.getTime() > timeMaxObj.getTime()) break;
+          
+          const year = currentDate.getFullYear();
+          const month = currentDate.getMonth() + 1;
+          const day = currentDate.getDate();
+          
+          const dayStart = getUtcForLocalDateTime(year, month, day, 0, 0, timezone);
+          const dayEnd = getUtcForLocalDateTime(year, month, day, 24, 0, timezone);
+          
+          const dayStartMs = dayStart.getTime();
+          const dayEndMs = dayEnd.getTime();
+          
+          // Check if there is at least one busy slot overlapping with this day.
+          const hasBusySlot = coachBusyEvents.some(event => {
+            const evStartMs = new Date(event.start.dateTime).getTime();
+            const evEndMs = new Date(event.end.dateTime).getTime();
+            return evStartMs < dayEndMs && evEndMs > dayStartMs;
+          });
+          
+          if (!hasBusySlot) {
+            coachBusyEvents.push({
+              id: `stale-block-${coach.userId}-${year}-${month}-${day}`,
+              summary: 'Busy',
+              start: { dateTime: dayStart.toISOString() },
+              end: { dateTime: dayEnd.toISOString() }
+            });
+          }
+        }
       }
     }
 
@@ -570,8 +622,8 @@ export const getCoachesAvailability = async (
     const overlayBooking = (data: DocumentData, uid: string | undefined) => {
       if (!uid || !(uid in availability)) return;
       if (data.status === 'cancelled') return;
-      const startStr = data.start && typeof data.start.toDate === 'function' ? data.start.toDate().toISOString() : (data.start?.dateTime || data.start);
-      const endStr = data.end && typeof data.end.toDate === 'function' ? data.end.toDate().toISOString() : (data.end?.dateTime || data.end);
+      const startStr = data.startTime && typeof data.startTime.toDate === 'function' ? data.startTime.toDate().toISOString() : (data.startTime?.dateTime || data.startTime);
+      const endStr = data.endTime && typeof data.endTime.toDate === 'function' ? data.endTime.toDate().toISOString() : (data.endTime?.dateTime || data.endTime);
       if (!startStr || !endStr) return;
       if (new Date(endStr).getTime() < nowMs) return;
       const already = availability[uid].some(e =>
@@ -579,7 +631,7 @@ export const getCoachesAvailability = async (
       );
       if (already) return;
       availability[uid].push({
-        id: `booking-${data.id || `${uid}-${startStr}`}`,
+        id: `booking-${data.bookingId || `${uid}-${startStr}`}`,
         summary: 'Busy',
         start: { dateTime: startStr },
         end: { dateTime: endStr }
@@ -588,7 +640,7 @@ export const getCoachesAvailability = async (
 
     const bookingResults = await Promise.allSettled([
       ...uidChunks.map(c => getDocs(query(collection(activeDb, 'bookings'), where('coachUid', 'in', c)))),
-      ...uidChunks.map(c => getDocs(query(collection(activeDb, 'bookings'), where('menteeUid', 'in', c)))),
+      ...uidChunks.map(c => getDocs(query(collection(activeDb, 'bookings'), where('clientUid', 'in', c)))),
     ]);
     bookingResults.forEach((res) => {
       if (res.status !== 'fulfilled') {
@@ -598,7 +650,7 @@ export const getCoachesAvailability = async (
       res.value.forEach((d) => {
         const data = d.data();
         overlayBooking(data, data.coachUid);
-        overlayBooking(data, data.menteeUid);
+        overlayBooking(data, data.clientUid);
       });
     });
   }

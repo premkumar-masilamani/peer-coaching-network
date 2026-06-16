@@ -82,7 +82,7 @@ export const LeftNav: React.FC<LeftNavProps> = ({
           <span className="nav-icon">
             <BookOpen size={18} />
           </span>
-          <span className="nav-text">My Bookings</span>
+          <span className="nav-text">My Sessions</span>
         </button>
 
         {/* My Profile */}
