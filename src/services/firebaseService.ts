@@ -25,6 +25,7 @@ import {
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
+import { BOOKING_HORIZON_DAYS } from '../config';
 
 declare global {
   interface Window {
@@ -32,58 +33,66 @@ declare global {
   }
 }
 
-export interface TimeRange {
-  start: string;
-  end: string;
+export interface TimeRangeTimestamp {
+  startTime: Timestamp;
+  endTime: Timestamp;
 }
 
 export interface DayAvailability {
   enabled: boolean;
-  slots: TimeRange[];
+  slots: TimeRangeTimestamp[];
 }
 
-export interface AvailabilityTemplate {
-  weekly: {
-    monday: DayAvailability;
-    tuesday: DayAvailability;
-    wednesday: DayAvailability;
-    thursday: DayAvailability;
-    friday: DayAvailability;
-    saturday: DayAvailability;
-    sunday: DayAvailability;
-  };
-  blockedDates: string[];
+export interface AvailableDays {
+  monday: DayAvailability;
+  tuesday: DayAvailability;
+  wednesday: DayAvailability;
+  thursday: DayAvailability;
+  friday: DayAvailability;
+  saturday: DayAvailability;
+  sunday: DayAvailability;
 }
 
-export const DEFAULT_TEMPLATE: AvailabilityTemplate = {
-  weekly: {
-    monday: { enabled: true, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
-    tuesday: { enabled: true, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
-    wednesday: { enabled: true, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
-    thursday: { enabled: true, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
-    friday: { enabled: true, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
-    saturday: { enabled: false, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
-    sunday: { enabled: false, slots: [{ start: '9:00 AM', end: '5:00 PM' }] }
-  },
-  blockedDates: []
+export const timeStringToTimestamp = (timeStr: string): Timestamp => {
+  const { hour, minute } = parseLocalTime(timeStr);
+  const date = new Date(Date.UTC(1970, 0, 1, hour, minute, 0, 0));
+  return Timestamp.fromDate(date);
+};
+
+export const timestampToTimeString = (timestamp: Timestamp): string => {
+  const date = timestamp.toDate();
+  const hour = date.getUTCHours();
+  const minute = date.getUTCMinutes();
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+  const displayMinute = String(minute).padStart(2, '0');
+  return `${displayHour}:${displayMinute} ${ampm}`;
+};
+
+export const DEFAULT_AVAILABLE_DAYS: AvailableDays = {
+  monday: { enabled: true, slots: [{ startTime: timeStringToTimestamp('9:00 AM'), endTime: timeStringToTimestamp('5:00 PM') }] },
+  tuesday: { enabled: true, slots: [{ startTime: timeStringToTimestamp('9:00 AM'), endTime: timeStringToTimestamp('5:00 PM') }] },
+  wednesday: { enabled: true, slots: [{ startTime: timeStringToTimestamp('9:00 AM'), endTime: timeStringToTimestamp('5:00 PM') }] },
+  thursday: { enabled: true, slots: [{ startTime: timeStringToTimestamp('9:00 AM'), endTime: timeStringToTimestamp('5:00 PM') }] },
+  friday: { enabled: true, slots: [{ startTime: timeStringToTimestamp('9:00 AM'), endTime: timeStringToTimestamp('5:00 PM') }] },
+  saturday: { enabled: false, slots: [{ startTime: timeStringToTimestamp('9:00 AM'), endTime: timeStringToTimestamp('5:00 PM') }] },
+  sunday: { enabled: false, slots: [{ startTime: timeStringToTimestamp('9:00 AM'), endTime: timeStringToTimestamp('5:00 PM') }] }
 };
 
 export interface UserProfile {
-  uid: string;
+  userId: string;
   email: string;
   displayName: string;
   photoURL: string | null;
-  gender?: 'Male' | 'Female' | 'Prefer not to say';
-  country?: string;
+  gender: 'Male' | 'Female' | 'Prefer not to say';
+  country: string;
   qualifications?: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
-  bio?: string;
-  calendarSynced?: boolean;
-  timezone?: string;
-  userRole?: 'user' | 'admin';
-  userStatus?: 'active' | 'inactive';
-  theme?: 'light' | 'dark' | 'system';
-  createdAt?: Timestamp;
-  availabilityTemplate?: AvailabilityTemplate;
+  bio: string;
+  timezone: string;
+  userRole: 'user' | 'admin';
+  userStatus: 'active' | 'inactive';
+  theme: 'light' | 'dark' | 'system';
+  createdAt: Timestamp;
 }
 
 const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
@@ -175,23 +184,27 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
 
     // Create new pending user
     const newProfile: UserProfile = {
-      uid: result.user.uid,
+      userId: result.user.uid,
       email,
       displayName,
       photoURL: result.user.photoURL,
       userRole: 'user',
       userStatus: 'inactive',
-      calendarSynced: false,
       qualifications: [],
       gender: 'Prefer not to say',
       country: '',
       bio: '',
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       createdAt: Timestamp.now(),
-      theme: 'dark',
-      availabilityTemplate: DEFAULT_TEMPLATE
+      theme: 'system'
     };
     await setDoc(userDocRef, newProfile);
+
+    // Initialize schedule sub-collection documents
+    const availableDaysRef = doc(db, 'users', result.user.uid, 'schedule', 'availableDays');
+    const blockedDatesRef = doc(db, 'users', result.user.uid, 'schedule', 'blockedDates');
+    await setDoc(availableDaysRef, DEFAULT_AVAILABLE_DAYS);
+    await setDoc(blockedDatesRef, { blockedDates: [] });
   } else {
     // Sync Google Profile picture URL in database during login
     const existingProfile = userDoc.data() as UserProfile;
@@ -232,14 +245,11 @@ export const updateProfile = async (uid: string, updates: Partial<UserProfile>):
 };
 
 // Fields a user may change on their OWN profile. Privileged fields
-// (role/userRole/userStatus/qualifications) are intentionally excluded — they
-// are admin-controlled and enforced server-side by Firestore rules. See BUG-002.
-// Fields a user may change on their OWN profile. Privileged fields
 // (userRole/userStatus/qualifications) are intentionally excluded — they
 // are admin-controlled and enforced server-side by Firestore rules. See BUG-002.
 const OWN_EDITABLE_FIELDS: (keyof UserProfile)[] = [
   'displayName', 'photoURL', 'gender', 'country',
-  'bio', 'timezone', 'calendarSynced', 'theme', 'availabilityTemplate'
+  'bio', 'timezone', 'theme'
 ];
 
 export const updateOwnProfile = async (uid: string, updates: Partial<UserProfile>): Promise<void> => {
@@ -326,6 +336,35 @@ export const formatDisplayName = (user: { displayName?: string | null } | null |
   return (user.displayName || '').replace(/\s*\([^)]*\)/g, '').trim();
 };
 
+export const getSchedule = async (userId: string): Promise<{ availableDays: AvailableDays; blockedDates: string[] }> => {
+  const availableDaysRef = doc(db, 'users', userId, 'schedule', 'availableDays');
+  const blockedDatesRef = doc(db, 'users', userId, 'schedule', 'blockedDates');
+  
+  const [daysSnap, datesSnap] = await Promise.all([
+    getDoc(availableDaysRef),
+    getDoc(blockedDatesRef)
+  ]);
+  
+  const availableDays = daysSnap.exists() ? (daysSnap.data() as AvailableDays) : DEFAULT_AVAILABLE_DAYS;
+  const blockedDates = datesSnap.exists() ? (datesSnap.data().blockedDates as string[]) : [];
+  
+  return { availableDays, blockedDates };
+};
+
+export const updateSchedule = async (
+  userId: string,
+  availableDays: AvailableDays,
+  blockedDates: string[]
+): Promise<void> => {
+  const availableDaysRef = doc(db, 'users', userId, 'schedule', 'availableDays');
+  const blockedDatesRef = doc(db, 'users', userId, 'schedule', 'blockedDates');
+  
+  await Promise.all([
+    setDoc(availableDaysRef, availableDays),
+    setDoc(blockedDatesRef, { blockedDates })
+  ]);
+};
+
 const recalcChains = new Map<string, Promise<void>>();
 
 // Serialize recalculations per-uid so concurrent triggers cannot interleave and
@@ -351,17 +390,15 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
     const profile = userDoc.data() as UserProfile;
     const timezone = profile.timezone || 'UTC';
     
-    // Get availability template
-    const template = profile.availabilityTemplate || DEFAULT_TEMPLATE;
-    const weekly = template.weekly || DEFAULT_TEMPLATE.weekly;
-    const blockedDates = template.blockedDates || [];
+    // Get availability schedule from schedule sub-collection!
+    const { availableDays, blockedDates } = await getSchedule(uid);
     
     // Query bookings
     const bookingsCol = collection(db, 'bookings');
     const q1 = query(bookingsCol, where('coachUid', '==', uid));
     const snap1 = await getDocs(q1);
     
-    const q2 = query(bookingsCol, where('menteeUid', '==', uid));
+    const q2 = query(bookingsCol, where('clientUid', '==', uid));
     const snap2 = await getDocs(q2);
     
     const bookings: DocumentData[] = [];
@@ -369,8 +406,8 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
     const addSnap = (snap: QuerySnapshot<DocumentData>) => {
       snap.forEach((d) => {
         const data = d.data();
-        if (data.id && !seen.has(data.id)) {
-          seen.add(data.id);
+        if (data.bookingId && !seen.has(data.bookingId)) {
+          seen.add(data.bookingId);
           bookings.push(data);
         }
       });
@@ -378,7 +415,7 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
     addSnap(snap1);
     addSnap(snap2);
     
-    // Generate busy intervals for next 56 days
+    // Generate busy intervals for next BOOKING_HORIZON_DAYS days
     const busySlots: { start: string; end: string }[] = [];
     
     // 1. Process weekly template and blocked dates
@@ -386,7 +423,7 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
     const localToday = getLocalDateInTimezone(new Date(), timezone);
     const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     
-    for (let i = 0; i < 56; i++) {
+    for (let i = 0; i < BOOKING_HORIZON_DAYS; i++) {
       const currentDate = new Date(localToday);
       currentDate.setDate(localToday.getDate() + i);
       
@@ -409,7 +446,7 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
       }
       
       const dayName = daysOfWeek[currentDate.getDay()];
-      const daySched = weekly[dayName as keyof typeof weekly] || { enabled: false, slots: [] };
+      const daySched = availableDays[dayName as keyof AvailableDays] || { enabled: false, slots: [] };
       
       if (!daySched.enabled || !daySched.slots || daySched.slots.length === 0) {
         // Entire day is unavailable
@@ -423,13 +460,16 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
         // Compute busy intervals (gaps outside the enabled slots)
         // Sort slots by time
         const sortedSlots = [...daySched.slots].map(s => {
-          const parsedStart = parseLocalTime(s.start);
-          const parsedEnd = parseLocalTime(s.end);
+          const startTimeString = timestampToTimeString(s.startTime);
+          const endTimeString = timestampToTimeString(s.endTime);
+          
+          const parsedStart = parseLocalTime(startTimeString);
+          const parsedEnd = parseLocalTime(endTimeString);
           return {
             startMin: parsedStart.hour * 60 + parsedStart.minute,
             endMin: parsedEnd.hour * 60 + parsedEnd.minute,
-            startStr: s.start,
-            endStr: s.end
+            startStr: startTimeString,
+            endStr: endTimeString
           };
         }).sort((a, b) => a.startMin - b.startMin);
         
@@ -481,8 +521,8 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
       if (b.status === 'cancelled') return;
       
       // Support both Firestore Timestamp and date strings/objects
-      const bStart = b.start && typeof b.start.toDate === 'function' ? b.start.toDate() : new Date(b.start?.dateTime || b.start);
-      const bEnd = b.end && typeof b.end.toDate === 'function' ? b.end.toDate() : new Date(b.end?.dateTime || b.end);
+      const bStart = b.startTime && typeof b.startTime.toDate === 'function' ? b.startTime.toDate() : new Date(b.startTime?.dateTime || b.startTime);
+      const bEnd = b.endTime && typeof b.endTime.toDate === 'function' ? b.endTime.toDate() : new Date(b.endTime?.dateTime || b.endTime);
       
       if (bStart && bEnd && !isNaN(bStart.getTime()) && !isNaN(bEnd.getTime())) {
         if (bEnd.getTime() < nowMs) return;
@@ -496,7 +536,7 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
     // Save to availability document
     const availDocRef = doc(db, 'availability', uid);
     await setDoc(availDocRef, {
-      uid,
+      userId: uid,
       lastUpdated: new Date().toISOString(),
       busySlots
     });

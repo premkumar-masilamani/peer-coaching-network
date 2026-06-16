@@ -5,8 +5,8 @@ import { getShortCredential, getCredentialBadgeClass, getCredentialDescription }
 import type { UserProfile } from '../services/firebaseService';
 import { 
   getUpcomingEvents, 
-  getCoachesAvailability, 
-  isCalendarSynced 
+  getCoachesAvailability,
+  cancelBooking
 } from '../services/googleCalendar';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { ScheduleModal } from './ScheduleModal';
@@ -24,11 +24,13 @@ import {
   Info,
   ChevronLeft,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
+  ExternalLink
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getUtcForSlot } from '../utils/timezoneHelpers';
 import { sanitizeImageUrl } from '../utils/url';
+import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS } from '../config';
 
 const getTimezoneCode = (date: Date, timeZone: string): string => {
   try {
@@ -86,14 +88,26 @@ export const CoachDashboard: React.FC = () => {
   const [activeBookingCoach, setActiveBookingCoach] = useState<UserProfile | null>(null);
   const [activeBookingSlot, setActiveBookingSlot] = useState<{ startTime: Date; endTime: Date } | null>(null);
   
-  const calendarConnected = isCalendarSynced();
+  // Booking view/cancel state
+  const [selectedBookingForView, setSelectedBookingForView] = useState<CalendarEvent | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [bookingToCancel, setBookingToCancel] = useState<CalendarEvent | null>(null);
 
+  const getBookingForSlot = (slotStart: Date, slotEnd: Date) => {
+    return userBusyEvents.find(e => {
+      if (e.type !== 'peer-coaching') return false;
+      const start = new Date(e.start.dateTime);
+      const end = new Date(e.end.dateTime);
+      return slotStart < end && slotEnd > start;
+    });
+  };
+  
   const isInitialLoading = loadingCoaches || (loadingCalendar && Object.keys(coachesBusy).length === 0);
 
-  // Generate 56 days (2 months) in viewer's local timezone
+  // Generate days starting from tomorrow up to the booking horizon in viewer's local timezone
   const days = useMemo(() => {
     const arr: Date[] = [];
-    for (let i = 0; i < 56; i++) {
+    for (let i = BOOKING_START_OFFSET_DAYS; i < BOOKING_HORIZON_DAYS; i++) {
       const d = new Date(localToday);
       d.setDate(localToday.getDate() + i);
       arr.push(d);
@@ -120,7 +134,7 @@ export const CoachDashboard: React.FC = () => {
   // collection). See BUG-006.
   useEffect(() => {
     const unsub = subscribeToActiveCoaches((usersList) => {
-      const peerCoaches = usersList.filter((u) => u.uid !== currentUser?.uid);
+      const peerCoaches = usersList.filter((u) => u.userId !== currentUser?.uid);
       setCoaches(peerCoaches);
       setLoadingCoaches(false);
     });
@@ -137,9 +151,11 @@ export const CoachDashboard: React.FC = () => {
     setLoadingCalendar(true);
     try {
       const today = getLocalDateInTimezone(new Date(), viewerTimezone);
-      const timeMin = getUtcForSlot(today, 0, viewerTimezone).toISOString();
+      const startDay = new Date(today);
+      startDay.setDate(today.getDate() + BOOKING_START_OFFSET_DAYS);
+      const timeMin = getUtcForSlot(startDay, 0, viewerTimezone).toISOString();
       const endDay = new Date(today);
-      endDay.setDate(today.getDate() + 56);
+      endDay.setDate(today.getDate() + BOOKING_HORIZON_DAYS);
       const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
 
       const availability = await getCoachesAvailability(coaches, timeMin, timeMax);
@@ -163,9 +179,11 @@ export const CoachDashboard: React.FC = () => {
     (async () => {
       try {
         const today = getLocalDateInTimezone(new Date(), viewerTimezone);
-        const timeMin = getUtcForSlot(today, 0, viewerTimezone).toISOString();
+        const startDay = new Date(today);
+        startDay.setDate(today.getDate() + BOOKING_START_OFFSET_DAYS);
+        const timeMin = getUtcForSlot(startDay, 0, viewerTimezone).toISOString();
         const endDay = new Date(today);
-        endDay.setDate(today.getDate() + 56);
+        endDay.setDate(today.getDate() + BOOKING_HORIZON_DAYS);
         const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
 
         const availability = await getCoachesAvailability(coaches, timeMin, timeMax);
@@ -187,7 +205,7 @@ export const CoachDashboard: React.FC = () => {
   // Handle booking success with optimistic updates
   const handleBookingSuccess = (newEvent: CalendarEvent) => {
     if (activeBookingCoach) {
-      const coachId = activeBookingCoach.uid;
+      const coachId = activeBookingCoach.userId;
       setCoachesBusy(prev => {
         const existing = prev[coachId] || [];
         if (existing.some(e => e.id === newEvent.id)) return prev;
@@ -247,7 +265,7 @@ export const CoachDashboard: React.FC = () => {
     // 1. First find coaches who are working and not busy
     const available = coaches.filter(coach => {
       // Checks if coach has busy slots (which includes template gaps, blocked dates, bookings, and google calendar)
-      const busy = isCoachBusy(coach.uid, slotStart, slotEnd);
+      const busy = isCoachBusy(coach.userId, slotStart, slotEnd);
       return !busy;
     });
 
@@ -299,10 +317,29 @@ export const CoachDashboard: React.FC = () => {
   const slotView = useMemo(() => {
     const enriched = slots.map(slot => {
       const isPassed = slot.endTime.getTime() < now;
-      const coachesForSlot = isPassed ? [] : getCoachesForSlot(slot.startTime, slot.endTime, false);
-      const anyAvailable = isPassed ? false : getCoachesForSlot(slot.startTime, slot.endTime, true).length > 0;
-      const conflict = hasUserConflict(slot.startTime, slot.endTime);
-      return { slot, isPassed, coaches: coachesForSlot, anyAvailable, conflict };
+      
+      // Check if there is an active booking for this slot
+      const booking = getBookingForSlot(slot.startTime, slot.endTime);
+      
+      let coachesForSlot: UserProfile[] = [];
+      let anyAvailable = false;
+      let conflict = false;
+      
+      if (booking) {
+        // If there's a booking, we only show the coach of that booking.
+        // No need to show other coaches' availability for the same slot.
+        const bookedCoach = coaches.find(c => c.userId === booking.coachUid);
+        if (bookedCoach) {
+          coachesForSlot = [bookedCoach];
+          anyAvailable = true;
+        }
+      } else {
+        coachesForSlot = isPassed ? [] : getCoachesForSlot(slot.startTime, slot.endTime, false);
+        anyAvailable = isPassed ? false : getCoachesForSlot(slot.startTime, slot.endTime, true).length > 0;
+        conflict = hasUserConflict(slot.startTime, slot.endTime);
+      }
+      
+      return { slot, isPassed, coaches: coachesForSlot, anyAvailable, conflict, booking };
     });
     return {
       displaySlots: enriched.filter(e => !e.isPassed && e.coaches.length > 0),
@@ -312,7 +349,8 @@ export const CoachDashboard: React.FC = () => {
   }, [slots, coaches, coachesBusy, userBusyEvents, now, nameSearch, genderFilter, countryFilter, selectedQuals]);
 
   return (
-    <div className="animate-fade-in" style={{ width: '100%' }}>
+    <>
+      <div className="animate-fade-in" style={{ width: '100%' }}>
       {/* Dynamic styles */}
       <style>{`
         .dashboard-layout {
@@ -559,23 +597,6 @@ export const CoachDashboard: React.FC = () => {
                   <RefreshCw size={12} className={loadingCalendar ? 'animate-spin' : ''} />
                   Refresh
                 </button>
-                
-                {!calendarConnected && (
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'rgba(245, 158, 11, 0.08)',
-                    border: '1px solid rgba(245, 158, 11, 0.15)',
-                    padding: '6px 10px',
-                    borderRadius: '6px',
-                    color: '#fbbf24',
-                    fontSize: '0.75rem'
-                  }}>
-                    <Calendar size={12} />
-                    <span>Offline calendar mode</span>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -824,11 +845,11 @@ export const CoachDashboard: React.FC = () => {
                 const displaySlots = slotView.displaySlots;
 
                 if (displaySlots.length > 0) {
-                  return displaySlots.map(({ slot, conflict, coaches: slotCoaches }) => {
+                  return displaySlots.map(({ slot, conflict, booking, coaches: slotCoaches }) => {
                     return (
                       <div 
                         key={slot.hour} 
-                        className={`slot-row ${conflict ? 'has-conflict' : ''}`}
+                        className={`slot-row ${conflict ? 'has-conflict' : ''} ${booking ? 'has-booking' : ''}`}
                       >
                         <div className="slot-header">
                           <div className="slot-time">
@@ -837,15 +858,17 @@ export const CoachDashboard: React.FC = () => {
                           </div>
                           
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            {conflict && (
+                            {conflict && !booking && (
                               <span className="badge badge-pending" style={{ fontSize: '0.65rem', gap: '4px' }}>
                                 <AlertTriangle size={10} />
                                 Your Calendar Conflict
                               </span>
                             )}
-                            <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>
-                              {slotCoaches.length} Available
-                            </span>
+                            {!booking && (
+                              <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>
+                                {slotCoaches.length} Available
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -866,7 +889,7 @@ export const CoachDashboard: React.FC = () => {
                               const isDisabled = conflict;
 
                               return (
-                                <div key={coach.uid} className="mini-coach-card">
+                                <div key={coach.userId} className="mini-coach-card">
                                   <div>
                                     <div className="mini-coach-info">
                                       <img
@@ -900,26 +923,66 @@ export const CoachDashboard: React.FC = () => {
                                     </div>
                                   </div>
 
-                                  <button
-                                    onClick={() => {
-                                      setActiveBookingCoach(coach);
-                                      setActiveBookingSlot({ startTime: slot.startTime, endTime: slot.endTime });
-                                    }}
-                                    disabled={isDisabled}
-                                    className="btn btn-primary"
-                                    style={{
-                                      width: '100%',
-                                      padding: '6px 12px',
-                                      fontSize: '0.8rem',
-                                      borderRadius: '8px',
-                                      height: '32px',
-                                      boxShadow: 'none',
-                                      opacity: isDisabled ? 0.5 : 1,
-                                      cursor: isDisabled ? 'not-allowed' : 'pointer'
-                                    }}
-                                  >
-                                    {conflict ? 'Conflict' : 'Book Session'}
-                                  </button>
+                                  {booking ? (
+                                    <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                                      <button
+                                        onClick={() => setSelectedBookingForView(booking)}
+                                        className="btn btn-primary"
+                                        style={{
+                                          flex: 1,
+                                          padding: '6px 8px',
+                                          fontSize: '0.75rem',
+                                          borderRadius: '8px',
+                                          height: '32px',
+                                          fontWeight: 600,
+                                          backgroundColor: 'rgba(139, 92, 246, 0.15)',
+                                          border: '1px solid rgba(139, 92, 246, 0.3)',
+                                          color: 'hsl(var(--primary))'
+                                        }}
+                                      >
+                                        View Session
+                                      </button>
+                                      <button
+                                        onClick={() => setBookingToCancel(booking)}
+                                        disabled={cancellingId === booking.id}
+                                        className="btn btn-primary"
+                                        style={{
+                                          flex: 1,
+                                          padding: '6px 8px',
+                                          fontSize: '0.75rem',
+                                          borderRadius: '8px',
+                                          height: '32px',
+                                          fontWeight: 600,
+                                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                          border: '1px solid rgba(239, 68, 68, 0.3)',
+                                          color: '#f87171'
+                                        }}
+                                      >
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => {
+                                        setActiveBookingCoach(coach);
+                                        setActiveBookingSlot({ startTime: slot.startTime, endTime: slot.endTime });
+                                      }}
+                                      disabled={isDisabled}
+                                      className="btn btn-primary"
+                                      style={{
+                                        width: '100%',
+                                        padding: '6px 12px',
+                                        fontSize: '0.8rem',
+                                        borderRadius: '8px',
+                                        height: '32px',
+                                        boxShadow: 'none',
+                                        opacity: isDisabled ? 0.5 : 1,
+                                        cursor: isDisabled ? 'not-allowed' : 'pointer'
+                                      }}
+                                    >
+                                      {conflict ? 'Conflict' : 'Book Session'}
+                                    </button>
+                                  )}
                                 </div>
                               );
                             })}
@@ -986,6 +1049,7 @@ export const CoachDashboard: React.FC = () => {
             </div>
           )}
       </div>
+    </div>
 
       {/* Booking confirmation modal overlay */}
       {activeBookingCoach && activeBookingSlot && (
@@ -1002,6 +1066,150 @@ export const CoachDashboard: React.FC = () => {
           }}
         />
       )}
-    </div>
+
+      {/* Booking details view modal overlay */}
+      {selectedBookingForView && (
+        <div className="modal-overlay" style={{ pointerEvents: 'auto' }}>
+          <div className="glass-panel modal-content" style={{ padding: '32px', position: 'relative', maxWidth: '440px', width: '100%', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+            
+            {/* Close Button */}
+            <button 
+              onClick={() => setSelectedBookingForView(null)} 
+              style={{
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                background: 'transparent',
+                border: 'none',
+                color: 'hsl(var(--text-muted))',
+                cursor: 'pointer'
+              }}
+            >
+              <X size={18} />
+            </button>
+
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '20px' }}>
+              Session Details
+            </h3>
+
+            <div className="glass-panel" style={{ padding: '20px', background: 'rgba(255, 255, 255, 0.02)', marginBottom: '24px' }}>
+              <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                <strong>Coach:</strong> {selectedBookingForView.attendees?.find(a => a.email !== currentUser?.email)?.displayName || 'Coach'}
+              </p>
+              <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                <strong>Topic:</strong> {selectedBookingForView.description?.replace('Peer Coaching Network session on the topic: ', '').replace('. Created via PCN.', '') || selectedBookingForView.summary}
+              </p>
+              <p style={{ fontSize: '0.85rem', marginBottom: '12px' }}>
+                <strong>Time:</strong> {new Date(selectedBookingForView.start.dateTime).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(selectedBookingForView.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
+              
+              {selectedBookingForView.meetLink && (
+                <div style={{
+                  borderTop: '1px solid rgba(255,255,255,0.05)',
+                  paddingTop: '12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px'
+                }}>
+                  <a
+                    href={selectedBookingForView.meetLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-primary"
+                    style={{ padding: '8px 16px', fontSize: '0.85rem', width: '100%', gap: '6px' }}
+                  >
+                    Join Google Meet
+                    <ExternalLink size={12} />
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <button onClick={() => setSelectedBookingForView(null)} className="btn btn-secondary" style={{ width: '100%' }}>
+              Close Window
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel confirmation modal overlay */}
+      {bookingToCancel && (
+        <div className="modal-overlay" style={{ pointerEvents: 'auto' }}>
+          <div className="glass-panel modal-content" style={{ padding: '32px', position: 'relative', maxWidth: '440px', width: '100%', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+            
+            {/* Warning Icon */}
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.1)',
+              width: '56px',
+              height: '56px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#f87171',
+              margin: '0 auto 20px auto'
+            }}>
+              <AlertTriangle size={32} />
+            </div>
+
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '12px', textAlign: 'center' }}>
+              Cancel Session?
+            </h3>
+
+            <div className="glass-panel" style={{ padding: '20px', background: 'rgba(255, 255, 255, 0.02)', marginBottom: '20px' }}>
+              <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                <strong>Coach:</strong> {bookingToCancel.attendees?.find(a => a.email !== currentUser?.email)?.displayName || 'Coach'}
+              </p>
+              <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                <strong>Topic:</strong> {bookingToCancel.description?.replace('Peer Coaching Network session on the topic: ', '').replace('. Created via PCN.', '') || bookingToCancel.summary}
+              </p>
+              <p style={{ fontSize: '0.85rem', marginBottom: '12px' }}>
+                <strong>Time:</strong> {new Date(bookingToCancel.start.dateTime).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(bookingToCancel.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
+            
+            <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', marginBottom: '24px', lineHeight: 1.4, textAlign: 'center' }}>
+              Are you sure you want to cancel this peer coaching session? This will remove the event from Google Calendar and release the slot.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button
+                onClick={async () => {
+                  const idToCancel = bookingToCancel.id;
+                  setBookingToCancel(null);
+                  setCancellingId(idToCancel);
+                  try {
+                    await cancelBooking(idToCancel);
+                    await loadCalendarData();
+                  } catch (err) {
+                    console.error('Failed to cancel booking:', err);
+                    alert('Failed to cancel booking. Please try again.');
+                  } finally {
+                    setCancellingId(null);
+                  }
+                }}
+                className="btn btn-primary"
+                style={{
+                  width: '100%',
+                  backgroundColor: '#ef4444',
+                  borderColor: '#ef4444',
+                  color: '#fff',
+                  fontWeight: 600
+                }}
+              >
+                Yes, Cancel Session
+              </button>
+              <button
+                onClick={() => setBookingToCancel(null)}
+                className="btn btn-secondary"
+                style={{ width: '100%' }}
+              >
+                No, Keep Session
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };

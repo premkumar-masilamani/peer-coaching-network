@@ -1,13 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   recalculateUserAvailability,
-  DEFAULT_TEMPLATE,
-  updateProfile,
-  loginWithGoogle
+  getSchedule,
+  updateSchedule,
+  timeStringToTimestamp,
+  timestampToTimeString
 } from '../services/firebaseService';
-import type { AvailabilityTemplate } from '../services/firebaseService';
-import { clearGoogleToken } from '../services/googleToken';
+import type { AvailableDays } from '../services/firebaseService';
 import {
   Calendar,
   Plus,
@@ -16,11 +16,39 @@ import {
   AlertTriangle,
   X,
   Copy,
-  CheckCircle,
-  XCircle
+  RefreshCw
 } from 'lucide-react';
 import { parseLocalTime } from '../utils/timezoneHelpers';
-import { isCalendarSynced } from '../services/googleCalendar';
+
+interface TimeRange {
+  start: string;
+  end: string;
+}
+
+interface DayAvailabilityFormState {
+  enabled: boolean;
+  slots: TimeRange[];
+}
+
+interface AvailableDaysFormState {
+  monday: DayAvailabilityFormState;
+  tuesday: DayAvailabilityFormState;
+  wednesday: DayAvailabilityFormState;
+  thursday: DayAvailabilityFormState;
+  friday: DayAvailabilityFormState;
+  saturday: DayAvailabilityFormState;
+  sunday: DayAvailabilityFormState;
+}
+
+const DEFAULT_FORM_WEEKLY: AvailableDaysFormState = {
+  monday: { enabled: true, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
+  tuesday: { enabled: true, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
+  wednesday: { enabled: true, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
+  thursday: { enabled: true, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
+  friday: { enabled: true, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
+  saturday: { enabled: false, slots: [{ start: '9:00 AM', end: '5:00 PM' }] },
+  sunday: { enabled: false, slots: [{ start: '9:00 AM', end: '5:00 PM' }] }
+};
 
 const DAYS_OF_WEEK = [
   { key: 'monday', label: 'Monday' },
@@ -58,47 +86,44 @@ const getTodayDateString = (): string => {
 };
 
 export const AvailabilityEdit: React.FC = () => {
-  const { user, profile, updateProfileDetails } = useAuth();
+  const { user } = useAuth();
   const uid = user?.uid || '';
 
-  // Calendar sync state
-  const [synced, setSynced] = useState(isCalendarSynced());
+  const [weekly, setWeekly] = useState<AvailableDaysFormState>(DEFAULT_FORM_WEEKLY);
+  const [blockedDates, setBlockedDates] = useState<string[]>([]);
+  const [loadingSchedule, setLoadingSchedule] = useState(true);
 
-  const handleCalendarSyncToggle = async () => {
-    if (synced) {
-      // Disconnect
-      clearGoogleToken();
-      await updateProfileDetails({ calendarSynced: false });
-      setSynced(false);
-    } else {
-      // Connect via a real Google OAuth flow (no mock token). See BUG-017.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!uid) return;
       try {
-        await loginWithGoogle();
+        const sched = await getSchedule(uid);
+        if (active) {
+          const mappedWeekly = {} as AvailableDaysFormState;
+          for (const day of Object.keys(sched.availableDays) as (keyof AvailableDays)[]) {
+            const dayData = sched.availableDays[day];
+            mappedWeekly[day] = {
+              enabled: dayData.enabled,
+              slots: dayData.slots.map(s => ({
+                start: timestampToTimeString(s.startTime),
+                end: timestampToTimeString(s.endTime)
+              }))
+            };
+          }
+          setWeekly(mappedWeekly);
+          setBlockedDates(sched.blockedDates);
+        }
       } catch (e) {
-        console.error('Calendar connection failed:', e);
+        console.error('Failed to load schedule:', e);
+      } finally {
+        if (active) {
+          setLoadingSchedule(false);
+        }
       }
-      const connected = isCalendarSynced();
-      if (connected) {
-        await updateProfileDetails({ calendarSynced: true });
-      }
-      setSynced(connected);
-    }
-  };
-
-  // Current template state
-  const [weekly, setWeekly] = useState<AvailabilityTemplate['weekly']>(() => {
-    if (profile?.availabilityTemplate?.weekly) {
-      return profile.availabilityTemplate.weekly;
-    }
-    return DEFAULT_TEMPLATE.weekly;
-  });
-
-  const [blockedDates, setBlockedDates] = useState<string[]>(() => {
-    if (profile?.availabilityTemplate?.blockedDates) {
-      return profile.availabilityTemplate.blockedDates;
-    }
-    return DEFAULT_TEMPLATE.blockedDates;
-  });
+    })();
+    return () => { active = false; };
+  }, [uid]);
 
   // UI state
   const [newBlockedDate, setNewBlockedDate] = useState('');
@@ -132,7 +157,7 @@ export const AvailabilityEdit: React.FC = () => {
   const hasValidationError = validationError !== '';
 
   // Toggle enabling/disabling a day
-  const handleDayToggle = (dayKey: keyof AvailabilityTemplate['weekly']) => {
+  const handleDayToggle = (dayKey: keyof AvailableDaysFormState) => {
     setWeekly(prev => ({
       ...prev,
       [dayKey]: {
@@ -144,7 +169,7 @@ export const AvailabilityEdit: React.FC = () => {
 
   // Update a specific slot range time value
   const handleSlotTimeChange = (
-    dayKey: keyof AvailabilityTemplate['weekly'],
+    dayKey: keyof AvailableDaysFormState,
     index: number,
     field: 'start' | 'end',
     value: string
@@ -167,7 +192,7 @@ export const AvailabilityEdit: React.FC = () => {
   };
 
   // Add a new slot range for a day
-  const handleAddSlot = (dayKey: keyof AvailabilityTemplate['weekly']) => {
+  const handleAddSlot = (dayKey: keyof AvailableDaysFormState) => {
     setWeekly(prev => {
       const dayData = { ...prev[dayKey] };
       const newSlots = [...dayData.slots];
@@ -188,10 +213,10 @@ export const AvailabilityEdit: React.FC = () => {
   };
 
   // Remove a slot range for a day
-  const handleRemoveSlot = (dayKey: keyof AvailabilityTemplate['weekly'], index: number) => {
+  const handleRemoveSlot = (dayKey: keyof AvailableDaysFormState, index: number) => {
     setWeekly(prev => {
       const dayData = { ...prev[dayKey] };
-      const newSlots = dayData.slots.filter((_, i) => i !== index);
+      const newSlots = dayData.slots.filter((_: TimeRange, i: number) => i !== index);
       return {
         ...prev,
         [dayKey]: {
@@ -203,15 +228,15 @@ export const AvailabilityEdit: React.FC = () => {
   };
 
   // Copy current schedule to all other days
-  const handleApplyToAll = (sourceDayKey: keyof AvailabilityTemplate['weekly']) => {
+  const handleApplyToAll = (sourceDayKey: keyof AvailableDaysFormState) => {
     const sourceSlots = weekly[sourceDayKey].slots;
     setWeekly(prev => {
       const nextWeekly = { ...prev };
       Object.keys(nextWeekly).forEach(day => {
         if (day !== sourceDayKey) {
-          nextWeekly[day as keyof AvailabilityTemplate['weekly']] = {
-            ...nextWeekly[day as keyof AvailabilityTemplate['weekly']],
-            slots: sourceSlots.map(s => ({ ...s }))
+          nextWeekly[day as keyof AvailableDaysFormState] = {
+            ...nextWeekly[day as keyof AvailableDaysFormState],
+            slots: sourceSlots.map((s: TimeRange) => ({ ...s }))
           };
         }
       });
@@ -305,13 +330,20 @@ export const AvailabilityEdit: React.FC = () => {
     }
 
     try {
-      const availabilityTemplate: AvailabilityTemplate = {
-        weekly,
-        blockedDates
-      };
+      const dbAvailableDays = {} as AvailableDays;
+      for (const day of Object.keys(weekly) as (keyof AvailableDaysFormState)[]) {
+        const dayData = weekly[day];
+        dbAvailableDays[day] = {
+          enabled: dayData.enabled,
+          slots: dayData.slots.map(s => ({
+            startTime: timeStringToTimestamp(s.start),
+            endTime: timeStringToTimestamp(s.end)
+          }))
+        };
+      }
 
-      // 1. Update user profile document template
-      await updateProfile(uid, { availabilityTemplate });
+      // 1. Update schedule sub-collection
+      await updateSchedule(uid, dbAvailableDays, blockedDates);
 
       // 2. Recompute and write actual busy intervals to availability collection
       await recalculateUserAvailability(uid);
@@ -325,6 +357,15 @@ export const AvailabilityEdit: React.FC = () => {
       setSaving(false);
     }
   };
+
+  if (loadingSchedule) {
+    return (
+      <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 32px', width: '100%' }}>
+        <RefreshCw size={28} className="animate-spin" style={{ color: 'hsl(var(--primary))', marginBottom: '16px' }} />
+        <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))' }}>Syncing schedule...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in availability-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', width: '100%', alignItems: 'start' }}>
@@ -582,51 +623,8 @@ export const AvailabilityEdit: React.FC = () => {
         </div>
       </div>
 
-      {/* Right Column: Calendar Sync + Block Dates */}
+      {/* Right Column: Block Dates */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        {/* Calendar Connection Panel */}
-        <div className="glass-panel" style={{ padding: '24px' }}>
-          <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Calendar size={18} color="hsl(var(--primary))" />
-            Google Calendar Sync
-          </h3>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: '1.4' }}>
-            Syncing your calendar overlays your current schedule directly on the platform and helps other coaches match with your available times.
-          </p>
-
-          <div className="glass-panel" style={{
-            padding: '12px',
-            background: 'rgba(255, 255, 255, 0.02)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            borderColor: synced ? 'rgba(16, 185, 129, 0.2)' : 'var(--border-light)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              {synced ? (
-                <CheckCircle size={20} color="#34d399" />
-              ) : (
-                <XCircle size={20} color="#f87171" />
-              )}
-              <div>
-                <p style={{ fontSize: '0.8rem', fontWeight: 700, margin: 0 }}>
-                  {synced ? 'Calendar Connected' : 'Calendar Not Synced'}
-                </p>
-                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', margin: 0, marginTop: '2px' }}>
-                  {synced ? 'Active sync enabled' : 'Permissions needed'}
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={handleCalendarSyncToggle}
-              className={`btn ${synced ? 'btn-danger' : 'btn-primary'}`}
-              style={{ padding: '6px 12px', fontSize: '0.75rem' }}
-            >
-              {synced ? 'Disconnect' : 'Connect'}
-            </button>
-          </div>
-        </div>
 
         {/* Block Dates Card Panel */}
         <div className="glass-panel" style={{ padding: '24px' }}>

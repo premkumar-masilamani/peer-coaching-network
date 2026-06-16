@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { scheduleMeeting, isCalendarSynced } from '../services/googleCalendar';
+import { scheduleMeeting } from '../services/googleCalendar';
 import type { CalendarEvent } from '../services/googleCalendar';
 import type { UserProfile } from '../services/firebaseService';
 import { formatDisplayName } from '../services/firebaseService';
@@ -49,7 +49,6 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   const [createdEvent, setCreatedEvent] = useState<CalendarEvent | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const synced = isCalendarSynced();
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   
   const timeString = startTime.toLocaleTimeString([], { 
@@ -79,7 +78,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
     try {
       const event = await scheduleMeeting(
-        coach.uid,
+        coach.userId,
         coach.email || 'coach@example.com',
         coach.displayName || 'Coach',
         user?.uid || '',
@@ -95,11 +94,11 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       }
     } catch (err) {
       console.error(err);
-      let message = 'Something went wrong while booking. Please try again.';
+      let message = 'Something went wrong while scheduling. Please try again.';
       if (err instanceof Error && err.message === 'SLOT_TAKEN') {
-        message = 'Sorry, this slot was just booked by someone else. Please pick another time.';
+        message = 'Sorry, this slot was just scheduled by someone else. Please pick another time.';
       } else if (err instanceof Error && err.message === 'SELF_CONFLICT') {
-        message = 'You already have a session booked at this time. Please pick another slot.';
+        message = 'You already have a session scheduled at this time. Please pick another slot.';
       }
       setErrorMsg(message);
       setBookingStatus('error');
@@ -189,10 +188,14 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         {/* State 2: Booking Form */}
         {bookingStatus !== 'success' && (
           <form onSubmit={handleBook}>
-            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '4px' }}>Book Peer Session</h3>
-            <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', marginBottom: '20px' }}>
-              Scheduling with <strong>{formatDisplayName(coach)}</strong> ({coach.qualifications?.join(', ') || 'Coach'})
-            </p>
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: coach.qualifications && coach.qualifications.length > 0 ? '4px' : '20px' }}>
+              Book a session with {formatDisplayName(coach)}
+            </h3>
+            {coach.qualifications && coach.qualifications.length > 0 && (
+              <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', marginBottom: '20px' }}>
+                {coach.qualifications.join(', ')}
+              </p>
+            )}
 
             {/* Date & Time details read-only block */}
             <div className="glass-panel" style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.02)', marginBottom: '20px' }}>
@@ -210,37 +213,22 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             <div className="form-group">
               <label className="form-label" htmlFor="topic-input">
                 <BookOpen size={13} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                Meeting Focus / Topic
+                Coaching Topic
               </label>
-              <input
+              <textarea
                 id="topic-input"
-                type="text"
                 className="input-field"
                 placeholder="e.g. Life coaching feedback, ICF log hours practice..."
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
                 required
                 autoFocus
+                rows={10}
+                style={{ resize: 'vertical', minHeight: '140px' }}
               />
             </div>
 
-            {/* Alert if current user calendar is offline */}
-            {!synced && (
-              <div style={{
-                display: 'flex',
-                gap: '8px',
-                padding: '10px 12px',
-                borderRadius: '8px',
-                background: 'rgba(251, 191, 36, 0.05)',
-                border: '1px solid rgba(251, 191, 36, 0.15)',
-                color: '#fbbf24',
-                fontSize: '0.75rem',
-                marginTop: '16px'
-              }}>
-                <AlertCircle size={14} style={{ flexShrink: 0 }} />
-                <span>You haven't synced your Google Calendar. This booking will trigger in sandbox mode. Go to "My Profile" to sync.</span>
-              </div>
-            )}
+
 
             {/* Error message (e.g. slot just taken) */}
             {bookingStatus === 'error' && errorMsg && (
@@ -271,7 +259,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 disabled={!topic.trim() || bookingStatus === 'booking'}
                 style={{ flex: 2 }}
               >
-                {bookingStatus === 'booking' ? 'Booking...' : 'Confirm Booking'}
+                {bookingStatus === 'booking' ? 'Scheduling...' : 'Confirm Session'}
               </button>
             </div>
           </form>

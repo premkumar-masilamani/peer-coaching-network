@@ -20,12 +20,26 @@ export const VerificationNotice: React.FC = () => {
   const [country, setCountry] = useState(profile?.country || '');
   const [qualifications] = useState<('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]>(profile?.qualifications || []);
   const [bio, setBio] = useState(profile?.bio || '');
-  const [timezone, setTimezone] = useState(profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
+  const [timezone, setTimezone] = useState(profile?.timezone || '');
 
   const timezoneOptions = getTimezonesForCountry(country);
 
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+
+  const handleCountryChange = (selectedCountry: string) => {
+    setCountry(selectedCountry);
+    if (selectedCountry) {
+      const options = getTimezonesForCountry(selectedCountry);
+      if (options.length > 0) {
+        setTimezone(options[0].value);
+      } else {
+        setTimezone('');
+      }
+    } else {
+      setTimezone('');
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,7 +177,8 @@ export const VerificationNotice: React.FC = () => {
               id="country-select"
               className="input-field"
               value={country}
-              onChange={(e) => setCountry(e.target.value)}
+              onChange={(e) => handleCountryChange(e.target.value)}
+              required
             >
               <option value="">Select Country</option>
               {COUNTRIES.map(c => (
@@ -185,6 +200,7 @@ export const VerificationNotice: React.FC = () => {
               onChange={(e) => setTimezone(e.target.value)}
               required
             >
+              <option value="">Select Timezone</option>
               {timezoneOptions.map(tz => (
                 <option key={tz.value} value={tz.value}>{tz.label}</option>
               ))}
@@ -202,6 +218,7 @@ export const VerificationNotice: React.FC = () => {
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               style={{ resize: 'vertical' }}
+              required
             />
           </div>
 

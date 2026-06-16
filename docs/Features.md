@@ -11,11 +11,10 @@ Think of this app as a **cooperative booking journal**—a helper that handles t
 2. [Signing In & Setting Up Your Application](#2-signing-in--setting-up-your-application)
 3. [Managing Your Digital Profile](#3-managing-your-digital-profile)
 4. [Day Mode & Night Mode (Theme Toggling)](#4-day-mode--night-mode-theme-toggling)
-5. [Connecting Your Google Calendar](#5-connecting-your-google-calendar)
-6. [Finding Other Coaches (Browse Coaches)](#6-finding-other-coaches-browse-coaches)
-7. [Booking a Peer Coaching Session](#7-booking-a-peer-coaching-session)
-8. [Attending and Managing Your Sessions](#8-attending-and-managing-your-sessions)
-9. [For Administrators: The Approval Desk](#9-for-administrators-the-approval-desk)
+5. [Finding Other Coaches (Browse Coaches)](#5-finding-other-coaches-browse-coaches)
+6. [Booking a Peer Coaching Session](#6-booking-a-peer-coaching-session)
+7. [Attending and Managing Your Sessions](#7-attending-and-managing-your-sessions)
+8. [For Administrators: The Approval Desk](#8-for-administrators-the-approval-desk)
 
 ---
 
@@ -25,7 +24,7 @@ The application features a collapsible navigation sidebar on the left side of yo
 * **The Toggle Button:** At the bottom of the sidebar, you will find a toggle button (< or >). Click it to collapse the sidebar into an icon-only mode (ideal for maximizing your screen workspace) or expand it to see full navigation text labels.
 * **Home:** The main dashboard catalog where you can search, filter, and find other peer coaches.
 * **Admin Panel:** Visible only to approved network administrators, this page is where new member requests are processed.
-* **My Availability:** Configure your timezone, set your weekly active coaching slots, and connect your Google Calendar.
+* **My Availability:** Configure your timezone and set your weekly active coaching slots.
 * **My Bookings:** A dedicated page compiling all your scheduled sessions (both those you booked and those booked with you).
 * **My Profile:** View and edit your public display name, gender, country, and check your certifications.
 
@@ -67,16 +66,7 @@ We know that bright screens can strain the eyes, especially in the evening.
 
 ---
 
-## 5. Connecting Your Google Calendar
-
-To prevent other coaches from booking sessions when you are busy, you can sync your schedule with Google Calendar.
-* **How to connect:** Go to the **"My Availability"** page on your left navigation bar. Under the **"Google Calendar Sync"** section, click the green **"Connect Calendar"** button.
-* **How it works:** Once connected, the app will check your personal calendar for commitments (like external work blocks or personal appointments) and block those slots so nobody can schedule over them.
-* **Theme-responsive sync indicator:** An offline warning badge will display if calendar sync is inactive, guiding you to connect your calendar.
-
----
-
-## 6. Finding Other Coaches (Browse Coaches)
+## 5. Finding Other Coaches (Browse Coaches)
 
 Go to the **"Home"** tab on the left navigation bar to open the coach catalog.
 * **Coach Cards:** You will see a list of approved fellow coaches, showing their names, avatars, countries, short credentials (like ACC, PCC, or MCC), and summaries of their biographies.
@@ -87,19 +77,19 @@ Go to the **"Home"** tab on the left navigation bar to open the coach catalog.
 
 ---
 
-## 7. Booking a Peer Coaching Session
+## 6. Booking a Peer Coaching Session
 
 When you find a coach you would like to meet with, booking is simple:
 1. Click the **"Book Peer"** button on their card.
 2. You will see a weekly calendar grid. Click the **Left/Right Chevrons (< and >)** to flip the pages week-by-week (up to 2 months into the future).
 3. Click on a time slot highlighted as **"Available"**.
-4. **Conflict Safety:** If the slot conflicts with your own availability or calendar commitments, the booking button will be disabled, and a warning banner will appear to prevent double bookings.
+4. **Conflict Safety:** If the slot conflicts with your own availability or calendar commitments, the booking button will be disabled.
 5. Type the topic you would like to focus on (e.g., "Life coaching feedback" or "Active listening practice").
-6. Click **"Confirm Booking"**. The app will immediately schedule it on both of your Google Calendars and generate a secure **Google Meet video link**.
+6. Click **"Confirm Booking"**. The app will immediately schedule the session and generate a secure **Google Meet video link**.
 
 ---
 
-## 8. Attending and Managing Your Sessions
+## 7. Attending and Managing Your Sessions
 
 Managing your scheduled peer coaching appointments is simple:
 * **The "My Bookings" Page:** Click the **"My Bookings"** tab on the left navigation bar to see a list of all your scheduled peer coaching sessions starting from today onwards.
@@ -108,7 +98,7 @@ Managing your scheduled peer coaching appointments is simple:
 
 ---
 
-## 9. For Administrators: The Approval Desk
+## 8. For Administrators: The Approval Desk
 
 If you are designated as an administrator for the network, you have access to extra controls to welcome and approve new members.
 * **Member Requests Notification:** If a new coach registers, a yellow badge saying **"Member Requests (N)"** (where N is the number of pending coaches) will light up in your top header. Click it to go directly to the Admin Desk's **"Pending"** tab.

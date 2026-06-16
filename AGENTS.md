@@ -53,7 +53,7 @@ graph TD
 ```
 
 ### 1. Service Layer
-- **[firebaseService.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/firebaseService.ts)**: Encapsulates Firebase initialization, Auth state, Firestore user profiles CRUD, administrative overrides, and the canonical availability calculation logic. It owns type definitions like `UserProfile`, `AvailabilityTemplate`, and `DayAvailability`.
+- **[firebaseService.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/firebaseService.ts)**: Encapsulates Firebase initialization, Auth state, Firestore user profiles CRUD, administrative overrides, and the canonical availability calculation logic. It owns type definitions like `UserProfile`, `AvailableDays`, and `DayAvailability`.
 - **[googleCalendar.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/googleCalendar.ts)**: Handles Google Calendar REST API actions (events, freebusy status, Meet links) and persists bookings to Firestore. It reads credential tokens from [googleToken.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/googleToken.ts).
 - **[googleToken.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/googleToken.ts)**: Stashes and exposes OAuth tokens within `sessionStorage` (`google_access_token`).
 
@@ -73,15 +73,18 @@ The helper `setUserRoleAndStatus` keeps these systems aligned by setting `role` 
 
 ## 📅 The Availability Engine
 
-The peer-coaching booking workflow is supported by three Firestore collections:
-1. `users/{uid}`: Holds user profiles and their raw `availabilityTemplate` (weekly clock times like `10:00 AM` to `4:00 PM` and user-defined `blockedDates`).
-2. `bookings/{eventId}`: Contains confirmed session details (coaches' and mentees' emails, uids, Meet URLs, and topics).
-3. `availability/{uid}`: Cache holding derived busy intervals.
+The peer-coaching booking workflow is supported by three Firestore collections and a schedule sub-collection:
+1. `users/{userId}`: Holds user profiles.
+2. `users/{userId}/schedule`: Sub-collection containing:
+   - `availableDays` document: Holds the weekly recurring availability template.
+   - `blockedDates` document: Holds user-defined blocked dates.
+3. `bookings/{bookingId}`: Contains confirmed session details (referencing `coachUid`, `clientUid`, `googleMeetLink`, and `topic`). Denormalized participant emails and names are removed and joined dynamically on the client side.
+4. `availability/{userId}`: Cache holding derived busy intervals.
 
 ### How recalculateUserAvailability Works
 The function `recalculateUserAvailability(uid)` in [firebaseService.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/firebaseService.ts) runs asynchronously in the background following bookings, cancellations, or profile updates.
-1. It reads the coach's `availabilityTemplate` and `blockedDates`.
-2. It queries active bookings for the coach (both as host and client) for the next 56 days.
+1. It reads the coach's weekly template and blocked dates from the `schedule` sub-collection.
+2. It queries active bookings for the coach (both as host and client) for the next horizon window (configured in [config.ts](file:///Users/premkumar/Code/peer-coaching-network/src/config.ts)).
 3. It maps weekly slots, blocked dates, and active bookings into UTC time windows.
 4. It derives the gaps where the coach is *unavailable* and writes these busy intervals into the `availability` collection.
 
@@ -89,8 +92,9 @@ To prevent concurrent writes from interleaving and corrupting user availability 
 
 ### Scheduling & Double-Booking Protection
 - **Coach Protection**: Bookings are saved in the `bookings` collection with a deterministic identifier: `${coachUid}_${startIso}`. A transaction verifies this ID is unclaimed before scheduling a meeting.
-- **Mentee Protection**: Mentees cannot double-book themselves across coaches. The scheduling flow creates a temporary placeholder in `slotHolds/${menteeUid}_${startIso}` inside the transaction. If either check fails, the transaction aborts and no Google Calendar events are created.
+- **Mentee Protection**: Mentees (clients) cannot double-book themselves across coaches. The scheduling flow creates a temporary placeholder in `slotHolds/${clientUid}_${startIso}` inside the transaction. If either check fails, the transaction aborts and no Google Calendar events are created.
 - **Availability Overlay**: The method `getCoachesAvailability` fetches availability caches in batches of 30 using Firestore `in` query limits. It overlays live bookings and generates fallbacks in-memory if a cached profile does not yet have an `availability` document.
+- **Stale Cache Prevention**: If a day has no busy slots registered in the cache, the availability overlay engine automatically marks the entire day as unavailable (busy) to prevent infinite availability leaks due to stale caches.
 
 ---
 
@@ -109,6 +113,7 @@ To prevent concurrent writes from interleaving and corrupting user availability 
 - **Sandbox Mode**: When Google token is absent, or contains the mock sentinel `'mock_google_access_token'`, all calendar integrations run in a fallback mode (persisting bookings only to Firestore).
 - **Google Meet Links**: Scheduled meetings send POST requests to the calendar API with the parameter `conferenceDataVersion=1` to generate a real Google Meet room.
 - **Bookings Sync**: Active bookings are queried by stable uids rather than emails in [googleCalendar.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/googleCalendar.ts) to prevent email mismatch issues.
+- **Automated Integration**: Google Calendar sync configuration is fully automated. The application requests Google Calendar permissions during sign-in, and all confirmed coaching sessions are automatically scheduled on the Google Calendar with an automatic Google Meet video room.
 
 ---
 
