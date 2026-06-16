@@ -362,7 +362,7 @@ export const CoachDashboard: React.FC = () => {
           align-items: center;
           gap: 12px;
           margin-bottom: 24px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          border-bottom: 1px solid var(--border-light);
           padding-bottom: 12px;
         }
 
@@ -391,8 +391,8 @@ export const CoachDashboard: React.FC = () => {
           width: 38px;
           height: 38px;
           border-radius: 50%;
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          background: rgba(15, 23, 42, 0.4);
+          border: 1px solid var(--border-light);
+          background: var(--input-bg);
           color: hsl(var(--text-secondary));
           cursor: pointer;
           transition: all 0.2s ease;
@@ -400,8 +400,8 @@ export const CoachDashboard: React.FC = () => {
         }
 
         .scroll-btn:hover {
-          background: rgba(255, 255, 255, 0.06);
-          border-color: rgba(139, 92, 246, 0.3);
+          background: var(--btn-secondary-hover-bg);
+          border-color: hsl(var(--primary) / 0.4);
           color: hsl(var(--text-primary));
         }
 
@@ -418,8 +418,8 @@ export const CoachDashboard: React.FC = () => {
           min-width: 100px;
           flex-shrink: 0;
           cursor: pointer;
-          background: rgba(15, 23, 42, 0.4);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: var(--input-bg);
+          border: 1px solid var(--border-light);
           border-radius: 12px;
           transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
           scroll-snap-align: start;
@@ -434,20 +434,21 @@ export const CoachDashboard: React.FC = () => {
         }
 
         .date-tab:hover {
-          background: rgba(255, 255, 255, 0.03);
-          border-color: rgba(139, 92, 246, 0.2);
+          background: var(--panel-hover-bg);
+          border-color: hsl(var(--primary) / 0.3);
         }
 
         .date-tab.active {
           background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
           border-color: transparent;
           color: white;
-          box-shadow: 0 4px 14px 0 rgba(139, 92, 246, 0.25);
+          box-shadow: var(--card-shadow);
         }
 
         .slot-row {
           background: var(--glass-bg);
           backdrop-filter: var(--glass-blur);
+          -webkit-backdrop-filter: var(--glass-blur);
           border: 1px solid var(--glass-border);
           border-radius: 16px;
           padding: 20px;
@@ -456,13 +457,13 @@ export const CoachDashboard: React.FC = () => {
         }
 
         .slot-row.has-conflict {
-          border-color: rgba(245, 158, 11, 0.15);
-          background: linear-gradient(to right, rgba(245, 158, 11, 0.02), rgba(15, 23, 42, 0.65));
+          border-color: hsl(var(--warning) / 0.25);
+          background: linear-gradient(to right, hsl(var(--warning) / 0.03), var(--glass-bg));
         }
 
         .slot-row.is-passed {
           opacity: 0.5;
-          background: rgba(15, 23, 42, 0.3);
+          background: hsl(var(--bg-base) / 0.5);
         }
 
         .slot-header {
@@ -471,7 +472,7 @@ export const CoachDashboard: React.FC = () => {
           align-items: center;
           flex-wrap: wrap;
           gap: 12px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+          border-bottom: 1px solid var(--border-light);
           padding-bottom: 12px;
         }
 
@@ -492,8 +493,8 @@ export const CoachDashboard: React.FC = () => {
         }
 
         .mini-coach-card {
-          background: rgba(255, 255, 255, 0.015);
-          border: 1px solid rgba(255, 255, 255, 0.04);
+          background: var(--bg-surface);
+          border: 1px solid var(--border-light);
           border-radius: 12px;
           padding: 14px;
           display: flex;
@@ -503,8 +504,8 @@ export const CoachDashboard: React.FC = () => {
         }
 
         .mini-coach-card:hover {
-          background: rgba(255, 255, 255, 0.03);
-          border-color: rgba(139, 92, 246, 0.2);
+          background: var(--panel-hover-bg);
+          border-color: hsl(var(--primary) / 0.3);
         }
 
         .mini-coach-info {
@@ -544,7 +545,7 @@ export const CoachDashboard: React.FC = () => {
         }
 
         .dropdown-item-label:hover {
-          background: rgba(255, 255, 255, 0.04);
+          background: var(--panel-hover-bg);
         }
 
         .mini-coach-quals {
@@ -562,8 +563,8 @@ export const CoachDashboard: React.FC = () => {
         }
 
         .session-card {
-          background: rgba(255, 255, 255, 0.02);
-          border: 1px solid rgba(255, 255, 255, 0.05);
+          background: var(--bg-surface);
+          border: 1px solid var(--border-light);
           border-left: 3px solid hsl(var(--primary));
           border-radius: 10px;
           padding: 14px;
@@ -572,8 +573,8 @@ export const CoachDashboard: React.FC = () => {
         }
 
         .session-card:hover {
-          background: rgba(255, 255, 255, 0.04);
-          border-color: rgba(255, 255, 255, 0.1);
+          background: var(--panel-hover-bg);
+          border-color: var(--border-light);
         }
 
         /* Removed multi-column layout media query */
@@ -742,7 +743,7 @@ export const CoachDashboard: React.FC = () => {
               </div>
             </div>
 
-            <hr style={{ border: 'none', borderTop: '1px solid rgba(255, 255, 255, 0.08)', margin: '20px 0 16px 0' }} />
+            <hr style={{ border: 'none', borderTop: '1px solid var(--border-light)', margin: '20px 0 16px 0' }} />
 
             {/* Search by Name (Free Text) */}
             <div className="form-group" style={{ maxWidth: '400px', marginBottom: 0 }}>
@@ -766,7 +767,7 @@ export const CoachDashboard: React.FC = () => {
               display: 'flex',
               justifyContent: 'flex-end',
               alignItems: 'center',
-              borderTop: '1px solid rgba(255,255,255,0.05)',
+              borderTop: '1px solid var(--border-light)',
               paddingTop: '16px',
               marginTop: '16px'
             }}>
@@ -876,7 +877,7 @@ export const CoachDashboard: React.FC = () => {
                           <div className="slot-coaches-grid">
                             {slotCoaches.map((coach) => {
                               // Border mapping based on highest qualification
-                              let borderCol = 'rgba(255,255,255,0.06)';
+                              let borderCol = 'var(--border-light)';
                               const hasMCC = coach.qualifications?.some(q => getShortCredential(q) === 'MCC');
                               const hasPCC = coach.qualifications?.some(q => getShortCredential(q) === 'PCC');
                               const hasACC = coach.qualifications?.some(q => getShortCredential(q) === 'ACC');
@@ -1092,7 +1093,7 @@ export const CoachDashboard: React.FC = () => {
               Session Details
             </h3>
 
-            <div className="glass-panel" style={{ padding: '20px', background: 'rgba(255, 255, 255, 0.02)', marginBottom: '24px' }}>
+            <div className="glass-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', marginBottom: '24px' }}>
               <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
                 <strong>Coach:</strong> {selectedBookingForView.attendees?.find(a => a.email !== currentUser?.email)?.displayName || 'Coach'}
               </p>
@@ -1105,7 +1106,7 @@ export const CoachDashboard: React.FC = () => {
               
               {selectedBookingForView.meetLink && (
                 <div style={{
-                  borderTop: '1px solid rgba(255,255,255,0.05)',
+                  borderTop: '1px solid var(--border-light)',
                   paddingTop: '12px',
                   display: 'flex',
                   flexDirection: 'column',
@@ -1156,7 +1157,7 @@ export const CoachDashboard: React.FC = () => {
               Cancel Session?
             </h3>
 
-            <div className="glass-panel" style={{ padding: '20px', background: 'rgba(255, 255, 255, 0.02)', marginBottom: '20px' }}>
+            <div className="glass-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>
               <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
                 <strong>Coach:</strong> {bookingToCancel.attendees?.find(a => a.email !== currentUser?.email)?.displayName || 'Coach'}
               </p>
@@ -1188,12 +1189,9 @@ export const CoachDashboard: React.FC = () => {
                     setCancellingId(null);
                   }
                 }}
-                className="btn btn-primary"
+                className="btn btn-danger"
                 style={{
                   width: '100%',
-                  backgroundColor: '#ef4444',
-                  borderColor: '#ef4444',
-                  color: '#fff',
                   fontWeight: 600
                 }}
               >

@@ -39,8 +39,8 @@ export const Login: React.FC = () => {
           gap: '8px',
           padding: '8px 16px',
           borderRadius: '9999px',
-          background: 'rgba(255, 255, 255, 0.05)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          background: 'var(--btn-secondary-bg)',
+          border: '1px solid var(--border-light)',
           marginBottom: '24px',
           fontSize: '0.85rem',
           color: 'hsl(var(--primary))',
@@ -54,7 +54,7 @@ export const Login: React.FC = () => {
           fontSize: '3.5rem',
           lineHeight: '1.15',
           fontWeight: 800,
-          background: 'linear-gradient(to right, #ffffff, #a78bfa, #818cf8)',
+          background: 'var(--hero-text-gradient)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           marginBottom: '16px',
@@ -104,7 +104,7 @@ export const Login: React.FC = () => {
       }}>
         <div className="glass-panel" style={{ padding: '24px' }}>
           <div style={{
-            background: 'rgba(99, 102, 241, 0.1)',
+            background: 'hsl(var(--accent) / 0.1)',
             width: '44px',
             height: '44px',
             borderRadius: '10px',
@@ -124,7 +124,7 @@ export const Login: React.FC = () => {
 
         <div className="glass-panel" style={{ padding: '24px' }}>
           <div style={{
-            background: 'rgba(139, 92, 246, 0.1)',
+            background: 'hsl(var(--primary) / 0.1)',
             width: '44px',
             height: '44px',
             borderRadius: '10px',
@@ -144,7 +144,7 @@ export const Login: React.FC = () => {
 
         <div className="glass-panel" style={{ padding: '24px' }}>
           <div style={{
-            background: 'rgba(16, 185, 129, 0.1)',
+            background: 'hsl(var(--success) / 0.1)',
             width: '44px',
             height: '44px',
             borderRadius: '10px',

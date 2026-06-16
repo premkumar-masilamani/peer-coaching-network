@@ -61,7 +61,7 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
                 ? '2px solid hsl(var(--pcc-silver))'
                 : coach.qualifications?.some(q => getShortCredential(q) === 'ACC')
                 ? '2px solid hsl(var(--acc-gold))'
-                : '2px solid rgba(255,255,255,0.1)'
+                : '2px solid var(--border-light)'
             }}
           />
           <div style={{ overflow: 'hidden' }}>
@@ -111,9 +111,9 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
           {coach.gender && (
             <span className="badge badge-secondary" style={{ 
               fontSize: '0.65rem', 
-              background: 'rgba(255,255,255,0.03)', 
+              background: 'var(--panel-hover-bg)', 
               color: 'hsl(var(--text-secondary))',
-              border: '1px solid rgba(255,255,255,0.05)',
+              border: '1px solid var(--border-light)',
               textTransform: 'none'
             }}>
               {coach.gender}
@@ -138,7 +138,7 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
-        borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+        borderTop: '1px solid var(--border-light)',
         paddingTop: '16px',
         marginTop: 'auto'
       }}>

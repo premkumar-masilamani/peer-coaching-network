@@ -324,7 +324,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
             </div>
 
             {/* Coach Qualifications display */}
-            <div style={{ width: '100%', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px', textAlign: 'left' }}>
+            <div style={{ width: '100%', borderTop: '1px solid var(--border-light)', paddingTop: '20px', textAlign: 'left' }}>
               <h4 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '12px' }}>
                 Credentials
               </h4>
@@ -351,7 +351,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
 
             {/* Biography & Attributes */}
             <div className="glass-panel" style={{ padding: '32px' }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '20px', color: 'white' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '20px', color: 'hsl(var(--text-primary))' }}>
                 Profile Overview
               </h3>
 
@@ -376,7 +376,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                 </div>
               </div>
 
-              <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
+              <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
                 <h4 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '10px' }}>
                   Biography
                 </h4>
@@ -388,7 +388,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
 
             {/* Scheduled Meetings List */}
             <div className="glass-panel" style={{ padding: '32px' }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '20px', color: 'white' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '20px', color: 'hsl(var(--text-primary))' }}>
                 Upcoming Scheduled Sessions
               </h3>
 
@@ -405,7 +405,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                     const safeMeetLink = sanitizeMeetLink(ev.meetLink);
 
                     return (
-                      <div key={ev.id} className="glass-panel" style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.02)', borderColor: 'rgba(255,255,255,0.05)' }}>
+                      <div key={ev.id} className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', borderColor: 'var(--border-light)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                           <h4 style={{ fontSize: '0.95rem', fontWeight: 700 }}>{ev.summary}</h4>
                           <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>Active Session</span>
@@ -449,7 +449,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
           transition: background-color 0.2s ease;
         }
         .hover-row:hover {
-          background-color: rgba(255, 255, 255, 0.02) !important;
+          background-color: var(--panel-hover-bg) !important;
         }
         .admin-table td {
           vertical-align: middle;
@@ -467,12 +467,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
 
         <div className="glass-panel" style={{
           padding: '20px',
-          borderLeft: `4px solid ${pendingCount > 0 ? 'hsl(var(--warning))' : 'rgba(255,255,255,0.1)'}`
+          borderLeft: pendingCount > 0 ? '4px solid hsl(var(--warning))' : '4px solid var(--border-light)'
         }}>
           <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))', fontWeight: 600, textTransform: 'uppercase' }}>
             Pending Review
           </span>
-          <h2 style={{ fontSize: '2rem', fontWeight: 800, marginTop: '4px', color: pendingCount > 0 ? 'hsl(var(--warning))' : 'white' }}>
+          <h2 style={{ fontSize: '2rem', fontWeight: 800, marginTop: '4px', color: pendingCount > 0 ? 'hsl(var(--warning))' : 'hsl(var(--text-primary))' }}>
             {pendingCount}
           </h2>
         </div>
@@ -569,7 +569,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                           <img
                             src={sanitizeImageUrl(u.photoURL)}
                             alt={formatDisplayName(u) || 'Coach'}
-                            style={{ width: '38px', height: '38px', borderRadius: '50%', border: '1px solid rgba(255,255,255,0.08)' }}
+                            style={{ width: '38px', height: '38px', borderRadius: '50%', border: '1px solid var(--border-light)' }}
                           />
                           <div>
                             <p style={{ fontWeight: 700, fontSize: '0.925rem' }}>{formatDisplayName(u) || 'No Name'}</p>
@@ -656,9 +656,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                             padding: '6px 12px',
                             fontSize: '0.825rem',
                             width: '100px',
-                            border: '1px solid rgba(255,255,255,0.08)',
+                            border: '1px solid var(--border-light)',
                             borderRadius: '8px',
-                            background: 'rgba(15, 23, 42, 0.4)'
+                            background: 'var(--input-bg)'
                           }}
                         >
                           <option value="user">User</option>
@@ -752,11 +752,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
             </p>
 
             {approvalModalData.changes.length === 0 ? (
-              <div className="glass-panel" style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.02)', marginBottom: '20px', textAlign: 'center' }}>
+              <div className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px', textAlign: 'center' }}>
                 <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-muted))' }}>No modifications detected in draft.</p>
               </div>
             ) : (
-              <div className="glass-panel" style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.02)', marginBottom: '20px' }}>
+              <div className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>
                 <ul style={{ paddingLeft: '20px', margin: 0, fontSize: '0.95rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {approvalModalData.changes.map((chg, idx) => (
                     <li key={idx} style={{ color: 'hsl(var(--text-secondary))' }}>
