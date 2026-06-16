@@ -7,7 +7,10 @@ import {
   BookOpen, 
   User, 
   ChevronLeft, 
-  ChevronRight 
+  ChevronRight,
+  Sun,
+  Moon,
+  LogOut
 } from 'lucide-react';
 
 interface LeftNavProps {
@@ -23,7 +26,7 @@ export const LeftNav: React.FC<LeftNavProps> = ({
   collapsed, 
   setCollapsed 
 }) => {
-  const { profile, role } = useAuth();
+  const { profile, role, logout, updateProfileDetails } = useAuth();
   const isAdmin = role === 'admin' && profile?.userStatus === 'active';
 
   const toggleCollapse = () => {
@@ -99,6 +102,44 @@ export const LeftNav: React.FC<LeftNavProps> = ({
       </div>
 
       <div className="sidebar-footer">
+        {/* Theme Toggle */}
+        <button
+          onClick={async () => {
+            const currentTheme = profile?.theme === 'light' ? 'light' : 'dark';
+            const nextTheme = currentTheme === 'light' ? 'dark' : 'light';
+            try {
+              await updateProfileDetails({ theme: nextTheme });
+            } catch (err) {
+              console.error('Failed to toggle theme:', err);
+            }
+          }}
+          className="sidebar-nav-item"
+          style={{ cursor: 'pointer' }}
+          title={collapsed ? (profile?.theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode') : undefined}
+        >
+          <span className="nav-icon">
+            {profile?.theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+          </span>
+          <span className="nav-text">
+            {profile?.theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+          </span>
+        </button>
+
+        {/* Sign Out */}
+        <button
+          onClick={async () => {
+            await logout();
+          }}
+          className="sidebar-nav-item"
+          style={{ color: '#f87171', cursor: 'pointer' }}
+          title={collapsed ? 'Sign Out' : undefined}
+        >
+          <span className="nav-icon">
+            <LogOut size={18} />
+          </span>
+          <span className="nav-text">Sign Out</span>
+        </button>
+
         {/* Toggle Button */}
         <button 
           onClick={toggleCollapse}

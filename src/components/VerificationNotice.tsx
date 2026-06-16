@@ -118,7 +118,7 @@ export const VerificationNotice: React.FC = () => {
             <label className="form-label">Full Name</label>
             <div style={{
               padding: '10px 14px',
-              background: 'rgba(255, 255, 255, 0.02)',
+              background: 'var(--panel-hover-bg)',
               border: '1px solid var(--border-light)',
               borderRadius: '8px',
               fontSize: '0.95rem',
@@ -132,7 +132,7 @@ export const VerificationNotice: React.FC = () => {
             <label className="form-label">Email Address</label>
             <div style={{
               padding: '10px 14px',
-              background: 'rgba(255, 255, 255, 0.02)',
+              background: 'var(--panel-hover-bg)',
               border: '1px solid var(--border-light)',
               borderRadius: '8px',
               fontSize: '0.95rem',
