@@ -1,4 +1,4 @@
-.PHONY: install run build lint clean emulator local
+.PHONY: install run build lint clean emulator local erd
 
 install:
 	npm install
@@ -20,3 +20,6 @@ emulator:
 
 local:
 	npm run local
+
+erd:
+	node scripts/generate-erd.js
