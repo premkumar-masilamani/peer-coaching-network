@@ -10,4 +10,4 @@ export const BOOKING_START_OFFSET_DAYS = 1;
  * The booking horizon in days (e.g. 56 days is 8 weeks).
  * This defines how far in advance users are allowed to book.
  */
-export const BOOKING_HORIZON_DAYS = 56;
+export const BOOKING_HORIZON_DAYS = 60;
