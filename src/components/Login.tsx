@@ -54,9 +54,7 @@ export const Login: React.FC = () => {
           fontSize: '3.5rem',
           lineHeight: '1.15',
           fontWeight: 800,
-          background: 'var(--hero-text-gradient)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
+          color: 'hsl(var(--text-primary))',
           marginBottom: '16px',
           letterSpacing: '-0.04em'
         }}>

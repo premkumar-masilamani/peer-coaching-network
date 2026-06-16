@@ -49,14 +49,14 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => (role === 'user' || role === 'admin') && setCurrentTab('dashboard')}>
           <div style={{
-            background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
+            background: 'hsl(var(--primary))',
             width: '40px',
             height: '40px',
             borderRadius: '10px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(139, 92, 246, 0.3)'
+            boxShadow: '0 4px 12px var(--primary-glow)'
           }}>
             <Sparkles size={20} color="#fff" />
           </div>

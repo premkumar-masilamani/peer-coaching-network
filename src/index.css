@@ -141,25 +141,15 @@ body {
   width: 100vw;
   height: 100vh;
   z-index: -2;
-  background: radial-gradient(circle at 10% 20%, rgba(234, 179, 8, 0.08) 0%, rgba(0, 0, 0, 0) 40%),
-              radial-gradient(circle at 90% 80%, rgba(13, 148, 136, 0.08) 0%, rgba(0, 0, 0, 0) 50%);
   background-color: hsl(var(--bg-base));
 }
 
 .light-theme .bg-gradient-radial {
-  background: radial-gradient(circle at 10% 20%, rgba(180, 83, 9, 0.04) 0%, rgba(0, 0, 0, 0) 40%),
-              radial-gradient(circle at 90% 80%, rgba(15, 118, 110, 0.04) 0%, rgba(0, 0, 0, 0) 50%);
   background-color: hsl(var(--bg-base));
 }
 
 .bg-aurora-glow {
-  position: absolute;
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(13, 148, 136, 0.12) 0%, rgba(234, 179, 8, 0.05) 50%, rgba(0,0,0,0) 70%);
-  filter: blur(40px);
-  pointer-events: none;
-  z-index: -1;
+  display: none;
 }
 
 /* Animations */
@@ -295,17 +285,15 @@ p {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
-  background-size: 200% 200%;
-  color: #fff;
+  background-color: hsl(var(--primary));
+  color: #ffffff;
   box-shadow: var(--card-shadow);
-  animation: gradientShift 6s ease infinite;
 }
 
 .btn-primary:hover {
   transform: translateY(-1px);
+  background-color: hsl(var(--primary-hover));
   box-shadow: 0 6px 20px 0 var(--primary-glow);
-  background-position: 100% 0%;
 }
 
 .btn-primary:active {
@@ -313,40 +301,39 @@ p {
 }
 
 .btn-secondary {
-  background: var(--btn-secondary-bg);
+  background-color: hsl(var(--bg-surface-elevated));
   color: hsl(var(--text-primary));
-  border: 1px solid var(--btn-secondary-border);
+  border: 1px solid var(--border-light);
 }
 
 .btn-secondary:hover {
-  background: var(--btn-secondary-hover-bg);
-  border-color: var(--btn-secondary-hover-border);
+  background-color: var(--panel-hover-bg);
+  border-color: var(--border-focus);
 }
 
 .btn-danger {
-  background: rgba(239, 68, 68, 0.15);
-  color: #f87171;
-  border: 1px solid rgba(239, 68, 68, 0.25);
+  background-color: hsl(var(--danger));
+  color: #ffffff;
+  border: 1px solid transparent;
 }
 
 .btn-danger:hover {
-  background: rgba(239, 68, 68, 0.25);
-  border-color: rgba(239, 68, 68, 0.4);
+  background-color: hsl(0 84% 50%);
 }
 
 .btn-disabled {
-  background: rgba(255, 255, 255, 0.04);
+  background-color: var(--panel-hover-bg);
   color: hsl(var(--text-muted));
   cursor: not-allowed;
-  border: 1px solid rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-light);
 }
 
 /* Badges */
 .badge {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
   font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 9999px;
+  padding: 5px 12px;
+  border-radius: 6px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   display: inline-flex;
@@ -609,7 +596,7 @@ p {
 }
 
 .sidebar-nav-item.active {
-  background: linear-gradient(135deg, hsl(var(--primary) / 0.15) 0%, hsl(var(--accent) / 0.15) 100%);
+  background-color: hsl(var(--primary) / 0.15);
   border: 1px solid hsl(var(--primary) / 0.25);
   color: hsl(var(--text-primary));
 }

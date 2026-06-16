@@ -84,14 +84,14 @@ const AppContent: React.FC = () => {
       }}>
         <div className="bg-gradient-radial" />
         <div style={{
-          background: 'linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%)',
+          background: 'hsl(var(--primary))',
           width: '50px',
           height: '50px',
           borderRadius: '12px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 0 30px rgba(139, 92, 246, 0.4)',
+          boxShadow: '0 0 30px var(--primary-glow)',
         }} className="animate-pulse">
           <Sparkles size={24} color="#fff" />
         </div>

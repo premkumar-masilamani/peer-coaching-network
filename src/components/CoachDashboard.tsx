@@ -439,17 +439,15 @@ export const CoachDashboard: React.FC = () => {
         }
 
         .date-tab.active {
-          background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--accent)) 100%);
+          background-color: hsl(var(--primary));
           border-color: transparent;
           color: white;
           box-shadow: var(--card-shadow);
         }
 
         .slot-row {
-          background: var(--glass-bg);
-          backdrop-filter: var(--glass-blur);
-          -webkit-backdrop-filter: var(--glass-blur);
-          border: 1px solid var(--glass-border);
+          background: var(--bg-surface);
+          border: 1px solid var(--border-light);
           border-radius: 16px;
           padding: 20px;
           margin-bottom: 16px;
@@ -457,8 +455,9 @@ export const CoachDashboard: React.FC = () => {
         }
 
         .slot-row.has-conflict {
-          border-color: hsl(var(--warning) / 0.25);
-          background: linear-gradient(to right, hsl(var(--warning) / 0.03), var(--glass-bg));
+          border-color: hsl(var(--warning) / 0.4);
+          border-left: 4px solid hsl(var(--warning));
+          background: var(--bg-surface);
         }
 
         .slot-row.is-passed {
@@ -928,17 +927,14 @@ export const CoachDashboard: React.FC = () => {
                                     <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
                                       <button
                                         onClick={() => setSelectedBookingForView(booking)}
-                                        className="btn btn-primary"
+                                        className="btn btn-secondary"
                                         style={{
                                           flex: 1,
                                           padding: '6px 8px',
-                                          fontSize: '0.75rem',
+                                          fontSize: '0.85rem',
                                           borderRadius: '8px',
-                                          height: '32px',
-                                          fontWeight: 600,
-                                          backgroundColor: 'rgba(139, 92, 246, 0.15)',
-                                          border: '1px solid rgba(139, 92, 246, 0.3)',
-                                          color: 'hsl(var(--primary))'
+                                          height: '36px',
+                                          fontWeight: 700
                                         }}
                                       >
                                         View Session
@@ -946,17 +942,14 @@ export const CoachDashboard: React.FC = () => {
                                       <button
                                         onClick={() => setBookingToCancel(booking)}
                                         disabled={cancellingId === booking.id}
-                                        className="btn btn-primary"
+                                        className="btn btn-danger"
                                         style={{
                                           flex: 1,
                                           padding: '6px 8px',
-                                          fontSize: '0.75rem',
+                                          fontSize: '0.85rem',
                                           borderRadius: '8px',
-                                          height: '32px',
-                                          fontWeight: 600,
-                                          backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                                          border: '1px solid rgba(239, 68, 68, 0.3)',
-                                          color: '#f87171'
+                                          height: '36px',
+                                          fontWeight: 700
                                         }}
                                       >
                                         Cancel
@@ -969,15 +962,14 @@ export const CoachDashboard: React.FC = () => {
                                         setActiveBookingSlot({ startTime: slot.startTime, endTime: slot.endTime });
                                       }}
                                       disabled={isDisabled}
-                                      className="btn btn-primary"
+                                      className={isDisabled ? "btn btn-disabled" : "btn btn-primary"}
                                       style={{
                                         width: '100%',
                                         padding: '6px 12px',
-                                        fontSize: '0.8rem',
+                                        fontSize: '0.85rem',
                                         borderRadius: '8px',
-                                        height: '32px',
-                                        boxShadow: 'none',
-                                        opacity: isDisabled ? 0.5 : 1,
+                                        height: '36px',
+                                        fontWeight: 700,
                                         cursor: isDisabled ? 'not-allowed' : 'pointer'
                                       }}
                                     >

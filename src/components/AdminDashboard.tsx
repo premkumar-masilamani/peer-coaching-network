@@ -707,11 +707,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                           className="btn btn-primary"
                           style={{
                             padding: '6px 12px',
-                            fontSize: '0.75rem',
-                            height: '30px',
+                            fontSize: '0.85rem',
+                            height: '34px',
                             gap: '4px',
-                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                            boxShadow: '0 2px 8px rgba(16, 185, 129, 0.2)'
+                            background: '#10b981',
+                            color: '#ffffff',
+                            fontWeight: 700
                           }}
                         >
                           <UserCheck size={12} />
