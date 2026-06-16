@@ -111,9 +111,9 @@ const AppContent: React.FC = () => {
   // Unauthenticated: Land on Login Page
   if (!user) {
     return (
-      <div className="app-container">
+      <div className="app-container" style={{ height: 'auto', minHeight: '100vh', overflow: 'visible' }}>
         <div className="bg-gradient-radial" />
-        <main className="content-wrapper">
+        <main className="content-wrapper" style={{ overflowY: 'visible', padding: '24px 16px' }}>
           <Login />
         </main>
       </div>
@@ -130,7 +130,7 @@ const AppContent: React.FC = () => {
           setCurrentTab={setCurrentTab} 
           setAdminTabFilter={setAdminTabFilter} 
         />
-        <main className="content-wrapper">
+        <main className="content-wrapper" style={{ overflowY: 'auto', padding: '0 16px 16px 16px' }}>
           <VerificationNotice />
         </main>
       </div>
@@ -147,7 +147,7 @@ const AppContent: React.FC = () => {
         setAdminTabFilter={setAdminTabFilter} 
       />
       
-      <div className="content-wrapper">
+      <div className="content-wrapper" style={{ overflow: 'hidden' }}>
         <div className="app-main-layout">
           <LeftNav 
             currentTab={currentTab} 
@@ -156,7 +156,7 @@ const AppContent: React.FC = () => {
             setCollapsed={setNavCollapsed} 
           />
           
-          <main style={{ flex: 1, minWidth: 0 }}>
+          <main style={{ flex: 1, minWidth: 0, height: '100%', overflowY: 'auto', paddingRight: '16px', paddingBottom: '16px' }}>
             {currentTab === 'dashboard' && <CoachDashboard />}
             {currentTab === 'profile' && <ProfileEdit />}
             {currentTab === 'availability' && <AvailabilityEdit />}

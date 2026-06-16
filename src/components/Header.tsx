@@ -33,10 +33,9 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
     <header className="glass-panel" style={{ 
       borderRadius: '0 0 16px 16px', 
       borderTop: 'none',
-      position: 'sticky',
-      top: 0,
+      flexShrink: 0,
       zIndex: 50,
-      marginBottom: '24px'
+      marginBottom: '16px'
     }}>
       <div className="content-wrapper" style={{ 
         padding: '16px', 
