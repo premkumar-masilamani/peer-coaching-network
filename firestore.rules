@@ -46,10 +46,11 @@ service cloud.firestore {
       // Any signed-in user can read profiles (needed to browse peer coaches).
       allow read: if isSignedIn();
 
-      // Self sign-up: a user may create only their own document and only as a
-      // pending account (inactive).
+      // Self sign-up: a user may create only their own document, only as a
+      // pending account (inactive), and only with the 'user' role. See BUG-008.
       allow create: if isOwner(uid)
-        && request.resource.data.userStatus == 'inactive';
+        && request.resource.data.userStatus == 'inactive'
+        && request.resource.data.userRole == 'user';
 
       // Owners may edit their own non-privileged fields; admins may edit anything.
       allow update: if isAdmin()
@@ -66,12 +67,14 @@ service cloud.firestore {
     match /bookings/{bookingId} {
       allow read: if isSignedIn();
 
-      // Only a participant may create a booking they are part of.
+      // Only a participant may create a booking they are part of, and the
+      // booking ID must match the coachUid format to prevent slot hijacking.
       allow create: if isSignedIn()
         && request.auth.uid in [
           request.resource.data.coachUid,
           request.resource.data.clientUid
-        ];
+        ]
+        && bookingId.startsWith(request.resource.data.coachUid + '_');
 
       // Participants (or admins) may modify/cancel a booking.
       allow update, delete: if isSignedIn()
@@ -87,7 +90,8 @@ service cloud.firestore {
     match /clientBookingCache/{cacheId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
-        && request.resource.data.clientUid == request.auth.uid;
+        && request.resource.data.clientUid == request.auth.uid
+        && cacheId.startsWith(request.resource.data.clientUid + '_');
       allow delete: if isSignedIn()
         && (isAdmin()
           || resource.data.clientUid == request.auth.uid

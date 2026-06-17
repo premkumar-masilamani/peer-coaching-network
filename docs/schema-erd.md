@@ -21,7 +21,7 @@ erDiagram
         string photoURL
         string gender
         string country
-        string_array qualifications
+        string qualifications
         string bio
         string timezone
         string userRole
@@ -45,7 +45,7 @@ erDiagram
         string status
         Timestamp startTime
         Timestamp endTime
-        ${data.topic}. Created via PCN.` topic
+        string topic
         string coachUid FK
         string clientUid FK
         Timestamp createdAt

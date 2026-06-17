@@ -16,6 +16,11 @@ const OUTPUT_PATH = path.join(ROOT_DIR, 'docs/schema-erd.md');
 function mapType(tsType) {
   let type = tsType.trim();
 
+  // Sanitization: If the type contains backticks, template variables, or newlines, fallback to string
+  if (type.includes('`') || type.includes('${') || type.includes('.') || type.includes(' ') || type.includes('\n')) {
+    return 'string';
+  }
+
   // 1. Map arrays (e.g. type[] or (options)[])
   if (type.endsWith('[]')) {
     if (type.includes('attendees') || type.includes('email')) {
@@ -67,6 +72,26 @@ function mapType(tsType) {
  * Searches the files to find the declaration of a variable and attempts to extract its type.
  */
 function findVariableType(filesContent, varName) {
+  // Heuristics based on variable name suffixes (checked first to avoid false matches in strings/comments)
+  const nameLower = varName.toLowerCase();
+  if (nameLower.endsWith('uid') || nameLower.endsWith('id') || nameLower.endsWith('email') || 
+      nameLower.endsWith('name') || nameLower.endsWith('link') || nameLower.endsWith('iso') || 
+      nameLower.endsWith('url') || nameLower.endsWith('topic') || nameLower.endsWith('summary') || 
+      nameLower.endsWith('description') || nameLower.endsWith('timezone') || nameLower.endsWith('country') ||
+      nameLower.endsWith('gender') || nameLower.endsWith('bio') || nameLower.endsWith('theme') ||
+      nameLower.endsWith('role') || nameLower.endsWith('status')) {
+    return 'string';
+  }
+  if (nameLower.endsWith('synced') || nameLower.endsWith('enabled')) {
+    return 'boolean';
+  }
+  if (nameLower.endsWith('slots') || nameLower.endsWith('dates') || nameLower.endsWith('qualifications')) {
+    return 'string_array';
+  }
+  if (nameLower.endsWith('createdat') || nameLower.endsWith('cancelledat') || nameLower.endsWith('start') || nameLower.endsWith('end')) {
+    return 'Timestamp';
+  }
+
   // Try to find declaration with character-by-character parsing to support complex types with semicolons (e.g. inline objects)
   const regex = new RegExp(`\\b${varName}\\??\\s*:\\s*`, 'g');
   for (const content of filesContent) {
@@ -108,26 +133,6 @@ function findVariableType(filesContent, varName) {
         return cleaned;
       }
     }
-  }
-
-  // Heuristics based on variable name suffixes
-  const nameLower = varName.toLowerCase();
-  if (nameLower.endsWith('uid') || nameLower.endsWith('id') || nameLower.endsWith('email') || 
-      nameLower.endsWith('name') || nameLower.endsWith('link') || nameLower.endsWith('iso') || 
-      nameLower.endsWith('url') || nameLower.endsWith('topic') || nameLower.endsWith('summary') || 
-      nameLower.endsWith('description') || nameLower.endsWith('timezone') || nameLower.endsWith('country') ||
-      nameLower.endsWith('gender') || nameLower.endsWith('bio') || nameLower.endsWith('theme') ||
-      nameLower.endsWith('role') || nameLower.endsWith('status')) {
-    return 'string';
-  }
-  if (nameLower.endsWith('synced') || nameLower.endsWith('enabled')) {
-    return 'boolean';
-  }
-  if (nameLower.endsWith('slots') || nameLower.endsWith('dates') || nameLower.endsWith('qualifications')) {
-    return 'string_array';
-  }
-  if (nameLower.endsWith('createdat') || nameLower.endsWith('cancelledat') || nameLower.endsWith('start') || nameLower.endsWith('end')) {
-    return 'Timestamp';
   }
 
   return 'string'; // Default fallback
