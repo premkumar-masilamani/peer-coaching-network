@@ -11,9 +11,11 @@ import {
   XCircle
 } from 'lucide-react';
 import { sanitizeMeetLink } from '../utils/url';
+import { getTimezoneCode } from '../utils/timezoneHelpers';
 
 export const MyBookings: React.FC = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const [sessions, setSessions] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -117,8 +119,8 @@ export const MyBookings: React.FC = () => {
                 {upcoming.map((session) => {
                   const start = new Date(session.start.dateTime);
                   const timeOpts = { hour: '2-digit', minute: '2-digit' } as const;
-                  const timeStr = start.toLocaleTimeString([], timeOpts);
-                  const dateStr = start.toLocaleDateString([], { month: 'short', day: 'numeric', weekday: 'short', year: 'numeric' });
+                  const timeStr = `${start.toLocaleTimeString([], { timeZone: viewerTimezone, ...timeOpts })} ${getTimezoneCode(start, viewerTimezone)}`;
+                  const dateStr = start.toLocaleDateString([], { timeZone: viewerTimezone, month: 'short', day: 'numeric', weekday: 'short', year: 'numeric' });
                   const safeMeetLink = sanitizeMeetLink(session.meetLink);
                   const isCancellable = session.type === 'peer-coaching';
 
@@ -214,8 +216,8 @@ export const MyBookings: React.FC = () => {
                 {completed.map((session) => {
                   const start = new Date(session.start.dateTime);
                   const timeOpts = { hour: '2-digit', minute: '2-digit' } as const;
-                  const timeStr = start.toLocaleTimeString([], timeOpts);
-                  const dateStr = start.toLocaleDateString([], { month: 'short', day: 'numeric', weekday: 'short', year: 'numeric' });
+                  const timeStr = `${start.toLocaleTimeString([], { timeZone: viewerTimezone, ...timeOpts })} ${getTimezoneCode(start, viewerTimezone)}`;
+                  const dateStr = start.toLocaleDateString([], { timeZone: viewerTimezone, month: 'short', day: 'numeric', weekday: 'short', year: 'numeric' });
                   
                   return (
                     <div 

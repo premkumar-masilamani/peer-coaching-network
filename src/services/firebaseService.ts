@@ -370,9 +370,9 @@ const recalcChains = new Map<string, Promise<void>>();
 // Serialize recalculations per-uid so concurrent triggers cannot interleave and
 // clobber each other's writes (lost update). Errors propagate so callers may
 // retry rather than silently dropping them. See BUG-009.
-export const recalculateUserAvailability = (uid: string): Promise<void> => {
+export const recalculateUserBusySlotsCache = (uid: string): Promise<void> => {
   const prev = recalcChains.get(uid) || Promise.resolve();
-  const next = prev.catch(() => {}).then(() => doRecalculateUserAvailability(uid));
+  const next = prev.catch(() => {}).then(() => doRecalculateUserBusySlotsCache(uid));
   recalcChains.set(uid, next);
   next.finally(() => {
     if (recalcChains.get(uid) === next) recalcChains.delete(uid);
@@ -380,7 +380,7 @@ export const recalculateUserAvailability = (uid: string): Promise<void> => {
   return next;
 };
 
-const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
+const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
   if (!db) return;
   try {
     const userDocRef = doc(db, 'users', uid);
@@ -533,15 +533,15 @@ const doRecalculateUserAvailability = async (uid: string): Promise<void> => {
       }
     });
     
-    // Save to availability document
-    const availDocRef = doc(db, 'availability', uid);
-    await setDoc(availDocRef, {
+    // Save to busy slots cache document
+    const busySlotsCacheRef = doc(db, 'busySlotsCache', uid);
+    await setDoc(busySlotsCacheRef, {
       userId: uid,
       lastUpdated: new Date().toISOString(),
       busySlots
     });
   } catch (err) {
-    console.error('Error recalculating availability:', err);
+    console.error('Error recalculating busy slots cache:', err);
     throw err;
   }
 };
