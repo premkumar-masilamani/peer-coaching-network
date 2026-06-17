@@ -5,7 +5,7 @@ import { getShortCredential, getCredentialBadgeClass, getCredentialDescription }
 import type { UserProfile } from '../services/firebaseService';
 import { 
   getUpcomingEvents, 
-  getCoachesAvailability,
+  getCoachesBusySlots,
   cancelBooking
 } from '../services/googleCalendar';
 import type { CalendarEvent } from '../services/googleCalendar';
@@ -158,7 +158,7 @@ export const CoachDashboard: React.FC = () => {
       endDay.setDate(today.getDate() + BOOKING_HORIZON_DAYS);
       const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
 
-      const availability = await getCoachesAvailability(coaches, timeMin, timeMax);
+      const availability = await getCoachesBusySlots(coaches, timeMin, timeMax);
       setCoachesBusy(availability);
 
       const allEvents = await getUpcomingEvents();
@@ -186,7 +186,7 @@ export const CoachDashboard: React.FC = () => {
         endDay.setDate(today.getDate() + BOOKING_HORIZON_DAYS);
         const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
 
-        const availability = await getCoachesAvailability(coaches, timeMin, timeMax);
+        const availability = await getCoachesBusySlots(coaches, timeMin, timeMax);
         if (cancelled) return;
         setCoachesBusy(availability);
 

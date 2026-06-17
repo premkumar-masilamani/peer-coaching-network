@@ -84,7 +84,7 @@ service cloud.firestore {
 
     // Per-mentee/per-slot locks that prevent a mentee double-booking themselves
     // across coaches in the same time slot. See BUG-003.
-    match /clientBookingCache/{holdId} {
+    match /clientBookingCache/{cacheId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
         && request.resource.data.clientUid == request.auth.uid;
@@ -94,7 +94,7 @@ service cloud.firestore {
           || resource.data.coachUid == request.auth.uid);
     }
 
-    match /availability/{uid} {
+    match /busySlotsCache/{uid} {
       // Derived busy-slot cache. Readable by any signed-in user, but only the
       // OWNER may write their own cache — no cross-user writes. Live booking
       // conflicts are surfaced from the authoritative `bookings` collection

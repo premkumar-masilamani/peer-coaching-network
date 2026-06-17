@@ -11,7 +11,7 @@ This document contains the Entity-Relationship Diagram (ERD) for the Peer Coachi
 erDiagram
     users ||--o{ bookings : "hosts"
     users ||--o{ bookings : "attends"
-    users ||--|| availability : "defines"
+    users ||--|| busySlotsCache : "defines"
     users ||--o{ clientBookingCache : "holds"
 
     users {
@@ -52,7 +52,7 @@ erDiagram
         Timestamp cancelledAt
     }
 
-    availability {
+    busySlotsCache {
         string userId FK
         string lastUpdated
         string_array busySlots
@@ -91,7 +91,7 @@ Temporary holdings created during scheduling to prevent a mentee from double-boo
   - `coachUid` references `users.uid`.
   - `bookingId` references `bookings.id`.
 
-### 4. `availability`
+### 4. `busySlotsCache`
 Cached busy slot records for each coach, derived dynamically to avoid expensive runtime calculations on every query.
 * **Primary Key**: `uid` (references `users.uid`).
 * **Busy Slots**: Aggregated array of busy time windows representing all active host and client bookings for the coach.

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
-  recalculateUserAvailability,
+  recalculateUserBusySlotsCache,
   getSchedule,
   updateSchedule,
   timeStringToTimestamp,
@@ -345,8 +345,8 @@ export const AvailabilityEdit: React.FC = () => {
       // 1. Update schedule sub-collection
       await updateSchedule(uid, dbAvailableDays, blockedDates);
 
-      // 2. Recompute and write actual busy intervals to availability collection
-      await recalculateUserAvailability(uid);
+      // 2. Recompute and write actual busy intervals to busySlotsCache collection
+      await recalculateUserBusySlotsCache(uid);
 
       setSuccessMsg('Availability template and schedules saved successfully!');
       setTimeout(() => setSuccessMsg(''), 4000);
