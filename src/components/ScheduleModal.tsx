@@ -5,6 +5,7 @@ import type { CalendarEvent } from '../services/googleCalendar';
 import type { UserProfile } from '../services/firebaseService';
 import { formatDisplayName } from '../services/firebaseService';
 import { sanitizeMeetLink } from '../utils/url';
+import { getTimezoneCode } from '../utils/timezoneHelpers';
 import { 
   X, 
   Calendar, 
@@ -24,17 +25,7 @@ interface ScheduleModalProps {
   onBookingSuccess?: (event: CalendarEvent) => void;
 }
 
-const getTimezoneCode = (date: Date, timeZone: string): string => {
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      timeZoneName: 'short'
-    }).formatToParts(date);
-    return parts.find(p => p.type === 'timeZoneName')?.value || timeZone;
-  } catch {
-    return timeZone;
-  }
-};
+
 
 export const ScheduleModal: React.FC<ScheduleModalProps> = ({ 
   coach, 

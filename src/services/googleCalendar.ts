@@ -1,5 +1,5 @@
 import type { UserProfile, AvailableDays } from './firebaseService';
-import { db, auth, recalculateUserAvailability, getSchedule, timestampToTimeString } from './firebaseService';
+import { db, auth, recalculateUserBusySlotsCache, getSchedule, timestampToTimeString } from './firebaseService';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, documentId, runTransaction, Timestamp } from 'firebase/firestore';
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
@@ -217,7 +217,7 @@ export const scheduleMeeting = async (
     const bookingRef = doc(db, 'bookings', bookingId);
     // Per-mentee/per-slot lock so a mentee can't double-book themselves across
     // coaches at the same time. See BUG-003.
-    const holdRef = doc(db, 'slotHolds', `${clientUid}_${startIso}`);
+    const clientBookingCacheRef = doc(db, 'clientBookingCache', `${clientUid}_${startIso}`);
 
     const bookingData = {
       bookingId,
@@ -241,12 +241,22 @@ export const scheduleMeeting = async (
         if (existing.exists() && existing.data()?.status !== 'cancelled') {
           throw new Error('SLOT_TAKEN');
         }
-        const hold = await tx.get(holdRef);
-        if (hold.exists()) {
+        const clientBookingCacheDoc = await tx.get(clientBookingCacheRef);
+        if (clientBookingCacheDoc.exists()) {
           throw new Error('SELF_CONFLICT');
         }
         tx.set(bookingRef, bookingData);
-        tx.set(holdRef, { clientUid, coachUid, bookingId, startIso, createdAt: Timestamp.now() });
+        
+        const startTimestamp = new Date(startIso);
+        const expireDate = new Date(startTimestamp.getTime() + 24 * 60 * 60 * 1000);
+        tx.set(clientBookingCacheRef, {
+          clientUid,
+          coachUid,
+          bookingId,
+          startIso,
+          createdAt: Timestamp.now(),
+          expireAt: Timestamp.fromDate(expireDate)
+        });
       });
     } catch (err) {
       if (err instanceof Error && (err.message === 'SLOT_TAKEN' || err.message === 'SELF_CONFLICT')) {
@@ -282,12 +292,12 @@ export const scheduleMeeting = async (
       }
     }
 
-    // Recalculate ONLY the current user's own availability cache. The other
+    // Recalculate ONLY the current user's own busy slots cache. The other
     // participant's cache is owner-only now; their booked time is surfaced live
-    // from the bookings overlay in getCoachesAvailability. See BUG-001.
+    // from the bookings overlay in getCoachesBusySlots. See BUG-001.
     if (currentUser?.uid) {
-      recalculateUserAvailability(currentUser.uid).catch(err => {
-        console.error('Error recalculating availability:', err);
+      recalculateUserBusySlotsCache(currentUser.uid).catch(err => {
+        console.error('Error recalculating busy slots cache:', err);
       });
     }
   }
@@ -328,9 +338,9 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
     : (data.startTime?.dateTime || data.startTime);
   if (data.clientUid && startIso) {
     try {
-      await deleteDoc(doc(db, 'slotHolds', `${data.clientUid}_${startIso}`));
+      await deleteDoc(doc(db, 'clientBookingCache', `${data.clientUid}_${startIso}`));
     } catch (e) {
-      console.error('Error releasing slot hold:', e);
+      console.error('Error releasing client booking cache:', e);
     }
   }
 
@@ -351,7 +361,7 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
 
   const currentUid = auth?.currentUser?.uid;
   if (currentUid) {
-    recalculateUserAvailability(currentUid).catch(err => console.error('Recalc error:', err));
+    recalculateUserBusySlotsCache(currentUid).catch(err => console.error('Recalc error:', err));
   }
 };
 
@@ -468,16 +478,16 @@ export const generateFallbackBusySlots = (
   return busyEvents;
 };
 
-export const getCoachesAvailability = async (
+export const getCoachesBusySlots = async (
   coaches: UserProfile[],
   timeMin: string,
   timeMax: string
 ): Promise<Record<string, CalendarEvent[]>> => {
   const token = getGoogleToken();
-  const availability: Record<string, CalendarEvent[]> = {};
+  const coachesBusySlots: Record<string, CalendarEvent[]> = {};
 
   coaches.forEach((coach) => {
-    availability[coach.userId] = [];
+    coachesBusySlots[coach.userId] = [];
   });
 
   // Try to load FreeBusy information from Google Calendar if a valid token is present
@@ -507,7 +517,7 @@ export const getCoachesAvailability = async (
           const calendarData = data.calendars?.[coach.email];
           const busyIntervals = calendarData?.busy || [];
 
-          availability[coach.userId] = busyIntervals.map((interval: { start: string; end: string }, idx: number) => ({
+          coachesBusySlots[coach.userId] = busyIntervals.map((interval: { start: string; end: string }, idx: number) => ({
             id: `busy-${coach.userId}-${idx}`,
             summary: 'Busy',
             start: { dateTime: interval.start },
@@ -529,29 +539,29 @@ export const getCoachesAvailability = async (
     //    needed docs via batched `in` queries (not a whole-collection scan) and
     //    tolerating partial failures. See BUG-005.
     const foundUids = new Set<string>();
-    const availResults = await Promise.allSettled(
+    const busySlotsCacheResults = await Promise.allSettled(
       uidChunks.map(c =>
-        getDocs(query(collection(activeDb, 'availability'), where(documentId(), 'in', c)))
+        getDocs(query(collection(activeDb, 'busySlotsCache'), where(documentId(), 'in', c)))
       )
     );
-    availResults.forEach((res) => {
+    busySlotsCacheResults.forEach((res) => {
       if (res.status !== 'fulfilled') {
-        console.error('Error fetching availability chunk:', res.reason);
+        console.error('Error fetching busy slots cache chunk:', res.reason);
         return;
       }
       res.value.forEach((d) => {
         const uid = d.id;
-        if (!(uid in availability)) return;
+        if (!(uid in coachesBusySlots)) return;
         foundUids.add(uid);
         const data = d.data();
         const busySlots = data.busySlots || [];
         busySlots.forEach((slot: { start: string; end: string; id?: string }, idx: number) => {
-          const isAlreadyAdded = availability[uid].some((event) =>
+          const isAlreadyAdded = coachesBusySlots[uid].some((event) =>
             event.id === slot.id ||
             new Date(event.start.dateTime).getTime() === new Date(slot.start).getTime()
           );
           if (!isAlreadyAdded) {
-            availability[uid].push({
+            coachesBusySlots[uid].push({
               id: slot.id || `busy-${uid}-${idx}`,
               summary: 'Busy',
               start: { dateTime: slot.start },
@@ -563,12 +573,12 @@ export const getCoachesAvailability = async (
     });
 
     // 2. In-memory fallback for coaches without a cache doc. We do NOT cross-write
-    //    their availability doc (owner-only writes now). See BUG-001/005.
+    //    their busySlotsCache doc (owner-only writes now). See BUG-001/005.
     for (const coach of coaches) {
       if (!foundUids.has(coach.userId)) {
         const schedule = await getSchedule(coach.userId);
         const fallbackSlots = generateFallbackBusySlots(coach, schedule, timeMin, timeMax);
-        availability[coach.userId] = [...availability[coach.userId], ...fallbackSlots];
+        coachesBusySlots[coach.userId] = [...coachesBusySlots[coach.userId], ...fallbackSlots];
       } else {
         // Fix the "Infinite Availability" Bug:
         // Ensure there is at least one busy slot for each day in the 56-day rolling window.
@@ -578,7 +588,7 @@ export const getCoachesAvailability = async (
         const timeMaxObj = new Date(timeMax);
         const localToday = getLocalDateInTimezone(startSearch, timezone);
         
-        const coachBusyEvents = availability[coach.userId];
+        const coachBusyEvents = coachesBusySlots[coach.userId];
         
         for (let i = 0; i < BOOKING_HORIZON_DAYS; i++) {
           const currentDate = new Date(localToday);
@@ -620,17 +630,17 @@ export const getCoachesAvailability = async (
     //    See BUG-001.
     const nowMs = Date.now();
     const overlayBooking = (data: DocumentData, uid: string | undefined) => {
-      if (!uid || !(uid in availability)) return;
+      if (!uid || !(uid in coachesBusySlots)) return;
       if (data.status === 'cancelled') return;
       const startStr = data.startTime && typeof data.startTime.toDate === 'function' ? data.startTime.toDate().toISOString() : (data.startTime?.dateTime || data.startTime);
       const endStr = data.endTime && typeof data.endTime.toDate === 'function' ? data.endTime.toDate().toISOString() : (data.endTime?.dateTime || data.endTime);
       if (!startStr || !endStr) return;
       if (new Date(endStr).getTime() < nowMs) return;
-      const already = availability[uid].some(e =>
+      const already = coachesBusySlots[uid].some(e =>
         new Date(e.start.dateTime).getTime() === new Date(startStr).getTime()
       );
       if (already) return;
-      availability[uid].push({
+      coachesBusySlots[uid].push({
         id: `booking-${data.bookingId || `${uid}-${startStr}`}`,
         summary: 'Busy',
         start: { dateTime: startStr },
@@ -655,5 +665,5 @@ export const getCoachesAvailability = async (
     });
   }
 
-  return availability;
+  return coachesBusySlots;
 };

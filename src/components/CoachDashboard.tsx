@@ -5,7 +5,7 @@ import { getShortCredential, getCredentialBadgeClass, getCredentialDescription }
 import type { UserProfile } from '../services/firebaseService';
 import { 
   getUpcomingEvents, 
-  getCoachesAvailability,
+  getCoachesBusySlots,
   cancelBooking
 } from '../services/googleCalendar';
 import type { CalendarEvent } from '../services/googleCalendar';
@@ -28,21 +28,10 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
-import { getLocalDateInTimezone, getUtcForSlot } from '../utils/timezoneHelpers';
+import { getLocalDateInTimezone, getUtcForSlot, getTimezoneCode } from '../utils/timezoneHelpers';
 import { sanitizeImageUrl } from '../utils/url';
 import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS } from '../config';
 
-const getTimezoneCode = (date: Date, timeZone: string): string => {
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      timeZoneName: 'short'
-    }).formatToParts(date);
-    return parts.find(p => p.type === 'timeZoneName')?.value || timeZone;
-  } catch {
-    return timeZone;
-  }
-};
 
 export const CoachDashboard: React.FC = () => {
   const { user: currentUser, profile } = useAuth();
@@ -158,7 +147,7 @@ export const CoachDashboard: React.FC = () => {
       endDay.setDate(today.getDate() + BOOKING_HORIZON_DAYS);
       const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
 
-      const availability = await getCoachesAvailability(coaches, timeMin, timeMax);
+      const availability = await getCoachesBusySlots(coaches, timeMin, timeMax);
       setCoachesBusy(availability);
 
       const allEvents = await getUpcomingEvents();
@@ -186,7 +175,7 @@ export const CoachDashboard: React.FC = () => {
         endDay.setDate(today.getDate() + BOOKING_HORIZON_DAYS);
         const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
 
-        const availability = await getCoachesAvailability(coaches, timeMin, timeMax);
+        const availability = await getCoachesBusySlots(coaches, timeMin, timeMax);
         if (cancelled) return;
         setCoachesBusy(availability);
 

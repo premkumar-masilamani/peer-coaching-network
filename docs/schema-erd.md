@@ -11,59 +11,60 @@ This document contains the Entity-Relationship Diagram (ERD) for the Peer Coachi
 erDiagram
     users ||--o{ bookings : "hosts"
     users ||--o{ bookings : "attends"
-    users ||--|| availability : "defines"
-    users ||--o{ slotHolds : "holds"
+    users ||--|| busySlotsCache : "defines"
+    users ||--o{ clientBookingCache : "holds"
 
     users {
-        string uid PK
+        string userId FK
         string email
         string displayName
         string photoURL
         string gender
         string country
-        string_array qualifications
+        string qualifications
         string bio
-        boolean calendarSynced
         string timezone
         string userRole
         string userStatus
         string theme
         Timestamp createdAt
-        AvailabilityTemplate availabilityTemplate
+        DayAvailability monday
+        DayAvailability tuesday
+        DayAvailability wednesday
+        DayAvailability thursday
+        DayAvailability friday
+        DayAvailability saturday
+        DayAvailability sunday
+        string_array blockedDates
     }
 
     bookings {
-        string id PK
+        string bookingId FK
         string googleEventId FK
+        string googleMeetLink
         string status
-        string summary
-        string description
-        Timestamp start
-        Timestamp end
-        string meetLink
+        Timestamp startTime
+        Timestamp endTime
         string topic
-        string hostEmail
-        string hostName
-        string clientEmail
-        string clientName
         string coachUid FK
-        string menteeUid FK
+        string clientUid FK
         Timestamp createdAt
         Timestamp cancelledAt
     }
 
-    availability {
-        string uid PK
+    busySlotsCache {
+        string userId FK
         string lastUpdated
         string_array busySlots
     }
 
-    slotHolds {
-        string menteeUid FK
+    clientBookingCache {
+        string clientUid FK
         string coachUid FK
         string bookingId FK
         string startIso
         Timestamp createdAt
+        Timestamp expireAt
     }
 ```
 
@@ -82,7 +83,7 @@ Contains the confirmed peer coaching sessions scheduled between coaches.
   - `menteeUid` references `users.uid` (the client).
 * **Google Integration**: Stores `googleEventId` and `meetLink` for synced calendar events.
 
-### 3. `slotHolds`
+### 3. `clientBookingCache`
 Temporary holdings created during scheduling to prevent a mentee from double-booking themselves.
 * **Primary Key**: `${menteeUid}_${startIso}`.
 * **Foreign Keys**:
@@ -90,7 +91,7 @@ Temporary holdings created during scheduling to prevent a mentee from double-boo
   - `coachUid` references `users.uid`.
   - `bookingId` references `bookings.id`.
 
-### 4. `availability`
+### 4. `busySlotsCache`
 Cached busy slot records for each coach, derived dynamically to avoid expensive runtime calculations on every query.
 * **Primary Key**: `uid` (references `users.uid`).
 * **Busy Slots**: Aggregated array of busy time windows representing all active host and client bookings for the coach.
