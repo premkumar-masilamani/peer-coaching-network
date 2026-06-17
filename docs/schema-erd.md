@@ -64,6 +64,7 @@ erDiagram
         string bookingId FK
         string startIso
         Timestamp createdAt
+        Timestamp expireAt
     }
 ```
 

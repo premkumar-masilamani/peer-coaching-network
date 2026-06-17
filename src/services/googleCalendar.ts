@@ -246,7 +246,17 @@ export const scheduleMeeting = async (
           throw new Error('SELF_CONFLICT');
         }
         tx.set(bookingRef, bookingData);
-        tx.set(holdRef, { clientUid, coachUid, bookingId, startIso, createdAt: Timestamp.now() });
+        
+        const startTimestamp = new Date(startIso);
+        const expireDate = new Date(startTimestamp.getTime() + 24 * 60 * 60 * 1000);
+        tx.set(holdRef, {
+          clientUid,
+          coachUid,
+          bookingId,
+          startIso,
+          createdAt: Timestamp.now(),
+          expireAt: Timestamp.fromDate(expireDate)
+        });
       });
     } catch (err) {
       if (err instanceof Error && (err.message === 'SLOT_TAKEN' || err.message === 'SELF_CONFLICT')) {
