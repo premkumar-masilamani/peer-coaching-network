@@ -12,10 +12,10 @@ erDiagram
     users ||--o{ bookings : "hosts"
     users ||--o{ bookings : "attends"
     users ||--|| availability : "defines"
-    users ||--o{ slotHolds : "holds"
+    users ||--o{ bookingCache : "holds"
 
     users {
-        string uid PK
+        string userId FK
         string email
         string displayName
         string photoURL
@@ -23,43 +23,43 @@ erDiagram
         string country
         string_array qualifications
         string bio
-        boolean calendarSynced
         string timezone
         string userRole
         string userStatus
         string theme
         Timestamp createdAt
-        AvailabilityTemplate availabilityTemplate
+        DayAvailability monday
+        DayAvailability tuesday
+        DayAvailability wednesday
+        DayAvailability thursday
+        DayAvailability friday
+        DayAvailability saturday
+        DayAvailability sunday
+        string_array blockedDates
     }
 
     bookings {
-        string id PK
+        string bookingId FK
         string googleEventId FK
+        string googleMeetLink
         string status
-        string summary
-        string description
-        Timestamp start
-        Timestamp end
-        string meetLink
-        string topic
-        string hostEmail
-        string hostName
-        string clientEmail
-        string clientName
+        Timestamp startTime
+        Timestamp endTime
+        ${data.topic}. Created via PCN.` topic
         string coachUid FK
-        string menteeUid FK
+        string clientUid FK
         Timestamp createdAt
         Timestamp cancelledAt
     }
 
     availability {
-        string uid PK
+        string userId FK
         string lastUpdated
         string_array busySlots
     }
 
-    slotHolds {
-        string menteeUid FK
+    bookingCache {
+        string clientUid FK
         string coachUid FK
         string bookingId FK
         string startIso
@@ -82,7 +82,7 @@ Contains the confirmed peer coaching sessions scheduled between coaches.
   - `menteeUid` references `users.uid` (the client).
 * **Google Integration**: Stores `googleEventId` and `meetLink` for synced calendar events.
 
-### 3. `slotHolds`
+### 3. `bookingCache`
 Temporary holdings created during scheduling to prevent a mentee from double-booking themselves.
 * **Primary Key**: `${menteeUid}_${startIso}`.
 * **Foreign Keys**:

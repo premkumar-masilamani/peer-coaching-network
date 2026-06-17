@@ -92,7 +92,7 @@ To prevent concurrent writes from interleaving and corrupting user availability 
 
 ### Scheduling & Double-Booking Protection
 - **Coach Protection**: Bookings are saved in the `bookings` collection with a deterministic identifier: `${coachUid}_${startIso}`. A transaction verifies this ID is unclaimed before scheduling a meeting.
-- **Mentee Protection**: Mentees (clients) cannot double-book themselves across coaches. The scheduling flow creates a temporary placeholder in `slotHolds/${clientUid}_${startIso}` inside the transaction. If either check fails, the transaction aborts and no Google Calendar events are created.
+- **Mentee Protection**: Mentees (clients) cannot double-book themselves across coaches. The scheduling flow creates a temporary placeholder in `bookingCache/${clientUid}_${startIso}` inside the transaction. If either check fails, the transaction aborts and no Google Calendar events are created.
 - **Availability Overlay**: The method `getCoachesAvailability` fetches availability caches in batches of 30 using Firestore `in` query limits. It overlays live bookings and generates fallbacks in-memory if a cached profile does not yet have an `availability` document.
 - **Stale Cache Prevention**: If a day has no busy slots registered in the cache, the availability overlay engine automatically marks the entire day as unavailable (busy) to prevent infinite availability leaks due to stale caches.
 

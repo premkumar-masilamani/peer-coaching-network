@@ -465,7 +465,7 @@ erDiagram
     users ||--o{ bookings : "hosts"
     users ||--o{ bookings : "attends"
     users ||--|| availability : "defines"
-    users ||--o{ slotHolds : "holds"
+    users ||--o{ bookingCache : "holds"
 
 ${mermaidBlocks.trimEnd()}
 \`\`\`
@@ -485,7 +485,7 @@ Contains the confirmed peer coaching sessions scheduled between coaches.
   - \`menteeUid\` references \`users.uid\` (the client).
 * **Google Integration**: Stores \`googleEventId\` and \`meetLink\` for synced calendar events.
 
-### 3. \`slotHolds\`
+### 3. \`bookingCache\`
 Temporary holdings created during scheduling to prevent a mentee from double-booking themselves.
 * **Primary Key**: \`\${menteeUid}_\${startIso}\`.
 * **Foreign Keys**:
