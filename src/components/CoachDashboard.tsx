@@ -28,21 +28,10 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
-import { getLocalDateInTimezone, getUtcForSlot } from '../utils/timezoneHelpers';
+import { getLocalDateInTimezone, getUtcForSlot, getTimezoneCode } from '../utils/timezoneHelpers';
 import { sanitizeImageUrl } from '../utils/url';
 import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS } from '../config';
 
-const getTimezoneCode = (date: Date, timeZone: string): string => {
-  try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      timeZoneName: 'short'
-    }).formatToParts(date);
-    return parts.find(p => p.type === 'timeZoneName')?.value || timeZone;
-  } catch {
-    return timeZone;
-  }
-};
 
 export const CoachDashboard: React.FC = () => {
   const { user: currentUser, profile } = useAuth();

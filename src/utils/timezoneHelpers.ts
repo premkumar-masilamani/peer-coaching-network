@@ -107,3 +107,16 @@ export const getUtcForSlot = (date: Date, hour: number, timeZone: string): Date 
     timeZone
   );
 };
+
+export const getTimezoneCode = (date: Date, timeZone: string): string => {
+  try {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      timeZoneName: 'short'
+    }).formatToParts(date);
+    return parts.find(p => p.type === 'timeZoneName')?.value || timeZone;
+  } catch {
+    return timeZone;
+  }
+};
+
