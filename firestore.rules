@@ -84,7 +84,7 @@ service cloud.firestore {
 
     // Per-mentee/per-slot locks that prevent a mentee double-booking themselves
     // across coaches in the same time slot. See BUG-003.
-    match /bookingCache/{holdId} {
+    match /clientBookingCache/{holdId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
         && request.resource.data.clientUid == request.auth.uid;

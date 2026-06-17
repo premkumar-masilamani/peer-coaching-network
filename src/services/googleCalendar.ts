@@ -217,7 +217,7 @@ export const scheduleMeeting = async (
     const bookingRef = doc(db, 'bookings', bookingId);
     // Per-mentee/per-slot lock so a mentee can't double-book themselves across
     // coaches at the same time. See BUG-003.
-    const holdRef = doc(db, 'bookingCache', `${clientUid}_${startIso}`);
+    const holdRef = doc(db, 'clientBookingCache', `${clientUid}_${startIso}`);
 
     const bookingData = {
       bookingId,
@@ -328,7 +328,7 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
     : (data.startTime?.dateTime || data.startTime);
   if (data.clientUid && startIso) {
     try {
-      await deleteDoc(doc(db, 'bookingCache', `${data.clientUid}_${startIso}`));
+      await deleteDoc(doc(db, 'clientBookingCache', `${data.clientUid}_${startIso}`));
     } catch (e) {
       console.error('Error releasing slot hold:', e);
     }
