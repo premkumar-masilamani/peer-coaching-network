@@ -131,7 +131,7 @@ const AppContent: React.FC = () => {
           />
           
           <main style={{ flex: 1, minWidth: 0, height: '100%', overflowY: 'auto', paddingRight: '16px', paddingBottom: '16px' }}>
-            {currentTab === 'dashboard' && <CoachDashboard />}
+            {currentTab === 'dashboard' && <CoachDashboard setCurrentTab={setCurrentTab} />}
             {currentTab === 'profile' && <ProfileEdit />}
             {currentTab === 'availability' && <AvailabilityEdit />}
             {currentTab === 'bookings' && <MyBookings />}

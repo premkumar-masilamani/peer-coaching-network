@@ -34,8 +34,20 @@ import { sanitizeImageUrl } from '../utils/url';
 import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS } from '../config';
 
 
-export const CoachDashboard: React.FC = () => {
+interface CoachDashboardProps {
+  setCurrentTab: (tab: string) => void;
+}
+
+export const CoachDashboard: React.FC<CoachDashboardProps> = ({ setCurrentTab }) => {
   const { user: currentUser, profile } = useAuth();
+
+  // ── Profile completeness guard ─────────────────────────────────────────────
+  // Fields the user must fill in before they can browse coaches.
+  const missingFields: { label: string; hint: string }[] = [
+    ...(!profile?.country ? [{ label: 'Country', hint: 'Select the country you coach from.' }] : []),
+    ...(!profile?.bio    ? [{ label: 'Professional Biography', hint: 'A short bio helps other coaches understand your style.' }] : []),
+  ];
+  const profileIncomplete = missingFields.length > 0;
   
   // Ref for date carousel scrolling
   const carouselRef = React.useRef<HTMLDivElement>(null);
@@ -650,6 +662,80 @@ export const CoachDashboard: React.FC = () => {
       `}</style>
 
       <div className="dashboard-layout">
+
+          {/* ── Incomplete profile banner ─────────────────────────────────── */}
+          {profileIncomplete && (
+            <div style={{
+              background: 'linear-gradient(135deg, hsl(var(--warning) / 0.08), hsl(var(--warning) / 0.04))',
+              border: '1px solid hsl(var(--warning) / 0.35)',
+              borderLeft: '4px solid hsl(var(--warning))',
+              borderRadius: '16px',
+              padding: '28px 32px',
+              marginBottom: '24px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '20px',
+            }}>
+              {/* Header row */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
+                <div style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  background: 'hsl(var(--warning) / 0.15)',
+                  border: '1px solid hsl(var(--warning) / 0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <AlertTriangle size={20} color="hsl(var(--warning))" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Complete your profile to browse coaches
+                  </h3>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    The following {missingFields.length === 1 ? 'field is' : 'fields are'} required before you can view
+                    available peer coaches. Your profile also helps coaches get to know you before a session.
+                  </p>
+                </div>
+              </div>
+
+              {/* Missing field chips */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                {missingFields.map(f => (
+                  <div key={f.label} style={{
+                    display: 'inline-flex',
+                    flexDirection: 'column',
+                    gap: '2px',
+                    background: 'var(--bg-surface-elevated)',
+                    border: '1px solid hsl(var(--warning) / 0.3)',
+                    borderRadius: '10px',
+                    padding: '10px 16px',
+                  }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'hsl(var(--warning))' }}>{f.label}</span>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{f.hint}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* CTA */}
+              <div>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => setCurrentTab('profile')}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 24px', fontWeight: 600 }}
+                >
+                  <Info size={16} />
+                  Complete My Profile
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Only render the coaches browsing UI when profile is complete */}
+          {!profileIncomplete && <>
           {/* Advanced Filter panel */}
           <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
@@ -1271,5 +1357,6 @@ export const CoachDashboard: React.FC = () => {
         </div>
       )}
     </>
+          </>}
   );
 };
