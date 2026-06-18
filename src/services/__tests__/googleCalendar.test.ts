@@ -189,6 +189,14 @@ describe('googleCalendar service', () => {
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockRunTransaction).not.toHaveBeenCalled();
+      expect(logEvent).toHaveBeenCalledWith('error', 'google_api_create_failure', {
+        clientUid: 'client-123',
+        coachUid: 'coach-123',
+        startIso: '2026-06-18T10:00:00Z',
+        errorCode: 'GOOGLE_API_CREATE_FAILURE',
+        errorMessage: 'Google Calendar API event creation failed.',
+        error: 'Google Calendar rate limit exceeded. Please try again in a moment.'
+      });
     });
 
     it('throws generic GOOGLE_API_ERROR if Google Calendar fetch rejects with a network error', async () => {
@@ -211,6 +219,14 @@ describe('googleCalendar service', () => {
       ).rejects.toThrow('Network error or Google Calendar API is currently unreachable. Please try again.');
 
       expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(logEvent).toHaveBeenCalledWith('error', 'google_api_create_failure', {
+        clientUid: 'client-123',
+        coachUid: 'coach-123',
+        startIso: '2026-06-18T10:00:00Z',
+        errorCode: 'GOOGLE_API_CREATE_FAILURE',
+        errorMessage: 'Google Calendar API event creation failed.',
+        error: 'Fetch failed'
+      });
       consoleErrorSpy.mockRestore();
     });
 
@@ -245,6 +261,23 @@ describe('googleCalendar service', () => {
       // Second call is DELETE to cleanup
       expect(mockFetch.mock.calls[1][0]).toContain('gcal-event-123');
       expect(mockFetch.mock.calls[1][1].method).toBe('DELETE');
+
+      expect(logEvent).toHaveBeenCalledWith('warn', 'booking_conflict', {
+        clientUid: 'client-123',
+        coachUid: 'coach-123',
+        startIso: '2026-06-18T10:00:00Z',
+        errorCode: 'SLOT_TAKEN',
+        errorMessage: 'The requested coaching slot is already booked.',
+        reason: 'SLOT_TAKEN'
+      });
+      expect(logEvent).toHaveBeenCalledWith('error', 'transaction_failure', {
+        clientUid: 'client-123',
+        coachUid: 'coach-123',
+        startIso: '2026-06-18T10:00:00Z',
+        errorCode: 'TRANSACTION_FAILURE',
+        errorMessage: 'Firestore transaction failed to persist booking after maximum retries.',
+        error: 'SLOT_TAKEN'
+      });
     });
 
     it('handles Google Calendar event rollback fetch failure gracefully', async () => {
@@ -272,6 +305,14 @@ describe('googleCalendar service', () => {
       ).rejects.toThrow('SLOT_TAKEN');
 
       expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(logEvent).toHaveBeenCalledWith('error', 'google_api_delete_failure', {
+        googleEventId: 'gcal-event-123',
+        clientUid: 'client-123',
+        coachUid: 'coach-123',
+        errorCode: 'GOOGLE_API_DELETE_FAILURE',
+        errorMessage: 'Google Calendar API event deletion failed.',
+        error: 'Delete request failed'
+      });
       consoleErrorSpy.mockRestore();
     });
 
@@ -538,6 +579,14 @@ describe('googleCalendar service', () => {
       await cancelBooking('booking-123');
 
       expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(logEvent).toHaveBeenCalledWith('error', 'google_api_delete_failure', {
+        googleEventId: 'gcal-event-123',
+        clientUid: 'client-123',
+        coachUid: undefined,
+        errorCode: 'GOOGLE_API_DELETE_FAILURE',
+        errorMessage: 'Google Calendar API event deletion failed.',
+        error: 'Delete fetch failed'
+      });
       consoleErrorSpy.mockRestore();
     });
   });

@@ -425,6 +425,8 @@ describe('firebaseService', () => {
       expect(consoleErrorSpy).toHaveBeenCalled();
       expect(logEvent).toHaveBeenCalledWith('error', 'recalculation_failure', {
         userId: 'user-123',
+        errorCode: 'RECALCULATION_FAILURE',
+        errorMessage: 'Failed to recalculate user busy slots cache.',
         error: 'DB connection lost'
       });
       consoleErrorSpy.mockRestore();

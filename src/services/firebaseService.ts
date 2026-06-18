@@ -27,6 +27,7 @@ import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '
 import { setGoogleToken, clearGoogleToken } from './googleToken';
 import { BOOKING_HORIZON_DAYS } from '../config';
 import { initializeLogger, logEvent } from './loggingService';
+import { TelemetryErrors } from '../config/telemetryErrors';
 
 declare global {
   interface Window {
@@ -577,6 +578,8 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
     try {
       await logEvent('error', 'recalculation_failure', {
         userId: uid,
+        errorCode: TelemetryErrors.RECALCULATION_FAILURE.code,
+        errorMessage: TelemetryErrors.RECALCULATION_FAILURE.message,
         error: err instanceof Error ? err.message : String(err)
       });
     } catch (logErr) {
