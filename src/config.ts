@@ -11,3 +11,9 @@ export const BOOKING_START_OFFSET_DAYS = 1;
  * This defines how far in advance users are allowed to book.
  */
 export const BOOKING_HORIZON_DAYS = 60;
+
+/**
+ * Flag to enable/disable google interactions (Google Events, Calendars, etc.).
+ * Defaults to true.
+ */
+export const ENABLE_GOOGLE_INTEGRATION = import.meta.env.VITE_ENABLE_GOOGLE_INTEGRATION !== 'false';
