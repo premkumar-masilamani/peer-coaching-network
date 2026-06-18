@@ -90,6 +90,8 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         message = 'Sorry, this slot was just scheduled by someone else. Please pick another time.';
       } else if (err instanceof Error && err.message === 'SELF_CONFLICT') {
         message = 'You already have a session scheduled at this time. Please pick another slot.';
+      } else if (err instanceof Error && (err as { code?: string }).code === 'GOOGLE_API_ERROR') {
+        message = err.message;
       }
       setErrorMsg(message);
       setBookingStatus('error');
