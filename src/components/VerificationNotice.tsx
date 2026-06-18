@@ -6,14 +6,15 @@ import {
   User,
   CheckCircle,
   BookOpen,
-  Globe
+  Globe,
+  LogOut
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
 import { formatDisplayName } from '../services/firebaseService';
 
 export const VerificationNotice: React.FC = () => {
-  const { user, profile, updateProfileDetails } = useAuth();
+  const { user, profile, updateProfileDetails, logout } = useAuth();
 
   // State for editable profile details
   const [gender, setGender] = useState<'Male' | 'Female' | 'Prefer not to say' | ''>(profile?.gender || '');
@@ -224,7 +225,30 @@ export const VerificationNotice: React.FC = () => {
 
           {/* Actions */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '24px' }}>
-            <div>
+            <button
+              type="button"
+              onClick={logout}
+              className="btn"
+              style={{
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.2)',
+                color: '#f87171',
+                padding: '10px 16px',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                fontWeight: 600,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <LogOut size={16} />
+              Sign Out
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               {successMsg && (
                 <div style={{
                   color: '#34d399',
@@ -237,16 +261,16 @@ export const VerificationNotice: React.FC = () => {
                   {successMsg}
                 </div>
               )}
-            </div>
 
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={saving}
-              style={{ minWidth: '150px' }}
-            >
-              {saving ? 'Saving...' : 'Save Profile Info'}
-            </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={saving}
+                style={{ minWidth: '150px' }}
+              >
+                {saving ? 'Saving...' : 'Save Profile Info'}
+              </button>
+            </div>
           </div>
         </form>
       </div>
