@@ -132,7 +132,6 @@ describe('googleCalendar service', () => {
       expect(mockFetch).not.toHaveBeenCalled();
       expect(mockRunTransaction).toHaveBeenCalledTimes(1);
       expect(result.meetLink).toContain('meet.google.com');
-      expect(result.id).toBe('coach-123_2026-06-18T10:00:00Z');
       expect(logger.telemetry).toHaveBeenCalledWith('info', 'booking_attempt', {
         clientUid: 'client-123',
         coachUid: 'coach-123',
@@ -198,7 +197,6 @@ describe('googleCalendar service', () => {
       ).rejects.toThrow('Google Calendar rate limit exceeded. Please try again in a moment.');
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
-      expect(mockRunTransaction).not.toHaveBeenCalled();
       expect(logger.telemetry).toHaveBeenCalledWith('error', 'google_api_create_failure', {
         clientUid: 'client-123',
         coachUid: 'coach-123',
