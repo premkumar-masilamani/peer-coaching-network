@@ -11,7 +11,17 @@ import { LeftNav } from './components/LeftNav';
 import { MyBookings } from './components/MyBookings';
 import { SystemLogs } from './components/SystemLogs';
 import { isApproved } from './services/firebaseService';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, AlertTriangle, X } from 'lucide-react';
+
+// Fields that matter for the non-blocking profile-complete banner.
+// Returns a list of human-readable missing field names.
+const getMissingProfileFields = (profile: ReturnType<typeof useAuth>['profile']): string[] => {
+  const missing: string[] = [];
+  if (!profile?.country) missing.push('Country');
+  if (!profile?.bio) missing.push('Professional Bio');
+  if (!profile?.gender || profile.gender === 'Prefer not to say') missing.push('Gender');
+  return missing;
+};
 
 const AppContent: React.FC = () => {
   const { user, role, loading, profile } = useAuth();
@@ -21,6 +31,7 @@ const AppContent: React.FC = () => {
     const saved = localStorage.getItem('peer-coaching-nav-collapsed');
     return saved ? JSON.parse(saved) : true;
   });
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   // Sync theme with document class — only 'light' and 'dark' are supported.
   // Legacy 'system' values stored in Firestore are treated as 'dark'.
@@ -32,6 +43,10 @@ const AppContent: React.FC = () => {
     }
   }, [profile?.theme]);
 
+  // Re-show the banner whenever the profile changes (e.g. after partial save)
+  useEffect(() => {
+    setBannerDismissed(false);
+  }, [profile?.country, profile?.bio, profile?.gender]);
 
   const approved = isApproved(profile) && (role === 'admin' || role === 'user');
 
@@ -111,6 +126,10 @@ const AppContent: React.FC = () => {
     );
   }
 
+  // Compute missing profile fields for the non-blocking banner
+  const missingFields = getMissingProfileFields(profile);
+  const showBanner = missingFields.length > 0 && !bannerDismissed && currentTab !== 'profile';
+
   // Approved User or Admin Panel router
   return (
     <div className="app-container">
@@ -131,7 +150,75 @@ const AppContent: React.FC = () => {
           />
           
           <main style={{ flex: 1, minWidth: 0, height: '100%', overflowY: 'auto', paddingRight: '16px', paddingBottom: '16px' }}>
-            {currentTab === 'dashboard' && <CoachDashboard setCurrentTab={setCurrentTab} />}
+
+            {/* ── Non-blocking profile completion banner ───────────────────── */}
+            {showBanner && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                background: 'linear-gradient(135deg, hsl(var(--warning) / 0.1), hsl(var(--warning) / 0.05))',
+                border: '1px solid hsl(var(--warning) / 0.35)',
+                borderLeft: '4px solid hsl(var(--warning))',
+                borderRadius: '12px',
+                padding: '14px 18px',
+                marginBottom: '20px',
+                marginTop: '16px',
+                flexWrap: 'wrap',
+              }}>
+                <AlertTriangle size={18} color="hsl(var(--warning))" style={{ flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Your profile is incomplete.{' '}
+                  </span>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                    Complete your profile to use the app effectively and help other coaches discover you.{' '}
+                    Missing: {missingFields.join(', ')}.
+                  </span>
+                </div>
+                <button
+                  onClick={() => setCurrentTab('profile')}
+                  style={{
+                    background: 'hsl(var(--warning))',
+                    color: '#000',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '7px 16px',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    transition: 'opacity 0.15s ease',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+                  onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                >
+                  My Profile →
+                </button>
+                <button
+                  onClick={() => setBannerDismissed(true)}
+                  aria-label="Dismiss"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '4px',
+                    flexShrink: 0,
+                    borderRadius: '6px',
+                    transition: 'color 0.15s ease',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-primary)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+
+            {currentTab === 'dashboard' && <CoachDashboard />}
             {currentTab === 'profile' && <ProfileEdit />}
             {currentTab === 'availability' && <AvailabilityEdit />}
             {currentTab === 'bookings' && <MyBookings />}

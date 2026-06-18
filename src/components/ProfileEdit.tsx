@@ -5,13 +5,49 @@ import {
   MapPin,
   Award,
   Globe,
-  CheckCircle
+  CheckCircle,
+  Circle,
+  FileText,
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
 import { getCredentialDescription } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
+
+// ── Profile completion logic ──────────────────────────────────────────────────
+interface CompletionItem {
+  label: string;
+  done: boolean;
+  icon: React.ReactNode;
+}
+
+function getCompletionItems(profile: ReturnType<typeof useAuth>['profile']): CompletionItem[] {
+  return [
+    {
+      label: 'Country',
+      done: !!profile?.country,
+      icon: <MapPin size={13} />,
+    },
+    {
+      label: 'Professional Bio',
+      done: !!profile?.bio,
+      icon: <FileText size={13} />,
+    },
+    {
+      label: 'Gender',
+      done: !!profile?.gender && profile.gender !== 'Prefer not to say',
+      icon: <User size={13} />,
+    },
+    {
+      label: 'Timezone',
+      done: !!profile?.timezone,
+      icon: <Globe size={13} />,
+    },
+  ];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const ProfileEdit: React.FC = () => {
   const { user, profile, updateProfileDetails } = useAuth();
@@ -63,11 +99,25 @@ export const ProfileEdit: React.FC = () => {
     }
   };
 
+  // Compute completion against *current local state* so the bar updates live
+  // while the user fills in the form (before saving).
+  const localProfile = { ...profile, country, bio, gender, timezone };
+  const completionItems = getCompletionItems(localProfile as typeof profile);
+  const doneCount = completionItems.filter(i => i.done).length;
+  const pct = Math.round((doneCount / completionItems.length) * 100);
+  const isComplete = pct === 100;
+
+  const progressColor =
+    pct === 100 ? 'hsl(var(--success))' :
+    pct >= 50   ? 'hsl(var(--primary))' :
+                  'hsl(var(--warning))';
+
   return (
     <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-      {/* Column 1: Editable details */}
       <div className="glass-panel" style={{ padding: '32px', width: '100%', maxWidth: '640px' }}>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '24px' }}>
+
+        {/* ── Profile card header ─────────────────────────────────────────── */}
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '28px' }}>
           <img
             src={sanitizeImageUrl(profile?.photoURL || user?.photoURL)}
             alt="Profile Avatar"
@@ -84,6 +134,84 @@ export const ProfileEdit: React.FC = () => {
           </div>
         </div>
 
+        {/* ── Profile completion widget ────────────────────────────────────── */}
+        <div style={{
+          background: isComplete
+            ? 'linear-gradient(135deg, hsl(var(--success) / 0.08), hsl(var(--success) / 0.04))'
+            : 'linear-gradient(135deg, hsl(var(--primary) / 0.07), hsl(var(--primary) / 0.03))',
+          border: `1px solid ${isComplete ? 'hsl(var(--success) / 0.3)' : 'hsl(var(--primary) / 0.2)'}`,
+          borderRadius: '14px',
+          padding: '20px 22px',
+          marginBottom: '28px',
+        }}>
+          {/* Heading + percentage */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Profile Completion
+            </span>
+            <span style={{
+              fontSize: '1.15rem',
+              fontWeight: 800,
+              color: progressColor,
+              fontVariantNumeric: 'tabular-nums',
+            }}>
+              {pct}%
+            </span>
+          </div>
+
+          {/* Progress bar */}
+          <div style={{
+            height: '8px',
+            borderRadius: '99px',
+            background: 'var(--border-light)',
+            overflow: 'hidden',
+            marginBottom: '16px',
+          }}>
+            <div style={{
+              height: '100%',
+              width: `${pct}%`,
+              borderRadius: '99px',
+              background: progressColor,
+              transition: 'width 0.5s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease',
+              boxShadow: `0 0 8px ${progressColor}66`,
+            }} />
+          </div>
+
+          {/* Checklist */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+            {completionItems.map(item => (
+              <div
+                key={item.label}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '5px 12px',
+                  borderRadius: '20px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  border: `1px solid ${item.done ? 'hsl(var(--success) / 0.3)' : 'var(--border-light)'}`,
+                  background: item.done ? 'hsl(var(--success) / 0.08)' : 'var(--bg-surface-elevated)',
+                  color: item.done ? 'hsl(var(--success))' : 'var(--text-muted)',
+                  transition: 'all 0.25s ease',
+                }}
+              >
+                {item.done
+                  ? <CheckCircle size={13} />
+                  : <Circle size={13} />}
+                {item.label}
+              </div>
+            ))}
+          </div>
+
+          {isComplete && (
+            <p style={{ margin: '12px 0 0 0', fontSize: '0.82rem', color: 'hsl(var(--success))', fontWeight: 600 }}>
+              🎉 Your profile is complete — other coaches can fully discover you!
+            </p>
+          )}
+        </div>
+
+        {/* ── Editable form ───────────────────────────────────────────────── */}
         <form onSubmit={handleSave}>
           {/* 1. Credentials */}
           <div className="form-group">
@@ -173,7 +301,7 @@ export const ProfileEdit: React.FC = () => {
             </select>
           </div>
 
-          {/* 5. Personal Biography */}
+          {/* 5. Professional Biography */}
           <div className="form-group" style={{ marginTop: '12px' }}>
             <label className="form-label" htmlFor="bio-input-edit">Professional Biography</label>
             <textarea
