@@ -131,12 +131,17 @@ describe('googleCalendar service', () => {
       expect(logEvent).toHaveBeenCalledWith('info', 'booking_attempt', {
         clientUid: 'client-123',
         coachUid: 'coach-123',
-        startIso: '2026-06-18T10:00:00Z'
+        startIso: '2026-06-18T10:00:00Z',
+        bookingId: 'coach-123_2026-06-18T10:00:00Z',
+        clientBookingCacheId: 'client-123_2026-06-18T10:00:00Z'
       });
       expect(logEvent).toHaveBeenCalledWith('info', 'booking_success', {
         clientUid: 'client-123',
         coachUid: 'coach-123',
         startIso: '2026-06-18T10:00:00Z',
+        bookingId: 'coach-123_2026-06-18T10:00:00Z',
+        clientBookingCacheId: 'client-123_2026-06-18T10:00:00Z',
+        googleEventId: expect.any(String),
         googleEventCreated: false
       });
     });
@@ -193,6 +198,8 @@ describe('googleCalendar service', () => {
         clientUid: 'client-123',
         coachUid: 'coach-123',
         startIso: '2026-06-18T10:00:00Z',
+        bookingId: 'coach-123_2026-06-18T10:00:00Z',
+        clientBookingCacheId: 'client-123_2026-06-18T10:00:00Z',
         errorCode: 'GOOGLE_API_CREATE_FAILURE',
         errorMessage: 'Google Calendar API event creation failed.',
         error: 'Google Calendar rate limit exceeded. Please try again in a moment.'
@@ -223,6 +230,8 @@ describe('googleCalendar service', () => {
         clientUid: 'client-123',
         coachUid: 'coach-123',
         startIso: '2026-06-18T10:00:00Z',
+        bookingId: 'coach-123_2026-06-18T10:00:00Z',
+        clientBookingCacheId: 'client-123_2026-06-18T10:00:00Z',
         errorCode: 'GOOGLE_API_CREATE_FAILURE',
         errorMessage: 'Google Calendar API event creation failed.',
         error: 'Fetch failed'
@@ -266,6 +275,8 @@ describe('googleCalendar service', () => {
         clientUid: 'client-123',
         coachUid: 'coach-123',
         startIso: '2026-06-18T10:00:00Z',
+        bookingId: 'coach-123_2026-06-18T10:00:00Z',
+        clientBookingCacheId: 'client-123_2026-06-18T10:00:00Z',
         errorCode: 'SLOT_TAKEN',
         errorMessage: 'The requested coaching slot is already booked.',
         reason: 'SLOT_TAKEN'
@@ -274,6 +285,8 @@ describe('googleCalendar service', () => {
         clientUid: 'client-123',
         coachUid: 'coach-123',
         startIso: '2026-06-18T10:00:00Z',
+        bookingId: 'coach-123_2026-06-18T10:00:00Z',
+        clientBookingCacheId: 'client-123_2026-06-18T10:00:00Z',
         errorCode: 'TRANSACTION_FAILURE',
         errorMessage: 'Firestore transaction failed to persist booking after maximum retries.',
         error: 'SLOT_TAKEN'
@@ -309,6 +322,8 @@ describe('googleCalendar service', () => {
         googleEventId: 'gcal-event-123',
         clientUid: 'client-123',
         coachUid: 'coach-123',
+        bookingId: 'coach-123_2026-06-18T10:00:00Z',
+        clientBookingCacheId: 'client-123_2026-06-18T10:00:00Z',
         errorCode: 'GOOGLE_API_DELETE_FAILURE',
         errorMessage: 'Google Calendar API event deletion failed.',
         error: 'Delete request failed'
@@ -501,7 +516,8 @@ describe('googleCalendar service', () => {
         bookingId: 'booking-123',
         clientUid: 'client-123',
         coachUid: undefined,
-        startIso: '2026-06-18T10:00:00.000Z'
+        startIso: '2026-06-18T10:00:00.000Z',
+        clientBookingCacheId: 'client-123_2026-06-18T10:00:00.000Z'
       });
     });
 
@@ -583,6 +599,8 @@ describe('googleCalendar service', () => {
         googleEventId: 'gcal-event-123',
         clientUid: 'client-123',
         coachUid: undefined,
+        bookingId: 'booking-123',
+        clientBookingCacheId: 'client-123_2026-06-18T10:00:00.000Z',
         errorCode: 'GOOGLE_API_DELETE_FAILURE',
         errorMessage: 'Google Calendar API event deletion failed.',
         error: 'Delete fetch failed'
@@ -801,6 +819,12 @@ describe('googleCalendar service', () => {
 
       const result = await getCoachesBusySlots(coaches, '2026-06-18T00:00:00Z', '2026-06-25T00:00:00Z');
       expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(logEvent).toHaveBeenCalledWith('error', 'cache_query_failure', {
+        uids: ['coach-1'],
+        errorCode: 'CACHE_QUERY_FAILURE',
+        errorMessage: 'Failed to query user busy slots cache chunks.',
+        error: 'Chunk query failed'
+      });
       expect(result['coach-1']).toBeDefined();
       consoleErrorSpy.mockRestore();
     });

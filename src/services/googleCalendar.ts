@@ -217,6 +217,8 @@ export const scheduleMeeting = async (
     clientUid,
     coachUid,
     startIso,
+    bookingId,
+    clientBookingCacheId: `${clientUid}_${startIso}`
   });
 
   const currentUser = auth?.currentUser;
@@ -266,6 +268,8 @@ export const scheduleMeeting = async (
         clientUid,
         coachUid,
         startIso,
+        bookingId,
+        clientBookingCacheId: `${clientUid}_${startIso}`,
         errorCode: TelemetryErrors.GOOGLE_API_CREATE_FAILURE.code,
         errorMessage: TelemetryErrors.GOOGLE_API_CREATE_FAILURE.message,
         error: e instanceof Error ? e.message : String(e)
@@ -338,6 +342,8 @@ export const scheduleMeeting = async (
             clientUid,
             coachUid,
             startIso,
+            bookingId,
+            clientBookingCacheId: `${clientUid}_${startIso}`,
             errorCode: telemetryErr.code,
             errorMessage: telemetryErr.message,
             reason: err.message,
@@ -357,6 +363,8 @@ export const scheduleMeeting = async (
         clientUid,
         coachUid,
         startIso,
+        bookingId,
+        clientBookingCacheId: `${clientUid}_${startIso}`,
         errorCode: TelemetryErrors.TRANSACTION_FAILURE.code,
         errorMessage: TelemetryErrors.TRANSACTION_FAILURE.message,
         error: lastError instanceof Error ? lastError.message : String(lastError)
@@ -378,6 +386,8 @@ export const scheduleMeeting = async (
             googleEventId,
             clientUid,
             coachUid,
+            bookingId,
+            clientBookingCacheId: `${clientUid}_${startIso}`,
             errorCode: TelemetryErrors.GOOGLE_API_DELETE_FAILURE.code,
             errorMessage: TelemetryErrors.GOOGLE_API_DELETE_FAILURE.message,
             error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)
@@ -391,6 +401,9 @@ export const scheduleMeeting = async (
       clientUid,
       coachUid,
       startIso,
+      bookingId,
+      clientBookingCacheId: `${clientUid}_${startIso}`,
+      googleEventId,
       googleEventCreated,
     });
 
@@ -462,6 +475,8 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
         googleEventId: data.googleEventId,
         clientUid: data.clientUid,
         coachUid: data.coachUid,
+        bookingId,
+        clientBookingCacheId: `${data.clientUid}_${startIso}`,
         errorCode: TelemetryErrors.GOOGLE_API_DELETE_FAILURE.code,
         errorMessage: TelemetryErrors.GOOGLE_API_DELETE_FAILURE.message,
         error: e instanceof Error ? e.message : String(e)
@@ -474,6 +489,7 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
     clientUid: data.clientUid,
     coachUid: data.coachUid,
     startIso,
+    clientBookingCacheId: `${data.clientUid}_${startIso}`
   });
 
   const currentUid = auth?.currentUser?.uid;
@@ -645,6 +661,7 @@ export const getCoachesBusySlots = async (
     } catch (e) {
       console.error('Error fetching real Google Calendar FreeBusy info:', e);
       await logEvent('error', 'freebusy_api_failure', {
+        coachUids: coaches.map(c => c.userId),
         errorCode: TelemetryErrors.FREEBUSY_API_FAILURE.code,
         errorMessage: TelemetryErrors.FREEBUSY_API_FAILURE.message,
         error: e instanceof Error ? e.message : String(e)
@@ -666,10 +683,11 @@ export const getCoachesBusySlots = async (
         getDocs(query(collection(activeDb, 'busySlotsCache'), where(documentId(), 'in', c)))
       )
     );
-    busySlotsCacheResults.forEach((res) => {
+    busySlotsCacheResults.forEach((res, index) => {
       if (res.status !== 'fulfilled') {
         console.error('Error fetching busy slots cache chunk:', res.reason);
         logEvent('error', 'cache_query_failure', {
+          uids: uidChunks[index],
           errorCode: TelemetryErrors.CACHE_QUERY_FAILURE.code,
           errorMessage: TelemetryErrors.CACHE_QUERY_FAILURE.message,
           error: res.reason instanceof Error ? res.reason.message : String(res.reason)
