@@ -212,11 +212,54 @@ export const scheduleMeeting = async (
 
   let realMeetLink = meetLink;
   let googleEventId = `booking-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  let googleEventCreated = false;
+
+  if (token && token !== 'mock_google_access_token') {
+    try {
+      const response = await fetch(
+        'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(eventPayload),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Google Calendar API Error:', response.status, errorText);
+
+        let userMessage = 'Failed to create Google Calendar event.';
+        if (response.status === 403 || response.status === 429) {
+          userMessage = 'Google Calendar rate limit exceeded. Please try again in a moment.';
+        }
+
+        const apiError = new Error(userMessage);
+        (apiError as { code?: string; status?: number }).code = 'GOOGLE_API_ERROR';
+        (apiError as { code?: string; status?: number }).status = response.status;
+        throw apiError;
+      }
+
+      const data = await response.json();
+      googleEventId = data.id;
+      realMeetLink = data.hangoutLink || meetLink;
+      googleEventCreated = true;
+    } catch (e) {
+      console.error('Error during Google Calendar event creation:', e);
+      if (e instanceof Error && (e as { code?: string }).code === 'GOOGLE_API_ERROR') {
+        throw e;
+      }
+      const genericError = new Error('Network error or Google Calendar API is currently unreachable. Please try again.');
+      (genericError as { code?: string }).code = 'GOOGLE_API_ERROR';
+      throw genericError;
+    }
+  }
 
   if (db) {
     const bookingRef = doc(db, 'bookings', bookingId);
-    // Per-mentee/per-slot lock so a mentee can't double-book themselves across
-    // coaches at the same time. See BUG-003.
     const clientBookingCacheRef = doc(db, 'clientBookingCache', `${clientUid}_${startIso}`);
 
     const bookingData = {
@@ -232,64 +275,68 @@ export const scheduleMeeting = async (
       createdAt: Timestamp.now()
     };
 
-    try {
-      // Claim the slot in Firestore FIRST — refuse if the coach slot is taken or
-      // the mentee already has a booking this slot — BEFORE creating any Google
-      // event, so we never orphan an external event on conflict. See BUG-003/004.
-      await runTransaction(db, async (tx) => {
-        const existing = await tx.get(bookingRef);
-        if (existing.exists() && existing.data()?.status !== 'cancelled') {
-          throw new Error('SLOT_TAKEN');
-        }
-        const clientBookingCacheDoc = await tx.get(clientBookingCacheRef);
-        if (clientBookingCacheDoc.exists()) {
-          throw new Error('SELF_CONFLICT');
-        }
-        tx.set(bookingRef, bookingData);
-        
-        const startTimestamp = new Date(startIso);
-        const expireDate = new Date(startTimestamp.getTime() + 24 * 60 * 60 * 1000);
-        tx.set(clientBookingCacheRef, {
-          clientUid,
-          coachUid,
-          bookingId,
-          startIso,
-          createdAt: Timestamp.now(),
-          expireAt: Timestamp.fromDate(expireDate)
+    let transactionSuccess = false;
+    let attempts = 0;
+    const maxAttempts = 3;
+    let lastError: Error | null = null;
+
+    while (attempts < maxAttempts && !transactionSuccess) {
+      attempts++;
+      try {
+        await runTransaction(db, async (tx) => {
+          const existing = await tx.get(bookingRef);
+          if (existing.exists() && existing.data()?.status !== 'cancelled') {
+            throw new Error('SLOT_TAKEN');
+          }
+          const clientBookingCacheDoc = await tx.get(clientBookingCacheRef);
+          if (clientBookingCacheDoc.exists()) {
+            throw new Error('SELF_CONFLICT');
+          }
+          tx.set(bookingRef, bookingData);
+          
+          const startTimestamp = new Date(startIso);
+          const expireDate = new Date(startTimestamp.getTime() + 24 * 60 * 60 * 1000);
+          tx.set(clientBookingCacheRef, {
+            clientUid,
+            coachUid,
+            bookingId,
+            startIso,
+            createdAt: Timestamp.now(),
+            expireAt: Timestamp.fromDate(expireDate)
+          });
         });
-      });
-    } catch (err) {
-      if (err instanceof Error && (err.message === 'SLOT_TAKEN' || err.message === 'SELF_CONFLICT')) {
-        // Surface the conflict to the caller; no Google event was created.
-        throw err;
+        transactionSuccess = true;
+      } catch (err) {
+        lastError = err instanceof Error ? err : new Error(String(err));
+        // If it's a logical error, do not retry!
+        if (err instanceof Error && (err.message === 'SLOT_TAKEN' || err.message === 'SELF_CONFLICT')) {
+          break;
+        }
+        console.warn(`Firestore transaction attempt ${attempts} failed:`, err);
+        // Wait a short duration before retrying (exponential backoff)
+        if (attempts < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 500 * attempts));
+        }
       }
-      console.error('Error saving booking to Firestore:', err);
     }
 
-    // Slot is claimed — only now create the real Google Calendar event (if
-    // synced) and patch the booking with the resulting id + Meet link. See BUG-004.
-    if (token && token !== 'mock_google_access_token') {
-      try {
-        const response = await fetch(
-          'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1',
-          {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(eventPayload),
-          }
-        );
-        if (response.ok) {
-          const data = await response.json();
-          googleEventId = data.id;
-          realMeetLink = data.hangoutLink || meetLink;
-          await updateDoc(bookingRef, { googleEventId, googleMeetLink: realMeetLink });
+    if (!transactionSuccess) {
+      // Cleanup Google Calendar event since Firestore save failed after all retries
+      if (googleEventCreated && token && token !== 'mock_google_access_token') {
+        try {
+          await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`,
+            {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+          console.log('Cleaned up Google Calendar event after Firestore transaction failure:', googleEventId);
+        } catch (cleanupErr) {
+          console.error('Failed to cleanup Google Calendar event:', cleanupErr);
         }
-      } catch (e) {
-        console.error('Error creating real Google Calendar event:', e);
       }
+      throw lastError || new Error('FAILED_TO_PERSIST');
     }
 
     // Recalculate ONLY the current user's own busy slots cache. The other
