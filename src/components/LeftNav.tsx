@@ -39,16 +39,16 @@ export const LeftNav: React.FC<LeftNavProps> = ({
   return (
     <aside className={`left-sidebar ${collapsed ? 'collapsed' : 'expanded'}`}>
       <div className="sidebar-nav">
-        {/* Home / Browse coaches */}
+        {/* Dashboard / Browse coaches */}
         <button
           onClick={() => setCurrentTab('dashboard')}
           className={`sidebar-nav-item ${currentTab === 'dashboard' ? 'active' : ''}`}
-          title={collapsed ? 'Home' : undefined}
+          title={collapsed ? 'Dashboard' : undefined}
         >
           <span className="nav-icon">
             <Home size={18} />
           </span>
-          <span className="nav-text">Home</span>
+          <span className="nav-text">Dashboard</span>
         </button>
 
         {/* Admin Panel */}
