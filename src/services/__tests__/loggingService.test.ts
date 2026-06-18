@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { logEvent } from '../loggingService';
-import { auth } from '../firebaseService';
+import { logEvent, initializeLogger } from '../loggingService';
+import { getFirestore } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 // vi.hoisted for variables accessed inside vi.mock
 const { mockAddDoc } = vi.hoisted(() => ({
@@ -45,8 +47,11 @@ vi.mock('firebase/firestore', () => ({
 }));
 
 describe('loggingService', () => {
+  let storedAuth: any;
   beforeEach(() => {
     vi.clearAllMocks();
+    storedAuth = getAuth();
+    initializeLogger(getFirestore(), storedAuth);
   });
 
   it('successfully logs an event with active user ID and 7 days TTL', async () => {
@@ -72,8 +77,8 @@ describe('loggingService', () => {
   });
 
   it('logs an event with userId null if no user is authenticated', async () => {
-    const originalCurrentUser = auth.currentUser;
-    Object.defineProperty(auth, 'currentUser', {
+    const originalCurrentUser = storedAuth.currentUser;
+    Object.defineProperty(storedAuth, 'currentUser', {
       get: () => null,
       configurable: true,
     });
@@ -86,7 +91,7 @@ describe('loggingService', () => {
     const logData = mockAddDoc.mock.calls[0][1];
     expect(logData.userId).toBeNull();
 
-    Object.defineProperty(auth, 'currentUser', {
+    Object.defineProperty(storedAuth, 'currentUser', {
       get: () => originalCurrentUser,
       configurable: true,
     });

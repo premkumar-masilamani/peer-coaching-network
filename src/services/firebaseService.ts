@@ -26,7 +26,7 @@ import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
 import { BOOKING_HORIZON_DAYS } from '../config';
-import { initializeLogger, logEvent } from './loggingService';
+import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
 declare global {
@@ -120,7 +120,7 @@ if (!useEmulator && missingConfig.length > 0) {
   if (import.meta.env.PROD) {
     throw new Error(message);
   } else {
-    console.error(message);
+    logger.error(message);
   }
 }
 
@@ -138,7 +138,6 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
-initializeLogger(db, auth);
 
 // Connect to Emulators during development/testing if configured
 if (useEmulator) {
@@ -147,9 +146,9 @@ if (useEmulator) {
     try {
       connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
       connectFirestoreEmulator(db, '127.0.0.1', 8080);
-      console.log('Connected to Auth and Firestore Emulators');
+      logger.info('Connected to Auth and Firestore Emulators');
     } catch (e) {
-      console.error('Failed to connect to emulators:', e);
+      logger.error('Failed to connect to emulators:', e);
     }
   }
 }
@@ -400,6 +399,7 @@ export const recalculateUserBusySlotsCache = (uid: string): Promise<void> => {
 
 const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
   if (!db) return;
+  logger.debug(`Starting busy slots cache recalculation for user: ${uid}`);
   try {
     const userDocRef = doc(db, 'users', uid);
     const busySlotsCacheRef = doc(db, 'busySlotsCache', uid);
@@ -572,18 +572,21 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
         lastUpdated: new Date().toISOString(),
         busySlots
       });
+      logger.info(`Successfully recalculated and updated busy slots cache for user: ${uid}`);
+    } else {
+      logger.debug(`Busy slots cache recalculation finished, no changes for user: ${uid}`);
     }
   } catch (err) {
-    console.error('Error recalculating busy slots cache:', err);
+    logger.error('Error recalculating busy slots cache:', err);
     try {
-      await logEvent('error', 'recalculation_failure', {
+      await logger.telemetry('error', 'recalculation_failure', {
         userId: uid,
         errorCode: TelemetryErrors.RECALCULATION_FAILURE.code,
         errorMessage: TelemetryErrors.RECALCULATION_FAILURE.message,
         error: err instanceof Error ? err.message : String(err)
       });
     } catch (logErr) {
-      console.error('Failed to log recalculation failure:', logErr);
+      logger.error('Failed to log recalculation failure:', logErr);
     }
     throw err;
   }
@@ -599,6 +602,6 @@ export const subscribeToBookings = (callback: (bookings: DocumentData[]) => void
     });
     callback(list);
   }, (err) => {
-    console.error('Error in subscribeToBookings:', err);
+    logger.error('Error in subscribeToBookings:', err);
   });
 };
