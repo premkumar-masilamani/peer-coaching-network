@@ -26,5 +26,4 @@ dist-ssr
 # Environment files
 .env.dev
 .env.prod
-.claude/
 coverage
