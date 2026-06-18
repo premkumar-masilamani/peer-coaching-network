@@ -365,6 +365,21 @@ export const updateSchedule = async (
   ]);
 };
 
+const areBusySlotsEqual = (
+  slotsA: { start: string; end: string }[],
+  slotsB: { start: string; end: string }[]
+): boolean => {
+  if (slotsA.length !== slotsB.length) return false;
+  const sortedA = [...slotsA].sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
+  const sortedB = [...slotsB].sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
+  for (let i = 0; i < sortedA.length; i++) {
+    if (sortedA[i].start !== sortedB[i].start || sortedA[i].end !== sortedB[i].end) {
+      return false;
+    }
+  }
+  return true;
+};
+
 const recalcChains = new Map<string, Promise<void>>();
 
 // Serialize recalculations per-uid so concurrent triggers cannot interleave and
@@ -384,14 +399,19 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
   if (!db) return;
   try {
     const userDocRef = doc(db, 'users', uid);
-    const userDoc = await getDoc(userDocRef);
+    const busySlotsCacheRef = doc(db, 'busySlotsCache', uid);
+
+    const [userDoc, busySlotsCacheDoc, schedule] = await Promise.all([
+      getDoc(userDocRef),
+      getDoc(busySlotsCacheRef),
+      getSchedule(uid)
+    ]);
+
     if (!userDoc.exists()) return;
     
     const profile = userDoc.data() as UserProfile;
     const timezone = profile.timezone || 'UTC';
-    
-    // Get availability schedule from schedule sub-collection!
-    const { availableDays, blockedDates } = await getSchedule(uid);
+    const { availableDays, blockedDates } = schedule;
     
     // Query bookings
     const bookingsCol = collection(db, 'bookings');
@@ -532,14 +552,24 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
         });
       }
     });
+
+    // Check if the calculated busy slots are identical to the stored ones to avoid redundant write
+    let shouldWrite = true;
+    if (busySlotsCacheDoc.exists()) {
+      const existingData = busySlotsCacheDoc.data();
+      const existingSlots = existingData?.busySlots || [];
+      if (areBusySlotsEqual(busySlots, existingSlots)) {
+        shouldWrite = false;
+      }
+    }
     
-    // Save to busy slots cache document
-    const busySlotsCacheRef = doc(db, 'busySlotsCache', uid);
-    await setDoc(busySlotsCacheRef, {
-      userId: uid,
-      lastUpdated: new Date().toISOString(),
-      busySlots
-    });
+    if (shouldWrite) {
+      await setDoc(busySlotsCacheRef, {
+        userId: uid,
+        lastUpdated: new Date().toISOString(),
+        busySlots
+      });
+    }
   } catch (err) {
     console.error('Error recalculating busy slots cache:', err);
     throw err;
