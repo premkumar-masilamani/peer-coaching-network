@@ -120,8 +120,9 @@ export const LeftNav: React.FC<LeftNavProps> = ({
         {/* Theme Toggle */}
         <button
           onClick={async () => {
-            const currentTheme = profile?.theme === 'light' ? 'light' : 'dark';
-            const nextTheme = currentTheme === 'light' ? 'dark' : 'light';
+            // Treat any value other than 'light' (incl. legacy 'system') as 'dark'
+            const currentTheme: 'light' | 'dark' = profile?.theme === 'light' ? 'light' : 'dark';
+            const nextTheme: 'light' | 'dark' = currentTheme === 'light' ? 'dark' : 'light';
             try {
               await updateProfileDetails({ theme: nextTheme });
             } catch (err) {

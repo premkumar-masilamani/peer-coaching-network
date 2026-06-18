@@ -93,7 +93,7 @@ export interface UserProfile {
   timezone: string;
   userRole: 'user' | 'admin';
   userStatus: 'active' | 'inactive';
-  theme: 'light' | 'dark' | 'system';
+  theme: 'light' | 'dark';
   createdAt: Timestamp;
 }
 
@@ -198,7 +198,7 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
       bio: '',
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       createdAt: Timestamp.now(),
-      theme: 'system'
+      theme: 'light'
     };
     await setDoc(userDocRef, newProfile);
 
