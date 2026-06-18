@@ -624,45 +624,6 @@ export const getCoachesBusySlots = async (
       }
     }
 
-    // 3. Overlay LIVE bookings (authoritative, readable by all) so a slot booked
-    //    by anyone shows as busy without requiring cross-user cache writes. A
-    //    coach is busy whether they are the coach or the mentee of a session.
-    //    See BUG-001.
-    const nowMs = Date.now();
-    const overlayBooking = (data: DocumentData, uid: string | undefined) => {
-      if (!uid || !(uid in coachesBusySlots)) return;
-      if (data.status === 'cancelled') return;
-      const startStr = data.startTime && typeof data.startTime.toDate === 'function' ? data.startTime.toDate().toISOString() : (data.startTime?.dateTime || data.startTime);
-      const endStr = data.endTime && typeof data.endTime.toDate === 'function' ? data.endTime.toDate().toISOString() : (data.endTime?.dateTime || data.endTime);
-      if (!startStr || !endStr) return;
-      if (new Date(endStr).getTime() < nowMs) return;
-      const already = coachesBusySlots[uid].some(e =>
-        new Date(e.start.dateTime).getTime() === new Date(startStr).getTime()
-      );
-      if (already) return;
-      coachesBusySlots[uid].push({
-        id: `booking-${data.bookingId || `${uid}-${startStr}`}`,
-        summary: 'Busy',
-        start: { dateTime: startStr },
-        end: { dateTime: endStr }
-      });
-    };
-
-    const bookingResults = await Promise.allSettled([
-      ...uidChunks.map(c => getDocs(query(collection(activeDb, 'bookings'), where('coachUid', 'in', c)))),
-      ...uidChunks.map(c => getDocs(query(collection(activeDb, 'bookings'), where('clientUid', 'in', c)))),
-    ]);
-    bookingResults.forEach((res) => {
-      if (res.status !== 'fulfilled') {
-        console.error('Error fetching bookings overlay chunk:', res.reason);
-        return;
-      }
-      res.value.forEach((d) => {
-        const data = d.data();
-        overlayBooking(data, data.coachUid);
-        overlayBooking(data, data.clientUid);
-      });
-    });
   }
 
   return coachesBusySlots;
