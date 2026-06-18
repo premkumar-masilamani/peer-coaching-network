@@ -19,7 +19,7 @@ const getMissingProfileFields = (profile: ReturnType<typeof useAuth>['profile'])
   const missing: string[] = [];
   if (!profile?.country) missing.push('Country');
   if (!profile?.bio) missing.push('Professional Bio');
-  if (!profile?.gender || profile.gender === 'Prefer not to say') missing.push('Gender');
+  if (!profile?.gender || profile.gender === 'Others') missing.push('Gender');
   return missing;
 };
 
@@ -84,10 +84,10 @@ const AppContent: React.FC = () => {
         }} className="animate-pulse">
           <Sparkles size={24} color="#fff" />
         </div>
-        <p style={{ 
-          fontSize: '0.9rem', 
-          color: 'var(--text-secondary)', 
-          fontWeight: 600, 
+        <p style={{
+          fontSize: '0.9rem',
+          color: 'var(--text-secondary)',
+          fontWeight: 600,
           letterSpacing: '0.05em',
           textTransform: 'uppercase'
         }}>
@@ -114,10 +114,10 @@ const AppContent: React.FC = () => {
     return (
       <div className="app-container">
         <div className="bg-gradient-radial" />
-        <Header 
-          currentTab={currentTab} 
-          setCurrentTab={setCurrentTab} 
-          setAdminTabFilter={setAdminTabFilter} 
+        <Header
+          currentTab={currentTab}
+          setCurrentTab={setCurrentTab}
+          setAdminTabFilter={setAdminTabFilter}
         />
         <main className="content-wrapper" style={{ overflowY: 'auto', padding: '0 16px 16px 16px' }}>
           <VerificationNotice />
@@ -134,21 +134,21 @@ const AppContent: React.FC = () => {
   return (
     <div className="app-container">
       <div className="bg-gradient-radial" />
-      <Header 
-        currentTab={currentTab} 
-        setCurrentTab={setCurrentTab} 
-        setAdminTabFilter={setAdminTabFilter} 
+      <Header
+        currentTab={currentTab}
+        setCurrentTab={setCurrentTab}
+        setAdminTabFilter={setAdminTabFilter}
       />
-      
+
       <div className="content-wrapper" style={{ overflow: 'hidden' }}>
         <div className="app-main-layout">
-          <LeftNav 
-            currentTab={currentTab} 
-            setCurrentTab={setCurrentTab} 
-            collapsed={navCollapsed} 
-            setCollapsed={setNavCollapsed} 
+          <LeftNav
+            currentTab={currentTab}
+            setCurrentTab={setCurrentTab}
+            collapsed={navCollapsed}
+            setCollapsed={setNavCollapsed}
           />
-          
+
           <main style={{ flex: 1, minWidth: 0, height: '100%', overflowY: 'auto', paddingRight: '16px', paddingBottom: '16px' }}>
 
             {/* ── Non-blocking profile completion banner ───────────────────── */}
@@ -169,11 +169,10 @@ const AppContent: React.FC = () => {
                 <AlertTriangle size={18} color="hsl(var(--warning))" style={{ flexShrink: 0 }} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                    Your profile is incomplete.{' '}
+                    Unlock the full experience!.{' '}
                   </span>
                   <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-                    Complete your profile to use the app effectively and help other coaches discover you.{' '}
-                    Missing: {missingFields.join(', ')}.
+                    Complete your profile so other coaches can discover you and you can start collaborating.
                   </span>
                 </div>
                 <button
@@ -224,9 +223,9 @@ const AppContent: React.FC = () => {
             {currentTab === 'bookings' && <MyBookings />}
             {currentTab === 'system-logs' && role === 'admin' && <SystemLogs />}
             {currentTab === 'admin' && role === 'admin' && (
-              <AdminDashboard 
-                initialFilter={adminTabFilter} 
-                setInitialFilter={setAdminTabFilter} 
+              <AdminDashboard
+                initialFilter={adminTabFilter}
+                setInitialFilter={setAdminTabFilter}
               />
             )}
           </main>

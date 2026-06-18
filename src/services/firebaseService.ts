@@ -86,7 +86,7 @@ export interface UserProfile {
   email: string;
   displayName: string;
   photoURL: string | null;
-  gender: 'Male' | 'Female' | 'Prefer not to say';
+  gender: 'Male' | 'Female' | 'Others';
   country: string;
   qualifications?: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
   bio: string;
@@ -193,7 +193,7 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
       userRole: 'user',
       userStatus: 'inactive',
       qualifications: [],
-      gender: 'Prefer not to say',
+      gender: '' as unknown as 'Male' | 'Female' | 'Others',
       country: '',
       bio: '',
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',

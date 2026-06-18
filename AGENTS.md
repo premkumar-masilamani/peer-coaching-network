@@ -175,7 +175,7 @@ Tab keys are lowercase slugs set via `setCurrentTab`. The human-readable label a
 
 ### Non-blocking banner (`App.tsx`)
 - A dismissible amber banner is shown at the top of the `<main>` content area on every tab **except** `'profile'` when the user's profile is incomplete.
-- Fields that trigger the banner: `country` (empty string), `bio` (empty string), `gender` (`'Prefer not to say'` or unset).
+- Fields that trigger the banner: `country` (empty string), `bio` (empty string), `gender` (`'Others'` or unset).
 - The banner has a **"My Profile →"** button and an **✕ dismiss** button. It re-shows after profile changes if fields are still missing.
 - **Design rule**: Never block access to dashboard or any tab over an incomplete profile. The banner is advisory only.
 
