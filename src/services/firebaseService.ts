@@ -26,6 +26,7 @@ import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
 import { BOOKING_HORIZON_DAYS } from '../config';
+import { initializeLogger, logEvent } from './loggingService';
 
 declare global {
   interface Window {
@@ -136,6 +137,7 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
+initializeLogger(db, auth);
 
 // Connect to Emulators during development/testing if configured
 if (useEmulator) {
@@ -572,6 +574,14 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
     }
   } catch (err) {
     console.error('Error recalculating busy slots cache:', err);
+    try {
+      await logEvent('error', 'recalculation_failure', {
+        userId: uid,
+        error: err instanceof Error ? err.message : String(err)
+      });
+    } catch (logErr) {
+      console.error('Failed to log recalculation failure:', logErr);
+    }
     throw err;
   }
 };

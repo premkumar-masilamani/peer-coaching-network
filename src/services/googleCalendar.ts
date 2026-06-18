@@ -5,6 +5,7 @@ import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { getGoogleToken } from './googleToken';
 import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION } from '../config';
+import { logEvent } from './loggingService';
 
 export interface CalendarEvent {
   id: string;
@@ -206,6 +207,12 @@ export const scheduleMeeting = async (
   // same time. See BUG-004.
   const bookingId = `${coachUid}_${startIso}`;
 
+  await logEvent('info', 'booking_attempt', {
+    clientUid,
+    coachUid,
+    startIso,
+  });
+
   const currentUser = auth?.currentUser;
   const clientEmail = currentUser?.email || '';
   const resolvedClientName = currentUser?.displayName || clientName;
@@ -310,6 +317,12 @@ export const scheduleMeeting = async (
         lastError = err instanceof Error ? err : new Error(String(err));
         // If it's a logical error, do not retry!
         if (err instanceof Error && (err.message === 'SLOT_TAKEN' || err.message === 'SELF_CONFLICT')) {
+          await logEvent('warn', 'booking_conflict', {
+            clientUid,
+            coachUid,
+            startIso,
+            reason: err.message,
+          });
           break;
         }
         console.warn(`Firestore transaction attempt ${attempts} failed:`, err);
@@ -338,6 +351,13 @@ export const scheduleMeeting = async (
       }
       throw lastError || new Error('FAILED_TO_PERSIST');
     }
+
+    await logEvent('info', 'booking_success', {
+      clientUid,
+      coachUid,
+      startIso,
+      googleEventCreated,
+    });
 
     // Recalculate ONLY the current user's own busy slots cache. The other
     // participant's cache is owner-only now; their booked time is surfaced live
@@ -405,6 +425,13 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
       console.error('Error deleting Google Calendar event:', e);
     }
   }
+
+  await logEvent('info', 'booking_cancellation', {
+    bookingId,
+    clientUid: data.clientUid,
+    coachUid: data.coachUid,
+    startIso,
+  });
 
   const currentUid = auth?.currentUser?.uid;
   if (currentUid) {

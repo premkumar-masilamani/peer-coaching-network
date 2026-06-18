@@ -25,12 +25,18 @@ import {
   subscribeToBookings
 } from '../firebaseService';
 import { Timestamp } from 'firebase/firestore';
+import { logEvent } from '../loggingService';
 
 // Mock all Firebase modules before importing
 vi.mock('firebase/app', () => ({
   initializeApp: vi.fn(),
   getApps: vi.fn(() => []),
   getApp: vi.fn(),
+}));
+
+vi.mock('../loggingService', () => ({
+  initializeLogger: vi.fn(),
+  logEvent: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('firebase/auth', () => ({
@@ -417,6 +423,10 @@ describe('firebaseService', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       await expect(recalculateUserBusySlotsCache('user-123')).rejects.toThrow('DB connection lost');
       expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(logEvent).toHaveBeenCalledWith('error', 'recalculation_failure', {
+        userId: 'user-123',
+        error: 'DB connection lost'
+      });
       consoleErrorSpy.mockRestore();
     });
   });

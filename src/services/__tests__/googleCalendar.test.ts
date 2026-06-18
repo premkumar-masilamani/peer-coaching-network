@@ -8,6 +8,7 @@ import {
   getCoachesBusySlots
 } from '../googleCalendar';
 import { getGoogleToken } from '../googleToken';
+import { logEvent } from '../loggingService';
 
 // vi.hoisted for variables accessed inside vi.mock
 const {
@@ -83,6 +84,11 @@ vi.mock('../googleToken', () => ({
   clearGoogleToken: vi.fn()
 }));
 
+vi.mock('../loggingService', () => ({
+  initializeLogger: vi.fn(),
+  logEvent: vi.fn(() => Promise.resolve()),
+}));
+
 // Mock recalculateUserBusySlotsCache from firebaseService
 vi.mock('../firebaseService', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../firebaseService')>();
@@ -122,6 +128,17 @@ describe('googleCalendar service', () => {
       expect(mockRunTransaction).toHaveBeenCalledTimes(1);
       expect(result.meetLink).toContain('meet.google.com');
       expect(result.id).toBe('coach-123_2026-06-18T10:00:00Z');
+      expect(logEvent).toHaveBeenCalledWith('info', 'booking_attempt', {
+        clientUid: 'client-123',
+        coachUid: 'coach-123',
+        startIso: '2026-06-18T10:00:00Z'
+      });
+      expect(logEvent).toHaveBeenCalledWith('info', 'booking_success', {
+        clientUid: 'client-123',
+        coachUid: 'coach-123',
+        startIso: '2026-06-18T10:00:00Z',
+        googleEventCreated: false
+      });
     });
 
     it('creates Google Calendar event and claims slot when token is valid', async () => {
@@ -439,6 +456,12 @@ describe('googleCalendar service', () => {
       expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
       expect(mockDeleteDoc).toHaveBeenCalledTimes(1);
       expect(mockFetch).not.toHaveBeenCalled();
+      expect(logEvent).toHaveBeenCalledWith('info', 'booking_cancellation', {
+        bookingId: 'booking-123',
+        clientUid: 'client-123',
+        coachUid: undefined,
+        startIso: '2026-06-18T10:00:00.000Z'
+      });
     });
 
     it('also deletes the Google event when token is valid', async () => {
