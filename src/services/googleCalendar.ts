@@ -5,7 +5,7 @@ import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { getGoogleToken } from './googleToken';
 import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION } from '../config';
-import { logEvent } from './loggingService';
+import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
 export interface CalendarEvent {
@@ -81,8 +81,8 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
         });
       }
     } catch (e) {
-      console.error('Error fetching real Google Calendar events:', e);
-      await logEvent('error', 'fetch_events_failure', {
+      logger.error('Error fetching real Google Calendar events:', e);
+      await logger.telemetry('error', 'fetch_events_failure', {
         errorCode: TelemetryErrors.FETCH_EVENTS_FAILURE.code,
         errorMessage: TelemetryErrors.FETCH_EVENTS_FAILURE.message,
         error: e instanceof Error ? e.message : String(e)
@@ -155,7 +155,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
       await processSnap(snapClient);
       await processSnap(snapHost);
     } catch (err) {
-      console.error('Error querying bookings from Firestore:', err);
+      logger.error('Error querying bookings from Firestore:', err);
     }
   }
 
@@ -213,7 +213,8 @@ export const scheduleMeeting = async (
   // same time. See BUG-004.
   const bookingId = `${coachUid}_${startIso}`;
 
-  await logEvent('info', 'booking_attempt', {
+  logger.info(`Attempting to book session for client ${clientUid} with coach ${coachUid} at ${startIso}`);
+  await logger.telemetry('info', 'booking_attempt', {
     clientUid,
     coachUid,
     startIso,
@@ -245,7 +246,7 @@ export const scheduleMeeting = async (
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Google Calendar API Error:', response.status, errorText);
+        logger.error(`Google Calendar API Error: ${response.status} ${errorText}`);
 
         let userMessage = 'Failed to create Google Calendar event.';
         if (response.status === 403 || response.status === 429) {
@@ -263,8 +264,8 @@ export const scheduleMeeting = async (
       realMeetLink = data.hangoutLink || meetLink;
       googleEventCreated = true;
     } catch (e) {
-      console.error('Error during Google Calendar event creation:', e);
-      await logEvent('error', 'google_api_create_failure', {
+      logger.error('Error during Google Calendar event creation:', e);
+      await logger.telemetry('error', 'google_api_create_failure', {
         clientUid,
         coachUid,
         startIso,
@@ -338,7 +339,8 @@ export const scheduleMeeting = async (
           const telemetryErr = err.message === 'SLOT_TAKEN'
             ? TelemetryErrors.SLOT_TAKEN
             : TelemetryErrors.CLIENT_CONFLICT;
-          await logEvent('warn', 'booking_conflict', {
+          logger.warn(`Booking collision: ${telemetryErr.message}`);
+          await logger.telemetry('warn', 'booking_conflict', {
             clientUid,
             coachUid,
             startIso,
@@ -350,7 +352,7 @@ export const scheduleMeeting = async (
           });
           break;
         }
-        console.warn(`Firestore transaction attempt ${attempts} failed:`, err);
+        logger.warn(`Firestore transaction attempt ${attempts} failed:`, err);
         // Wait a short duration before retrying (exponential backoff)
         if (attempts < maxAttempts) {
           await new Promise((resolve) => setTimeout(resolve, 500 * attempts));
@@ -359,7 +361,7 @@ export const scheduleMeeting = async (
     }
 
     if (!transactionSuccess) {
-      await logEvent('error', 'transaction_failure', {
+      await logger.telemetry('error', 'transaction_failure', {
         clientUid,
         coachUid,
         startIso,
@@ -379,10 +381,10 @@ export const scheduleMeeting = async (
               headers: { Authorization: `Bearer ${token}` },
             }
           );
-          console.log('Cleaned up Google Calendar event after Firestore transaction failure:', googleEventId);
+          logger.info(`Cleaned up Google Calendar event after Firestore transaction failure: ${googleEventId}`);
         } catch (cleanupErr) {
-          console.error('Failed to cleanup Google Calendar event:', cleanupErr);
-          await logEvent('error', 'google_api_delete_failure', {
+          logger.error('Failed to cleanup Google Calendar event:', cleanupErr);
+          await logger.telemetry('error', 'google_api_delete_failure', {
             googleEventId,
             clientUid,
             coachUid,
@@ -397,7 +399,8 @@ export const scheduleMeeting = async (
       throw lastError || new Error('FAILED_TO_PERSIST');
     }
 
-    await logEvent('info', 'booking_success', {
+    logger.info(`Successfully booked session. Booking ID: ${bookingId}`);
+    await logger.telemetry('info', 'booking_success', {
       clientUid,
       coachUid,
       startIso,
@@ -412,7 +415,7 @@ export const scheduleMeeting = async (
     // from the bookings overlay in getCoachesBusySlots. See BUG-001.
     if (currentUser?.uid) {
       recalculateUserBusySlotsCache(currentUser.uid).catch(err => {
-        console.error('Error recalculating busy slots cache:', err);
+        logger.error('Error recalculating busy slots cache:', err);
       });
     }
   }
@@ -455,7 +458,7 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
     try {
       await deleteDoc(doc(db, 'clientBookingCache', `${data.clientUid}_${startIso}`));
     } catch (e) {
-      console.error('Error releasing client booking cache:', e);
+      logger.error('Error releasing client booking cache:', e);
     }
   }
 
@@ -470,8 +473,8 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
         }
       );
     } catch (e) {
-      console.error('Error deleting Google Calendar event:', e);
-      await logEvent('error', 'google_api_delete_failure', {
+      logger.error('Error deleting Google Calendar event:', e);
+      await logger.telemetry('error', 'google_api_delete_failure', {
         googleEventId: data.googleEventId,
         clientUid: data.clientUid,
         coachUid: data.coachUid,
@@ -484,7 +487,8 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
     }
   }
 
-  await logEvent('info', 'booking_cancellation', {
+  logger.info(`Successfully cancelled booking. Booking ID: ${bookingId}`);
+  await logger.telemetry('info', 'booking_cancellation', {
     bookingId,
     clientUid: data.clientUid,
     coachUid: data.coachUid,
@@ -494,7 +498,7 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
 
   const currentUid = auth?.currentUser?.uid;
   if (currentUid) {
-    recalculateUserBusySlotsCache(currentUid).catch(err => console.error('Recalc error:', err));
+    recalculateUserBusySlotsCache(currentUid).catch(err => logger.error('Recalc error:', err));
   }
 };
 
@@ -659,8 +663,8 @@ export const getCoachesBusySlots = async (
         });
       }
     } catch (e) {
-      console.error('Error fetching real Google Calendar FreeBusy info:', e);
-      await logEvent('error', 'freebusy_api_failure', {
+      logger.error('Error fetching real Google Calendar FreeBusy info:', e);
+      await logger.telemetry('error', 'freebusy_api_failure', {
         coachUids: coaches.map(c => c.userId),
         errorCode: TelemetryErrors.FREEBUSY_API_FAILURE.code,
         errorMessage: TelemetryErrors.FREEBUSY_API_FAILURE.message,
@@ -685,13 +689,13 @@ export const getCoachesBusySlots = async (
     );
     busySlotsCacheResults.forEach((res, index) => {
       if (res.status !== 'fulfilled') {
-        console.error('Error fetching busy slots cache chunk:', res.reason);
-        logEvent('error', 'cache_query_failure', {
+        logger.error('Error fetching busy slots cache chunk:', res.reason);
+        logger.telemetry('error', 'cache_query_failure', {
           uids: uidChunks[index],
           errorCode: TelemetryErrors.CACHE_QUERY_FAILURE.code,
           errorMessage: TelemetryErrors.CACHE_QUERY_FAILURE.message,
           error: res.reason instanceof Error ? res.reason.message : String(res.reason)
-        }).catch(err => console.error('Failed to log cache query failure:', err));
+        }).catch(err => logger.error('Failed to log cache query failure:', err));
         return;
       }
       res.value.forEach((d) => {

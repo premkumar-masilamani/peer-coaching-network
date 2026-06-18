@@ -8,7 +8,7 @@ import {
   getCoachesBusySlots
 } from '../googleCalendar';
 import { getGoogleToken } from '../googleToken';
-import { logEvent } from '../loggingService';
+import { logger } from '../../utils/logger';
 
 // vi.hoisted for variables accessed inside vi.mock
 const {
@@ -84,9 +84,14 @@ vi.mock('../googleToken', () => ({
   clearGoogleToken: vi.fn()
 }));
 
-vi.mock('../loggingService', () => ({
-  initializeLogger: vi.fn(),
-  logEvent: vi.fn(() => Promise.resolve()),
+vi.mock('../../utils/logger', () => ({
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    telemetry: vi.fn(() => Promise.resolve()),
+  },
 }));
 
 // Mock recalculateUserBusySlotsCache from firebaseService
@@ -128,14 +133,14 @@ describe('googleCalendar service', () => {
       expect(mockRunTransaction).toHaveBeenCalledTimes(1);
       expect(result.meetLink).toContain('meet.google.com');
       expect(result.id).toBe('coach-123_2026-06-18T10:00:00Z');
-      expect(logEvent).toHaveBeenCalledWith('info', 'booking_attempt', {
+      expect(logger.telemetry).toHaveBeenCalledWith('info', 'booking_attempt', {
         clientUid: 'client-123',
         coachUid: 'coach-123',
         startIso: '2026-06-18T10:00:00Z',
         bookingId: 'coach-123_2026-06-18T10:00:00Z',
         clientBookingCacheId: 'client-123_2026-06-18T10:00:00Z'
       });
-      expect(logEvent).toHaveBeenCalledWith('info', 'booking_success', {
+      expect(logger.telemetry).toHaveBeenCalledWith('info', 'booking_success', {
         clientUid: 'client-123',
         coachUid: 'coach-123',
         startIso: '2026-06-18T10:00:00Z',
@@ -194,7 +199,7 @@ describe('googleCalendar service', () => {
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockRunTransaction).not.toHaveBeenCalled();
-      expect(logEvent).toHaveBeenCalledWith('error', 'google_api_create_failure', {
+      expect(logger.telemetry).toHaveBeenCalledWith('error', 'google_api_create_failure', {
         clientUid: 'client-123',
         coachUid: 'coach-123',
         startIso: '2026-06-18T10:00:00Z',
@@ -210,8 +215,6 @@ describe('googleCalendar service', () => {
       vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
       mockFetch.mockRejectedValueOnce(new Error('Fetch failed'));
 
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
       await expect(
         scheduleMeeting(
           'coach-123',
@@ -225,8 +228,8 @@ describe('googleCalendar service', () => {
         )
       ).rejects.toThrow('Network error or Google Calendar API is currently unreachable. Please try again.');
 
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      expect(logEvent).toHaveBeenCalledWith('error', 'google_api_create_failure', {
+      expect(logger.error).toHaveBeenCalled();
+      expect(logger.telemetry).toHaveBeenCalledWith('error', 'google_api_create_failure', {
         clientUid: 'client-123',
         coachUid: 'coach-123',
         startIso: '2026-06-18T10:00:00Z',
@@ -236,7 +239,6 @@ describe('googleCalendar service', () => {
         errorMessage: 'Google Calendar API event creation failed.',
         error: 'Fetch failed'
       });
-      consoleErrorSpy.mockRestore();
     });
 
     it('rolls back/deletes Google Calendar event if Firestore transaction fails', async () => {
@@ -271,7 +273,7 @@ describe('googleCalendar service', () => {
       expect(mockFetch.mock.calls[1][0]).toContain('gcal-event-123');
       expect(mockFetch.mock.calls[1][1].method).toBe('DELETE');
 
-      expect(logEvent).toHaveBeenCalledWith('warn', 'booking_conflict', {
+      expect(logger.telemetry).toHaveBeenCalledWith('warn', 'booking_conflict', {
         clientUid: 'client-123',
         coachUid: 'coach-123',
         startIso: '2026-06-18T10:00:00Z',
@@ -281,7 +283,7 @@ describe('googleCalendar service', () => {
         errorMessage: 'The requested coaching slot is already booked.',
         reason: 'SLOT_TAKEN'
       });
-      expect(logEvent).toHaveBeenCalledWith('error', 'transaction_failure', {
+      expect(logger.telemetry).toHaveBeenCalledWith('error', 'transaction_failure', {
         clientUid: 'client-123',
         coachUid: 'coach-123',
         startIso: '2026-06-18T10:00:00Z',
@@ -302,8 +304,6 @@ describe('googleCalendar service', () => {
       mockRunTransaction.mockRejectedValueOnce(new Error('SLOT_TAKEN'));
       mockFetch.mockRejectedValueOnce(new Error('Delete request failed'));
 
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
       await expect(
         scheduleMeeting(
           'coach-123',
@@ -317,8 +317,8 @@ describe('googleCalendar service', () => {
         )
       ).rejects.toThrow('SLOT_TAKEN');
 
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      expect(logEvent).toHaveBeenCalledWith('error', 'google_api_delete_failure', {
+      expect(logger.error).toHaveBeenCalled();
+      expect(logger.telemetry).toHaveBeenCalledWith('error', 'google_api_delete_failure', {
         googleEventId: 'gcal-event-123',
         clientUid: 'client-123',
         coachUid: 'coach-123',
@@ -328,7 +328,6 @@ describe('googleCalendar service', () => {
         errorMessage: 'Google Calendar API event deletion failed.',
         error: 'Delete request failed'
       });
-      consoleErrorSpy.mockRestore();
     });
 
     it('handles recalculation failure in scheduleMeeting gracefully', async () => {
@@ -337,8 +336,6 @@ describe('googleCalendar service', () => {
 
       const { recalculateUserBusySlotsCache } = await import('../firebaseService');
       vi.mocked(recalculateUserBusySlotsCache).mockRejectedValueOnce(new Error('Recalc failed'));
-
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
       const result = await scheduleMeeting(
         'coach-123',
@@ -353,8 +350,7 @@ describe('googleCalendar service', () => {
 
       expect(result.id).toBe('coach-123_2026-06-18T10:00:00Z');
       await new Promise<void>(resolve => queueMicrotask(() => resolve()));
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      consoleErrorSpy.mockRestore();
+      expect(logger.error).toHaveBeenCalled();
     });
 
     it('executes transaction and throws SLOT_TAKEN if booking already exists', async () => {
@@ -454,8 +450,6 @@ describe('googleCalendar service', () => {
     it('retries transaction on transient failure and eventually succeeds', async () => {
       vi.mocked(getGoogleToken).mockReturnValue(null);
       
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      
       let attemptCount = 0;
       mockRunTransaction.mockImplementation(async (_db, callback) => {
         attemptCount++;
@@ -483,9 +477,7 @@ describe('googleCalendar service', () => {
 
       expect(result.id).toBe('coach-123_2026-06-18T10:00:00Z');
       expect(attemptCount).toBe(2);
-      expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
-      
-      consoleWarnSpy.mockRestore();
+      expect(logger.warn).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -512,7 +504,7 @@ describe('googleCalendar service', () => {
       expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
       expect(mockDeleteDoc).toHaveBeenCalledTimes(1);
       expect(mockFetch).not.toHaveBeenCalled();
-      expect(logEvent).toHaveBeenCalledWith('info', 'booking_cancellation', {
+      expect(logger.telemetry).toHaveBeenCalledWith('info', 'booking_cancellation', {
         bookingId: 'booking-123',
         clientUid: 'client-123',
         coachUid: undefined,
@@ -564,12 +556,9 @@ describe('googleCalendar service', () => {
       mockUpdateDoc.mockResolvedValue(undefined);
       mockDeleteDoc.mockRejectedValueOnce(new Error('Delete doc error'));
 
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
       await cancelBooking('booking-123');
 
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      consoleErrorSpy.mockRestore();
+      expect(logger.error).toHaveBeenCalled();
     });
 
     it('handles google event delete fetch failure gracefully', async () => {
@@ -590,12 +579,10 @@ describe('googleCalendar service', () => {
       mockDeleteDoc.mockResolvedValue(undefined);
       mockFetch.mockRejectedValueOnce(new Error('Delete fetch failed'));
 
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
       await cancelBooking('booking-123');
 
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      expect(logEvent).toHaveBeenCalledWith('error', 'google_api_delete_failure', {
+      expect(logger.error).toHaveBeenCalled();
+      expect(logger.telemetry).toHaveBeenCalledWith('error', 'google_api_delete_failure', {
         googleEventId: 'gcal-event-123',
         clientUid: 'client-123',
         coachUid: undefined,
@@ -605,7 +592,6 @@ describe('googleCalendar service', () => {
         errorMessage: 'Google Calendar API event deletion failed.',
         error: 'Delete fetch failed'
       });
-      consoleErrorSpy.mockRestore();
     });
   });
 
@@ -675,11 +661,9 @@ describe('googleCalendar service', () => {
       mockFetch.mockRejectedValue(new Error('Network failure'));
       mockGetDocs.mockResolvedValue({ docs: [] });
 
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const events = await getUpcomingEvents();
-      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalled();
       expect(events).toEqual([]);
-      consoleErrorSpy.mockRestore();
     });
 
     it('handles non-existent user profile in getUpcomingEvents gracefully', async () => {
@@ -716,11 +700,9 @@ describe('googleCalendar service', () => {
       vi.mocked(getGoogleToken).mockReturnValue(null);
       mockGetDocs.mockRejectedValueOnce(new Error('Firestore query failed'));
 
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const events = await getUpcomingEvents();
-      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalled();
       expect(events).toEqual([]);
-      consoleErrorSpy.mockRestore();
     });
   });
 
@@ -796,11 +778,9 @@ describe('googleCalendar service', () => {
       mockGetDoc.mockResolvedValue({ exists: () => false });
 
       const coaches = [{ userId: 'coach-1', email: 'coach@example.com' }] as any[];
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const result = await getCoachesBusySlots(coaches, '2026-06-18T00:00:00Z', '2026-06-25T00:00:00Z');
-      expect(consoleErrorSpy).toHaveBeenCalled();
+      expect(logger.error).toHaveBeenCalled();
       expect(result['coach-1']).toBeDefined();
-      consoleErrorSpy.mockRestore();
     });
 
     it('handles busy slots cache query chunk rejection gracefully', async () => {
@@ -808,7 +788,6 @@ describe('googleCalendar service', () => {
       mockGetDocs.mockRejectedValueOnce(new Error('Chunk query failed'));
 
       const coaches = [{ userId: 'coach-1', email: 'coach@example.com' }] as any[];
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       
       mockGetDoc.mockImplementation(async (ref: any) => {
         if (ref.path.endsWith('availableDays')) {
@@ -818,15 +797,14 @@ describe('googleCalendar service', () => {
       });
 
       const result = await getCoachesBusySlots(coaches, '2026-06-18T00:00:00Z', '2026-06-25T00:00:00Z');
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      expect(logEvent).toHaveBeenCalledWith('error', 'cache_query_failure', {
+      expect(logger.error).toHaveBeenCalled();
+      expect(logger.telemetry).toHaveBeenCalledWith('error', 'cache_query_failure', {
         uids: ['coach-1'],
         errorCode: 'CACHE_QUERY_FAILURE',
         errorMessage: 'Failed to query user busy slots cache chunks.',
         error: 'Chunk query failed'
       });
       expect(result['coach-1']).toBeDefined();
-      consoleErrorSpy.mockRestore();
     });
   });
 
