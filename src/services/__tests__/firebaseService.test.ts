@@ -674,4 +674,43 @@ describe('firebaseService', () => {
       consoleErrorSpy.mockRestore();
     });
   });
+
+  describe('emulator connection error handling', () => {
+    it('logs error if connectAuthEmulator throws', async () => {
+      vi.resetModules();
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const { connectAuthEmulator } = await import('firebase/auth');
+      vi.mocked(connectAuthEmulator).mockImplementationOnce(() => {
+        throw new Error('Emulator connection failed');
+      });
+
+      if (typeof window !== 'undefined') {
+        window._firebase_emulators_connected = false;
+      }
+
+      await import('../firebaseService');
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to connect to emulators:', expect.any(Error));
+      consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('Firebase configuration validation', () => {
+    it('logs error in dev mode if config is missing and emulator is disabled', async () => {
+      vi.resetModules();
+      vi.stubEnv('VITE_USE_FIREBASE_EMULATOR', 'false');
+      vi.stubEnv('VITE_FIREBASE_API_KEY', '');
+      vi.stubEnv('VITE_FIREBASE_PROJECT_ID', '');
+      vi.stubEnv('VITE_FIREBASE_MESSAGING_SENDER_ID', '');
+      vi.stubEnv('VITE_FIREBASE_APP_ID', '');
+
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      await import('../firebaseService');
+
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
+      vi.unstubAllEnvs();
+    });
+  });
 });

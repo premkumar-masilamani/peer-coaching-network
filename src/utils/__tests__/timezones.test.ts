@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect } from 'vitest';
-import { COUNTRY_TIMEZONE_MAP, getFormattedTimezones, getTimezonesForCountry } from '../timezones';
+import { COUNTRY_TIMEZONE_MAP, getFormattedTimezones, getTimezonesForCountry, getTimezoneCode } from '../timezones';
 
 describe('timezones', () => {
   it('exports a country timezone map record', () => {
@@ -76,6 +76,32 @@ describe('timezones', () => {
     it('returns all formatted timezones if country is not found in map', () => {
       const all = getFormattedTimezones();
       expect(getTimezonesForCountry('NonExistentCountry')).toEqual(all);
+    });
+  });
+
+  describe('getTimezoneCode', () => {
+    it('returns timezone code abbreviation', () => {
+      const date = new Date(2026, 5, 18);
+      const code = getTimezoneCode(date, 'America/New_York');
+      expect(['EDT', 'EST', 'America/New_York']).toContain(code);
+    });
+
+    it('falls back to timezone name if timezoneName part is missing', () => {
+      const date = new Date(2026, 5, 18);
+      const originalFormatToParts = Intl.DateTimeFormat.prototype.formatToParts;
+      Intl.DateTimeFormat.prototype.formatToParts = function() {
+        return [{ type: 'literal', value: 'foo' }];
+      };
+      try {
+        expect(getTimezoneCode(date, 'America/New_York')).toBe('America/New_York');
+      } finally {
+        Intl.DateTimeFormat.prototype.formatToParts = originalFormatToParts;
+      }
+    });
+
+    it('falls back to timezone name on error', () => {
+      const date = new Date(2026, 5, 18);
+      expect(getTimezoneCode(date, 'Invalid/Tz')).toBe('Invalid/Tz');
     });
   });
 });
