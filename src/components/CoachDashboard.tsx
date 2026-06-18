@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { subscribeToActiveCoaches, formatDisplayName } from '../services/firebaseService';
+import { subscribeToActiveCoaches, formatDisplayName, subscribeToBookings } from '../services/firebaseService';
 import { getShortCredential, getCredentialBadgeClass, getCredentialDescription } from '../utils/credentials';
 import type { UserProfile } from '../services/firebaseService';
 import { 
@@ -9,6 +9,7 @@ import {
   cancelBooking
 } from '../services/googleCalendar';
 import type { CalendarEvent } from '../services/googleCalendar';
+import type { DocumentData } from 'firebase/firestore';
 import { ScheduleModal } from './ScheduleModal';
 import { 
   Filter, 
@@ -56,10 +57,82 @@ export const CoachDashboard: React.FC = () => {
   // List states
   const [coaches, setCoaches] = useState<UserProfile[]>([]);
   const [loadingCoaches, setLoadingCoaches] = useState(true);
-  const [coachesBusy, setCoachesBusy] = useState<Record<string, CalendarEvent[]>>({});
+  const [coachesBaseBusy, setCoachesBaseBusy] = useState<Record<string, CalendarEvent[]>>({});
   const [loadingCalendar, setLoadingCalendar] = useState(true);
-  const [userBusyEvents, setUserBusyEvents] = useState<CalendarEvent[]>([]);
+  const [userBaseBusyEvents, setUserBaseBusyEvents] = useState<CalendarEvent[]>([]);
+  const [liveBookings, setLiveBookings] = useState<DocumentData[]>([]);
   const [now] = useState(() => Date.now());
+
+  // Derive live coachesBusy and userBusyEvents states by combining the baseline data
+  // with the real-time bookings feed in-memory. See Issue 13.
+  const coachesBusy = useMemo(() => {
+    const result: Record<string, CalendarEvent[]> = {};
+    Object.keys(coachesBaseBusy).forEach(uid => {
+      result[uid] = [...coachesBaseBusy[uid]];
+    });
+    
+    const nowMs = now;
+    liveBookings.forEach(b => {
+      if (b.status === 'cancelled') return;
+      const startStr = b.startTime && typeof b.startTime.toDate === 'function' 
+        ? b.startTime.toDate().toISOString() 
+        : (b.startTime?.dateTime || b.startTime);
+      const endStr = b.endTime && typeof b.endTime.toDate === 'function' 
+        ? b.endTime.toDate().toISOString() 
+        : (b.endTime?.dateTime || b.endTime);
+      if (!startStr || !endStr) return;
+      if (new Date(endStr).getTime() < nowMs) return;
+      
+      const overlayForUid = (uid: string) => {
+        if (!(uid in result)) return;
+        const already = result[uid].some(e =>
+          new Date(e.start.dateTime).getTime() === new Date(startStr).getTime()
+        );
+        if (already) return;
+        result[uid].push({
+          id: `booking-${b.bookingId || `${uid}-${startStr}`}`,
+          summary: 'Busy',
+          start: { dateTime: startStr },
+          end: { dateTime: endStr }
+        });
+      };
+      overlayForUid(b.coachUid);
+      overlayForUid(b.clientUid);
+    });
+    return result;
+  }, [coachesBaseBusy, liveBookings, now]);
+
+  const userBusyEvents = useMemo(() => {
+    const baseGoogleEvents = userBaseBusyEvents.filter(e => e.type !== 'peer-coaching');
+    const currentUid = currentUser?.uid;
+    if (!currentUid) return baseGoogleEvents;
+    
+    const liveUserEvents: CalendarEvent[] = [];
+    liveBookings.forEach(b => {
+      if (b.status === 'cancelled') return;
+      if (b.coachUid !== currentUid && b.clientUid !== currentUid) return;
+      
+      const startStr = b.startTime && typeof b.startTime.toDate === 'function' 
+        ? b.startTime.toDate().toISOString() 
+        : (b.startTime?.dateTime || b.startTime);
+      const endStr = b.endTime && typeof b.endTime.toDate === 'function' 
+        ? b.endTime.toDate().toISOString() 
+        : (b.endTime?.dateTime || b.endTime);
+      if (!startStr || !endStr) return;
+      
+      liveUserEvents.push({
+        id: b.bookingId || `${currentUid}-${startStr}`,
+        summary: b.topic || 'Peer Coaching',
+        description: `Coaching session`,
+        start: { dateTime: startStr },
+        end: { dateTime: endStr },
+        type: 'peer-coaching',
+        meetLink: b.googleMeetLink
+      });
+    });
+    
+    return [...baseGoogleEvents, ...liveUserEvents];
+  }, [userBaseBusyEvents, liveBookings, currentUser]);
   
   // Tab states
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -131,6 +204,14 @@ export const CoachDashboard: React.FC = () => {
     return () => unsub();
   }, [currentUser]);
 
+  // Real-time bookings subscription to dynamically update coach availability and prevent race conditions. See Issue 13.
+  useEffect(() => {
+    const unsub = subscribeToBookings((bookingsList) => {
+      setLiveBookings(bookingsList);
+    });
+    return () => unsub();
+  }, []);
+
   // Load calendar availability for coaches + user upcoming sessions
   const loadCalendarData = async () => {
     if (coaches.length === 0) {
@@ -148,10 +229,10 @@ export const CoachDashboard: React.FC = () => {
       const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
 
       const availability = await getCoachesBusySlots(coaches, timeMin, timeMax);
-      setCoachesBusy(availability);
+      setCoachesBaseBusy(availability);
 
       const allEvents = await getUpcomingEvents();
-      setUserBusyEvents(allEvents);
+      setUserBaseBusyEvents(allEvents);
     } catch (e) {
       console.error('Error fetching dashboard calendar details:', e);
     } finally {
@@ -177,11 +258,11 @@ export const CoachDashboard: React.FC = () => {
 
         const availability = await getCoachesBusySlots(coaches, timeMin, timeMax);
         if (cancelled) return;
-        setCoachesBusy(availability);
+        setCoachesBaseBusy(availability);
 
         const allEvents = await getUpcomingEvents();
         if (cancelled) return;
-        setUserBusyEvents(allEvents);
+        setUserBaseBusyEvents(allEvents);
       } catch (e) {
         console.error('Error fetching dashboard calendar details:', e);
       } finally {
@@ -195,7 +276,7 @@ export const CoachDashboard: React.FC = () => {
   const handleBookingSuccess = (newEvent: CalendarEvent) => {
     if (activeBookingCoach) {
       const coachId = activeBookingCoach.userId;
-      setCoachesBusy(prev => {
+      setCoachesBaseBusy(prev => {
         const existing = prev[coachId] || [];
         if (existing.some(e => e.id === newEvent.id)) return prev;
         return {
@@ -205,7 +286,7 @@ export const CoachDashboard: React.FC = () => {
       });
     }
 
-    setUserBusyEvents(prev => {
+    setUserBaseBusyEvents(prev => {
       if (prev.some(e => e.id === newEvent.id)) return prev;
       return [...prev, newEvent];
     });

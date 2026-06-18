@@ -575,3 +575,17 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
     throw err;
   }
 };
+
+export const subscribeToBookings = (callback: (bookings: DocumentData[]) => void): (() => void) => {
+  if (!db) return () => {};
+  const q = query(collection(db, 'bookings'), where('status', '==', 'confirmed'));
+  return onSnapshot(q, (querySnap) => {
+    const list: DocumentData[] = [];
+    querySnap.forEach((doc) => {
+      list.push(doc.data());
+    });
+    callback(list);
+  }, (err) => {
+    console.error('Error in subscribeToBookings:', err);
+  });
+};
