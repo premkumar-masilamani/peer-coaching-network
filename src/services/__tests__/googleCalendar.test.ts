@@ -63,6 +63,20 @@ vi.mock('firebase/firestore', () => ({
   },
 }));
 
+const configMock = vi.hoisted(() => ({
+  ENABLE_GOOGLE_INTEGRATION: true,
+}));
+
+vi.mock('../../config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config')>();
+  return {
+    ...actual,
+    get ENABLE_GOOGLE_INTEGRATION() {
+      return configMock.ENABLE_GOOGLE_INTEGRATION;
+    },
+  };
+});
+
 vi.mock('../googleToken', () => ({
   getGoogleToken: vi.fn(() => 'mock_google_access_token'),
   setGoogleToken: vi.fn(),
@@ -85,6 +99,7 @@ vi.stubGlobal('fetch', mockFetch);
 describe('googleCalendar service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configMock.ENABLE_GOOGLE_INTEGRATION = true;
   });
 
   describe('scheduleMeeting', () => {
@@ -716,6 +731,74 @@ describe('googleCalendar service', () => {
       expect(consoleErrorSpy).toHaveBeenCalled();
       expect(result['coach-1']).toBeDefined();
       consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('when ENABLE_GOOGLE_INTEGRATION is false', () => {
+    beforeEach(() => {
+      configMock.ENABLE_GOOGLE_INTEGRATION = false;
+    });
+
+    it('scheduleMeeting skips Google event creation and succeeds locally', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      mockRunTransaction.mockResolvedValue(undefined);
+
+      const result = await scheduleMeeting(
+        'coach-123',
+        'coach@example.com',
+        'John Coach',
+        'client-123',
+        'Mock Client',
+        '2026-06-18T10:00:00Z',
+        '2026-06-18T11:00:00Z',
+        'Career Development'
+      );
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(result.id).toBe('coach-123_2026-06-18T10:00:00Z');
+      expect(result.meetLink).toContain('meet.google.com');
+    });
+
+    it('cancelBooking skips Google event deletion', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          bookingId: 'booking-123',
+          status: 'confirmed',
+          startTime: { toDate: () => new Date('2026-06-18T10:00:00Z') },
+          clientUid: 'client-123',
+          googleEventId: 'gcal-event-123'
+        })
+      });
+      mockUpdateDoc.mockResolvedValue(undefined);
+      mockDeleteDoc.mockResolvedValue(undefined);
+
+      await cancelBooking('booking-123');
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
+    });
+
+    it('getUpcomingEvents skips Google Calendar fetch', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      mockGetDocs.mockResolvedValue({ docs: [] });
+
+      const events = await getUpcomingEvents();
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(events).toEqual([]);
+    });
+
+    it('getCoachesBusySlots skips Google FreeBusy query', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      mockGetDocs.mockResolvedValue([]);
+      mockGetDoc.mockResolvedValue({ exists: () => false });
+
+      const coaches = [{ userId: 'coach-1', email: 'coach@example.com' }] as any[];
+      const result = await getCoachesBusySlots(coaches, '2026-06-18T00:00:00Z', '2026-06-25T00:00:00Z');
+      
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(result['coach-1']).toBeDefined();
     });
   });
 });

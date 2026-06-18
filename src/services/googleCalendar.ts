@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, d
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { getGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS } from '../config';
+import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION } from '../config';
 
 export interface CalendarEvent {
   id: string;
@@ -53,7 +53,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
   const seenIds = new Set<string>();
 
   // Try to load from Google Calendar if a valid token is present
-  if (token && token !== 'mock_google_access_token') {
+  if (ENABLE_GOOGLE_INTEGRATION && token && token !== 'mock_google_access_token') {
     try {
       const response = await fetch(
         'https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=' + new Date().toISOString() + '&singleEvents=true&orderBy=startTime',
@@ -214,7 +214,7 @@ export const scheduleMeeting = async (
   let googleEventId = `booking-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   let googleEventCreated = false;
 
-  if (token && token !== 'mock_google_access_token') {
+  if (ENABLE_GOOGLE_INTEGRATION && token && token !== 'mock_google_access_token') {
     try {
       const response = await fetch(
         'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1',
@@ -322,7 +322,7 @@ export const scheduleMeeting = async (
 
     if (!transactionSuccess) {
       // Cleanup Google Calendar event since Firestore save failed after all retries
-      if (googleEventCreated && token && token !== 'mock_google_access_token') {
+      if (googleEventCreated && ENABLE_GOOGLE_INTEGRATION && token && token !== 'mock_google_access_token') {
         try {
           await fetch(
             `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`,
@@ -392,7 +392,7 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
   }
 
   const token = getGoogleToken();
-  if (token && token !== 'mock_google_access_token' && data.googleEventId) {
+  if (ENABLE_GOOGLE_INTEGRATION && token && token !== 'mock_google_access_token' && data.googleEventId) {
     try {
       await fetch(
         `https://www.googleapis.com/calendar/v3/calendars/primary/events/${data.googleEventId}`,
@@ -538,7 +538,7 @@ export const getCoachesBusySlots = async (
   });
 
   // Try to load FreeBusy information from Google Calendar if a valid token is present
-  if (token && token !== 'mock_google_access_token') {
+  if (ENABLE_GOOGLE_INTEGRATION && token && token !== 'mock_google_access_token') {
     try {
       const response = await fetch(
         'https://www.googleapis.com/calendar/v3/freeBusy',
