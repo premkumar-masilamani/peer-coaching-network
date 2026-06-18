@@ -6,14 +6,15 @@ import {
   User,
   CheckCircle,
   BookOpen,
-  Globe
+  Globe,
+  LogOut
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
 import { formatDisplayName } from '../services/firebaseService';
 
 export const VerificationNotice: React.FC = () => {
-  const { user, profile, updateProfileDetails } = useAuth();
+  const { user, profile, updateProfileDetails, logout } = useAuth();
 
   // State for editable profile details
   const [gender, setGender] = useState<'Male' | 'Female' | 'Prefer not to say' | ''>(profile?.gender || '');
@@ -224,7 +225,20 @@ export const VerificationNotice: React.FC = () => {
 
           {/* Actions */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '24px' }}>
-            <div>
+            <button
+              type="button"
+              onClick={logout}
+              className="btn btn-outline-danger"
+              style={{
+                padding: '10px 16px',
+                borderRadius: '8px',
+              }}
+            >
+              <LogOut size={16} />
+              Sign Out
+            </button>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
               {successMsg && (
                 <div style={{
                   color: '#34d399',
@@ -237,16 +251,16 @@ export const VerificationNotice: React.FC = () => {
                   {successMsg}
                 </div>
               )}
-            </div>
 
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={saving}
-              style={{ minWidth: '150px' }}
-            >
-              {saving ? 'Saving...' : 'Save Profile Info'}
-            </button>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={saving}
+                style={{ minWidth: '150px' }}
+              >
+                {saving ? 'Saving...' : 'Save Profile Info'}
+              </button>
+            </div>
           </div>
         </form>
       </div>
