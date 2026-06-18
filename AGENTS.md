@@ -110,7 +110,7 @@ To prevent concurrent writes from interleaving and corrupting user busy slots ca
 ## 🔑 Google API & Calendar Specifics
 
 - **OAuth Permissions**: Google login requests scopes to manage calendar events (`https://www.googleapis.com/auth/calendar` and `https://www.googleapis.com/auth/calendar.events`).
-- **Sandbox Mode**: When Google token is absent, or contains the mock sentinel `'mock_google_access_token'`, all calendar integrations run in a fallback mode (persisting bookings only to Firestore).
+- **Sandbox Mode**: When Google token is absent, or when Google Calendar integration is disabled, all calendar integrations run in a fallback mode (persisting bookings only to Firestore).
 - **Google Meet Links**: Scheduled meetings send POST requests to the calendar API with the parameter `conferenceDataVersion=1` to generate a real Google Meet room.
 - **Bookings Sync**: Active bookings are queried by stable uids rather than emails in [googleCalendar.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/googleCalendar.ts) to prevent email mismatch issues.
 - **Automated Integration**: Google Calendar sync configuration is fully automated. The application requests Google Calendar permissions during sign-in, and all confirmed coaching sessions are automatically scheduled on the Google Calendar with an automatic Google Meet video room.
