@@ -9,6 +9,7 @@ import { AvailabilityEdit } from './components/AvailabilityEdit';
 import { AdminDashboard } from './components/AdminDashboard';
 import { LeftNav } from './components/LeftNav';
 import { MyBookings } from './components/MyBookings';
+import { SystemLogs } from './components/SystemLogs';
 import { isApproved } from './services/firebaseService';
 import { Sparkles } from 'lucide-react';
 
@@ -161,6 +162,7 @@ const AppContent: React.FC = () => {
             {currentTab === 'profile' && <ProfileEdit />}
             {currentTab === 'availability' && <AvailabilityEdit />}
             {currentTab === 'bookings' && <MyBookings />}
+            {currentTab === 'system-logs' && role === 'admin' && <SystemLogs />}
             {currentTab === 'admin' && role === 'admin' && (
               <AdminDashboard 
                 initialFilter={adminTabFilter} 

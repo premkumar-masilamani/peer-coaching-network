@@ -10,7 +10,8 @@ import {
   ChevronRight,
   Sun,
   Moon,
-  LogOut
+  LogOut,
+  Terminal
 } from 'lucide-react';
 
 interface LeftNavProps {
@@ -61,6 +62,20 @@ export const LeftNav: React.FC<LeftNavProps> = ({
               <Shield size={18} />
             </span>
             <span className="nav-text">Admin Panel</span>
+          </button>
+        )}
+
+        {/* System Logs */}
+        {isAdmin && (
+          <button
+            onClick={() => setCurrentTab('system-logs')}
+            className={`sidebar-nav-item ${currentTab === 'system-logs' ? 'active' : ''}`}
+            title={collapsed ? 'System Logs' : undefined}
+          >
+            <span className="nav-icon">
+              <Terminal size={18} />
+            </span>
+            <span className="nav-text">System Logs</span>
           </button>
         )}
 
