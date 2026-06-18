@@ -25,7 +25,7 @@ import {
   subscribeToBookings
 } from '../firebaseService';
 import { Timestamp } from 'firebase/firestore';
-import { logEvent } from '../loggingService';
+import { logger } from '../../utils/logger';
 
 // Mock all Firebase modules before importing
 vi.mock('firebase/app', () => ({
@@ -34,9 +34,14 @@ vi.mock('firebase/app', () => ({
   getApp: vi.fn(),
 }));
 
-vi.mock('../loggingService', () => ({
-  initializeLogger: vi.fn(),
-  logEvent: vi.fn(() => Promise.resolve()),
+vi.mock('../../utils/logger', () => ({
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    telemetry: vi.fn(() => Promise.resolve()),
+  },
 }));
 
 vi.mock('firebase/auth', () => ({
@@ -420,16 +425,14 @@ describe('firebaseService', () => {
 
     it('throws and logs error on recalculation failure', async () => {
       mockGetDoc.mockRejectedValue(new Error('DB connection lost'));
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       await expect(recalculateUserBusySlotsCache('user-123')).rejects.toThrow('DB connection lost');
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      expect(logEvent).toHaveBeenCalledWith('error', 'recalculation_failure', {
+      expect(logger.error).toHaveBeenCalled();
+      expect(logger.telemetry).toHaveBeenCalledWith('error', 'recalculation_failure', {
         userId: 'user-123',
         errorCode: 'RECALCULATION_FAILURE',
         errorMessage: 'Failed to recalculate user busy slots cache.',
         error: 'DB connection lost'
       });
-      consoleErrorSpy.mockRestore();
     });
   });
 
@@ -680,17 +683,15 @@ describe('firebaseService', () => {
       expect(callback).toHaveBeenCalledWith([{ bookingId: 'b-1' }]);
 
       // Trigger error callback (should log error, not throw)
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       errCb(new Error('Snap error'));
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      consoleErrorSpy.mockRestore();
+      expect(logger.error).toHaveBeenCalled();
     });
   });
 
   describe('emulator connection error handling', () => {
     it('logs error if connectAuthEmulator throws', async () => {
       vi.resetModules();
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.mocked(logger.error).mockClear();
       const { connectAuthEmulator } = await import('firebase/auth');
       vi.mocked(connectAuthEmulator).mockImplementationOnce(() => {
         throw new Error('Emulator connection failed');
@@ -702,26 +703,23 @@ describe('firebaseService', () => {
 
       await import('../firebaseService');
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith('Failed to connect to emulators:', expect.any(Error));
-      consoleErrorSpy.mockRestore();
+      expect(logger.error).toHaveBeenCalledWith('Failed to connect to emulators:', expect.any(Error));
     });
   });
 
   describe('Firebase configuration validation', () => {
     it('logs error in dev mode if config is missing and emulator is disabled', async () => {
       vi.resetModules();
+      vi.mocked(logger.error).mockClear();
       vi.stubEnv('VITE_USE_FIREBASE_EMULATOR', 'false');
       vi.stubEnv('VITE_FIREBASE_API_KEY', '');
       vi.stubEnv('VITE_FIREBASE_PROJECT_ID', '');
       vi.stubEnv('VITE_FIREBASE_MESSAGING_SENDER_ID', '');
       vi.stubEnv('VITE_FIREBASE_APP_ID', '');
 
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
       await import('../firebaseService');
 
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      consoleErrorSpy.mockRestore();
+      expect(logger.error).toHaveBeenCalled();
       vi.unstubAllEnvs();
     });
   });

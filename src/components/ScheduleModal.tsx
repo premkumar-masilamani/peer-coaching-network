@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { scheduleMeeting } from '../services/googleCalendar';
 import type { CalendarEvent } from '../services/googleCalendar';
+import { logger } from '../utils/logger';
 import type { UserProfile } from '../services/firebaseService';
 import { formatDisplayName } from '../services/firebaseService';
 import { sanitizeMeetLink } from '../utils/url';
@@ -84,7 +85,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         onBookingSuccess(event);
       }
     } catch (err) {
-      console.error(err);
+      logger.error('Failed to schedule meeting:', err);
       let message = 'Something went wrong while scheduling. Please try again.';
       if (err instanceof Error && err.message === 'SLOT_TAKEN') {
         message = 'Sorry, this slot was just scheduled by someone else. Please pick another time.';

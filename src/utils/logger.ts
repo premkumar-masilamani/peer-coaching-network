@@ -1,0 +1,75 @@
+import { getApps, getApp } from 'firebase/app';
+import { getFirestore, collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
+
+const LOG_LEVELS = {
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3
+} as const;
+
+type LogLevel = keyof typeof LOG_LEVELS;
+
+const getLogLevel = (): number => {
+  const envLevel = (import.meta.env.VITE_LOG_LEVEL || 'info').toLowerCase();
+  return LOG_LEVELS[envLevel as LogLevel] ?? LOG_LEVELS.info;
+};
+
+const shouldLog = (level: LogLevel): boolean => {
+  return LOG_LEVELS[level] >= getLogLevel();
+};
+
+export const logger = {
+  debug: (message: string, ...optionalParams: unknown[]): void => {
+    if (shouldLog('debug')) {
+      console.debug(message, ...optionalParams);
+    }
+  },
+
+  info: (message: string, ...optionalParams: unknown[]): void => {
+    if (shouldLog('info')) {
+      console.info(message, ...optionalParams);
+    }
+  },
+
+  warn: (message: string, ...optionalParams: unknown[]): void => {
+    if (shouldLog('warn')) {
+      console.warn(message, ...optionalParams);
+    }
+  },
+
+  error: (message: string, ...optionalParams: unknown[]): void => {
+    if (shouldLog('error')) {
+      console.error(message, ...optionalParams);
+    }
+  },
+
+  telemetry: async (
+    type: 'info' | 'warn' | 'error',
+    event: string,
+    details: Record<string, unknown> = {}
+  ): Promise<void> => {
+    try {
+      const apps = getApps();
+      if (apps.length === 0) return;
+      const app = getApp();
+      const db = getFirestore(app);
+      const auth = getAuth(app);
+      
+      const userId = auth.currentUser?.uid || null;
+      const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days TTL
+
+      await addDoc(collection(db, 'systemLogs'), {
+        type,
+        event,
+        userId,
+        details,
+        timestamp: serverTimestamp(),
+        expireAt: Timestamp.fromDate(expireAt)
+      });
+    } catch (err) {
+      console.error(`Failed to log telemetry event "${event}" to Firestore:`, err);
+    }
+  }
+};
