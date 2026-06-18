@@ -63,8 +63,22 @@ vi.mock('firebase/firestore', () => ({
   },
 }));
 
+const configMock = vi.hoisted(() => ({
+  ENABLE_GOOGLE_INTEGRATION: true,
+}));
+
+vi.mock('../../config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config')>();
+  return {
+    ...actual,
+    get ENABLE_GOOGLE_INTEGRATION() {
+      return configMock.ENABLE_GOOGLE_INTEGRATION;
+    },
+  };
+});
+
 vi.mock('../googleToken', () => ({
-  getGoogleToken: vi.fn(() => 'mock_google_access_token'),
+  getGoogleToken: vi.fn(() => null),
   setGoogleToken: vi.fn(),
   clearGoogleToken: vi.fn()
 }));
@@ -85,11 +99,12 @@ vi.stubGlobal('fetch', mockFetch);
 describe('googleCalendar service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configMock.ENABLE_GOOGLE_INTEGRATION = true;
   });
 
   describe('scheduleMeeting', () => {
-    it('runs in fallback/mock mode when google token is mock', async () => {
-      vi.mocked(getGoogleToken).mockReturnValue('mock_google_access_token');
+    it('runs in fallback mode when google token is absent', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue(null);
       mockRunTransaction.mockResolvedValue(undefined);
 
       const result = await scheduleMeeting(
@@ -244,7 +259,7 @@ describe('googleCalendar service', () => {
     });
 
     it('handles recalculation failure in scheduleMeeting gracefully', async () => {
-      vi.mocked(getGoogleToken).mockReturnValue('mock_google_access_token');
+      vi.mocked(getGoogleToken).mockReturnValue(null);
       mockRunTransaction.mockResolvedValue(undefined);
 
       const { recalculateUserBusySlotsCache } = await import('../firebaseService');
@@ -270,7 +285,7 @@ describe('googleCalendar service', () => {
     });
 
     it('executes transaction and throws SLOT_TAKEN if booking already exists', async () => {
-      vi.mocked(getGoogleToken).mockReturnValue('mock_google_access_token');
+      vi.mocked(getGoogleToken).mockReturnValue(null);
 
       mockRunTransaction.mockImplementationOnce(async (_db, callback) => {
         const mockTx = {
@@ -302,7 +317,7 @@ describe('googleCalendar service', () => {
     });
 
     it('executes transaction and throws SELF_CONFLICT if clientBookingCache exists', async () => {
-      vi.mocked(getGoogleToken).mockReturnValue('mock_google_access_token');
+      vi.mocked(getGoogleToken).mockReturnValue(null);
 
       mockRunTransaction.mockImplementationOnce(async (_db, callback) => {
         const mockTx = {
@@ -334,7 +349,7 @@ describe('googleCalendar service', () => {
     });
 
     it('executes transaction successfully and calls tx.set for booking and cache', async () => {
-      vi.mocked(getGoogleToken).mockReturnValue('mock_google_access_token');
+      vi.mocked(getGoogleToken).mockReturnValue(null);
 
       const mockTxSet = vi.fn();
       mockRunTransaction.mockImplementationOnce(async (_db, callback) => {
@@ -364,7 +379,7 @@ describe('googleCalendar service', () => {
     });
 
     it('retries transaction on transient failure and eventually succeeds', async () => {
-      vi.mocked(getGoogleToken).mockReturnValue('mock_google_access_token');
+      vi.mocked(getGoogleToken).mockReturnValue(null);
       
       const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
       
@@ -403,7 +418,7 @@ describe('googleCalendar service', () => {
 
   describe('cancelBooking', () => {
     it('cancels the booking in Firestore and releases client cache', async () => {
-      vi.mocked(getGoogleToken).mockReturnValue('mock_google_access_token');
+      vi.mocked(getGoogleToken).mockReturnValue(null);
       
       mockGetDoc.mockResolvedValueOnce({
         exists: () => true,
@@ -454,7 +469,7 @@ describe('googleCalendar service', () => {
     });
 
     it('handles deleteDoc failure in cancelBooking gracefully', async () => {
-      vi.mocked(getGoogleToken).mockReturnValue('mock_google_access_token');
+      vi.mocked(getGoogleToken).mockReturnValue(null);
       
       mockGetDoc.mockResolvedValueOnce({
         exists: () => true,
@@ -578,7 +593,7 @@ describe('googleCalendar service', () => {
     });
 
     it('handles non-existent user profile in getUpcomingEvents gracefully', async () => {
-      vi.mocked(getGoogleToken).mockReturnValue('mock_google_access_token');
+      vi.mocked(getGoogleToken).mockReturnValue(null);
       mockGetDocs.mockResolvedValueOnce({
         docs: [
           {
@@ -608,7 +623,7 @@ describe('googleCalendar service', () => {
     });
 
     it('handles Firestore query failure in getUpcomingEvents gracefully', async () => {
-      vi.mocked(getGoogleToken).mockReturnValue('mock_google_access_token');
+      vi.mocked(getGoogleToken).mockReturnValue(null);
       mockGetDocs.mockRejectedValueOnce(new Error('Firestore query failed'));
 
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -699,7 +714,7 @@ describe('googleCalendar service', () => {
     });
 
     it('handles busy slots cache query chunk rejection gracefully', async () => {
-      vi.mocked(getGoogleToken).mockReturnValue('mock_google_access_token');
+      vi.mocked(getGoogleToken).mockReturnValue(null);
       mockGetDocs.mockRejectedValueOnce(new Error('Chunk query failed'));
 
       const coaches = [{ userId: 'coach-1', email: 'coach@example.com' }] as any[];
@@ -716,6 +731,74 @@ describe('googleCalendar service', () => {
       expect(consoleErrorSpy).toHaveBeenCalled();
       expect(result['coach-1']).toBeDefined();
       consoleErrorSpy.mockRestore();
+    });
+  });
+
+  describe('when ENABLE_GOOGLE_INTEGRATION is false', () => {
+    beforeEach(() => {
+      configMock.ENABLE_GOOGLE_INTEGRATION = false;
+    });
+
+    it('scheduleMeeting skips Google event creation and succeeds locally', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      mockRunTransaction.mockResolvedValue(undefined);
+
+      const result = await scheduleMeeting(
+        'coach-123',
+        'coach@example.com',
+        'John Coach',
+        'client-123',
+        'Mock Client',
+        '2026-06-18T10:00:00Z',
+        '2026-06-18T11:00:00Z',
+        'Career Development'
+      );
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(result.id).toBe('coach-123_2026-06-18T10:00:00Z');
+      expect(result.meetLink).toContain('meet.google.com');
+    });
+
+    it('cancelBooking skips Google event deletion', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          bookingId: 'booking-123',
+          status: 'confirmed',
+          startTime: { toDate: () => new Date('2026-06-18T10:00:00Z') },
+          clientUid: 'client-123',
+          googleEventId: 'gcal-event-123'
+        })
+      });
+      mockUpdateDoc.mockResolvedValue(undefined);
+      mockDeleteDoc.mockResolvedValue(undefined);
+
+      await cancelBooking('booking-123');
+
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
+    });
+
+    it('getUpcomingEvents skips Google Calendar fetch', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      mockGetDocs.mockResolvedValue({ docs: [] });
+
+      const events = await getUpcomingEvents();
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(events).toEqual([]);
+    });
+
+    it('getCoachesBusySlots skips Google FreeBusy query', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      mockGetDocs.mockResolvedValue([]);
+      mockGetDoc.mockResolvedValue({ exists: () => false });
+
+      const coaches = [{ userId: 'coach-1', email: 'coach@example.com' }] as any[];
+      const result = await getCoachesBusySlots(coaches, '2026-06-18T00:00:00Z', '2026-06-25T00:00:00Z');
+      
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(result['coach-1']).toBeDefined();
     });
   });
 });
