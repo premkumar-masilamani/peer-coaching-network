@@ -323,6 +323,17 @@ p {
   background-color: hsl(0 84% 50%);
 }
 
+.btn-outline-danger {
+  background-color: transparent;
+  color: hsl(var(--danger));
+  border: 1px solid hsl(var(--danger) / 0.4);
+}
+
+.btn-outline-danger:hover {
+  background-color: hsl(var(--danger) / 0.08);
+  border-color: hsl(var(--danger));
+}
+
 .btn-disabled {
   background-color: var(--panel-hover-bg);
   color: hsl(var(--text-muted));

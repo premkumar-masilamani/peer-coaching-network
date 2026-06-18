@@ -228,20 +228,10 @@ export const VerificationNotice: React.FC = () => {
             <button
               type="button"
               onClick={logout}
-              className="btn"
+              className="btn btn-outline-danger"
               style={{
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.2)',
-                color: '#f87171',
                 padding: '10px 16px',
                 borderRadius: '8px',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                fontWeight: 600,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                transition: 'all 0.2s ease'
               }}
             >
               <LogOut size={16} />
