@@ -106,5 +106,11 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow write: if isOwner(uid);
     }
+
+    match /systemLogs/{logId} {
+      // Any signed-in user can submit logs, but only admins can read or manage them.
+      allow create: if isSignedIn();
+      allow read, update, delete: if isAdmin();
+    }
   }
 }

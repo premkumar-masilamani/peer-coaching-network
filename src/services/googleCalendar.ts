@@ -5,6 +5,8 @@ import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { getGoogleToken } from './googleToken';
 import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION } from '../config';
+import { logEvent } from './loggingService';
+import { TelemetryErrors } from '../config/telemetryErrors';
 
 export interface CalendarEvent {
   id: string;
@@ -80,6 +82,11 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
       }
     } catch (e) {
       console.error('Error fetching real Google Calendar events:', e);
+      await logEvent('error', 'fetch_events_failure', {
+        errorCode: TelemetryErrors.FETCH_EVENTS_FAILURE.code,
+        errorMessage: TelemetryErrors.FETCH_EVENTS_FAILURE.message,
+        error: e instanceof Error ? e.message : String(e)
+      });
     }
   }
 
@@ -206,6 +213,12 @@ export const scheduleMeeting = async (
   // same time. See BUG-004.
   const bookingId = `${coachUid}_${startIso}`;
 
+  await logEvent('info', 'booking_attempt', {
+    clientUid,
+    coachUid,
+    startIso,
+  });
+
   const currentUser = auth?.currentUser;
   const clientEmail = currentUser?.email || '';
   const resolvedClientName = currentUser?.displayName || clientName;
@@ -249,6 +262,14 @@ export const scheduleMeeting = async (
       googleEventCreated = true;
     } catch (e) {
       console.error('Error during Google Calendar event creation:', e);
+      await logEvent('error', 'google_api_create_failure', {
+        clientUid,
+        coachUid,
+        startIso,
+        errorCode: TelemetryErrors.GOOGLE_API_CREATE_FAILURE.code,
+        errorMessage: TelemetryErrors.GOOGLE_API_CREATE_FAILURE.message,
+        error: e instanceof Error ? e.message : String(e)
+      });
       if (e instanceof Error && (e as { code?: string }).code === 'GOOGLE_API_ERROR') {
         throw e;
       }
@@ -310,6 +331,17 @@ export const scheduleMeeting = async (
         lastError = err instanceof Error ? err : new Error(String(err));
         // If it's a logical error, do not retry!
         if (err instanceof Error && (err.message === 'SLOT_TAKEN' || err.message === 'SELF_CONFLICT')) {
+          const telemetryErr = err.message === 'SLOT_TAKEN'
+            ? TelemetryErrors.SLOT_TAKEN
+            : TelemetryErrors.CLIENT_CONFLICT;
+          await logEvent('warn', 'booking_conflict', {
+            clientUid,
+            coachUid,
+            startIso,
+            errorCode: telemetryErr.code,
+            errorMessage: telemetryErr.message,
+            reason: err.message,
+          });
           break;
         }
         console.warn(`Firestore transaction attempt ${attempts} failed:`, err);
@@ -321,6 +353,14 @@ export const scheduleMeeting = async (
     }
 
     if (!transactionSuccess) {
+      await logEvent('error', 'transaction_failure', {
+        clientUid,
+        coachUid,
+        startIso,
+        errorCode: TelemetryErrors.TRANSACTION_FAILURE.code,
+        errorMessage: TelemetryErrors.TRANSACTION_FAILURE.message,
+        error: lastError instanceof Error ? lastError.message : String(lastError)
+      });
       // Cleanup Google Calendar event since Firestore save failed after all retries
       if (googleEventCreated && ENABLE_GOOGLE_INTEGRATION && token) {
         try {
@@ -334,10 +374,25 @@ export const scheduleMeeting = async (
           console.log('Cleaned up Google Calendar event after Firestore transaction failure:', googleEventId);
         } catch (cleanupErr) {
           console.error('Failed to cleanup Google Calendar event:', cleanupErr);
+          await logEvent('error', 'google_api_delete_failure', {
+            googleEventId,
+            clientUid,
+            coachUid,
+            errorCode: TelemetryErrors.GOOGLE_API_DELETE_FAILURE.code,
+            errorMessage: TelemetryErrors.GOOGLE_API_DELETE_FAILURE.message,
+            error: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr)
+          });
         }
       }
       throw lastError || new Error('FAILED_TO_PERSIST');
     }
+
+    await logEvent('info', 'booking_success', {
+      clientUid,
+      coachUid,
+      startIso,
+      googleEventCreated,
+    });
 
     // Recalculate ONLY the current user's own busy slots cache. The other
     // participant's cache is owner-only now; their booked time is surfaced live
@@ -403,8 +458,23 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
       );
     } catch (e) {
       console.error('Error deleting Google Calendar event:', e);
+      await logEvent('error', 'google_api_delete_failure', {
+        googleEventId: data.googleEventId,
+        clientUid: data.clientUid,
+        coachUid: data.coachUid,
+        errorCode: TelemetryErrors.GOOGLE_API_DELETE_FAILURE.code,
+        errorMessage: TelemetryErrors.GOOGLE_API_DELETE_FAILURE.message,
+        error: e instanceof Error ? e.message : String(e)
+      });
     }
   }
+
+  await logEvent('info', 'booking_cancellation', {
+    bookingId,
+    clientUid: data.clientUid,
+    coachUid: data.coachUid,
+    startIso,
+  });
 
   const currentUid = auth?.currentUser?.uid;
   if (currentUid) {
@@ -574,6 +644,11 @@ export const getCoachesBusySlots = async (
       }
     } catch (e) {
       console.error('Error fetching real Google Calendar FreeBusy info:', e);
+      await logEvent('error', 'freebusy_api_failure', {
+        errorCode: TelemetryErrors.FREEBUSY_API_FAILURE.code,
+        errorMessage: TelemetryErrors.FREEBUSY_API_FAILURE.message,
+        error: e instanceof Error ? e.message : String(e)
+      });
     }
   }
 
@@ -594,6 +669,11 @@ export const getCoachesBusySlots = async (
     busySlotsCacheResults.forEach((res) => {
       if (res.status !== 'fulfilled') {
         console.error('Error fetching busy slots cache chunk:', res.reason);
+        logEvent('error', 'cache_query_failure', {
+          errorCode: TelemetryErrors.CACHE_QUERY_FAILURE.code,
+          errorMessage: TelemetryErrors.CACHE_QUERY_FAILURE.message,
+          error: res.reason instanceof Error ? res.reason.message : String(res.reason)
+        }).catch(err => console.error('Failed to log cache query failure:', err));
         return;
       }
       res.value.forEach((d) => {
