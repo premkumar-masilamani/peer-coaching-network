@@ -21,7 +21,7 @@ npm run preview   # Run a local web server previewing the production build folde
 ```
 
 > [!NOTE]
-> There is **no unit or integration testing framework** configured in this repository. Do not attempt to run `npm test` or equivalent commands.
+> There is a unit test suite configured in this repository. Run `npm run test` or `vitest run` to execute the tests.
 
 ---
 
@@ -131,6 +131,11 @@ Coaches select credentials representing their ICF level: ACC, PCC, or MCC.
 - **Flat Structure**: Components are stored flat within [components/](file:///Users/premkumar/Code/peer-coaching-network/src/components/).
 - **CSS Styling**: The layout utilizes inline styles combined with custom CSS variables specified in [index.css](file:///Users/premkumar/Code/peer-coaching-network/src/index.css). 
 - **Light/Dark Theme**: Themes are switched by appending or removing the class `.light-theme` on `document.documentElement` and reading/writing the `profile.theme` attribute.
+- **TypeScript & Import Conventions**:
+  - **Verbatim Module Syntax**: When importing type definitions, prefix them with the `type` keyword (e.g. `import { type UserRole, type UserStatus } from '../config'`) to comply with `verbatimModuleSyntax` and prevent build failures.
+- **Constant & Type Naming Conventions**:
+  - **No Hardcoded Options**: Fixed option values (roles, user statuses, themes, genders, qualifications, navigation tabs, and log severities) must never be hardcoded. They should reference centralized object constants in `src/config.ts` (e.g., `USER_ROLE`, `USER_STATUS`, `THEME`, `GENDER`, `QUALIFICATION`, `LOG_SEVERITY`, and `TABS`).
+  - **Suffix Consistency**: Union types derived from config option arrays must not use the `"Value"` suffix (e.g. use `Gender`, `Theme`, `Qualification`, `UserRole`, `UserStatus`, and `LogSeverity` consistently).
 - **Component Overview**:
   - [Header.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/Header.tsx): The top header layout.
   - [LeftNav.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/LeftNav.tsx): Side navigation menu.
