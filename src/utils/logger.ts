@@ -20,6 +20,8 @@ const shouldLog = (level: LogLevel): boolean => {
   return LOG_LEVELS[level] >= getLogLevel();
 };
 
+import { type LogSeverity } from '../config';
+
 export const logger = {
   debug: (message: string, ...optionalParams: unknown[]): void => {
     if (shouldLog('debug')) {
@@ -46,7 +48,7 @@ export const logger = {
   },
 
   telemetry: async (
-    type: 'info' | 'warn' | 'error',
+    type: LogSeverity,
     event: string,
     details: Record<string, unknown> = {}
   ): Promise<void> => {
