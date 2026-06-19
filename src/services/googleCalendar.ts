@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, d
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { getGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION } from '../config';
+import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION, LOG_SEVERITY } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -82,7 +82,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
       }
     } catch (e) {
       logger.error('Error fetching real Google Calendar events:', e);
-      await logger.telemetry('error', 'fetch_events_failure', {
+      await logger.telemetry(LOG_SEVERITY.ERROR, 'fetch_events_failure', {
         errorCode: TelemetryErrors.FETCH_EVENTS_FAILURE.code,
         errorMessage: TelemetryErrors.FETCH_EVENTS_FAILURE.message,
         error: e instanceof Error ? e.message : String(e)
@@ -214,7 +214,7 @@ export const scheduleMeeting = async (
   const bookingId = `${coachUid}_${startIso}`;
 
   logger.info(`Attempting to book session for client ${clientUid} with coach ${coachUid} at ${startIso}`);
-  await logger.telemetry('info', 'booking_attempt', {
+  await logger.telemetry(LOG_SEVERITY.INFO, 'booking_attempt', {
     clientUid,
     coachUid,
     startIso,
@@ -265,7 +265,7 @@ export const scheduleMeeting = async (
       googleEventCreated = true;
     } catch (e) {
       logger.error('Error during Google Calendar event creation:', e);
-      await logger.telemetry('error', 'google_api_create_failure', {
+      await logger.telemetry(LOG_SEVERITY.ERROR, 'google_api_create_failure', {
         clientUid,
         coachUid,
         startIso,
@@ -340,7 +340,7 @@ export const scheduleMeeting = async (
             ? TelemetryErrors.SLOT_TAKEN
             : TelemetryErrors.CLIENT_CONFLICT;
           logger.warn(`Booking collision: ${telemetryErr.message}`);
-          await logger.telemetry('warn', 'booking_conflict', {
+          await logger.telemetry(LOG_SEVERITY.WARN, 'booking_conflict', {
             clientUid,
             coachUid,
             startIso,
@@ -361,7 +361,7 @@ export const scheduleMeeting = async (
     }
 
     if (!transactionSuccess) {
-      await logger.telemetry('error', 'transaction_failure', {
+      await logger.telemetry(LOG_SEVERITY.ERROR, 'transaction_failure', {
         clientUid,
         coachUid,
         startIso,
@@ -384,7 +384,7 @@ export const scheduleMeeting = async (
           logger.info(`Cleaned up Google Calendar event after Firestore transaction failure: ${googleEventId}`);
         } catch (cleanupErr) {
           logger.error('Failed to cleanup Google Calendar event:', cleanupErr);
-          await logger.telemetry('error', 'google_api_delete_failure', {
+          await logger.telemetry(LOG_SEVERITY.ERROR, 'google_api_delete_failure', {
             googleEventId,
             clientUid,
             coachUid,
@@ -400,7 +400,7 @@ export const scheduleMeeting = async (
     }
 
     logger.info(`Successfully booked session. Booking ID: ${bookingId}`);
-    await logger.telemetry('info', 'booking_success', {
+    await logger.telemetry(LOG_SEVERITY.INFO, 'booking_success', {
       clientUid,
       coachUid,
       startIso,
@@ -474,7 +474,7 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
       );
     } catch (e) {
       logger.error('Error deleting Google Calendar event:', e);
-      await logger.telemetry('error', 'google_api_delete_failure', {
+      await logger.telemetry(LOG_SEVERITY.ERROR, 'google_api_delete_failure', {
         googleEventId: data.googleEventId,
         clientUid: data.clientUid,
         coachUid: data.coachUid,
@@ -488,7 +488,7 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
   }
 
   logger.info(`Successfully cancelled booking. Booking ID: ${bookingId}`);
-  await logger.telemetry('info', 'booking_cancellation', {
+  await logger.telemetry(LOG_SEVERITY.INFO, 'booking_cancellation', {
     bookingId,
     clientUid: data.clientUid,
     coachUid: data.coachUid,
@@ -664,7 +664,7 @@ export const getCoachesBusySlots = async (
       }
     } catch (e) {
       logger.error('Error fetching real Google Calendar FreeBusy info:', e);
-      await logger.telemetry('error', 'freebusy_api_failure', {
+      await logger.telemetry(LOG_SEVERITY.ERROR, 'freebusy_api_failure', {
         coachUids: coaches.map(c => c.userId),
         errorCode: TelemetryErrors.FREEBUSY_API_FAILURE.code,
         errorMessage: TelemetryErrors.FREEBUSY_API_FAILURE.message,
@@ -690,7 +690,7 @@ export const getCoachesBusySlots = async (
     busySlotsCacheResults.forEach((res, index) => {
       if (res.status !== 'fulfilled') {
         logger.error('Error fetching busy slots cache chunk:', res.reason);
-        logger.telemetry('error', 'cache_query_failure', {
+        logger.telemetry(LOG_SEVERITY.ERROR, 'cache_query_failure', {
           uids: uidChunks[index],
           errorCode: TelemetryErrors.CACHE_QUERY_FAILURE.code,
           errorMessage: TelemetryErrors.CACHE_QUERY_FAILURE.message,

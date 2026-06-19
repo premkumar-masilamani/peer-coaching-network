@@ -13,7 +13,7 @@ import {
   LogOut,
   Terminal
 } from 'lucide-react';
-import { type ThemeValue, TABS, type TabKey } from '../config';
+import { type ThemeValue, TABS, type TabKey, USER_ROLE, USER_STATUS, THEME } from '../config';
 
 interface LeftNavProps {
   currentTab: TabKey;
@@ -29,7 +29,7 @@ export const LeftNav: React.FC<LeftNavProps> = ({
   setCollapsed 
 }) => {
   const { profile, role, logout, updateProfileDetails } = useAuth();
-  const isAdmin = role === 'admin' && profile?.userStatus === 'active';
+  const isAdmin = role === USER_ROLE.ADMIN && profile?.userStatus === USER_STATUS.ACTIVE;
 
   const toggleCollapse = () => {
     const nextState = !collapsed;
@@ -122,8 +122,8 @@ export const LeftNav: React.FC<LeftNavProps> = ({
         <button
           onClick={async () => {
             // Treat any value other than 'light' (incl. legacy 'system') as 'dark'
-            const currentTheme: ThemeValue = profile?.theme === 'light' ? 'light' : 'dark';
-            const nextTheme: ThemeValue = currentTheme === 'light' ? 'dark' : 'light';
+            const currentTheme: ThemeValue = profile?.theme === THEME.LIGHT ? THEME.LIGHT : THEME.DARK;
+            const nextTheme: ThemeValue = currentTheme === THEME.LIGHT ? THEME.DARK : THEME.LIGHT;
             try {
               await updateProfileDetails({ theme: nextTheme });
             } catch (err) {
@@ -132,13 +132,13 @@ export const LeftNav: React.FC<LeftNavProps> = ({
           }}
           className="sidebar-nav-item"
           style={{ cursor: 'pointer' }}
-          title={collapsed ? (profile?.theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode') : undefined}
+          title={collapsed ? (profile?.theme === THEME.LIGHT ? 'Switch to Dark Mode' : 'Switch to Light Mode') : undefined}
         >
           <span className="nav-icon">
-            {profile?.theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+            {profile?.theme === THEME.LIGHT ? <Moon size={18} /> : <Sun size={18} />}
           </span>
           <span className="nav-text">
-            {profile?.theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+            {profile?.theme === THEME.LIGHT ? 'Dark Mode' : 'Light Mode'}
           </span>
         </button>
 

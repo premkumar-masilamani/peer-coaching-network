@@ -12,7 +12,7 @@ import { MyBookings } from './components/MyBookings';
 import { SystemLogs } from './components/SystemLogs';
 import { isApproved } from './services/firebaseService';
 import { Sparkles, AlertTriangle, X } from 'lucide-react';
-import { TABS, type TabKey } from './config';
+import { TABS, type TabKey, type UserRole, USER_ROLE, THEME } from './config';
 
 // Fields that matter for the non-blocking profile-complete banner.
 // Returns a list of human-readable missing field names.
@@ -27,7 +27,7 @@ const getMissingProfileFields = (profile: ReturnType<typeof useAuth>['profile'])
 const AppContent: React.FC = () => {
   const { user, role, loading, profile } = useAuth();
   const [currentTab, setCurrentTab] = useState<TabKey>(TABS.DASHBOARD);
-  const [adminTabFilter, setAdminTabFilter] = useState<'all' | 'pending' | 'user' | 'admin'>('all');
+  const [adminTabFilter, setAdminTabFilter] = useState<'all' | typeof TABS.PENDING | UserRole>('all');
   const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
     const saved = localStorage.getItem('peer-coaching-nav-collapsed');
     return saved ? JSON.parse(saved) : true;
@@ -42,7 +42,7 @@ const AppContent: React.FC = () => {
   // Sync theme with document class — only 'light' and 'dark' are supported.
   // Legacy 'system' values stored in Firestore are treated as 'dark'.
   useEffect(() => {
-    if (profile?.theme === 'light') {
+    if (profile?.theme === THEME.LIGHT) {
       document.documentElement.classList.add('light-theme');
     } else {
       document.documentElement.classList.remove('light-theme');
@@ -63,7 +63,7 @@ const AppContent: React.FC = () => {
     setBannerDismissed(false);
   }
 
-  const approved = isApproved(profile) && (role === 'admin' || role === 'user');
+  const approved = isApproved(profile) && (role === USER_ROLE.ADMIN || role === USER_ROLE.USER);
 
   // Route to the default panel when approval state transitions, using React's
   // recommended "adjust state during render" pattern rather than an effect (no
@@ -236,8 +236,8 @@ const AppContent: React.FC = () => {
             {currentTab === TABS.PROFILE && <ProfileEdit />}
             {currentTab === TABS.AVAILABILITY && <AvailabilityEdit />}
             {currentTab === TABS.BOOKINGS && <MyBookings />}
-            {currentTab === TABS.SYSTEM_LOGS && role === 'admin' && <SystemLogs />}
-            {currentTab === TABS.ADMIN && role === 'admin' && (
+            {currentTab === TABS.SYSTEM_LOGS && role === USER_ROLE.ADMIN && <SystemLogs />}
+            {currentTab === TABS.ADMIN && role === USER_ROLE.ADMIN && (
               <AdminDashboard
                 initialFilter={adminTabFilter}
                 setInitialFilter={setAdminTabFilter}

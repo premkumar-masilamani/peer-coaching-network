@@ -22,18 +22,18 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
-import { type QualificationValue, type UserRole, type UserStatus, QUALIFICATION_OPTIONS } from '../config';
+import { type QualificationValue, type UserRole, type UserStatus, QUALIFICATION_OPTIONS, USER_ROLE, USER_STATUS, TABS } from '../config';
 
 interface AdminDashboardProps {
-  initialFilter?: 'all' | 'pending' | UserRole;
-  setInitialFilter?: (filter: 'all' | 'pending' | UserRole) => void;
+  initialFilter?: 'all' | typeof TABS.PENDING | UserRole;
+  setInitialFilter?: (filter: 'all' | typeof TABS.PENDING | UserRole) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 'all', setInitialFilter }) => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'all' | 'pending' | UserRole>(initialFilter);
+  const [roleFilter, setRoleFilter] = useState<'all' | typeof TABS.PENDING | UserRole>(initialFilter);
   const [selectedCoachUid, setSelectedCoachUid] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [approvalModalData, setApprovalModalData] = useState<{
@@ -136,7 +136,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
     fetchMeetings();
   }, [selectedCoachUid, users]);
 
-  const handleTabChange = (filter: 'all' | 'pending' | 'user' | 'admin') => {
+  const handleTabChange = (filter: 'all' | typeof TABS.PENDING | UserRole) => {
     setRoleFilter(filter);
     if (setInitialFilter) {
       setInitialFilter(filter);
@@ -166,8 +166,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
 
 
   // Canonical role/status resolution lives in the service layer. See BUG-012.
-  const getUserRole = (u: UserProfile): 'user' | 'admin' => getEffectiveRole(u);
-  const getUserStatus = (u: UserProfile): 'active' | 'inactive' => getEffectiveStatus(u);
+  const getUserRole = (u: UserProfile): UserRole => getEffectiveRole(u);
+  const getUserStatus = (u: UserProfile): UserStatus => getEffectiveStatus(u);
 
   const triggerApprove = (uid: string) => {
     const userToSave = users.find(u => u.userId === uid);
@@ -248,14 +248,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
 
     const matchesRole =
       roleFilter === 'all' ? true :
-        roleFilter === 'pending' ? getUserStatus(u) === 'inactive' :
-          roleFilter === 'user' ? (getUserRole(u) === 'user' && getUserStatus(u) === 'active') :
-            roleFilter === 'admin' ? (getUserRole(u) === 'admin' && getUserStatus(u) === 'active') : true;
+        roleFilter === TABS.PENDING ? getUserStatus(u) === USER_STATUS.INACTIVE :
+          roleFilter === USER_ROLE.USER ? (getUserRole(u) === USER_ROLE.USER && getUserStatus(u) === USER_STATUS.ACTIVE) :
+            roleFilter === USER_ROLE.ADMIN ? (getUserRole(u) === USER_ROLE.ADMIN && getUserStatus(u) === USER_STATUS.ACTIVE) : true;
 
     return matchesSearch && matchesRole;
   });
 
-  const pendingCount = users.filter(u => getUserStatus(u) === 'inactive').length;
+  const pendingCount = users.filter(u => getUserStatus(u) === USER_STATUS.INACTIVE).length;
 
   // If the selected coach vanished from the list, drop back to the list view.
   // Adjust-during-render (converges once selectedCoachUid is cleared) — avoids
@@ -316,8 +316,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
             )}
 
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'center', marginBottom: '20px' }}>
-              <span className={`badge ${getUserStatus(coach) === 'active' ? 'badge-user' : 'badge-pending'}`}>
-                {getUserStatus(coach) === 'active' ? 'Active' : 'Inactive'}
+              <span className={`badge ${getUserStatus(coach) === USER_STATUS.ACTIVE ? 'badge-user' : 'badge-pending'}`}>
+                {getUserStatus(coach) === USER_STATUS.ACTIVE ? 'Active' : 'Inactive'}
               </span>
               <span className="badge badge-admin" style={{ textTransform: 'capitalize' }}>
                 {getUserRole(coach)}
@@ -484,7 +484,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between', alignItems: 'center' }}>
           {/* Tabs */}
           <div style={{ display: 'flex', gap: '8px' }}>
-            {(['all', 'pending', 'user', 'admin'] as const).map((filter) => (
+            {(['all', TABS.PENDING, USER_ROLE.USER, USER_ROLE.ADMIN] as const).map((filter) => (
               <button
                 key={filter}
                 onClick={() => handleTabChange(filter)}
@@ -492,7 +492,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                 style={{ padding: '8px 16px', fontSize: '0.85rem', height: '36px' }}
               >
                 {filter.charAt(0).toUpperCase() + filter.slice(1)}
-                {filter === 'pending' && pendingCount > 0 && (
+                {filter === TABS.PENDING && pendingCount > 0 && (
                   <span style={{
                     background: 'hsl(var(--warning))',
                     color: 'black',
@@ -643,7 +643,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                           value={currentRole}
                           onClick={(e) => e.stopPropagation()}
                           onChange={(e) => {
-                            const newRole = e.target.value as 'user' | 'admin';
+                            const newRole = e.target.value as UserRole;
                             setDrafts(prev => ({
                               ...prev,
                               [u.userId]: {
@@ -662,8 +662,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                             background: 'var(--input-bg)'
                           }}
                         >
-                          <option value="user">User</option>
-                          <option value="admin">Admin</option>
+                          <option value={USER_ROLE.USER}>User</option>
+                          <option value={USER_ROLE.ADMIN}>Admin</option>
                         </select>
                       </td>
 
@@ -672,10 +672,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"
-                            checked={currentStatus === 'active'}
+                            checked={currentStatus === USER_STATUS.ACTIVE}
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => {
-                              const newStatus = e.target.checked ? 'active' : 'inactive';
+                              const newStatus = e.target.checked ? USER_STATUS.ACTIVE : USER_STATUS.INACTIVE;
                               setDrafts(prev => ({
                                 ...prev,
                                 [u.userId]: {
@@ -691,8 +691,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                               cursor: 'pointer'
                             }}
                           />
-                          <span className={`badge ${currentStatus === 'active' ? 'badge-user' : 'badge-pending'}`} style={{ fontSize: '0.75rem', padding: '2px 8px' }}>
-                            {currentStatus === 'active' ? 'Active' : 'Inactive'}
+                          <span className={`badge ${currentStatus === USER_STATUS.ACTIVE ? 'badge-user' : 'badge-pending'}`} style={{ fontSize: '0.75rem', padding: '2px 8px' }}>
+                            {currentStatus === USER_STATUS.ACTIVE ? 'Active' : 'Inactive'}
                           </span>
                         </label>
                       </td>

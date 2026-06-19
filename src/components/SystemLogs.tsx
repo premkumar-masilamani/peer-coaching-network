@@ -24,7 +24,7 @@ import {
   EyeOff 
 } from 'lucide-react';
 
-import { type LogSeverity } from '../config';
+import { type LogSeverity, LOG_SEVERITY } from '../config';
 
 // LogSeverity is imported from config — 'error' | 'warn' | 'info'
 
@@ -40,9 +40,9 @@ interface SystemLog {
 }
 
 const SEVERITY_OPTIONS: { value: LogSeverity; label: string }[] = [
-  { value: 'error', label: 'Errors' },
-  { value: 'warn',  label: 'Warnings' },
-  { value: 'info',  label: 'Info' },
+  { value: LOG_SEVERITY.ERROR, label: 'Errors' },
+  { value: LOG_SEVERITY.WARN,  label: 'Warnings' },
+  { value: LOG_SEVERITY.INFO,  label: 'Info' },
 ];
 
 export const SystemLogs: React.FC = () => {
@@ -162,21 +162,21 @@ export const SystemLogs: React.FC = () => {
 
   const getSeverityBadgeStyle = (type: LogSeverity) => {
     switch (type) {
-      case 'error':
+      case LOG_SEVERITY.ERROR:
         return {
           background: 'rgba(239, 68, 68, 0.12)',
           color: '#f87171',
           border: '1px solid rgba(239, 68, 68, 0.2)',
           icon: <AlertCircle size={14} style={{ marginRight: '6px' }} />
         };
-      case 'warn':
+      case LOG_SEVERITY.WARN:
         return {
           background: 'rgba(245, 158, 11, 0.12)',
           color: '#fbbf24',
           border: '1px solid rgba(245, 158, 11, 0.2)',
           icon: <TriangleAlert size={14} style={{ marginRight: '6px' }} />
         };
-      case 'info':
+      case LOG_SEVERITY.INFO:
       default:
         return {
           background: 'rgba(13, 148, 136, 0.12)',
@@ -212,20 +212,20 @@ export const SystemLogs: React.FC = () => {
     }
 
     switch (sev) {
-      case 'error':
+      case LOG_SEVERITY.ERROR:
         return { ...base, background: 'rgba(239, 68, 68, 0.18)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)' };
-      case 'warn':
+      case LOG_SEVERITY.WARN:
         return { ...base, background: 'rgba(245, 158, 11, 0.18)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.4)' };
-      case 'info':
+      case LOG_SEVERITY.INFO:
       default:
         return { ...base, background: 'rgba(13, 148, 136, 0.18)', color: '#2dd4bf', border: '1px solid rgba(13, 148, 136, 0.4)' };
     }
   };
 
   const severityChipIcons: Record<LogSeverity, React.ReactNode> = {
-    error: <AlertCircle size={13} />,
-    warn:  <TriangleAlert size={13} />,
-    info:  <Info size={13} />,
+    [LOG_SEVERITY.ERROR]: <AlertCircle size={13} />,
+    [LOG_SEVERITY.WARN]:  <TriangleAlert size={13} />,
+    [LOG_SEVERITY.INFO]:  <Info size={13} />,
   };
 
   return (

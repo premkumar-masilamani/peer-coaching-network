@@ -25,7 +25,7 @@ import {
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, type GenderValue, type ThemeValue, type QualificationValue, type UserRole, type UserStatus } from '../config';
+import { BOOKING_HORIZON_DAYS, type GenderValue, type ThemeValue, type QualificationValue, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -190,15 +190,15 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
       email,
       displayName,
       photoURL: result.user.photoURL,
-      userRole: 'user' as UserRole,
-      userStatus: 'inactive' as UserStatus,
+      userRole: USER_ROLE.USER,
+      userStatus: USER_STATUS.INACTIVE,
       qualifications: [] as QualificationValue[],
       gender: '' as unknown as GenderValue,
       country: '',
       bio: '',
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       createdAt: Timestamp.now(),
-      theme: 'light'
+      theme: THEME.LIGHT
     };
     await setDoc(userDocRef, newProfile);
 
@@ -268,15 +268,15 @@ export const updateOwnProfile = async (uid: string, updates: Partial<UserProfile
 
 // Canonical approval/role helpers — the single source of truth for user status and role.
 export const getEffectiveStatus = (p?: UserProfile | null): UserStatus => {
-  return p?.userStatus || 'inactive';
+  return p?.userStatus || USER_STATUS.INACTIVE;
 };
 
 export const getEffectiveRole = (p?: UserProfile | null): UserRole => {
-  return p?.userRole || 'user';
+  return p?.userRole || USER_ROLE.USER;
 };
 
 export const isApproved = (p?: UserProfile | null): boolean => {
-  return getEffectiveStatus(p) === 'active';
+  return getEffectiveStatus(p) === USER_STATUS.ACTIVE;
 };
 
 // Format a stored createdAt for display, accepting both Firestore Timestamps and legacy ISO strings.
@@ -307,7 +307,7 @@ export const subscribeToAllUsers = (callback: (users: UserProfile[]) => void): (
 // users-collection download for the dashboard (BUG-006). We filter on the
 // userStatus field.
 export const subscribeToActiveCoaches = (callback: (users: UserProfile[]) => void): (() => void) => {
-  const q = query(collection(db, 'users'), where('userStatus', '==', 'active'));
+  const q = query(collection(db, 'users'), where('userStatus', '==', USER_STATUS.ACTIVE));
   return onSnapshot(q, (querySnap) => {
     const users: UserProfile[] = [];
     querySnap.forEach((d) => users.push(d.data() as UserProfile));
@@ -318,7 +318,7 @@ export const subscribeToActiveCoaches = (callback: (users: UserProfile[]) => voi
 // Live count of pending (inactive) users — transfers only pending documents
 // rather than the whole collection just to derive a badge number (BUG-006).
 export const subscribeToPendingUsersCount = (callback: (count: number) => void): (() => void) => {
-  const q = query(collection(db, 'users'), where('userStatus', '==', 'inactive'));
+  const q = query(collection(db, 'users'), where('userStatus', '==', USER_STATUS.INACTIVE));
   return onSnapshot(q, (querySnap) => callback(querySnap.size));
 };
 
