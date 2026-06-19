@@ -9,6 +9,7 @@ import {
 } from '../googleCalendar';
 import { getGoogleToken } from '../googleToken';
 import { logger } from '../../utils/logger';
+import { BOOKING_STATUS } from '../../config';
 
 // vi.hoisted for variables accessed inside vi.mock
 const {
@@ -358,7 +359,7 @@ describe('googleCalendar service', () => {
         const mockTx = {
           get: vi.fn().mockImplementation(async (ref) => {
             if (ref.path.includes('bookings/')) {
-              return { exists: () => true, data: () => ({ status: 'confirmed' }) };
+              return { exists: () => true, data: () => ({ status: BOOKING_STATUS.CONFIRMED }) };
             }
             return { exists: () => false };
           }),
@@ -454,7 +455,7 @@ describe('googleCalendar service', () => {
         const mockTx = {
           get: vi.fn().mockImplementation(async (ref) => {
             if (ref.path.includes('bookings/client-123_2026-06-18T10:00:00Z')) {
-              return { exists: () => true, data: () => ({ status: 'confirmed' }) };
+              return { exists: () => true, data: () => ({ status: BOOKING_STATUS.CONFIRMED }) };
             }
             return { exists: () => false };
           }),
@@ -551,7 +552,7 @@ describe('googleCalendar service', () => {
         exists: () => true,
         data: () => ({
           bookingId: 'booking-123',
-          status: 'confirmed',
+          status: BOOKING_STATUS.CONFIRMED,
           startTime: { toDate: () => new Date('2026-06-18T10:00:00Z') },
           clientUid: 'client-123',
           googleEventId: 'gcal-event-123'
@@ -582,7 +583,7 @@ describe('googleCalendar service', () => {
         exists: () => true,
         data: () => ({
           bookingId: 'booking-123',
-          status: 'confirmed',
+          status: BOOKING_STATUS.CONFIRMED,
           startTime: { toDate: () => new Date('2026-06-18T10:00:00Z') },
           clientUid: 'client-123',
           googleEventId: 'gcal-event-123'
@@ -609,7 +610,7 @@ describe('googleCalendar service', () => {
         exists: () => true,
         data: () => ({
           bookingId: 'booking-123',
-          status: 'confirmed',
+          status: BOOKING_STATUS.CONFIRMED,
           startTime: { toDate: () => new Date('2026-06-18T10:00:00Z') },
           clientUid: 'client-123',
         })
@@ -630,7 +631,7 @@ describe('googleCalendar service', () => {
         exists: () => true,
         data: () => ({
           bookingId: 'booking-123',
-          status: 'confirmed',
+          status: BOOKING_STATUS.CONFIRMED,
           startTime: { toDate: () => new Date('2026-06-18T10:00:00Z') },
           clientUid: 'client-123',
           googleEventId: 'gcal-event-123'
@@ -680,7 +681,7 @@ describe('googleCalendar service', () => {
           {
             data: () => ({
               bookingId: 'booking-1',
-              status: 'confirmed',
+              status: BOOKING_STATUS.CONFIRMED,
               startTime: '2026-06-21T10:00:00Z',
               endTime: '2026-06-21T11:00:00Z',
               coachUid: 'coach-123',
@@ -691,7 +692,7 @@ describe('googleCalendar service', () => {
           {
             data: () => ({
               bookingId: 'booking-cancelled',
-              status: 'cancelled',
+              status: BOOKING_STATUS.CANCELLED,
               startTime: '2026-06-21T12:00:00Z',
               endTime: '2026-06-21T13:00:00Z',
             })
@@ -735,7 +736,7 @@ describe('googleCalendar service', () => {
           {
             data: () => ({
               bookingId: 'booking-2',
-              status: 'confirmed',
+              status: BOOKING_STATUS.CONFIRMED,
               startTime: '2026-06-21T10:00:00Z',
               endTime: '2026-06-21T11:00:00Z',
               coachUid: 'coach-not-exist',
@@ -901,7 +902,7 @@ describe('googleCalendar service', () => {
         exists: () => true,
         data: () => ({
           bookingId: 'booking-123',
-          status: 'confirmed',
+          status: BOOKING_STATUS.CONFIRMED,
           startTime: { toDate: () => new Date('2026-06-18T10:00:00Z') },
           clientUid: 'client-123',
           googleEventId: 'gcal-event-123'

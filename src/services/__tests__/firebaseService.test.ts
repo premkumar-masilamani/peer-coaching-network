@@ -26,6 +26,7 @@ import {
 } from '../firebaseService';
 import { Timestamp } from 'firebase/firestore';
 import { logger } from '../../utils/logger';
+import { BOOKING_STATUS } from '../../config';
 
 // Mock all Firebase modules before importing
 vi.mock('firebase/app', () => ({
@@ -255,7 +256,7 @@ describe('firebaseService', () => {
           cb({
             data: () => ({
               bookingId: 'booking-active-1',
-              status: 'confirmed',
+              status: BOOKING_STATUS.CONFIRMED,
               startTime: '2026-06-25T14:00:00Z',
               endTime: '2026-06-25T15:00:00Z',
             })
@@ -264,7 +265,7 @@ describe('firebaseService', () => {
           cb({
             data: () => ({
               bookingId: 'booking-cancelled-1',
-              status: 'cancelled',
+              status: BOOKING_STATUS.CANCELLED,
               startTime: '2026-06-25T16:00:00Z',
               endTime: '2026-06-25T17:00:00Z',
             })
@@ -273,7 +274,7 @@ describe('firebaseService', () => {
           cb({
             data: () => ({
               bookingId: 'booking-finished-1',
-              status: 'confirmed',
+              status: BOOKING_STATUS.CONFIRMED,
               startTime: '2026-06-10T10:00:00Z',
               endTime: '2026-06-10T11:00:00Z',
             })
