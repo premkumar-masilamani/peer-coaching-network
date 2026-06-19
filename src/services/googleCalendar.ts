@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, d
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { getGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION, LOG_SEVERITY } from '../config';
+import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION, LOG_SEVERITY, BOOKING_STATUS } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -116,7 +116,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
       const processSnap = async (snap: QuerySnapshot<DocumentData>) => {
         for (const d of snap.docs) {
           const data = d.data();
-          if (data.status === 'cancelled') continue; // skip cancelled bookings (BUG-016)
+          if (data.status === BOOKING_STATUS.CANCELLED) continue; // skip cancelled bookings (BUG-016)
           // De-duplicate strictly by stable id, never by coincidental start time. See BUG-010.
           if (!seenIds.has(data.bookingId)) {
             seenIds.add(data.bookingId);
@@ -287,12 +287,14 @@ export const scheduleMeeting = async (
   if (db) {
     const bookingRef = doc(db, 'bookings', bookingId);
     const clientBookingCacheRef = doc(db, 'clientBookingCache', `${clientUid}_${startIso}`);
+    const coachAsClientRef = doc(db, 'clientBookingCache', `${coachUid}_${startIso}`);
+    const clientAsCoachRef = doc(db, 'bookings', `${clientUid}_${startIso}`);
 
     const bookingData = {
       bookingId,
       googleEventId,
       googleMeetLink: realMeetLink,
-      status: 'confirmed',
+      status: BOOKING_STATUS.CONFIRMED,
       startTime: Timestamp.fromDate(new Date(startIso)),
       endTime: Timestamp.fromDate(new Date(endIso)),
       topic,
@@ -310,14 +312,31 @@ export const scheduleMeeting = async (
       attempts++;
       try {
         await runTransaction(db, async (tx) => {
-          const existing = await tx.get(bookingRef);
-          if (existing.exists() && existing.data()?.status !== 'cancelled') {
+          const [
+            coachAsCoachDoc,
+            coachAsClientDoc,
+            clientAsClientDoc,
+            clientAsCoachDoc
+          ] = await Promise.all([
+            tx.get(bookingRef),
+            tx.get(coachAsClientRef),
+            tx.get(clientBookingCacheRef),
+            tx.get(clientAsCoachRef)
+          ]);
+
+          if (coachAsCoachDoc.exists() && coachAsCoachDoc.data()?.status !== BOOKING_STATUS.CANCELLED) {
             throw new Error('SLOT_TAKEN');
           }
-          const clientBookingCacheDoc = await tx.get(clientBookingCacheRef);
-          if (clientBookingCacheDoc.exists()) {
+          if (coachAsClientDoc.exists()) {
+            throw new Error('SLOT_TAKEN');
+          }
+          if (clientAsClientDoc.exists()) {
             throw new Error('SELF_CONFLICT');
           }
+          if (clientAsCoachDoc.exists() && clientAsCoachDoc.data()?.status !== BOOKING_STATUS.CANCELLED) {
+            throw new Error('SELF_CONFLICT');
+          }
+
           tx.set(bookingRef, bookingData);
           
           const startTimestamp = new Date(startIso);
@@ -448,7 +467,7 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
   if (!snap.exists()) return;
   const data = snap.data();
 
-  await updateDoc(ref, { status: 'cancelled', cancelledAt: Timestamp.now() });
+  await updateDoc(ref, { status: BOOKING_STATUS.CANCELLED, cancelledAt: Timestamp.now() });
 
   // Release the mentee's per-slot hold so that time can be rebooked. See BUG-003.
   const startIso = data.startTime && typeof data.startTime.toDate === 'function'
