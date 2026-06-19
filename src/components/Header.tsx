@@ -1,5 +1,5 @@
 import React from 'react';
-import { TABS, type TabKey, type UserRole, USER_ROLE } from '../config';
+import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, USER_STATUS } from '../config';
 import { useAuth } from '../context/AuthContext';
 import { Sparkles, Shield } from 'lucide-react';
 import { formatDisplayName, formatMemberSince, isApproved, subscribeToPendingUsersCount } from '../services/firebaseService';
@@ -8,7 +8,7 @@ import { sanitizeImageUrl } from '../utils/url';
 interface HeaderProps {
   currentTab: TabKey;
   setCurrentTab: (tab: TabKey) => void;
-  setAdminTabFilter?: (filter: 'all' | typeof TABS.PENDING | UserRole) => void;
+  setAdminTabFilter?: (filter: 'all' | UserStatus | UserRole) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter }) => {
@@ -77,7 +77,7 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
               onClick={() => {
                 setCurrentTab(TABS.ADMIN);
                 if (setAdminTabFilter) {
-                  setAdminTabFilter(TABS.PENDING);
+                  setAdminTabFilter(USER_STATUS.INACTIVE);
                 }
               }}
               style={{

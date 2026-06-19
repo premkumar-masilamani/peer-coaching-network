@@ -22,18 +22,18 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
-import { type QualificationValue, type UserRole, type UserStatus, QUALIFICATION_OPTIONS, USER_ROLE, USER_STATUS, TABS } from '../config';
+import { type QualificationValue, type UserRole, type UserStatus, QUALIFICATION_OPTIONS, USER_ROLE, USER_STATUS } from '../config';
 
 interface AdminDashboardProps {
-  initialFilter?: 'all' | typeof TABS.PENDING | UserRole;
-  setInitialFilter?: (filter: 'all' | typeof TABS.PENDING | UserRole) => void;
+  initialFilter?: 'all' | UserStatus | UserRole;
+  setInitialFilter?: (filter: 'all' | UserStatus | UserRole) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 'all', setInitialFilter }) => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'all' | typeof TABS.PENDING | UserRole>(initialFilter);
+  const [roleFilter, setRoleFilter] = useState<'all' | UserStatus | UserRole>(initialFilter);
   const [selectedCoachUid, setSelectedCoachUid] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [approvalModalData, setApprovalModalData] = useState<{
@@ -136,7 +136,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
     fetchMeetings();
   }, [selectedCoachUid, users]);
 
-  const handleTabChange = (filter: 'all' | typeof TABS.PENDING | UserRole) => {
+  const handleTabChange = (filter: 'all' | UserStatus | UserRole) => {
     setRoleFilter(filter);
     if (setInitialFilter) {
       setInitialFilter(filter);
@@ -248,7 +248,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
 
     const matchesRole =
       roleFilter === 'all' ? true :
-        roleFilter === TABS.PENDING ? getUserStatus(u) === USER_STATUS.INACTIVE :
+        roleFilter === USER_STATUS.INACTIVE ? getUserStatus(u) === USER_STATUS.INACTIVE :
           roleFilter === USER_ROLE.USER ? (getUserRole(u) === USER_ROLE.USER && getUserStatus(u) === USER_STATUS.ACTIVE) :
             roleFilter === USER_ROLE.ADMIN ? (getUserRole(u) === USER_ROLE.ADMIN && getUserStatus(u) === USER_STATUS.ACTIVE) : true;
 
@@ -484,15 +484,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between', alignItems: 'center' }}>
           {/* Tabs */}
           <div style={{ display: 'flex', gap: '8px' }}>
-            {(['all', TABS.PENDING, USER_ROLE.USER, USER_ROLE.ADMIN] as const).map((filter) => (
+            {(['all', USER_STATUS.INACTIVE, USER_ROLE.USER, USER_ROLE.ADMIN] as const).map((filter) => (
               <button
                 key={filter}
                 onClick={() => handleTabChange(filter)}
                 className={`btn ${roleFilter === filter ? 'btn-primary' : 'btn-secondary'}`}
                 style={{ padding: '8px 16px', fontSize: '0.85rem', height: '36px' }}
               >
-                {filter.charAt(0).toUpperCase() + filter.slice(1)}
-                {filter === TABS.PENDING && pendingCount > 0 && (
+                {filter === USER_STATUS.INACTIVE ? 'Pending Approval' : filter.charAt(0).toUpperCase() + filter.slice(1)}
+                {filter === USER_STATUS.INACTIVE && pendingCount > 0 && (
                   <span style={{
                     background: 'hsl(var(--warning))',
                     color: 'black',

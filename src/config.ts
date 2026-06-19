@@ -122,6 +122,5 @@ export const TABS = {
   BOOKINGS:     'bookings',
   ADMIN:        'admin',
   SYSTEM_LOGS:  'system-logs',
-  PENDING:      'pending',
 } as const;
 export type TabKey = (typeof TABS)[keyof typeof TABS];
