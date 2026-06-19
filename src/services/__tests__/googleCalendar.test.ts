@@ -389,8 +389,72 @@ describe('googleCalendar service', () => {
       mockRunTransaction.mockImplementationOnce(async (_db, callback) => {
         const mockTx = {
           get: vi.fn().mockImplementation(async (ref) => {
-            if (ref.path.includes('clientBookingCache/')) {
+            if (ref.path.includes('clientBookingCache/client-123')) {
               return { exists: () => true };
+            }
+            return { exists: () => false };
+          }),
+          set: vi.fn(),
+          update: vi.fn(),
+          delete: vi.fn(),
+        };
+        return callback(mockTx);
+      });
+
+      await expect(
+        scheduleMeeting(
+          'coach-123',
+          'coach@example.com',
+          'John Coach',
+          'client-123',
+          'Mock Client',
+          '2026-06-18T10:00:00Z',
+          '2026-06-18T11:00:00Z',
+          'Career Development'
+        )
+      ).rejects.toThrow('SELF_CONFLICT');
+    });
+
+    it('executes transaction and throws SLOT_TAKEN if coach is already booked as a client (coachAsClient exists)', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue(null);
+
+      mockRunTransaction.mockImplementationOnce(async (_db, callback) => {
+        const mockTx = {
+          get: vi.fn().mockImplementation(async (ref) => {
+            if (ref.path.includes('clientBookingCache/coach-123_2026-06-18T10:00:00Z')) {
+              return { exists: () => true };
+            }
+            return { exists: () => false };
+          }),
+          set: vi.fn(),
+          update: vi.fn(),
+          delete: vi.fn(),
+        };
+        return callback(mockTx);
+      });
+
+      await expect(
+        scheduleMeeting(
+          'coach-123',
+          'coach@example.com',
+          'John Coach',
+          'client-123',
+          'Mock Client',
+          '2026-06-18T10:00:00Z',
+          '2026-06-18T11:00:00Z',
+          'Career Development'
+        )
+      ).rejects.toThrow('SLOT_TAKEN');
+    });
+
+    it('executes transaction and throws SELF_CONFLICT if client is already booked as a coach (clientAsCoach exists)', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue(null);
+
+      mockRunTransaction.mockImplementationOnce(async (_db, callback) => {
+        const mockTx = {
+          get: vi.fn().mockImplementation(async (ref) => {
+            if (ref.path.includes('bookings/client-123_2026-06-18T10:00:00Z')) {
+              return { exists: () => true, data: () => ({ status: 'confirmed' }) };
             }
             return { exists: () => false };
           }),

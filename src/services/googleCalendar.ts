@@ -287,6 +287,8 @@ export const scheduleMeeting = async (
   if (db) {
     const bookingRef = doc(db, 'bookings', bookingId);
     const clientBookingCacheRef = doc(db, 'clientBookingCache', `${clientUid}_${startIso}`);
+    const coachAsClientRef = doc(db, 'clientBookingCache', `${coachUid}_${startIso}`);
+    const clientAsCoachRef = doc(db, 'bookings', `${clientUid}_${startIso}`);
 
     const bookingData = {
       bookingId,
@@ -310,14 +312,31 @@ export const scheduleMeeting = async (
       attempts++;
       try {
         await runTransaction(db, async (tx) => {
-          const existing = await tx.get(bookingRef);
+          const [
+            existing,
+            coachAsClientDoc,
+            clientBookingCacheDoc,
+            clientAsCoachDoc
+          ] = await Promise.all([
+            tx.get(bookingRef),
+            tx.get(coachAsClientRef),
+            tx.get(clientBookingCacheRef),
+            tx.get(clientAsCoachRef)
+          ]);
+
           if (existing.exists() && existing.data()?.status !== 'cancelled') {
             throw new Error('SLOT_TAKEN');
           }
-          const clientBookingCacheDoc = await tx.get(clientBookingCacheRef);
+          if (coachAsClientDoc.exists()) {
+            throw new Error('SLOT_TAKEN');
+          }
           if (clientBookingCacheDoc.exists()) {
             throw new Error('SELF_CONFLICT');
           }
+          if (clientAsCoachDoc.exists() && clientAsCoachDoc.data()?.status !== 'cancelled') {
+            throw new Error('SELF_CONFLICT');
+          }
+
           tx.set(bookingRef, bookingData);
           
           const startTimestamp = new Date(startIso);
