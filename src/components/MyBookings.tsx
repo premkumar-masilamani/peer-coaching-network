@@ -112,7 +112,7 @@ export const MyBookings: React.FC = () => {
             {upcoming.length === 0 ? (
               <div className="glass-panel" style={{ textAlign: 'center', padding: '48px 24px', color: 'hsl(var(--text-muted))' }}>
                 <Clock size={32} style={{ marginBottom: '12px', opacity: 0.4 }} />
-                <p style={{ fontSize: '0.9rem' }}>No upcoming sessions scheduled. Browse the Home tab to schedule a session with a peer coach.</p>
+                <p style={{ fontSize: '0.9rem' }}>No upcoming sessions scheduled. Browse the Dashboard to schedule a session with a peer coach.</p>
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }}>

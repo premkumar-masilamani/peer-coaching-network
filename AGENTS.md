@@ -21,7 +21,7 @@ npm run preview   # Run a local web server previewing the production build folde
 ```
 
 > [!NOTE]
-> There is **no unit or integration testing framework** configured in this repository. Do not attempt to run `npm test` or equivalent commands.
+> There is a unit test suite configured in this repository. Run `npm run test` or `vitest run` to execute the tests.
 
 ---
 
@@ -131,6 +131,11 @@ Coaches select credentials representing their ICF level: ACC, PCC, or MCC.
 - **Flat Structure**: Components are stored flat within [components/](file:///Users/premkumar/Code/peer-coaching-network/src/components/).
 - **CSS Styling**: The layout utilizes inline styles combined with custom CSS variables specified in [index.css](file:///Users/premkumar/Code/peer-coaching-network/src/index.css). 
 - **Light/Dark Theme**: Themes are switched by appending or removing the class `.light-theme` on `document.documentElement` and reading/writing the `profile.theme` attribute.
+- **TypeScript & Import Conventions**:
+  - **Verbatim Module Syntax**: When importing type definitions, prefix them with the `type` keyword (e.g. `import { type UserRole, type UserStatus } from '../config'`) to comply with `verbatimModuleSyntax` and prevent build failures.
+- **Constant & Type Naming Conventions**:
+  - **No Hardcoded Options**: Fixed option values (roles, user statuses, themes, genders, qualifications, navigation tabs, and log severities) must never be hardcoded. They should reference centralized object constants in `src/config.ts` (e.g., `USER_ROLE`, `USER_STATUS`, `THEME`, `GENDER`, `QUALIFICATION`, `LOG_SEVERITY`, and `TABS`).
+  - **Suffix Consistency**: Union types derived from config option arrays must not use the `"Value"` suffix (e.g. use `Gender`, `Theme`, `Qualification`, `UserRole`, `UserStatus`, and `LogSeverity` consistently).
 - **Component Overview**:
   - [Header.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/Header.tsx): The top header layout.
   - [LeftNav.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/LeftNav.tsx): Side navigation menu.
@@ -141,3 +146,71 @@ Coaches select credentials representing their ICF level: ACC, PCC, or MCC.
   - [AvailabilityEdit.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/AvailabilityEdit.tsx): Setup weekly templates and dates blocked.
   - [AdminDashboard.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/AdminDashboard.tsx): Admin desk allowing user status activation, role updates, and custom qualifications allocation.
   - [VerificationNotice.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/VerificationNotice.tsx): Panel shown to pending/inactive users.
+  - [SystemLogs.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/SystemLogs.tsx): Admin-only real-time log viewer paginating the `systemLogs` Firestore collection with multi-select severity filtering.
+
+---
+
+## 🎨 Theme System
+
+- **Supported values**: `'light' | 'dark'` only. The legacy `'system'` value (which wired a `prefers-color-scheme` media query listener) has been **removed**.
+- **New user default**: `theme: 'light'` is set on signup in `firebaseService.ts`.
+- **Application**: `App.tsx` applies/removes the `.light-theme` class on `document.documentElement`. Any stored value that is not `'light'` (including old `'system'` records) is treated as dark.
+- **Toggle**: `LeftNav.tsx` flips between `'light'` and `'dark'` directly. Treat any non-`'light'` stored value as `'dark'` before computing the next state.
+
+---
+
+## 🗺 Navigation Tab Keys
+
+Tab keys are lowercase slugs set via `setCurrentTab`. The human-readable label and the key can differ — always use the **key** for routing logic, never the label.
+
+| Key | Label | Component |
+|---|---|---|
+| `'dashboard'` | Dashboard | `CoachDashboard` |
+| `'profile'` | My Profile | `ProfileEdit` |
+| `'availability'` | My Availability | `AvailabilityEdit` |
+| `'bookings'` | My Sessions | `MyBookings` |
+| `'admin'` | Admin Panel | `AdminDashboard` |
+| `'system-logs'` | System Logs | `SystemLogs` (admin only) |
+
+- `setCurrentTab` is owned by `AppContent` in `App.tsx` and passed as a prop to `LeftNav` and `Header`. Sub-components like `CoachDashboard` do **not** receive it — cross-tab navigation from within a sub-component should be handled via the banner or a parent-level prop if genuinely needed.
+
+---
+
+## 🔔 Profile Completion Banner & Widget
+
+### Non-blocking banner (`App.tsx`)
+- A dismissible amber banner is shown at the top of the `<main>` content area on every tab **except** `'profile'` when the user's profile is incomplete.
+- Fields that trigger the banner: `country` (empty string), `bio` (empty string), `gender` (`'Others'` or unset).
+- The banner has a **"My Profile →"** button and an **✕ dismiss** button. It re-shows after profile changes if fields are still missing.
+- **Design rule**: Never block access to dashboard or any tab over an incomplete profile. The banner is advisory only.
+
+### Completion widget (`ProfileEdit.tsx`)
+- A progress bar + percentage + per-field checklist sits above the form in `ProfileEdit`.
+- Completion is computed against **local form state** (not saved Firestore state) so the bar animates live as the user fills in fields.
+- Tracked fields: `Country`, `Professional Bio`, `Gender` (non-default), `Timezone`.
+- Colour progression: amber (< 50%) → primary blue (≥ 50%) → green (100%).
+
+---
+
+## 📊 System Logs Viewer
+
+- Located at `src/components/SystemLogs.tsx`. Admin-only; rendered when `currentTab === 'system-logs' && role === 'admin'`.
+- Reads from the `systemLogs` Firestore collection, ordered by `timestamp` desc.
+- **Pagination**: Uses Firestore cursor-based pagination (101-doc trick to detect `hasNext`). Cursors are stored in a `useRef` array indexed by page number.
+- **Severity filter**: Multi-select chip buttons (`'error'`, `'warn'`, `'info'`). An "All" chip resets the selection. Selection maps to Firestore queries:
+  - 0 or 3 selected → no `where` clause (show all)
+  - 1 selected → `where('type', '==', value)` (most efficient)
+  - 2 selected → `where('type', 'in', [v1, v2])`
+- **Row expansion**: Clicking a row or the eye button expands a detail panel showing copyable IDs (`logId`, `userId`, `bookingId`, `clientBookingCacheId`), error codes, and a raw JSON telemetry block.
+- **Do not** add an "API logging" description to this component — it surfaces system events and exceptions only.
+
+---
+
+## 📅 Dashboard — Refresh Button
+
+The **Refresh** button in the "Filter Available Coaches" panel calls `loadCalendarData()`, which:
+1. Re-fetches `busySlotsCache` for all coaches via `getCoachesBusySlots()`.
+2. Re-fetches the current user's Google Calendar events via `getUpcomingEvents()`.
+
+It does **not** refresh the coach list (that has its own `onSnapshot` real-time listener). The button is disabled while `loadingCalendar || loadingCoaches` is true. It is fully functional and provides a manual escape hatch when calendar data may be stale.
+
