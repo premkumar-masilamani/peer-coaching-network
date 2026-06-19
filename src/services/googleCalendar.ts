@@ -313,9 +313,9 @@ export const scheduleMeeting = async (
       try {
         await runTransaction(db, async (tx) => {
           const [
-            existing,
+            coachAsCoachDoc,
             coachAsClientDoc,
-            clientBookingCacheDoc,
+            clientAsClientDoc,
             clientAsCoachDoc
           ] = await Promise.all([
             tx.get(bookingRef),
@@ -324,13 +324,13 @@ export const scheduleMeeting = async (
             tx.get(clientAsCoachRef)
           ]);
 
-          if (existing.exists() && existing.data()?.status !== BOOKING_STATUS.CANCELLED) {
+          if (coachAsCoachDoc.exists() && coachAsCoachDoc.data()?.status !== BOOKING_STATUS.CANCELLED) {
             throw new Error('SLOT_TAKEN');
           }
           if (coachAsClientDoc.exists()) {
             throw new Error('SLOT_TAKEN');
           }
-          if (clientBookingCacheDoc.exists()) {
+          if (clientAsClientDoc.exists()) {
             throw new Error('SELF_CONFLICT');
           }
           if (clientAsCoachDoc.exists() && clientAsCoachDoc.data()?.status !== BOOKING_STATUS.CANCELLED) {
