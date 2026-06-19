@@ -25,7 +25,7 @@ import {
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, type GenderValue, type ThemeValue, type QualificationValue, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME } from '../config';
+import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -86,14 +86,14 @@ export interface UserProfile {
   email: string;
   displayName: string;
   photoURL: string | null;
-  gender: GenderValue;
+  gender: Gender;
   country: string;
-  qualifications?: QualificationValue[];
+  qualifications?: Qualification[];
   bio: string;
   timezone: string;
   userRole: UserRole;
   userStatus: UserStatus;
-  theme: ThemeValue;
+  theme: Theme;
   createdAt: Timestamp;
 }
 
@@ -192,8 +192,8 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
       photoURL: result.user.photoURL,
       userRole: USER_ROLE.USER,
       userStatus: USER_STATUS.INACTIVE,
-      qualifications: [] as QualificationValue[],
-      gender: '' as unknown as GenderValue,
+      qualifications: [] as Qualification[],
+      gender: '' as unknown as Gender,
       country: '',
       bio: '',
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',

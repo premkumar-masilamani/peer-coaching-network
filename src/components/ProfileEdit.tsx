@@ -14,7 +14,7 @@ import { getTimezonesForCountry } from '../utils/timezones';
 import { getCredentialDescription } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
-import { GENDER_OPTIONS, type GenderValue, type QualificationValue } from '../config';
+import { GENDER_OPTIONS, type Gender, type Qualification } from '../config';
 
 // ── Profile completion logic ──────────────────────────────────────────────────
 interface CompletionItem {
@@ -54,9 +54,9 @@ export const ProfileEdit: React.FC = () => {
   const { user, profile, updateProfileDetails } = useAuth();
 
   // State for editable profile details
-  const [gender, setGender] = useState<GenderValue | ''>(profile?.gender || '');
+  const [gender, setGender] = useState<Gender | ''>(profile?.gender || '');
   const [country, setCountry] = useState(profile?.country || '');
-  const [qualifications] = useState<QualificationValue[]>(profile?.qualifications || []);
+  const [qualifications] = useState<Qualification[]>(profile?.qualifications || []);
   const [bio, setBio] = useState(profile?.bio || '');
   const [timezone, setTimezone] = useState(profile?.timezone || '');
 
@@ -253,7 +253,7 @@ export const ProfileEdit: React.FC = () => {
               id="gender-select-edit"
               className="input-field"
               value={gender}
-              onChange={(e) => setGender(e.target.value as GenderValue | '')}
+              onChange={(e) => setGender(e.target.value as Gender | '')}
             >
               <option value="">Select Gender</option>
               {GENDER_OPTIONS.map(g => (

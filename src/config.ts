@@ -37,7 +37,7 @@ export const GENDER = {
   OTHERS: 'Others',
 } as const;
 export const GENDER_OPTIONS = [GENDER.FEMALE, GENDER.MALE, GENDER.OTHERS] as const;
-export type GenderValue = (typeof GENDER_OPTIONS)[number];
+export type Gender = (typeof GENDER_OPTIONS)[number];
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
@@ -51,7 +51,7 @@ export const THEME = {
   DARK:  'dark',
 } as const;
 export const THEME_OPTIONS = [THEME.LIGHT, THEME.DARK] as const;
-export type ThemeValue = (typeof THEME_OPTIONS)[number];
+export type Theme = (typeof THEME_OPTIONS)[number];
 
 // ── Qualifications (ICF credentials) ─────────────────────────────────────────
 
@@ -65,7 +65,7 @@ export const QUALIFICATION = {
   MCC: 'ICF MCC',
 } as const;
 export const QUALIFICATION_OPTIONS = [QUALIFICATION.ACC, QUALIFICATION.PCC, QUALIFICATION.MCC] as const;
-export type QualificationValue = (typeof QUALIFICATION_OPTIONS)[number];
+export type Qualification = (typeof QUALIFICATION_OPTIONS)[number];
 
 // ── User roles ────────────────────────────────────────────────────────────────
 

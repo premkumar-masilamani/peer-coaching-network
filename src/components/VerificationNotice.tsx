@@ -12,15 +12,15 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
 import { formatDisplayName } from '../services/firebaseService';
-import { GENDER_OPTIONS, type GenderValue, type QualificationValue } from '../config';
+import { GENDER_OPTIONS, type Gender, type Qualification } from '../config';
 
 export const VerificationNotice: React.FC = () => {
   const { user, profile, updateProfileDetails, logout } = useAuth();
 
   // State for editable profile details
-  const [gender, setGender] = useState<GenderValue | ''>(profile?.gender || '');
+  const [gender, setGender] = useState<Gender | ''>(profile?.gender || '');
   const [country, setCountry] = useState(profile?.country || '');
-  const [qualifications] = useState<QualificationValue[]>(profile?.qualifications || []);
+  const [qualifications] = useState<Qualification[]>(profile?.qualifications || []);
   const [bio, setBio] = useState(profile?.bio || '');
   const [timezone, setTimezone] = useState(profile?.timezone || '');
 
@@ -160,7 +160,7 @@ export const VerificationNotice: React.FC = () => {
               id="gender-select"
               className="input-field"
               value={gender}
-              onChange={(e) => setGender(e.target.value as GenderValue | '')}
+              onChange={(e) => setGender(e.target.value as Gender | '')}
             >
               <option value="">Select Gender</option>
               {GENDER_OPTIONS.map(g => (

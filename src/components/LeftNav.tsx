@@ -13,7 +13,7 @@ import {
   LogOut,
   Terminal
 } from 'lucide-react';
-import { type ThemeValue, TABS, type TabKey, USER_ROLE, USER_STATUS, THEME } from '../config';
+import { type Theme, TABS, type TabKey, USER_ROLE, USER_STATUS, THEME } from '../config';
 
 interface LeftNavProps {
   currentTab: TabKey;
@@ -122,8 +122,8 @@ export const LeftNav: React.FC<LeftNavProps> = ({
         <button
           onClick={async () => {
             // Treat any value other than 'light' (incl. legacy 'system') as 'dark'
-            const currentTheme: ThemeValue = profile?.theme === THEME.LIGHT ? THEME.LIGHT : THEME.DARK;
-            const nextTheme: ThemeValue = currentTheme === THEME.LIGHT ? THEME.DARK : THEME.LIGHT;
+            const currentTheme: Theme = profile?.theme === THEME.LIGHT ? THEME.LIGHT : THEME.DARK;
+            const nextTheme: Theme = currentTheme === THEME.LIGHT ? THEME.DARK : THEME.LIGHT;
             try {
               await updateProfileDetails({ theme: nextTheme });
             } catch (err) {

@@ -22,7 +22,7 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
-import { type QualificationValue, type UserRole, type UserStatus, QUALIFICATION_OPTIONS, USER_ROLE, USER_STATUS } from '../config';
+import { type Qualification, type UserRole, type UserStatus, QUALIFICATION_OPTIONS, USER_ROLE, USER_STATUS } from '../config';
 
 interface AdminDashboardProps {
   initialFilter?: 'all' | UserStatus | UserRole;
@@ -42,7 +42,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
     changes: string[];
     roleToSave: UserRole;
     statusToSave: UserStatus;
-    qualificationsToSave: QualificationValue[];
+    qualificationsToSave: Qualification[];
   } | null>(null);
   const [coachMeetings, setCoachMeetings] = useState<CalendarEvent[]>([]);
 
@@ -151,7 +151,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
       userStatus?: UserStatus;
       gender?: string;
       country?: string;
-      qualifications?: QualificationValue[];
+      qualifications?: Qualification[];
     }
   >>({});
 
@@ -219,7 +219,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
     uid: string,
     roleToSave: UserRole,
     statusToSave: UserStatus,
-    qualificationsToSave: QualificationValue[]
+    qualificationsToSave: Qualification[]
   ) => {
     setSavingId(uid);
     try {
@@ -555,7 +555,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                 {filteredUsers.map((u) => {
                   const currentRole = drafts[u.userId]?.userRole || getUserRole(u);
                   const currentStatus = drafts[u.userId]?.userStatus || getUserStatus(u);
-                  const currentQuals: QualificationValue[] = (drafts[u.userId]?.qualifications || u.qualifications || []) as QualificationValue[];
+                  const currentQuals: Qualification[] = (drafts[u.userId]?.qualifications || u.qualifications || []) as Qualification[];
 
                   return (
                     <tr
