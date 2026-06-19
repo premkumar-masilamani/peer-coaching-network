@@ -13,6 +13,7 @@ import {
   LogOut,
   Terminal
 } from 'lucide-react';
+import { type ThemeValue } from '../config';
 
 interface LeftNavProps {
   currentTab: string;
@@ -121,8 +122,8 @@ export const LeftNav: React.FC<LeftNavProps> = ({
         <button
           onClick={async () => {
             // Treat any value other than 'light' (incl. legacy 'system') as 'dark'
-            const currentTheme: 'light' | 'dark' = profile?.theme === 'light' ? 'light' : 'dark';
-            const nextTheme: 'light' | 'dark' = currentTheme === 'light' ? 'dark' : 'light';
+            const currentTheme: ThemeValue = profile?.theme === 'light' ? 'light' : 'dark';
+            const nextTheme: ThemeValue = currentTheme === 'light' ? 'dark' : 'light';
             try {
               await updateProfileDetails({ theme: nextTheme });
             } catch (err) {

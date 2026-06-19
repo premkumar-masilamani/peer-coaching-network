@@ -12,6 +12,7 @@ import { MyBookings } from './components/MyBookings';
 import { SystemLogs } from './components/SystemLogs';
 import { isApproved } from './services/firebaseService';
 import { Sparkles, AlertTriangle, X } from 'lucide-react';
+import { type ThemeValue } from './config';
 
 // Fields that matter for the non-blocking profile-complete banner.
 // Returns a list of human-readable missing field names.
@@ -19,7 +20,7 @@ const getMissingProfileFields = (profile: ReturnType<typeof useAuth>['profile'])
   const missing: string[] = [];
   if (!profile?.country) missing.push('Country');
   if (!profile?.bio) missing.push('Professional Bio');
-  if (!profile?.gender || profile.gender === 'Others') missing.push('Gender');
+  if (!profile?.gender) missing.push('Gender');
   return missing;
 };
 

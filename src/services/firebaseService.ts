@@ -25,7 +25,7 @@ import {
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS } from '../config';
+import { BOOKING_HORIZON_DAYS, BOOKING_START_OFFSET_DAYS, GenderValue, ThemeValue } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -86,14 +86,14 @@ export interface UserProfile {
   email: string;
   displayName: string;
   photoURL: string | null;
-  gender: 'Male' | 'Female' | 'Others';
+  gender: GenderValue;
   country: string;
   qualifications?: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
   bio: string;
   timezone: string;
   userRole: 'user' | 'admin';
   userStatus: 'active' | 'inactive';
-  theme: 'light' | 'dark';
+  theme: ThemeValue;
   createdAt: Timestamp;
 }
 

@@ -31,7 +31,7 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getUtcForSlot, getTimezoneCode } from '../utils/timezoneHelpers';
 import { sanitizeImageUrl } from '../utils/url';
-import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS } from '../config';
+import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, GENDER_OPTIONS } from '../config';
 
 
 export const CoachDashboard: React.FC = () => {
@@ -784,9 +784,9 @@ export const CoachDashboard: React.FC = () => {
                     style={{ paddingLeft: '34px', fontSize: '0.85rem' }}
                   >
                     <option value="">All Genders</option>
-                    <option value="Female">Female</option>
-                    <option value="Male">Male</option>
-                    <option value="Others">Others</option>
+                    {GENDER_OPTIONS.map(g => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
                   </select>
                 </div>
               </div>

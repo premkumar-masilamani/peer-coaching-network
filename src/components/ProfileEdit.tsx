@@ -14,6 +14,7 @@ import { getTimezonesForCountry } from '../utils/timezones';
 import { getCredentialDescription } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
+import { GENDER_OPTIONS, type GenderValue } from '../config';
 
 // ── Profile completion logic ──────────────────────────────────────────────────
 interface CompletionItem {
@@ -36,7 +37,7 @@ function getCompletionItems(profile: ReturnType<typeof useAuth>['profile']): Com
     },
     {
       label: 'Gender',
-      done: !!profile?.gender && profile.gender !== 'Others',
+      done: !!profile?.gender,
       icon: <User size={13} />,
     },
     {
@@ -53,7 +54,7 @@ export const ProfileEdit: React.FC = () => {
   const { user, profile, updateProfileDetails } = useAuth();
 
   // State for editable profile details
-  const [gender, setGender] = useState<'Male' | 'Female' | 'Others' | ''>(profile?.gender || '');
+  const [gender, setGender] = useState<GenderValue | ''>(profile?.gender || '');
   const [country, setCountry] = useState(profile?.country || '');
   const [qualifications] = useState<('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]>(profile?.qualifications || []);
   const [bio, setBio] = useState(profile?.bio || '');
@@ -252,12 +253,12 @@ export const ProfileEdit: React.FC = () => {
               id="gender-select-edit"
               className="input-field"
               value={gender}
-              onChange={(e) => setGender(e.target.value as 'Male' | 'Female' | 'Others' | '')}
+              onChange={(e) => setGender(e.target.value as GenderValue | '')}
             >
               <option value="">Select Gender</option>
-              <option value="Female">Female</option>
-              <option value="Male">Male</option>
-              <option value="Others">Others</option>
+              {GENDER_OPTIONS.map(g => (
+                <option key={g} value={g}>{g}</option>
+              ))}
             </select>
           </div>
 

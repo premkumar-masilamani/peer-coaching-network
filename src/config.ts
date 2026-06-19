@@ -17,3 +17,18 @@ export const BOOKING_HORIZON_DAYS = 60;
  * Defaults to true.
  */
 export const ENABLE_GOOGLE_INTEGRATION = import.meta.env.VITE_ENABLE_GOOGLE_INTEGRATION !== 'false';
+
+/**
+ * Canonical list of gender options used across the application.
+ * Import from here — do not hard-code gender strings in components.
+ */
+export const GENDER_OPTIONS = ['Female', 'Male', 'Others'] as const;
+export type GenderValue = (typeof GENDER_OPTIONS)[number];
+
+/**
+ * Supported application theme values.
+ * Import from here — do not hard-code theme strings in components.
+ * Legacy 'system' values stored in Firestore are treated as 'dark'.
+ */
+export const THEME_OPTIONS = ['light', 'dark'] as const;
+export type ThemeValue = (typeof THEME_OPTIONS)[number];
