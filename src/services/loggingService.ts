@@ -10,7 +10,9 @@ export const initializeLogger = (firestoreInstance: Firestore, authInstance: Aut
   auth = authInstance;
 };
 
-export type LogType = 'info' | 'warn' | 'error';
+import { type LogSeverity } from '../config';
+
+export type LogType = LogSeverity;
 
 export const logEvent = async (
   type: LogType,

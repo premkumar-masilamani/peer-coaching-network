@@ -11,56 +11,59 @@ import { LeftNav } from './components/LeftNav';
 import { MyBookings } from './components/MyBookings';
 import { SystemLogs } from './components/SystemLogs';
 import { isApproved } from './services/firebaseService';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, AlertTriangle, X } from 'lucide-react';
+import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, THEME } from './config';
+
+// Fields that matter for the non-blocking profile-complete banner.
+// Returns a list of human-readable missing field names.
+const getMissingProfileFields = (profile: ReturnType<typeof useAuth>['profile']): string[] => {
+  const missing: string[] = [];
+  if (!profile?.country) missing.push('Country');
+  if (!profile?.bio) missing.push('Professional Bio');
+  if (!profile?.gender) missing.push('Gender');
+  return missing;
+};
 
 const AppContent: React.FC = () => {
   const { user, role, loading, profile } = useAuth();
-  const [currentTab, setCurrentTab] = useState('dashboard');
-  const [adminTabFilter, setAdminTabFilter] = useState<'all' | 'pending' | 'user' | 'admin'>('all');
+  const [currentTab, setCurrentTab] = useState<TabKey>(TABS.DASHBOARD);
+  const [adminTabFilter, setAdminTabFilter] = useState<'all' | UserStatus | UserRole>('all');
   const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
     const saved = localStorage.getItem('peer-coaching-nav-collapsed');
     return saved ? JSON.parse(saved) : true;
   });
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [prevProfileFields, setPrevProfileFields] = useState({
+    country: profile?.country,
+    bio: profile?.bio,
+    gender: profile?.gender,
+  });
 
-  // Sync theme with document class
+  // Sync theme with document class — only 'light' and 'dark' are supported.
+  // Legacy 'system' values stored in Firestore are treated as 'dark'.
   useEffect(() => {
-    const theme = profile?.theme || 'system';
-    
-    if (theme === 'system') {
-      const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
-      const handleThemeChange = (e: MediaQueryListEvent | MediaQueryList) => {
-        if (e.matches) {
-          document.documentElement.classList.add('light-theme');
-        } else {
-          document.documentElement.classList.remove('light-theme');
-        }
-      };
-      
-      // Initialize
-      handleThemeChange(mediaQuery);
-      
-      // Subscribe
-      if (mediaQuery.addEventListener) {
-        mediaQuery.addEventListener('change', handleThemeChange);
-      } else {
-        mediaQuery.addListener(handleThemeChange);
-      }
-      
-      return () => {
-        if (mediaQuery.removeEventListener) {
-          mediaQuery.removeEventListener('change', handleThemeChange);
-        } else {
-          mediaQuery.removeListener(handleThemeChange);
-        }
-      };
-    } else if (theme === 'light') {
+    if (profile?.theme === THEME.LIGHT) {
       document.documentElement.classList.add('light-theme');
     } else {
       document.documentElement.classList.remove('light-theme');
     }
   }, [profile?.theme]);
 
-  const approved = isApproved(profile) && (role === 'admin' || role === 'user');
+  // Re-show the banner whenever the profile changes (e.g. after partial save)
+  if (
+    profile?.country !== prevProfileFields.country ||
+    profile?.bio !== prevProfileFields.bio ||
+    profile?.gender !== prevProfileFields.gender
+  ) {
+    setPrevProfileFields({
+      country: profile?.country,
+      bio: profile?.bio,
+      gender: profile?.gender,
+    });
+    setBannerDismissed(false);
+  }
+
+  const approved = isApproved(profile) && (role === USER_ROLE.ADMIN || role === USER_ROLE.USER);
 
   // Route to the default panel when approval state transitions, using React's
   // recommended "adjust state during render" pattern rather than an effect (no
@@ -68,7 +71,9 @@ const AppContent: React.FC = () => {
   const [prevApproved, setPrevApproved] = useState(approved);
   if (approved !== prevApproved) {
     setPrevApproved(approved);
-    setCurrentTab(approved ? 'dashboard' : 'pending');
+    if (approved) {
+      setCurrentTab(TABS.DASHBOARD);
+    }
   }
 
   // Loading Screen
@@ -96,10 +101,10 @@ const AppContent: React.FC = () => {
         }} className="animate-pulse">
           <Sparkles size={24} color="#fff" />
         </div>
-        <p style={{ 
-          fontSize: '0.9rem', 
-          color: 'var(--text-secondary)', 
-          fontWeight: 600, 
+        <p style={{
+          fontSize: '0.9rem',
+          color: 'var(--text-secondary)',
+          fontWeight: 600,
           letterSpacing: '0.05em',
           textTransform: 'uppercase'
         }}>
@@ -126,10 +131,10 @@ const AppContent: React.FC = () => {
     return (
       <div className="app-container">
         <div className="bg-gradient-radial" />
-        <Header 
-          currentTab={currentTab} 
-          setCurrentTab={setCurrentTab} 
-          setAdminTabFilter={setAdminTabFilter} 
+        <Header
+          currentTab={currentTab}
+          setCurrentTab={setCurrentTab}
+          setAdminTabFilter={setAdminTabFilter}
         />
         <main className="content-wrapper" style={{ overflowY: 'auto', padding: '0 16px 16px 16px' }}>
           <VerificationNotice />
@@ -138,35 +143,106 @@ const AppContent: React.FC = () => {
     );
   }
 
+  // Compute missing profile fields for the non-blocking banner
+  const missingFields = getMissingProfileFields(profile);
+  const showBanner = missingFields.length > 0 && !bannerDismissed && currentTab !== TABS.PROFILE;
+
   // Approved User or Admin Panel router
   return (
     <div className="app-container">
       <div className="bg-gradient-radial" />
-      <Header 
-        currentTab={currentTab} 
-        setCurrentTab={setCurrentTab} 
-        setAdminTabFilter={setAdminTabFilter} 
+      <Header
+        currentTab={currentTab}
+        setCurrentTab={setCurrentTab}
+        setAdminTabFilter={setAdminTabFilter}
       />
-      
+
       <div className="content-wrapper" style={{ overflow: 'hidden' }}>
         <div className="app-main-layout">
-          <LeftNav 
-            currentTab={currentTab} 
-            setCurrentTab={setCurrentTab} 
-            collapsed={navCollapsed} 
-            setCollapsed={setNavCollapsed} 
+          <LeftNav
+            currentTab={currentTab}
+            setCurrentTab={setCurrentTab}
+            collapsed={navCollapsed}
+            setCollapsed={setNavCollapsed}
           />
-          
+
           <main style={{ flex: 1, minWidth: 0, height: '100%', overflowY: 'auto', paddingRight: '16px', paddingBottom: '16px' }}>
-            {currentTab === 'dashboard' && <CoachDashboard />}
-            {currentTab === 'profile' && <ProfileEdit />}
-            {currentTab === 'availability' && <AvailabilityEdit />}
-            {currentTab === 'bookings' && <MyBookings />}
-            {currentTab === 'system-logs' && role === 'admin' && <SystemLogs />}
-            {currentTab === 'admin' && role === 'admin' && (
-              <AdminDashboard 
-                initialFilter={adminTabFilter} 
-                setInitialFilter={setAdminTabFilter} 
+
+            {/* ── Non-blocking profile completion banner ───────────────────── */}
+            {showBanner && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                background: 'linear-gradient(135deg, hsl(var(--warning) / 0.1), hsl(var(--warning) / 0.05))',
+                border: '1px solid hsl(var(--warning) / 0.35)',
+                borderLeft: '4px solid hsl(var(--warning))',
+                borderRadius: '12px',
+                padding: '14px 18px',
+                marginBottom: '20px',
+                marginTop: '16px',
+                flexWrap: 'wrap',
+              }}>
+                <AlertTriangle size={18} color="hsl(var(--warning))" style={{ flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Unlock the full experience!.{' '}
+                  </span>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                    Complete your profile so other coaches can discover you and you can start collaborating.
+                  </span>
+                </div>
+                <button
+                  onClick={() => setCurrentTab(TABS.PROFILE)}
+                  style={{
+                    background: 'hsl(var(--warning))',
+                    color: '#000',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '7px 16px',
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    transition: 'opacity 0.15s ease',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+                  onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+                >
+                  My Profile →
+                </button>
+                <button
+                  onClick={() => setBannerDismissed(true)}
+                  aria-label="Dismiss"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '4px',
+                    flexShrink: 0,
+                    borderRadius: '6px',
+                    transition: 'color 0.15s ease',
+                  }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--text-primary)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text-muted)')}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+
+            {currentTab === TABS.DASHBOARD && <CoachDashboard />}
+            {currentTab === TABS.PROFILE && <ProfileEdit />}
+            {currentTab === TABS.AVAILABILITY && <AvailabilityEdit />}
+            {currentTab === TABS.BOOKINGS && <MyBookings />}
+            {currentTab === TABS.SYSTEM_LOGS && role === USER_ROLE.ADMIN && <SystemLogs />}
+            {currentTab === TABS.ADMIN && role === USER_ROLE.ADMIN && (
+              <AdminDashboard
+                initialFilter={adminTabFilter}
+                setInitialFilter={setAdminTabFilter}
               />
             )}
           </main>

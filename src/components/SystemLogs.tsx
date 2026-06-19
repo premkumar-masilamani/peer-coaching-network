@@ -24,9 +24,13 @@ import {
   EyeOff 
 } from 'lucide-react';
 
+import { type LogSeverity, LOG_SEVERITY } from '../config';
+
+// LogSeverity is imported from config — 'error' | 'warn' | 'info'
+
 interface SystemLog {
   id: string;
-  type: 'info' | 'warn' | 'error';
+  type: LogSeverity;
   event: string;
   userId: string | null;
   details: Record<string, any>;
@@ -35,10 +39,17 @@ interface SystemLog {
   doc: any; // Storing the document snapshot for pagination
 }
 
+const SEVERITY_OPTIONS: { value: LogSeverity; label: string }[] = [
+  { value: LOG_SEVERITY.ERROR, label: 'Errors' },
+  { value: LOG_SEVERITY.WARN,  label: 'Warnings' },
+  { value: LOG_SEVERITY.INFO,  label: 'Info' },
+];
+
 export const SystemLogs: React.FC = () => {
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [typeFilter, setTypeFilter] = useState<'all' | 'error' | 'warn' | 'info'>('all');
+  // Multi-select: empty array means "show all"
+  const [selectedSeverities, setSelectedSeverities] = useState<LogSeverity[]>([]);
   
   // Pagination State
   const [pageIndex, setPageIndex] = useState(0);
@@ -51,9 +62,12 @@ export const SystemLogs: React.FC = () => {
   // Copy feedback state
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Reset pagination when filter changes
-  const handleFilterChange = (filter: 'all' | 'error' | 'warn' | 'info') => {
-    setTypeFilter(filter);
+  // Toggle a severity in/out of the selected set
+  const handleSeverityToggle = (sev: LogSeverity) => {
+    setSelectedSeverities(prev => {
+      const next = prev.includes(sev) ? prev.filter(s => s !== sev) : [...prev, sev];
+      return next;
+    });
     setPageIndex(0);
     pageCursorsRef.current = [null];
     setExpandedLogId(null);
@@ -78,9 +92,14 @@ export const SystemLogs: React.FC = () => {
       orderBy('timestamp', 'desc')
     );
 
-    if (typeFilter !== 'all') {
-      q = query(q, where('type', '==', typeFilter));
+    if (selectedSeverities.length === 1) {
+      // Exact match is more efficient for a single value
+      q = query(q, where('type', '==', selectedSeverities[0]));
+    } else if (selectedSeverities.length === 2) {
+      // Firestore `in` query supports up to 30 values
+      q = query(q, where('type', 'in', selectedSeverities));
     }
+    // If 0 or 3 selected — show all (no where clause needed)
 
     const cursor = pageCursorsRef.current[pageIndex];
     if (cursor) {
@@ -126,7 +145,7 @@ export const SystemLogs: React.FC = () => {
     );
 
     return () => unsubscribe();
-  }, [pageIndex, typeFilter]);
+  }, [pageIndex, selectedSeverities]);
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -141,23 +160,23 @@ export const SystemLogs: React.FC = () => {
     return date.toLocaleString();
   };
 
-  const getSeverityBadgeStyle = (type: 'info' | 'warn' | 'error') => {
+  const getSeverityBadgeStyle = (type: LogSeverity) => {
     switch (type) {
-      case 'error':
+      case LOG_SEVERITY.ERROR:
         return {
           background: 'rgba(239, 68, 68, 0.12)',
           color: '#f87171',
           border: '1px solid rgba(239, 68, 68, 0.2)',
           icon: <AlertCircle size={14} style={{ marginRight: '6px' }} />
         };
-      case 'warn':
+      case LOG_SEVERITY.WARN:
         return {
           background: 'rgba(245, 158, 11, 0.12)',
           color: '#fbbf24',
           border: '1px solid rgba(245, 158, 11, 0.2)',
           icon: <TriangleAlert size={14} style={{ marginRight: '6px' }} />
         };
-      case 'info':
+      case LOG_SEVERITY.INFO:
       default:
         return {
           background: 'rgba(13, 148, 136, 0.12)',
@@ -168,13 +187,54 @@ export const SystemLogs: React.FC = () => {
     }
   };
 
+  const getSeverityChipStyle = (sev: LogSeverity, active: boolean) => {
+    const base: React.CSSProperties = {
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '6px',
+      padding: '6px 14px',
+      borderRadius: '20px',
+      fontSize: '0.8rem',
+      fontWeight: 600,
+      cursor: 'pointer',
+      transition: 'all 0.18s ease',
+      userSelect: 'none',
+      border: '1px solid transparent',
+    };
+
+    if (!active) {
+      return {
+        ...base,
+        background: 'var(--bg-surface-elevated)',
+        color: 'var(--text-secondary)',
+        border: '1px solid var(--border-light)',
+      };
+    }
+
+    switch (sev) {
+      case LOG_SEVERITY.ERROR:
+        return { ...base, background: 'rgba(239, 68, 68, 0.18)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)' };
+      case LOG_SEVERITY.WARN:
+        return { ...base, background: 'rgba(245, 158, 11, 0.18)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.4)' };
+      case LOG_SEVERITY.INFO:
+      default:
+        return { ...base, background: 'rgba(13, 148, 136, 0.18)', color: '#2dd4bf', border: '1px solid rgba(13, 148, 136, 0.4)' };
+    }
+  };
+
+  const severityChipIcons: Record<LogSeverity, React.ReactNode> = {
+    [LOG_SEVERITY.ERROR]: <AlertCircle size={13} />,
+    [LOG_SEVERITY.WARN]:  <TriangleAlert size={13} />,
+    [LOG_SEVERITY.INFO]:  <Info size={13} />,
+  };
+
   return (
     <div className="animate-fade-in" style={{ width: '100%' }}>
       {/* Header and Filter Controls */}
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
-        alignItems: 'center', 
+        alignItems: 'flex-start', 
         marginBottom: '24px',
         flexWrap: 'wrap',
         gap: '16px'
@@ -185,33 +245,63 @@ export const SystemLogs: React.FC = () => {
             System Logs
           </h2>
           <p style={{ margin: '4px 0 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            Monitor real-time system events, exceptions, and API logging.
+            Monitor real-time system events and exceptions.
           </p>
         </div>
 
-        {/* Filter Dropdown */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Filter Severity:</label>
-          <select
-            value={typeFilter}
-            onChange={(e) => handleFilterChange(e.target.value as any)}
-            className="input-field"
-            style={{
-              padding: '8px 16px',
-              fontSize: '0.85rem',
-              borderRadius: '8px',
-              border: '1px solid var(--border-light)',
-              background: 'var(--input-bg)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              width: '160px'
-            }}
-          >
-            <option value="all">All Severities</option>
-            <option value="error">Errors Only</option>
-            <option value="warn">Warnings Only</option>
-            <option value="info">Info Only</option>
-          </select>
+        {/* Multi-select Severity Filter */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+            Filter Severity
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {/* "All" chip — active when nothing else is selected */}
+            <span
+              onClick={() => {
+                setSelectedSeverities([]);
+                setPageIndex(0);
+                pageCursorsRef.current = [null];
+                setExpandedLogId(null);
+                setLoading(true);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '6px 14px',
+                borderRadius: '20px',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'all 0.18s ease',
+                userSelect: 'none',
+                background: selectedSeverities.length === 0
+                  ? 'hsl(var(--primary) / 0.18)'
+                  : 'var(--bg-surface-elevated)',
+                color: selectedSeverities.length === 0
+                  ? 'hsl(var(--primary))'
+                  : 'var(--text-secondary)',
+                border: selectedSeverities.length === 0
+                  ? '1px solid hsl(var(--primary) / 0.4)'
+                  : '1px solid var(--border-light)',
+              }}
+            >
+              All
+            </span>
+
+            {SEVERITY_OPTIONS.map(({ value, label }) => {
+              const active = selectedSeverities.includes(value);
+              return (
+                <span
+                  key={value}
+                  onClick={() => handleSeverityToggle(value)}
+                  style={getSeverityChipStyle(value, active)}
+                >
+                  {severityChipIcons[value]}
+                  {label}
+                </span>
+              );
+            })}
+          </div>
         </div>
       </div>
 

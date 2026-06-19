@@ -1,13 +1,14 @@
 import React from 'react';
+import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, USER_STATUS } from '../config';
 import { useAuth } from '../context/AuthContext';
 import { Sparkles, Shield } from 'lucide-react';
 import { formatDisplayName, formatMemberSince, isApproved, subscribeToPendingUsersCount } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
 
 interface HeaderProps {
-  currentTab: string;
-  setCurrentTab: (tab: string) => void;
-  setAdminTabFilter?: (filter: 'all' | 'pending' | 'user' | 'admin') => void;
+  currentTab: TabKey;
+  setCurrentTab: (tab: TabKey) => void;
+  setAdminTabFilter?: (filter: 'all' | UserStatus | UserRole) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter }) => {
@@ -15,10 +16,10 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
   const [pendingCount, setPendingCount] = React.useState(0);
 
   const isActive = isApproved(profile);
-  const isActiveAdmin = role === 'admin' && isActive;
+  const isActiveAdmin = role === USER_ROLE.ADMIN && isActive;
 
   React.useEffect(() => {
-    if (role === 'admin' && isActive) {
+    if (role === USER_ROLE.ADMIN && isActive) {
       // Subscribe to a count derived from only the pending docs, not the whole
       // users collection. See BUG-006. (The badge is hidden for non-admins, so
       // no explicit reset is needed when this branch is skipped.)
@@ -45,7 +46,7 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
         margin: '0 auto'
       }}>
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => (role === 'user' || role === 'admin') && setCurrentTab('dashboard')}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => (role === USER_ROLE.USER || role === USER_ROLE.ADMIN) && setCurrentTab(TABS.DASHBOARD)}>
           <div style={{
             background: 'hsl(var(--primary))',
             width: '40px',
@@ -74,9 +75,9 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
           {isActiveAdmin && pendingCount > 0 && (
             <button
               onClick={() => {
-                setCurrentTab('admin');
+                setCurrentTab(TABS.ADMIN);
                 if (setAdminTabFilter) {
-                  setAdminTabFilter('pending');
+                  setAdminTabFilter(USER_STATUS.INACTIVE);
                 }
               }}
               style={{

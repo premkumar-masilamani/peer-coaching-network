@@ -12,14 +12,15 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
 import { formatDisplayName } from '../services/firebaseService';
+import { GENDER_OPTIONS, type Gender, type Qualification } from '../config';
 
 export const VerificationNotice: React.FC = () => {
   const { user, profile, updateProfileDetails, logout } = useAuth();
 
   // State for editable profile details
-  const [gender, setGender] = useState<'Male' | 'Female' | 'Prefer not to say' | ''>(profile?.gender || '');
+  const [gender, setGender] = useState<Gender | ''>(profile?.gender || '');
   const [country, setCountry] = useState(profile?.country || '');
-  const [qualifications] = useState<('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]>(profile?.qualifications || []);
+  const [qualifications] = useState<Qualification[]>(profile?.qualifications || []);
   const [bio, setBio] = useState(profile?.bio || '');
   const [timezone, setTimezone] = useState(profile?.timezone || '');
 
@@ -159,12 +160,12 @@ export const VerificationNotice: React.FC = () => {
               id="gender-select"
               className="input-field"
               value={gender}
-              onChange={(e) => setGender(e.target.value as 'Male' | 'Female' | 'Prefer not to say' | '')}
+              onChange={(e) => setGender(e.target.value as Gender | '')}
             >
               <option value="">Select Gender</option>
-              <option value="Female">Female</option>
-              <option value="Male">Male</option>
-              <option value="Prefer not to say">Prefer not to say</option>
+              {GENDER_OPTIONS.map(g => (
+                <option key={g} value={g}>{g}</option>
+              ))}
             </select>
           </div>
 
