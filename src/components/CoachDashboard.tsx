@@ -31,7 +31,7 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getUtcForSlot, getTimezoneCode } from '../utils/timezoneHelpers';
 import { sanitizeImageUrl } from '../utils/url';
-import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS } from '../config';
+import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS } from '../config';
 
 
 export const CoachDashboard: React.FC = () => {
@@ -73,7 +73,7 @@ export const CoachDashboard: React.FC = () => {
     
     const nowMs = now;
     liveBookings.forEach(b => {
-      if (b.status === 'cancelled') return;
+      if (b.status === BOOKING_STATUS.CANCELLED) return;
       const startStr = b.startTime && typeof b.startTime.toDate === 'function' 
         ? b.startTime.toDate().toISOString() 
         : (b.startTime?.dateTime || b.startTime);
@@ -109,7 +109,7 @@ export const CoachDashboard: React.FC = () => {
     
     const liveUserEvents: CalendarEvent[] = [];
     liveBookings.forEach(b => {
-      if (b.status === 'cancelled') return;
+      if (b.status === BOOKING_STATUS.CANCELLED) return;
       if (b.coachUid !== currentUid && b.clientUid !== currentUid) return;
       
       const startStr = b.startTime && typeof b.startTime.toDate === 'function' 

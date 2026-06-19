@@ -17,6 +17,20 @@ export const BOOKING_START_OFFSET_DAYS = 1;
  */
 export const BOOKING_HORIZON_DAYS = 60;
 
+// ── Booking Status ────────────────────────────────────────────────────────────
+
+/**
+ * Status of a coaching session booking.
+ * 'confirmed' - scheduled and active session.
+ * 'cancelled' - cancelled session.
+ */
+export const BOOKING_STATUS = {
+  CONFIRMED: 'confirmed',
+  CANCELLED: 'cancelled',
+} as const;
+export const BOOKING_STATUSES = [BOOKING_STATUS.CONFIRMED, BOOKING_STATUS.CANCELLED] as const;
+export type BookingStatus = (typeof BOOKING_STATUSES)[number];
+
 // ── Feature flags ─────────────────────────────────────────────────────────────
 
 /**

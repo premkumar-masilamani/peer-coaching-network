@@ -25,7 +25,7 @@ import {
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME } from '../config';
+import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -541,7 +541,7 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
     //    busy slots don't accrete forever). See BUG-016.
     const nowMs = Date.now();
     bookings.forEach(b => {
-      if (b.status === 'cancelled') return;
+      if (b.status === BOOKING_STATUS.CANCELLED) return;
       
       // Support both Firestore Timestamp and date strings/objects
       const bStart = b.startTime && typeof b.startTime.toDate === 'function' ? b.startTime.toDate() : new Date(b.startTime?.dateTime || b.startTime);
@@ -594,7 +594,7 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
 
 export const subscribeToBookings = (callback: (bookings: DocumentData[]) => void): (() => void) => {
   if (!db) return () => {};
-  const q = query(collection(db, 'bookings'), where('status', '==', 'confirmed'));
+  const q = query(collection(db, 'bookings'), where('status', '==', BOOKING_STATUS.CONFIRMED));
   return onSnapshot(q, (querySnap) => {
     const list: DocumentData[] = [];
     querySnap.forEach((doc) => {

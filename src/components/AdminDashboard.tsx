@@ -22,7 +22,7 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
-import { type Qualification, type UserRole, type UserStatus, QUALIFICATION_OPTIONS, USER_ROLE, USER_STATUS } from '../config';
+import { type Qualification, type UserRole, type UserStatus, QUALIFICATION_OPTIONS, USER_ROLE, USER_STATUS, BOOKING_STATUS } from '../config';
 
 interface AdminDashboardProps {
   initialFilter?: 'all' | UserStatus | UserRole;
@@ -89,7 +89,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
         const processSnap = async (snap: QuerySnapshot<DocumentData>) => {
           for (const docSnap of snap.docs) {
             const data = docSnap.data();
-            if (data.status === 'cancelled') continue;
+            if (data.status === BOOKING_STATUS.CANCELLED) continue;
             if (!seenIds.has(data.bookingId)) {
               seenIds.add(data.bookingId);
               
