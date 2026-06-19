@@ -25,7 +25,7 @@ import {
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, BOOKING_START_OFFSET_DAYS, GenderValue, ThemeValue } from '../config';
+import { BOOKING_HORIZON_DAYS, type GenderValue, type ThemeValue, type QualificationValue, type UserRole, type UserStatus } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -88,11 +88,11 @@ export interface UserProfile {
   photoURL: string | null;
   gender: GenderValue;
   country: string;
-  qualifications?: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
+  qualifications?: QualificationValue[];
   bio: string;
   timezone: string;
-  userRole: 'user' | 'admin';
-  userStatus: 'active' | 'inactive';
+  userRole: UserRole;
+  userStatus: UserStatus;
   theme: ThemeValue;
   createdAt: Timestamp;
 }
@@ -190,10 +190,10 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
       email,
       displayName,
       photoURL: result.user.photoURL,
-      userRole: 'user',
-      userStatus: 'inactive',
-      qualifications: [],
-      gender: '' as unknown as 'Male' | 'Female' | 'Others',
+      userRole: 'user' as UserRole,
+      userStatus: 'inactive' as UserStatus,
+      qualifications: [] as QualificationValue[],
+      gender: '' as unknown as GenderValue,
       country: '',
       bio: '',
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
@@ -267,11 +267,11 @@ export const updateOwnProfile = async (uid: string, updates: Partial<UserProfile
 };
 
 // Canonical approval/role helpers — the single source of truth for user status and role.
-export const getEffectiveStatus = (p?: UserProfile | null): 'active' | 'inactive' => {
+export const getEffectiveStatus = (p?: UserProfile | null): UserStatus => {
   return p?.userStatus || 'inactive';
 };
 
-export const getEffectiveRole = (p?: UserProfile | null): 'admin' | 'user' => {
+export const getEffectiveRole = (p?: UserProfile | null): UserRole => {
   return p?.userRole || 'user';
 };
 
@@ -324,8 +324,8 @@ export const subscribeToPendingUsersCount = (callback: (count: number) => void):
 
 export const setUserRoleAndStatus = async (
   uid: string,
-  role: 'user' | 'admin',
-  status: 'active' | 'inactive'
+  role: UserRole,
+  status: UserStatus
 ): Promise<void> => {
   await updateProfile(uid, {
     userRole: role,

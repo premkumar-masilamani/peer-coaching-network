@@ -12,7 +12,7 @@ import { MyBookings } from './components/MyBookings';
 import { SystemLogs } from './components/SystemLogs';
 import { isApproved } from './services/firebaseService';
 import { Sparkles, AlertTriangle, X } from 'lucide-react';
-import { type ThemeValue } from './config';
+import { TABS, type TabKey } from './config';
 
 // Fields that matter for the non-blocking profile-complete banner.
 // Returns a list of human-readable missing field names.
@@ -26,13 +26,18 @@ const getMissingProfileFields = (profile: ReturnType<typeof useAuth>['profile'])
 
 const AppContent: React.FC = () => {
   const { user, role, loading, profile } = useAuth();
-  const [currentTab, setCurrentTab] = useState('dashboard');
+  const [currentTab, setCurrentTab] = useState<TabKey>(TABS.DASHBOARD);
   const [adminTabFilter, setAdminTabFilter] = useState<'all' | 'pending' | 'user' | 'admin'>('all');
   const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
     const saved = localStorage.getItem('peer-coaching-nav-collapsed');
     return saved ? JSON.parse(saved) : true;
   });
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [prevProfileFields, setPrevProfileFields] = useState({
+    country: profile?.country,
+    bio: profile?.bio,
+    gender: profile?.gender,
+  });
 
   // Sync theme with document class — only 'light' and 'dark' are supported.
   // Legacy 'system' values stored in Firestore are treated as 'dark'.
@@ -45,9 +50,18 @@ const AppContent: React.FC = () => {
   }, [profile?.theme]);
 
   // Re-show the banner whenever the profile changes (e.g. after partial save)
-  useEffect(() => {
+  if (
+    profile?.country !== prevProfileFields.country ||
+    profile?.bio !== prevProfileFields.bio ||
+    profile?.gender !== prevProfileFields.gender
+  ) {
+    setPrevProfileFields({
+      country: profile?.country,
+      bio: profile?.bio,
+      gender: profile?.gender,
+    });
     setBannerDismissed(false);
-  }, [profile?.country, profile?.bio, profile?.gender]);
+  }
 
   const approved = isApproved(profile) && (role === 'admin' || role === 'user');
 
@@ -57,7 +71,7 @@ const AppContent: React.FC = () => {
   const [prevApproved, setPrevApproved] = useState(approved);
   if (approved !== prevApproved) {
     setPrevApproved(approved);
-    setCurrentTab(approved ? 'dashboard' : 'pending');
+    setCurrentTab(approved ? TABS.DASHBOARD : TABS.PENDING);
   }
 
   // Loading Screen
@@ -129,7 +143,7 @@ const AppContent: React.FC = () => {
 
   // Compute missing profile fields for the non-blocking banner
   const missingFields = getMissingProfileFields(profile);
-  const showBanner = missingFields.length > 0 && !bannerDismissed && currentTab !== 'profile';
+  const showBanner = missingFields.length > 0 && !bannerDismissed && currentTab !== TABS.PROFILE;
 
   // Approved User or Admin Panel router
   return (
@@ -177,7 +191,7 @@ const AppContent: React.FC = () => {
                   </span>
                 </div>
                 <button
-                  onClick={() => setCurrentTab('profile')}
+                  onClick={() => setCurrentTab(TABS.PROFILE)}
                   style={{
                     background: 'hsl(var(--warning))',
                     color: '#000',
@@ -218,12 +232,12 @@ const AppContent: React.FC = () => {
               </div>
             )}
 
-            {currentTab === 'dashboard' && <CoachDashboard />}
-            {currentTab === 'profile' && <ProfileEdit />}
-            {currentTab === 'availability' && <AvailabilityEdit />}
-            {currentTab === 'bookings' && <MyBookings />}
-            {currentTab === 'system-logs' && role === 'admin' && <SystemLogs />}
-            {currentTab === 'admin' && role === 'admin' && (
+            {currentTab === TABS.DASHBOARD && <CoachDashboard />}
+            {currentTab === TABS.PROFILE && <ProfileEdit />}
+            {currentTab === TABS.AVAILABILITY && <AvailabilityEdit />}
+            {currentTab === TABS.BOOKINGS && <MyBookings />}
+            {currentTab === TABS.SYSTEM_LOGS && role === 'admin' && <SystemLogs />}
+            {currentTab === TABS.ADMIN && role === 'admin' && (
               <AdminDashboard
                 initialFilter={adminTabFilter}
                 setInitialFilter={setAdminTabFilter}

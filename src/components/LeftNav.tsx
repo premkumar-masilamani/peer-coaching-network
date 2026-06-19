@@ -13,11 +13,11 @@ import {
   LogOut,
   Terminal
 } from 'lucide-react';
-import { type ThemeValue } from '../config';
+import { type ThemeValue, TABS, type TabKey } from '../config';
 
 interface LeftNavProps {
-  currentTab: string;
-  setCurrentTab: (tab: string) => void;
+  currentTab: TabKey;
+  setCurrentTab: (tab: TabKey) => void;
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
 }
@@ -42,8 +42,8 @@ export const LeftNav: React.FC<LeftNavProps> = ({
       <div className="sidebar-nav">
         {/* Dashboard / Browse coaches */}
         <button
-          onClick={() => setCurrentTab('dashboard')}
-          className={`sidebar-nav-item ${currentTab === 'dashboard' ? 'active' : ''}`}
+          onClick={() => setCurrentTab(TABS.DASHBOARD)}
+          className={`sidebar-nav-item ${currentTab === TABS.DASHBOARD ? 'active' : ''}`}
           title={collapsed ? 'Dashboard' : undefined}
         >
           <span className="nav-icon">
@@ -55,8 +55,8 @@ export const LeftNav: React.FC<LeftNavProps> = ({
         {/* Admin Panel */}
         {isAdmin && (
           <button
-            onClick={() => setCurrentTab('admin')}
-            className={`sidebar-nav-item ${currentTab === 'admin' ? 'active' : ''}`}
+            onClick={() => setCurrentTab(TABS.ADMIN)}
+            className={`sidebar-nav-item ${currentTab === TABS.ADMIN ? 'active' : ''}`}
             title={collapsed ? 'Admin Panel' : undefined}
           >
             <span className="nav-icon">
@@ -69,8 +69,8 @@ export const LeftNav: React.FC<LeftNavProps> = ({
         {/* System Logs */}
         {isAdmin && (
           <button
-            onClick={() => setCurrentTab('system-logs')}
-            className={`sidebar-nav-item ${currentTab === 'system-logs' ? 'active' : ''}`}
+            onClick={() => setCurrentTab(TABS.SYSTEM_LOGS)}
+            className={`sidebar-nav-item ${currentTab === TABS.SYSTEM_LOGS ? 'active' : ''}`}
             title={collapsed ? 'System Logs' : undefined}
           >
             <span className="nav-icon">
@@ -82,8 +82,8 @@ export const LeftNav: React.FC<LeftNavProps> = ({
 
         {/* My Availability */}
         <button
-          onClick={() => setCurrentTab('availability')}
-          className={`sidebar-nav-item ${currentTab === 'availability' ? 'active' : ''}`}
+          onClick={() => setCurrentTab(TABS.AVAILABILITY)}
+          className={`sidebar-nav-item ${currentTab === TABS.AVAILABILITY ? 'active' : ''}`}
           title={collapsed ? 'My Availability' : undefined}
         >
           <span className="nav-icon">
@@ -94,8 +94,8 @@ export const LeftNav: React.FC<LeftNavProps> = ({
 
         {/* My Bookings */}
         <button
-          onClick={() => setCurrentTab('bookings')}
-          className={`sidebar-nav-item ${currentTab === 'bookings' ? 'active' : ''}`}
+          onClick={() => setCurrentTab(TABS.BOOKINGS)}
+          className={`sidebar-nav-item ${currentTab === TABS.BOOKINGS ? 'active' : ''}`}
           title={collapsed ? 'My Bookings' : undefined}
         >
           <span className="nav-icon">
@@ -106,8 +106,8 @@ export const LeftNav: React.FC<LeftNavProps> = ({
 
         {/* My Profile */}
         <button
-          onClick={() => setCurrentTab('profile')}
-          className={`sidebar-nav-item ${currentTab === 'profile' ? 'active' : ''}`}
+          onClick={() => setCurrentTab(TABS.PROFILE)}
+          className={`sidebar-nav-item ${currentTab === TABS.PROFILE ? 'active' : ''}`}
           title={collapsed ? 'My Profile' : undefined}
         >
           <span className="nav-icon">

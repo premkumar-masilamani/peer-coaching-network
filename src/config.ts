@@ -1,4 +1,9 @@
 // Application Configuration
+// ─────────────────────────────────────────────────────────────────────────────
+// All fixed / enum-like values used across the application live here.
+// Import from this file instead of hard-coding string literals in components.
+
+// ── Booking ───────────────────────────────────────────────────────────────────
 
 /**
  * The number of days from today when booking is allowed to start.
@@ -7,16 +12,20 @@
 export const BOOKING_START_OFFSET_DAYS = 1;
 
 /**
- * The booking horizon in days (e.g. 56 days is 8 weeks).
+ * The booking horizon in days (e.g. 60 days is ~8.5 weeks).
  * This defines how far in advance users are allowed to book.
  */
 export const BOOKING_HORIZON_DAYS = 60;
 
+// ── Feature flags ─────────────────────────────────────────────────────────────
+
 /**
- * Flag to enable/disable google interactions (Google Events, Calendars, etc.).
- * Defaults to true.
+ * Flag to enable/disable Google Calendar interactions (events, freebusy, Meet links).
+ * Defaults to true. Set VITE_ENABLE_GOOGLE_INTEGRATION=false to disable.
  */
 export const ENABLE_GOOGLE_INTEGRATION = import.meta.env.VITE_ENABLE_GOOGLE_INTEGRATION !== 'false';
+
+// ── Gender ────────────────────────────────────────────────────────────────────
 
 /**
  * Canonical list of gender options used across the application.
@@ -25,6 +34,8 @@ export const ENABLE_GOOGLE_INTEGRATION = import.meta.env.VITE_ENABLE_GOOGLE_INTE
 export const GENDER_OPTIONS = ['Female', 'Male', 'Others'] as const;
 export type GenderValue = (typeof GENDER_OPTIONS)[number];
 
+// ── Theme ─────────────────────────────────────────────────────────────────────
+
 /**
  * Supported application theme values.
  * Import from here — do not hard-code theme strings in components.
@@ -32,3 +43,58 @@ export type GenderValue = (typeof GENDER_OPTIONS)[number];
  */
 export const THEME_OPTIONS = ['light', 'dark'] as const;
 export type ThemeValue = (typeof THEME_OPTIONS)[number];
+
+// ── Qualifications (ICF credentials) ─────────────────────────────────────────
+
+/**
+ * ICF coaching credential tiers supported by the platform.
+ * Import from here — do not repeat the inline union type in components.
+ */
+export const QUALIFICATION_OPTIONS = ['ICF ACC', 'ICF PCC', 'ICF MCC'] as const;
+export type QualificationValue = (typeof QUALIFICATION_OPTIONS)[number];
+
+// ── User roles ────────────────────────────────────────────────────────────────
+
+/**
+ * Possible values for userRole on a UserProfile.
+ * 'user'  — standard approved coach.
+ * 'admin' — platform administrator.
+ */
+export const USER_ROLES = ['user', 'admin'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
+// ── User statuses ─────────────────────────────────────────────────────────────
+
+/**
+ * Possible values for userStatus on a UserProfile.
+ * 'active'   — fully approved, can log in and use the app.
+ * 'inactive' — pending admin review.
+ */
+export const USER_STATUSES = ['active', 'inactive'] as const;
+export type UserStatus = (typeof USER_STATUSES)[number];
+
+// ── Log severity ──────────────────────────────────────────────────────────────
+
+/**
+ * Severity levels written to the systemLogs Firestore collection.
+ */
+export const LOG_SEVERITIES = ['error', 'warn', 'info'] as const;
+export type LogSeverity = (typeof LOG_SEVERITIES)[number];
+
+// ── Navigation tab keys ───────────────────────────────────────────────────────
+
+/**
+ * All navigation tab key strings used by the flat router in App.tsx.
+ * Always reference these constants instead of bare string literals so
+ * a rename only needs to happen in one place.
+ */
+export const TABS = {
+  DASHBOARD:    'dashboard',
+  PROFILE:      'profile',
+  AVAILABILITY: 'availability',
+  BOOKINGS:     'bookings',
+  ADMIN:        'admin',
+  SYSTEM_LOGS:  'system-logs',
+  PENDING:      'pending',
+} as const;
+export type TabKey = (typeof TABS)[keyof typeof TABS];

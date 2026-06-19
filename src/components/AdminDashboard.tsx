@@ -22,26 +22,27 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
+import { type QualificationValue, type UserRole, type UserStatus, QUALIFICATION_OPTIONS } from '../config';
 
 interface AdminDashboardProps {
-  initialFilter?: 'all' | 'pending' | 'user' | 'admin';
-  setInitialFilter?: (filter: 'all' | 'pending' | 'user' | 'admin') => void;
+  initialFilter?: 'all' | 'pending' | UserRole;
+  setInitialFilter?: (filter: 'all' | 'pending' | UserRole) => void;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 'all', setInitialFilter }) => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'all' | 'pending' | 'user' | 'admin'>(initialFilter);
+  const [roleFilter, setRoleFilter] = useState<'all' | 'pending' | UserRole>(initialFilter);
   const [selectedCoachUid, setSelectedCoachUid] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [approvalModalData, setApprovalModalData] = useState<{
     uid: string;
     userName: string;
     changes: string[];
-    roleToSave: 'user' | 'admin';
-    statusToSave: 'active' | 'inactive';
-    qualificationsToSave: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
+    roleToSave: UserRole;
+    statusToSave: UserStatus;
+    qualificationsToSave: QualificationValue[];
   } | null>(null);
   const [coachMeetings, setCoachMeetings] = useState<CalendarEvent[]>([]);
 
@@ -146,11 +147,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
   const [drafts, setDrafts] = useState<Record<
     string,
     {
-      userRole?: 'user' | 'admin';
-      userStatus?: 'active' | 'inactive';
+      userRole?: UserRole;
+      userStatus?: UserStatus;
       gender?: string;
       country?: string;
-      qualifications?: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
+      qualifications?: QualificationValue[];
     }
   >>({});
 
@@ -216,9 +217,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
 
   const executeApproval = async (
     uid: string,
-    roleToSave: 'user' | 'admin',
-    statusToSave: 'active' | 'inactive',
-    qualificationsToSave: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]
+    roleToSave: UserRole,
+    statusToSave: UserStatus,
+    qualificationsToSave: QualificationValue[]
   ) => {
     setSavingId(uid);
     try {
@@ -554,7 +555,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                 {filteredUsers.map((u) => {
                   const currentRole = drafts[u.userId]?.userRole || getUserRole(u);
                   const currentStatus = drafts[u.userId]?.userStatus || getUserStatus(u);
-                  const currentQuals: ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[] = (drafts[u.userId]?.qualifications || u.qualifications || []) as ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[];
+                  const currentQuals: QualificationValue[] = (drafts[u.userId]?.qualifications || u.qualifications || []) as QualificationValue[];
 
                   return (
                     <tr
@@ -581,7 +582,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                       {/* Credentials Column */}
                       <td>
                         <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
-                          {(['ICF ACC', 'ICF PCC', 'ICF MCC'] as ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]).map((q) => {
+                          {QUALIFICATION_OPTIONS.map((q) => {
                             const isActive = currentQuals.includes(q);
                             const shortCode = getShortCredential(q);
                             const cls = getCredentialBadgeClass(q);

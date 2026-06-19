@@ -12,7 +12,7 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
 import { formatDisplayName } from '../services/firebaseService';
-import { GENDER_OPTIONS, type GenderValue } from '../config';
+import { GENDER_OPTIONS, type GenderValue, type QualificationValue } from '../config';
 
 export const VerificationNotice: React.FC = () => {
   const { user, profile, updateProfileDetails, logout } = useAuth();
@@ -20,7 +20,7 @@ export const VerificationNotice: React.FC = () => {
   // State for editable profile details
   const [gender, setGender] = useState<GenderValue | ''>(profile?.gender || '');
   const [country, setCountry] = useState(profile?.country || '');
-  const [qualifications] = useState<('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]>(profile?.qualifications || []);
+  const [qualifications] = useState<QualificationValue[]>(profile?.qualifications || []);
   const [bio, setBio] = useState(profile?.bio || '');
   const [timezone, setTimezone] = useState(profile?.timezone || '');
 

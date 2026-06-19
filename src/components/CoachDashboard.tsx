@@ -31,7 +31,7 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getUtcForSlot, getTimezoneCode } from '../utils/timezoneHelpers';
 import { sanitizeImageUrl } from '../utils/url';
-import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, GENDER_OPTIONS } from '../config';
+import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, GENDER_OPTIONS, type QualificationValue, QUALIFICATION_OPTIONS } from '../config';
 
 
 export const CoachDashboard: React.FC = () => {
@@ -143,7 +143,7 @@ export const CoachDashboard: React.FC = () => {
   const [nameSearch, setNameSearch] = useState('');
   const [genderFilter, setGenderFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
-  const [selectedQuals, setSelectedQuals] = useState<('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]>([]);
+  const [selectedQuals, setSelectedQuals] = useState<QualificationValue[]>([]);
   const [qualsDropdownOpen, setQualsDropdownOpen] = useState(false);
   
   // Booking flow state
@@ -315,7 +315,7 @@ export const CoachDashboard: React.FC = () => {
   };
 
   // Handle qualification filter toggle
-  const toggleQualFilter = (qual: 'ICF ACC' | 'ICF PCC' | 'ICF MCC') => {
+  const toggleQualFilter = (qual: QualificationValue) => {
     if (selectedQuals.includes(qual)) {
       setSelectedQuals(selectedQuals.filter(q => q !== qual));
     } else {
@@ -719,7 +719,7 @@ export const CoachDashboard: React.FC = () => {
                         zIndex: 100,
                         boxShadow: 'var(--glass-shadow)'
                       }}>
-                        {(['ICF ACC', 'ICF PCC', 'ICF MCC'] as ('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]).map(q => {
+                        {QUALIFICATION_OPTIONS.map(q => {
                           const isChecked = selectedQuals.includes(q);
                           return (
                             <label

@@ -24,11 +24,13 @@ import {
   EyeOff 
 } from 'lucide-react';
 
-type Severity = 'error' | 'warn' | 'info';
+import { type LogSeverity } from '../config';
+
+// LogSeverity is imported from config — 'error' | 'warn' | 'info'
 
 interface SystemLog {
   id: string;
-  type: Severity;
+  type: LogSeverity;
   event: string;
   userId: string | null;
   details: Record<string, any>;
@@ -37,7 +39,7 @@ interface SystemLog {
   doc: any; // Storing the document snapshot for pagination
 }
 
-const SEVERITY_OPTIONS: { value: Severity; label: string }[] = [
+const SEVERITY_OPTIONS: { value: LogSeverity; label: string }[] = [
   { value: 'error', label: 'Errors' },
   { value: 'warn',  label: 'Warnings' },
   { value: 'info',  label: 'Info' },
@@ -47,7 +49,7 @@ export const SystemLogs: React.FC = () => {
   const [logs, setLogs] = useState<SystemLog[]>([]);
   const [loading, setLoading] = useState(true);
   // Multi-select: empty array means "show all"
-  const [selectedSeverities, setSelectedSeverities] = useState<Severity[]>([]);
+  const [selectedSeverities, setSelectedSeverities] = useState<LogSeverity[]>([]);
   
   // Pagination State
   const [pageIndex, setPageIndex] = useState(0);
@@ -61,7 +63,7 @@ export const SystemLogs: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Toggle a severity in/out of the selected set
-  const handleSeverityToggle = (sev: Severity) => {
+  const handleSeverityToggle = (sev: LogSeverity) => {
     setSelectedSeverities(prev => {
       const next = prev.includes(sev) ? prev.filter(s => s !== sev) : [...prev, sev];
       return next;
@@ -158,7 +160,7 @@ export const SystemLogs: React.FC = () => {
     return date.toLocaleString();
   };
 
-  const getSeverityBadgeStyle = (type: Severity) => {
+  const getSeverityBadgeStyle = (type: LogSeverity) => {
     switch (type) {
       case 'error':
         return {
@@ -185,7 +187,7 @@ export const SystemLogs: React.FC = () => {
     }
   };
 
-  const getSeverityChipStyle = (sev: Severity, active: boolean) => {
+  const getSeverityChipStyle = (sev: LogSeverity, active: boolean) => {
     const base: React.CSSProperties = {
       display: 'inline-flex',
       alignItems: 'center',
@@ -220,7 +222,7 @@ export const SystemLogs: React.FC = () => {
     }
   };
 
-  const severityChipIcons: Record<Severity, React.ReactNode> = {
+  const severityChipIcons: Record<LogSeverity, React.ReactNode> = {
     error: <AlertCircle size={13} />,
     warn:  <TriangleAlert size={13} />,
     info:  <Info size={13} />,

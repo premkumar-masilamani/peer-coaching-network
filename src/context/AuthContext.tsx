@@ -12,12 +12,13 @@ import {
   isFirebaseConfigured
 } from '../services/firebaseService';
 import type { UserProfile } from '../services/firebaseService';
+import { type UserRole } from '../config';
 
 
 interface AuthContextType {
   user: User | null;
   profile: UserProfile | null;
-  role: 'admin' | 'user' | null | undefined; // undefined = loading/unset, null = no role (pending)
+  role: UserRole | null | undefined; // undefined = loading/unset, null = no role (pending)
   loading: boolean;
   isRealFirebase: boolean;
   login: () => Promise<void>;
@@ -30,7 +31,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [role, setRole] = useState<'admin' | 'user' | null | undefined>(undefined);
+  const [role, setRole] = useState<UserRole | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
   // Subscribe to Auth status

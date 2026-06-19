@@ -14,7 +14,7 @@ import { getTimezonesForCountry } from '../utils/timezones';
 import { getCredentialDescription } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
-import { GENDER_OPTIONS, type GenderValue } from '../config';
+import { GENDER_OPTIONS, type GenderValue, type QualificationValue } from '../config';
 
 // ── Profile completion logic ──────────────────────────────────────────────────
 interface CompletionItem {
@@ -56,7 +56,7 @@ export const ProfileEdit: React.FC = () => {
   // State for editable profile details
   const [gender, setGender] = useState<GenderValue | ''>(profile?.gender || '');
   const [country, setCountry] = useState(profile?.country || '');
-  const [qualifications] = useState<('ICF ACC' | 'ICF PCC' | 'ICF MCC')[]>(profile?.qualifications || []);
+  const [qualifications] = useState<QualificationValue[]>(profile?.qualifications || []);
   const [bio, setBio] = useState(profile?.bio || '');
   const [timezone, setTimezone] = useState(profile?.timezone || '');
 

@@ -1,13 +1,14 @@
 import React from 'react';
+import { TABS, type TabKey, type UserRole } from '../config';
 import { useAuth } from '../context/AuthContext';
 import { Sparkles, Shield } from 'lucide-react';
 import { formatDisplayName, formatMemberSince, isApproved, subscribeToPendingUsersCount } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
 
 interface HeaderProps {
-  currentTab: string;
-  setCurrentTab: (tab: string) => void;
-  setAdminTabFilter?: (filter: 'all' | 'pending' | 'user' | 'admin') => void;
+  currentTab: TabKey;
+  setCurrentTab: (tab: TabKey) => void;
+  setAdminTabFilter?: (filter: 'all' | 'pending' | UserRole) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter }) => {
@@ -45,7 +46,7 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
         margin: '0 auto'
       }}>
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => (role === 'user' || role === 'admin') && setCurrentTab('dashboard')}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => (role === 'user' || role === 'admin') && setCurrentTab(TABS.DASHBOARD)}>
           <div style={{
             background: 'hsl(var(--primary))',
             width: '40px',
@@ -74,7 +75,7 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
           {isActiveAdmin && pendingCount > 0 && (
             <button
               onClick={() => {
-                setCurrentTab('admin');
+                setCurrentTab(TABS.ADMIN);
                 if (setAdminTabFilter) {
                   setAdminTabFilter('pending');
                 }
