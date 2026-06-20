@@ -118,7 +118,7 @@ export const MyBookings: React.FC = () => {
                 <p style={{ fontSize: '0.9rem' }}>No upcoming sessions scheduled. Browse the Dashboard to schedule a session with a peer coach.</p>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
                 {upcoming.map((session) => {
                   const start = new Date(session.start.dateTime);
                   const timeOpts = { hour: '2-digit', minute: '2-digit' } as const;
@@ -144,7 +144,7 @@ export const MyBookings: React.FC = () => {
                         )}
                       </div>
                       
-                      <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px', color: 'hsl(var(--text-primary))', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px', color: 'hsl(var(--text-primary))', lineHeight: '1.4' }}>
                         {session.summary}
                       </h4>
                       <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-secondary))', marginBottom: '8px' }}>
@@ -215,7 +215,7 @@ export const MyBookings: React.FC = () => {
                 Past Sessions ({completed.length})
               </h3>
               
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
                 {completed.map((session) => {
                   const start = new Date(session.start.dateTime);
                   const timeOpts = { hour: '2-digit', minute: '2-digit' } as const;
@@ -234,7 +234,7 @@ export const MyBookings: React.FC = () => {
                         </span>
                       </div>
                       
-                      <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px', color: 'hsl(var(--text-secondary))', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px', color: 'hsl(var(--text-secondary))', lineHeight: '1.4' }}>
                         {session.summary}
                       </h4>
                       <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))', marginBottom: '8px' }}>
