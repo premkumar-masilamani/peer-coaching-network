@@ -441,6 +441,75 @@ export const CoachDashboard: React.FC = () => {
     return text.substring(0, limit) + '...';
   };
 
+  // Helper to determine if a day has any available display slots (free or booked)
+  const getDisplaySlotsForDay = (date: Date) => {
+    const daySlots = [];
+    for (let hour = 8; hour < 20; hour++) {
+      daySlots.push({
+        hour,
+        startTime: getUtcForSlot(date, hour, viewerTimezone),
+        endTime: getUtcForSlot(date, hour + 1, viewerTimezone)
+      });
+    }
+    
+    return daySlots.map(slot => {
+      const isPassed = slot.endTime.getTime() < now;
+      const booking = getBookingForSlot(slot.startTime, slot.endTime);
+      const userUnavailable = isUserUnavailable(slot.startTime, slot.endTime);
+      
+      if (userUnavailable && !booking) {
+        return { isPassed: true, coaches: [] };
+      }
+      
+      const coachesForSlot = isPassed ? [] : getCoachesForSlot(slot.startTime, slot.endTime, false);
+      return { isPassed, coaches: coachesForSlot, booking };
+    }).filter(e => !e.isPassed && (e.coaches.length > 0 || e.booking));
+  };
+
+  // Find first day that has slots, starting from the current selected index, wrapping around if needed
+  const findFirstAvailableDayIndex = (startIndex: number) => {
+    // Search forward
+    for (let i = startIndex; i < days.length; i++) {
+      if (getDisplaySlotsForDay(days[i]).length > 0) {
+        return i;
+      }
+    }
+    // Search from beginning
+    for (let i = 0; i < startIndex; i++) {
+      if (getDisplaySlotsForDay(days[i]).length > 0) {
+        return i;
+      }
+    }
+    return -1;
+  };
+
+  // Auto-advance to the first day with available slots/bookings if the current one is empty (adjust state during render).
+  if (!isInitialLoading) {
+    const currentSlots = getDisplaySlotsForDay(days[selectedDayIndex] || localToday);
+    if (currentSlots.length === 0) {
+      const nextIdx = findFirstAvailableDayIndex(selectedDayIndex);
+      if (nextIdx !== -1 && nextIdx !== selectedDayIndex) {
+        setSelectedDayIndex(nextIdx);
+      }
+    }
+  }
+
+
+  // Scroll the active tab into view in the carousel
+  useEffect(() => {
+    if (carouselRef.current) {
+      const activeEl = carouselRef.current.children[selectedDayIndex] as HTMLElement;
+      if (activeEl) {
+        activeEl.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'center'
+        });
+      }
+    }
+  }, [selectedDayIndex]);
+
+
   // Precompute, once per relevant-input change, the filtered coaches per slot —
   // instead of calling getCoachesForSlot three times per render. See BUG-006.
   const slotView = useMemo(() => {
