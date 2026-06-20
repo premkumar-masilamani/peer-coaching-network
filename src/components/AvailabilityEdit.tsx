@@ -5,7 +5,8 @@ import {
   getSchedule,
   updateSchedule,
   timeStringToTimestamp,
-  timestampToTimeString
+  timestampToTimeString,
+  logAnalyticsEvent
 } from '../services/firebaseService';
 import type { AvailableDays } from '../services/firebaseService';
 import {
@@ -246,7 +247,6 @@ export const AvailabilityEdit: React.FC = () => {
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
-  // Add blocked date
   const handleAddBlockedDate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newBlockedDate) return;
@@ -264,6 +264,7 @@ export const AvailabilityEdit: React.FC = () => {
       return;
     }
 
+    logAnalyticsEvent('block_date', { date: newBlockedDate });
     setBlockedDates(prev => [...prev, newBlockedDate].sort());
     setNewBlockedDate('');
     setBlockErrorMsg('');
@@ -271,6 +272,7 @@ export const AvailabilityEdit: React.FC = () => {
 
   // Remove blocked date
   const handleRemoveBlockedDate = (date: string) => {
+    logAnalyticsEvent('unblock_date', { date });
     setBlockedDates(prev => prev.filter(d => d !== date));
   };
 
@@ -347,6 +349,11 @@ export const AvailabilityEdit: React.FC = () => {
 
       // 2. Recompute and write actual busy intervals to busySlotsCache collection
       await recalculateUserBusySlotsCache(uid);
+
+      logAnalyticsEvent('save_availability_template', {
+        enabledDays: Object.keys(weekly).filter(day => weekly[day as keyof AvailableDaysFormState].enabled),
+        blockedDatesCount: blockedDates.length,
+      });
 
       setSuccessMsg('Availability template and schedules saved successfully!');
       setTimeout(() => setSuccessMsg(''), 4000);

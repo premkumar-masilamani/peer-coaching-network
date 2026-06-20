@@ -1,4 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAnalytics, logEvent } from 'firebase/analytics';
+import type { Analytics } from 'firebase/analytics';
 import { 
   getAuth, 
   signInWithPopup, 
@@ -137,12 +139,34 @@ const firebaseConfig = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || `${projectId}.firebasestorage.app`,
   messagingSenderId: requiredConfig.messagingSenderId || (useEmulator ? 'mock-sender-id' : undefined),
   appId: requiredConfig.appId || (useEmulator ? 'mock-app-id' : undefined),
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const databaseId = import.meta.env.VITE_FIRESTORE_DATABASE_ID;
 export const db = getFirestore(app, databaseId);
+
+// Safe-initialize Google Analytics
+let analytics: Analytics | null = null;
+if (typeof window !== 'undefined' && firebaseConfig.measurementId) {
+  try {
+    analytics = getAnalytics(app);
+  } catch (err) {
+    logger.error('Failed to initialize Firebase Analytics:', err);
+  }
+}
+
+export const logAnalyticsEvent = (eventName: string, params?: Record<string, unknown>) => {
+  if (analytics) {
+    try {
+      logEvent(analytics, eventName, params);
+      logger.debug(`[Analytics] Event logged: ${eventName}`, params);
+    } catch (err) {
+      logger.error(`[Analytics] Failed to log event "${eventName}":`, err);
+    }
+  }
+};
 
 // Connect to Emulators during development/testing if configured
 if (useEmulator) {
