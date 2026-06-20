@@ -37,6 +37,7 @@ describe('logger utility', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('VITE_FIRESTORE_DATABASE_ID', 'pcn-dev');
     consoleDebugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
     consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
     consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -48,6 +49,7 @@ describe('logger utility', () => {
     consoleInfoSpy.mockRestore();
     consoleWarnSpy.mockRestore();
     consoleErrorSpy.mockRestore();
+    vi.unstubAllEnvs();
   });
 
   describe('console logging level filtering', () => {
@@ -103,13 +105,17 @@ describe('logger utility', () => {
       expect(consoleErrorSpy).toHaveBeenCalledWith('test error');
     });
 
-    it('defaults to info level if VITE_LOG_LEVEL is unset or invalid', () => {
+    it('defaults to error level if VITE_LOG_LEVEL is unset or invalid', () => {
       vi.stubEnv('VITE_LOG_LEVEL', '');
       logger.debug('test debug');
       logger.info('test info');
+      logger.warn('test warn');
+      logger.error('test error');
 
       expect(consoleDebugSpy).not.toHaveBeenCalled();
-      expect(consoleInfoSpy).toHaveBeenCalledWith('test info');
+      expect(consoleInfoSpy).not.toHaveBeenCalled();
+      expect(consoleWarnSpy).not.toHaveBeenCalled();
+      expect(consoleErrorSpy).toHaveBeenCalledWith('test error');
     });
   });
 

@@ -19,14 +19,14 @@ erDiagram
         string email
         string displayName
         string photoURL
-        string gender
+        Gender gender
         string country
-        string qualifications
+        string_array qualifications
         string bio
         string timezone
-        string userRole
-        string userStatus
-        string theme
+        UserRole userRole
+        UserStatus userStatus
+        Theme theme
         Timestamp createdAt
         DayAvailability monday
         DayAvailability tuesday
@@ -36,6 +36,12 @@ erDiagram
         DayAvailability saturday
         DayAvailability sunday
         string_array blockedDates
+    }
+
+    busySlotsCache {
+        string userId FK
+        string lastUpdated
+        string_array busySlots
     }
 
     bookings {
@@ -50,12 +56,6 @@ erDiagram
         string clientUid FK
         Timestamp createdAt
         Timestamp cancelledAt
-    }
-
-    busySlotsCache {
-        string userId FK
-        string lastUpdated
-        string_array busySlots
     }
 
     clientBookingCache {

@@ -51,6 +51,7 @@ vi.mock('firebase/auth', () => ({
   signInWithPopup: vi.fn(),
    GoogleAuthProvider: class {
     addScope = vi.fn();
+    setCustomParameters = vi.fn();
     static credentialFromResult() {
       return { accessToken: 'mock-access-token' };
     }
@@ -58,13 +59,17 @@ vi.mock('firebase/auth', () => ({
   signOut: vi.fn(),
   onAuthStateChanged: vi.fn(),
 }));
-const { mockGetDoc, mockSetDoc, mockUpdateDoc, mockGetDocs, mockOnSnapshot } = vi.hoisted(() => ({
-  mockGetDoc: vi.fn(),
-  mockSetDoc: vi.fn(),
-  mockUpdateDoc: vi.fn(),
-  mockGetDocs: vi.fn(),
-  mockOnSnapshot: vi.fn(),
-}));
+const { mockGetDoc, mockSetDoc, mockUpdateDoc, mockGetDocs, mockOnSnapshot } = vi.hoisted(() => {
+  (import.meta.env as any).VITE_USE_FIREBASE_EMULATOR = 'true';
+  (import.meta.env as any).VITE_FIRESTORE_DATABASE_ID = 'pcn-dev';
+  return {
+    mockGetDoc: vi.fn(),
+    mockSetDoc: vi.fn(),
+    mockUpdateDoc: vi.fn(),
+    mockGetDocs: vi.fn(),
+    mockOnSnapshot: vi.fn(),
+  };
+});
 vi.mock('firebase/firestore', () => ({
   getFirestore: vi.fn(() => ({})),
   connectFirestoreEmulator: vi.fn(),
@@ -713,6 +718,7 @@ describe('firebaseService', () => {
       vi.resetModules();
       vi.mocked(logger.error).mockClear();
       vi.stubEnv('VITE_USE_FIREBASE_EMULATOR', 'false');
+      vi.stubEnv('VITE_FIRESTORE_DATABASE_ID', 'pcn-dev');
       vi.stubEnv('VITE_FIREBASE_API_KEY', '');
       vi.stubEnv('VITE_FIREBASE_PROJECT_ID', '');
       vi.stubEnv('VITE_FIREBASE_MESSAGING_SENDER_ID', '');
