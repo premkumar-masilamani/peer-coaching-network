@@ -291,7 +291,7 @@ describe('googleCalendar service', () => {
       expect(mockFetch.mock.calls[1][0]).toContain('gcal-event-123');
       expect(mockFetch.mock.calls[1][1].method).toBe('DELETE');
 
-      expect(logger.telemetry).toHaveBeenCalledWith('warn', 'booking_conflict', {
+      expect(logger.telemetry).toHaveBeenCalledWith('warn', 'booking_collision', {
         clientUid: 'client-123',
         coachUid: 'coach-123',
         startIso: '2026-06-18T10:00:00Z',
@@ -403,7 +403,7 @@ describe('googleCalendar service', () => {
       ).rejects.toThrow('SLOT_TAKEN');
     });
 
-    it('executes transaction and throws SELF_CONFLICT if clientBookingCache exists', async () => {
+    it('executes transaction and throws BOOKED_AS_CLIENT if clientBookingCache exists', async () => {
       vi.mocked(getGoogleToken).mockReturnValue(null);
 
       mockRunTransaction.mockImplementationOnce(async (_db, callback) => {
@@ -432,7 +432,7 @@ describe('googleCalendar service', () => {
           '2026-06-18T11:00:00Z',
           'Career Development'
         )
-      ).rejects.toThrow('SELF_CONFLICT');
+      ).rejects.toThrow('BOOKED_AS_CLIENT');
     });
 
     it('executes transaction and throws SLOT_TAKEN if coach is already booked as a client (coachAsClient exists)', async () => {
@@ -467,7 +467,7 @@ describe('googleCalendar service', () => {
       ).rejects.toThrow('SLOT_TAKEN');
     });
 
-    it('executes transaction and throws SELF_CONFLICT if client is already booked as a coach (clientAsCoach exists)', async () => {
+    it('executes transaction and throws BOOKED_AS_COACH if client is already booked as a coach (clientAsCoach exists)', async () => {
       vi.mocked(getGoogleToken).mockReturnValue(null);
 
       mockRunTransaction.mockImplementationOnce(async (_db, callback) => {
@@ -496,7 +496,7 @@ describe('googleCalendar service', () => {
           '2026-06-18T11:00:00Z',
           'Career Development'
         )
-      ).rejects.toThrow('SELF_CONFLICT');
+      ).rejects.toThrow('BOOKED_AS_COACH');
     });
 
     it('executes transaction successfully and calls tx.set for booking and cache', async () => {
@@ -777,6 +777,60 @@ describe('googleCalendar service', () => {
       const events = await getUpcomingEvents();
       expect(events.length).toBe(1);
       expect(events[0].summary).toBe('Coach / Jane - Peer Coaching Session');
+    });
+
+    it('enriches real Google Calendar events with Firestore booking metadata if ID matches', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [
+            {
+              id: 'matching-booking-1',
+              summary: 'Google meeting',
+              start: { dateTime: '2026-06-20T10:00:00Z' },
+              end: { dateTime: '2026-06-20T11:00:00Z' },
+              attendees: [{ email: 'attendee@example.com', displayName: 'Attendee' }]
+            }
+          ]
+        })
+      });
+
+      mockGetDocs.mockResolvedValueOnce({
+        docs: [
+          {
+            data: () => ({
+              bookingId: 'matching-booking-1',
+              status: BOOKING_STATUS.CONFIRMED,
+              startTime: '2026-06-20T10:00:00Z',
+              endTime: '2026-06-20T11:00:00Z',
+              coachUid: 'coach-123',
+              clientUid: 'client-123',
+              topic: 'Career Development'
+            })
+          }
+        ]
+      });
+
+      mockGetDocs.mockResolvedValueOnce({ docs: [] });
+
+      mockGetDoc.mockImplementation(async (ref: any) => {
+        if (ref.path === 'users/coach-123') {
+          return { exists: () => true, data: () => ({ displayName: 'John Coach', email: 'coach@example.com' }) };
+        }
+        if (ref.path === 'users/client-123') {
+          return { exists: () => true, data: () => ({ displayName: 'Jane Client', email: 'client@example.com' }) };
+        }
+        return { exists: () => false };
+      });
+
+      const events = await getUpcomingEvents();
+      expect(events.length).toBe(1);
+      expect(events[0].id).toBe('matching-booking-1');
+      expect(events[0].type).toBe('peer-coaching');
+      expect(events[0].coachUid).toBe('coach-123');
+      expect(events[0].clientUid).toBe('client-123');
+      expect(events[0].description).toBe('Peer Coaching Network session on the topic: Career Development. Created via PCN.');
     });
 
     it('handles Firestore query failure in getUpcomingEvents gracefully', async () => {

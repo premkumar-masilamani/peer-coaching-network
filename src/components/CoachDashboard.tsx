@@ -133,8 +133,10 @@ export const CoachDashboard: React.FC = () => {
       });
     });
     
-    return [...baseGoogleEvents, ...liveUserEvents];
-  }, [userBaseBusyEvents, liveBookings, currentUser]);
+    const userTemplateBusy = profile ? (coachesBaseBusy[profile.userId] || []) : [];
+    
+    return [...baseGoogleEvents, ...liveUserEvents, ...userTemplateBusy];
+  }, [userBaseBusyEvents, liveBookings, currentUser, profile, coachesBaseBusy]);
   
   // Tab states
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -230,7 +232,8 @@ export const CoachDashboard: React.FC = () => {
       endDay.setDate(today.getDate() + BOOKING_HORIZON_DAYS);
       const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
 
-      const availability = await getCoachesBusySlots(coaches, timeMin, timeMax);
+      const allProfiles = profile ? [...coaches, profile] : coaches;
+      const availability = await getCoachesBusySlots(allProfiles, timeMin, timeMax);
       setCoachesBaseBusy(availability);
 
       const allEvents = await getUpcomingEvents();
@@ -258,7 +261,8 @@ export const CoachDashboard: React.FC = () => {
         endDay.setDate(today.getDate() + BOOKING_HORIZON_DAYS);
         const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
 
-        const availability = await getCoachesBusySlots(coaches, timeMin, timeMax);
+        const allProfiles = profile ? [...coaches, profile] : coaches;
+        const availability = await getCoachesBusySlots(allProfiles, timeMin, timeMax);
         if (cancelled) return;
         setCoachesBaseBusy(availability);
 
@@ -272,7 +276,7 @@ export const CoachDashboard: React.FC = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [coaches, viewerTimezone]);
+  }, [coaches, viewerTimezone, profile]);
 
   // Handle booking success with optimistic updates
   const handleBookingSuccess = (newEvent: CalendarEvent) => {
@@ -307,9 +311,10 @@ export const CoachDashboard: React.FC = () => {
     });
   };
 
-  // Check if current user has a calendar conflict
-  const hasUserConflict = (slotStart: Date, slotEnd: Date) => {
+  // Check if current user is unavailable (due to template gaps, blocked dates, or google calendar events, excluding active PCN bookings)
+  const isUserUnavailable = (slotStart: Date, slotEnd: Date) => {
     return userBusyEvents.some(e => {
+      if (e.type === 'peer-coaching') return false;
       const start = new Date(e.start.dateTime);
       const end = new Date(e.end.dateTime);
       return slotStart < end && slotEnd > start;
@@ -390,35 +395,39 @@ export const CoachDashboard: React.FC = () => {
     const enriched = slots.map(slot => {
       const isPassed = slot.endTime.getTime() < now;
       
+      // Check if there is an active booking for this slot
+      const booking = getBookingForSlot(slot.startTime, slot.endTime);
+      
+      // If the current user is unavailable at this slot (excluding bookings),
+      // we filter it out (hide it) unless there is a booking already!
+      const userUnavailable = isUserUnavailable(slot.startTime, slot.endTime);
+      if (userUnavailable && !booking) {
+        return { slot, isPassed: true, coaches: [], anyAvailable: false, booking: null };
+      }
+      
       // Always get all available coaches for this slot
       let coachesForSlot = isPassed ? [] : getCoachesForSlot(slot.startTime, slot.endTime, false);
       let anyAvailable = isPassed ? false : getCoachesForSlot(slot.startTime, slot.endTime, true).length > 0;
       
-      // Check if there is an active booking for this slot
-      const booking = getBookingForSlot(slot.startTime, slot.endTime);
-      let conflict: boolean;
-      
       if (booking) {
-        // Ensure the booked coach is included (and placed first) even if their template marks them busy now
-        const bookedCoach = coaches.find(c => c.userId === booking.coachUid);
-        if (bookedCoach) {
-          coachesForSlot = coachesForSlot.filter(c => c.userId !== bookedCoach.userId);
-          coachesForSlot.unshift(bookedCoach);
+        // Find the other participant in this booking (could be coach or client)
+        const otherParticipantId = booking.coachUid === currentUser?.uid ? booking.clientUid : booking.coachUid;
+        const bookedUser = coaches.find(c => c.userId === otherParticipantId);
+        if (bookedUser) {
+          coachesForSlot = coachesForSlot.filter(c => c.userId !== bookedUser.userId);
+          coachesForSlot.unshift(bookedUser);
         }
         anyAvailable = true;
-        conflict = true; // A booking in this slot is a conflict for other coaches
-      } else {
-        conflict = hasUserConflict(slot.startTime, slot.endTime);
       }
       
-      return { slot, isPassed, coaches: coachesForSlot, anyAvailable, conflict, booking };
+      return { slot, isPassed, coaches: coachesForSlot, anyAvailable, booking };
     });
     return {
-      displaySlots: enriched.filter(e => !e.isPassed && e.coaches.length > 0),
+      displaySlots: enriched.filter(e => !e.isPassed && (e.coaches.length > 0 || e.booking)),
       hasGeneralSlots: enriched.some(e => e.anyAvailable)
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slots, coaches, coachesBusy, userBusyEvents, now, nameSearch, genderFilter, countryFilter, selectedQuals]);
+  }, [slots, coaches, coachesBusy, userBusyEvents, now, nameSearch, genderFilter, countryFilter, selectedQuals, currentUser]);
 
   return (
     <>
@@ -526,11 +535,7 @@ export const CoachDashboard: React.FC = () => {
           transition: all 0.2s ease;
         }
 
-        .slot-row.has-conflict {
-          border-color: hsl(var(--warning) / 0.4);
-          border-left: 4px solid hsl(var(--warning));
-          background: var(--bg-surface);
-        }
+
 
         .slot-row.is-passed {
           opacity: 0.5;
@@ -916,11 +921,11 @@ export const CoachDashboard: React.FC = () => {
                 const displaySlots = slotView.displaySlots;
 
                 if (displaySlots.length > 0) {
-                  return displaySlots.map(({ slot, conflict, booking, coaches: slotCoaches }) => {
+                  return displaySlots.map(({ slot, booking, coaches: slotCoaches }) => {
                     return (
                       <div 
                         key={slot.hour} 
-                        className={`slot-row ${conflict && !booking ? 'has-conflict' : ''} ${booking ? 'has-booking' : ''}`}
+                        className={`slot-row ${booking ? 'has-booking' : ''}`}
                       >
                         <div className="slot-header">
                           <div className="slot-time">
@@ -934,17 +939,9 @@ export const CoachDashboard: React.FC = () => {
                                 Session Already Booked
                               </span>
                             ) : (
-                              <>
-                                {conflict && (
-                                  <span className="badge badge-pending" style={{ fontSize: '0.65rem', gap: '4px' }}>
-                                    <AlertTriangle size={10} />
-                                    Your Calendar Conflict
-                                  </span>
-                                )}
-                                <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>
-                                  {slotCoaches.length} Available
-                                </span>
-                              </>
+                              <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>
+                                {slotCoaches.length} Available
+                              </span>
                             )}
                           </div>
                         </div>
@@ -960,10 +957,6 @@ export const CoachDashboard: React.FC = () => {
                               if (hasMCC) borderCol = 'hsl(var(--mcc-platinum))';
                               else if (hasPCC) borderCol = 'hsl(var(--pcc-silver))';
                               else if (hasACC) borderCol = 'hsl(var(--acc-gold))';
-
-                              // slotCoaches are already filtered to non-busy coaches,
-                              // so the only remaining disabler is the viewer's own conflict.
-                              const isDisabled = conflict;
 
                               return (
                                 <div key={coach.userId} className="mini-coach-card">
@@ -1001,8 +994,8 @@ export const CoachDashboard: React.FC = () => {
                                   </div>
 
                                   {(() => {
-                                    const isThisCoachBooked = booking && booking.coachUid === coach.userId;
-                                    if (isThisCoachBooked) {
+                                    const isThisParticipantBooked = booking && (booking.coachUid === coach.userId || booking.clientUid === coach.userId);
+                                    if (isThisParticipantBooked) {
                                       return (
                                         <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
                                           <button
@@ -1061,8 +1054,7 @@ export const CoachDashboard: React.FC = () => {
                                             setActiveBookingCoach(coach);
                                             setActiveBookingSlot({ startTime: slot.startTime, endTime: slot.endTime });
                                           }}
-                                          disabled={isDisabled}
-                                          className={isDisabled ? "btn btn-disabled" : "btn btn-primary"}
+                                          className="btn btn-primary"
                                           style={{
                                             width: '100%',
                                             padding: '6px 12px',
@@ -1070,10 +1062,10 @@ export const CoachDashboard: React.FC = () => {
                                             borderRadius: '8px',
                                             height: '36px',
                                             fontWeight: 700,
-                                            cursor: isDisabled ? 'not-allowed' : 'pointer'
+                                            cursor: 'pointer'
                                           }}
                                         >
-                                          {conflict ? 'Conflict' : 'Book Session'}
+                                          Book Session
                                         </button>
                                       );
                                     }

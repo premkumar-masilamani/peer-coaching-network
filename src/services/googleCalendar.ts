@@ -118,8 +118,16 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
         for (const d of snap.docs) {
           const data = d.data();
           if (data.status === BOOKING_STATUS.CANCELLED) continue; // skip cancelled bookings (BUG-016)
-          // De-duplicate strictly by stable id, never by coincidental start time. See BUG-010.
-          if (!seenIds.has(data.bookingId)) {
+          
+          const existingEvent = events.find(e => e.id === data.bookingId);
+          if (existingEvent) {
+            existingEvent.type = 'peer-coaching';
+            existingEvent.coachUid = data.coachUid;
+            existingEvent.clientUid = data.clientUid;
+            if (data.topic) {
+              existingEvent.description = `Peer Coaching Network session on the topic: ${data.topic}. Created via PCN.`;
+            }
+          } else if (!seenIds.has(data.bookingId)) {
             seenIds.add(data.bookingId);
             const startStr: string = data.startTime && typeof data.startTime.toDate === 'function'
               ? data.startTime.toDate().toISOString()
@@ -345,10 +353,10 @@ export const scheduleMeeting = async (
             throw new Error('SLOT_TAKEN');
           }
           if (clientAsClientDoc.exists()) {
-            throw new Error('SELF_CONFLICT');
+            throw new Error('BOOKED_AS_CLIENT');
           }
           if (clientAsCoachDoc.exists() && clientAsCoachDoc.data()?.status !== BOOKING_STATUS.CANCELLED) {
-            throw new Error('SELF_CONFLICT');
+            throw new Error('BOOKED_AS_COACH');
           }
 
           tx.set(bookingRef, bookingData);
@@ -368,12 +376,20 @@ export const scheduleMeeting = async (
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         // If it's a logical error, do not retry!
-        if (err instanceof Error && (err.message === 'SLOT_TAKEN' || err.message === 'SELF_CONFLICT')) {
-          const telemetryErr = err.message === 'SLOT_TAKEN'
-            ? TelemetryErrors.SLOT_TAKEN
-            : TelemetryErrors.CLIENT_CONFLICT;
+        if (
+          err instanceof Error &&
+          (err.message === 'SLOT_TAKEN' ||
+            err.message === 'BOOKED_AS_CLIENT' ||
+            err.message === 'BOOKED_AS_COACH')
+        ) {
+          const telemetryErr =
+            err.message === 'SLOT_TAKEN'
+              ? TelemetryErrors.SLOT_TAKEN
+              : err.message === 'BOOKED_AS_CLIENT'
+              ? TelemetryErrors.BOOKED_AS_CLIENT
+              : TelemetryErrors.BOOKED_AS_COACH;
           logger.warn(`Booking collision: ${telemetryErr.message}`);
-          await logger.telemetry(LOG_SEVERITY.WARN, 'booking_conflict', {
+          await logger.telemetry(LOG_SEVERITY.WARN, 'booking_collision', {
             clientUid,
             coachUid,
             startIso,
