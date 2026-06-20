@@ -6,9 +6,6 @@ coverage/
 # --- Logs ---
 *.log
 
-# --- Environment & Local Config ---
-.env.*
-
 # --- OS Files ---
 .DS_Store
 
