@@ -127,7 +127,9 @@ export const CoachDashboard: React.FC = () => {
         start: { dateTime: startStr },
         end: { dateTime: endStr },
         type: 'peer-coaching',
-        meetLink: b.googleMeetLink
+        meetLink: b.googleMeetLink,
+        coachUid: b.coachUid,
+        clientUid: b.clientUid
       });
     });
     
@@ -388,24 +390,24 @@ export const CoachDashboard: React.FC = () => {
     const enriched = slots.map(slot => {
       const isPassed = slot.endTime.getTime() < now;
       
+      // Always get all available coaches for this slot
+      let coachesForSlot = isPassed ? [] : getCoachesForSlot(slot.startTime, slot.endTime, false);
+      let anyAvailable = isPassed ? false : getCoachesForSlot(slot.startTime, slot.endTime, true).length > 0;
+      
       // Check if there is an active booking for this slot
       const booking = getBookingForSlot(slot.startTime, slot.endTime);
-      
-      let coachesForSlot: UserProfile[] = [];
-      let anyAvailable = false;
-      let conflict = false;
+      let conflict: boolean;
       
       if (booking) {
-        // If there's a booking, we only show the coach of that booking.
-        // No need to show other coaches' availability for the same slot.
+        // Ensure the booked coach is included (and placed first) even if their template marks them busy now
         const bookedCoach = coaches.find(c => c.userId === booking.coachUid);
         if (bookedCoach) {
-          coachesForSlot = [bookedCoach];
-          anyAvailable = true;
+          coachesForSlot = coachesForSlot.filter(c => c.userId !== bookedCoach.userId);
+          coachesForSlot.unshift(bookedCoach);
         }
+        anyAvailable = true;
+        conflict = true; // A booking in this slot is a conflict for other coaches
       } else {
-        coachesForSlot = isPassed ? [] : getCoachesForSlot(slot.startTime, slot.endTime, false);
-        anyAvailable = isPassed ? false : getCoachesForSlot(slot.startTime, slot.endTime, true).length > 0;
         conflict = hasUserConflict(slot.startTime, slot.endTime);
       }
       
@@ -874,7 +876,6 @@ export const CoachDashboard: React.FC = () => {
             <div ref={carouselRef} className="date-tabs-container">
               {days.map((day, index) => {
                 const isActive = index === selectedDayIndex;
-                const isTodayTab = index === 0;
                 return (
                   <div 
                     key={day.toISOString()}
@@ -882,7 +883,7 @@ export const CoachDashboard: React.FC = () => {
                     className={`date-tab ${isActive ? 'active' : ''}`}
                   >
                     <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: isActive ? 0.9 : 0.6 }}>
-                      {isTodayTab ? 'Today' : formatTabDayName(day)}
+                      {formatTabDayName(day)}
                     </span>
                     <span style={{ fontSize: '1rem', fontWeight: 800, marginTop: '2px' }}>
                       {formatTabDate(day)}
@@ -919,7 +920,7 @@ export const CoachDashboard: React.FC = () => {
                     return (
                       <div 
                         key={slot.hour} 
-                        className={`slot-row ${conflict ? 'has-conflict' : ''} ${booking ? 'has-booking' : ''}`}
+                        className={`slot-row ${conflict && !booking ? 'has-conflict' : ''} ${booking ? 'has-booking' : ''}`}
                       >
                         <div className="slot-header">
                           <div className="slot-time">
@@ -928,16 +929,22 @@ export const CoachDashboard: React.FC = () => {
                           </div>
                           
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            {conflict && !booking && (
-                              <span className="badge badge-pending" style={{ fontSize: '0.65rem', gap: '4px' }}>
-                                <AlertTriangle size={10} />
-                                Your Calendar Conflict
-                              </span>
-                            )}
-                            {!booking && (
+                            {booking ? (
                               <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>
-                                {slotCoaches.length} Available
+                                Session Already Booked
                               </span>
+                            ) : (
+                              <>
+                                {conflict && (
+                                  <span className="badge badge-pending" style={{ fontSize: '0.65rem', gap: '4px' }}>
+                                    <AlertTriangle size={10} />
+                                    Your Calendar Conflict
+                                  </span>
+                                )}
+                                <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>
+                                  {slotCoaches.length} Available
+                                </span>
+                              </>
                             )}
                           </div>
                         </div>
@@ -993,59 +1000,84 @@ export const CoachDashboard: React.FC = () => {
                                     </div>
                                   </div>
 
-                                  {booking ? (
-                                    <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-                                      <button
-                                        onClick={() => setSelectedBookingForView(booking)}
-                                        className="btn btn-secondary"
-                                        style={{
-                                          flex: 1,
-                                          padding: '6px 8px',
-                                          fontSize: '0.85rem',
-                                          borderRadius: '8px',
-                                          height: '36px',
-                                          fontWeight: 700
-                                        }}
-                                      >
-                                        View Session
-                                      </button>
-                                      <button
-                                        onClick={() => setBookingToCancel(booking)}
-                                        disabled={cancellingId === booking.id}
-                                        className="btn btn-danger"
-                                        style={{
-                                          flex: 1,
-                                          padding: '6px 8px',
-                                          fontSize: '0.85rem',
-                                          borderRadius: '8px',
-                                          height: '36px',
-                                          fontWeight: 700
-                                        }}
-                                      >
-                                        Cancel
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      onClick={() => {
-                                        setActiveBookingCoach(coach);
-                                        setActiveBookingSlot({ startTime: slot.startTime, endTime: slot.endTime });
-                                      }}
-                                      disabled={isDisabled}
-                                      className={isDisabled ? "btn btn-disabled" : "btn btn-primary"}
-                                      style={{
-                                        width: '100%',
-                                        padding: '6px 12px',
-                                        fontSize: '0.85rem',
-                                        borderRadius: '8px',
-                                        height: '36px',
-                                        fontWeight: 700,
-                                        cursor: isDisabled ? 'not-allowed' : 'pointer'
-                                      }}
-                                    >
-                                      {conflict ? 'Conflict' : 'Book Session'}
-                                    </button>
-                                  )}
+                                  {(() => {
+                                    const isThisCoachBooked = booking && booking.coachUid === coach.userId;
+                                    if (isThisCoachBooked) {
+                                      return (
+                                        <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                                          <button
+                                            onClick={() => setSelectedBookingForView(booking)}
+                                            className="btn btn-secondary"
+                                            style={{
+                                              flex: 1,
+                                              padding: '6px 8px',
+                                              fontSize: '0.85rem',
+                                              borderRadius: '8px',
+                                              height: '36px',
+                                              fontWeight: 700
+                                            }}
+                                          >
+                                            View
+                                          </button>
+                                          <button
+                                            onClick={() => setBookingToCancel(booking)}
+                                            disabled={cancellingId === booking.id}
+                                            className="btn btn-danger"
+                                            style={{
+                                              flex: 1,
+                                              padding: '6px 8px',
+                                              fontSize: '0.85rem',
+                                              borderRadius: '8px',
+                                              height: '36px',
+                                              fontWeight: 700
+                                            }}
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      );
+                                    } else if (booking) {
+                                      return (
+                                        <button
+                                          disabled={true}
+                                          className="btn btn-disabled"
+                                          style={{
+                                            width: '100%',
+                                            padding: '6px 12px',
+                                            fontSize: '0.85rem',
+                                            borderRadius: '8px',
+                                            height: '36px',
+                                            fontWeight: 700,
+                                            cursor: 'not-allowed'
+                                          }}
+                                        >
+                                          Session Booked
+                                        </button>
+                                      );
+                                    } else {
+                                      return (
+                                        <button
+                                          onClick={() => {
+                                            setActiveBookingCoach(coach);
+                                            setActiveBookingSlot({ startTime: slot.startTime, endTime: slot.endTime });
+                                          }}
+                                          disabled={isDisabled}
+                                          className={isDisabled ? "btn btn-disabled" : "btn btn-primary"}
+                                          style={{
+                                            width: '100%',
+                                            padding: '6px 12px',
+                                            fontSize: '0.85rem',
+                                            borderRadius: '8px',
+                                            height: '36px',
+                                            fontWeight: 700,
+                                            cursor: isDisabled ? 'not-allowed' : 'pointer'
+                                          }}
+                                        >
+                                          {conflict ? 'Conflict' : 'Book Session'}
+                                        </button>
+                                      );
+                                    }
+                                  })()}
                                 </div>
                               );
                             })}
