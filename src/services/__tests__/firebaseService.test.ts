@@ -717,6 +717,7 @@ describe('firebaseService', () => {
       vi.resetModules();
       vi.mocked(logger.error).mockClear();
       vi.stubEnv('VITE_USE_FIREBASE_EMULATOR', 'false');
+      vi.stubEnv('VITE_FIRESTORE_DATABASE_ID', 'pcn-dev');
       vi.stubEnv('VITE_FIREBASE_API_KEY', '');
       vi.stubEnv('VITE_FIREBASE_PROJECT_ID', '');
       vi.stubEnv('VITE_FIREBASE_MESSAGING_SENDER_ID', '');

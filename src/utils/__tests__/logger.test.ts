@@ -37,6 +37,7 @@ describe('logger utility', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv('VITE_FIRESTORE_DATABASE_ID', 'pcn-dev');
     consoleDebugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
     consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
     consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -48,6 +49,7 @@ describe('logger utility', () => {
     consoleInfoSpy.mockRestore();
     consoleWarnSpy.mockRestore();
     consoleErrorSpy.mockRestore();
+    vi.unstubAllEnvs();
   });
 
   describe('console logging level filtering', () => {

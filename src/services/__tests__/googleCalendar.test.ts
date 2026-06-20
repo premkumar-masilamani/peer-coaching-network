@@ -19,14 +19,17 @@ const {
   mockDeleteDoc,
   mockRunTransaction,
   mockGetDocs
-} = vi.hoisted(() => ({
-  mockGetDoc: vi.fn(),
-  mockSetDoc: vi.fn(),
-  mockUpdateDoc: vi.fn(),
-  mockDeleteDoc: vi.fn(),
-  mockRunTransaction: vi.fn(),
-  mockGetDocs: vi.fn(),
-}));
+} = vi.hoisted(() => {
+  (import.meta.env as any).VITE_FIRESTORE_DATABASE_ID = 'pcn-dev';
+  return {
+    mockGetDoc: vi.fn(),
+    mockSetDoc: vi.fn(),
+    mockUpdateDoc: vi.fn(),
+    mockDeleteDoc: vi.fn(),
+    mockRunTransaction: vi.fn(),
+    mockGetDocs: vi.fn(),
+  };
+});
 
 vi.mock('firebase/app', () => ({
   initializeApp: vi.fn(),

@@ -56,8 +56,12 @@ export const logger = {
       const apps = getApps();
       if (apps.length === 0) return;
       const app = getApp();
-      const databaseId = import.meta.env.VITE_FIRESTORE_DATABASE_ID || 'pcn-dev';
-      const db = getFirestore(app, databaseId);
+      const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+      const databaseId = import.meta.env.VITE_FIRESTORE_DATABASE_ID;
+      if (!useEmulator && !databaseId) {
+        throw new Error('Missing required environment variable: VITE_FIRESTORE_DATABASE_ID.');
+      }
+      const db = getFirestore(app, databaseId || '(default)');
       const auth = getAuth(app);
       
       const userId = auth.currentUser?.uid || null;
