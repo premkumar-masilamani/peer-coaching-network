@@ -10,9 +10,12 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { LeftNav } from './components/LeftNav';
 import { MyBookings } from './components/MyBookings';
 import { SystemLogs } from './components/SystemLogs';
+import { PublicProfile } from './components/PublicProfile';
 import { isApproved, logAnalyticsEvent } from './services/firebaseService';
 import { Sparkles, AlertTriangle, X } from 'lucide-react';
 import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, THEME } from './config';
+import { clearProfileFromUrl } from './utils/url';
+
 
 // Fields that matter for the non-blocking profile-complete banner.
 // Returns a list of human-readable missing field names.
@@ -28,6 +31,27 @@ const AppContent: React.FC = () => {
   const { user, role, loading, profile } = useAuth();
   const [currentTab, setCurrentTab] = useState<TabKey>(TABS.DASHBOARD);
   const [adminTabFilter, setAdminTabFilter] = useState<'all' | UserStatus | UserRole>('all');
+  const [publicProfileUid, setPublicProfileUid] = useState<string | null>(null);
+
+  const handleTabChange = (tab: TabKey) => {
+    setCurrentTab(tab);
+    clearProfileFromUrl();
+  };
+
+
+  // Sync profile ID from URL search parameters on popstate / mount.
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const params = new URLSearchParams(window.location.search);
+      const profileId = params.get('profile');
+      setPublicProfileUid(profileId);
+    };
+
+    handleUrlChange();
+    window.addEventListener('popstate', handleUrlChange);
+    return () => window.removeEventListener('popstate', handleUrlChange);
+  }, []);
+
   const [navCollapsed, setNavCollapsed] = useState<boolean>(() => {
     const saved = localStorage.getItem('peer-coaching-nav-collapsed');
     return saved ? JSON.parse(saved) : true;
@@ -144,7 +168,7 @@ const AppContent: React.FC = () => {
         <div className="bg-gradient-radial" />
         <Header
           currentTab={currentTab}
-          setCurrentTab={setCurrentTab}
+          setCurrentTab={handleTabChange}
           setAdminTabFilter={setAdminTabFilter}
         />
         <main className="content-wrapper" style={{ overflowY: 'auto', padding: '0 16px 16px 16px' }}>
@@ -164,7 +188,7 @@ const AppContent: React.FC = () => {
       <div className="bg-gradient-radial" />
       <Header
         currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
+        setCurrentTab={handleTabChange}
         setAdminTabFilter={setAdminTabFilter}
       />
 
@@ -172,7 +196,7 @@ const AppContent: React.FC = () => {
         <div className="app-main-layout">
           <LeftNav
             currentTab={currentTab}
-            setCurrentTab={setCurrentTab}
+            setCurrentTab={handleTabChange}
             collapsed={navCollapsed}
             setCollapsed={setNavCollapsed}
           />
@@ -204,7 +228,7 @@ const AppContent: React.FC = () => {
                   </span>
                 </div>
                 <button
-                  onClick={() => setCurrentTab(TABS.PROFILE)}
+                  onClick={() => handleTabChange(TABS.PROFILE)}
                   style={{
                     background: 'hsl(var(--warning))',
                     color: '#000',
@@ -245,21 +269,28 @@ const AppContent: React.FC = () => {
               </div>
             )}
 
-            {currentTab === TABS.DASHBOARD && <CoachDashboard />}
-            {currentTab === TABS.PROFILE && <ProfileEdit />}
-            {currentTab === TABS.AVAILABILITY && <AvailabilityEdit />}
-            {currentTab === TABS.BOOKINGS && <MyBookings />}
-            {currentTab === TABS.SYSTEM_LOGS && role === USER_ROLE.ADMIN && <SystemLogs />}
-            {currentTab === TABS.ADMIN && role === USER_ROLE.ADMIN && (
-              <AdminDashboard
-                initialFilter={adminTabFilter}
-                setInitialFilter={setAdminTabFilter}
-              />
+            {publicProfileUid ? (
+              <PublicProfile uid={publicProfileUid} onClose={clearProfileFromUrl} />
+            ) : (
+              <>
+                {currentTab === TABS.DASHBOARD && <CoachDashboard />}
+                {currentTab === TABS.PROFILE && <ProfileEdit />}
+                {currentTab === TABS.AVAILABILITY && <AvailabilityEdit />}
+                {currentTab === TABS.BOOKINGS && <MyBookings />}
+                {currentTab === TABS.SYSTEM_LOGS && role === USER_ROLE.ADMIN && <SystemLogs />}
+                {currentTab === TABS.ADMIN && role === USER_ROLE.ADMIN && (
+                  <AdminDashboard
+                    initialFilter={adminTabFilter}
+                    setInitialFilter={setAdminTabFilter}
+                  />
+                )}
+              </>
             )}
           </main>
         </div>
       </div>
     </div>
+
   );
 };
 
