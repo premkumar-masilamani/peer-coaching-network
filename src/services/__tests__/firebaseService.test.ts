@@ -61,6 +61,7 @@ vi.mock('firebase/auth', () => ({
 }));
 const { mockGetDoc, mockSetDoc, mockUpdateDoc, mockGetDocs, mockOnSnapshot } = vi.hoisted(() => {
   (import.meta.env as any).VITE_USE_FIREBASE_EMULATOR = 'true';
+  (import.meta.env as any).VITE_FIRESTORE_DATABASE_ID = 'pcn-dev';
   return {
     mockGetDoc: vi.fn(),
     mockSetDoc: vi.fn(),

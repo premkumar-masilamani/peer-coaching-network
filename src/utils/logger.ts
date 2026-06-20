@@ -56,12 +56,11 @@ export const logger = {
       const apps = getApps();
       if (apps.length === 0) return;
       const app = getApp();
-      const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
       const databaseId = import.meta.env.VITE_FIRESTORE_DATABASE_ID;
-      if (!useEmulator && !databaseId) {
+      if (!databaseId) {
         throw new Error('Missing required environment variable: VITE_FIRESTORE_DATABASE_ID.');
       }
-      const db = getFirestore(app, databaseId || '(default)');
+      const db = getFirestore(app, databaseId);
       const auth = getAuth(app);
       
       const userId = auth.currentUser?.uid || null;
