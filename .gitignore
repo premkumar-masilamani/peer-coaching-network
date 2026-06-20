@@ -8,6 +8,7 @@ coverage/
 
 # --- Environment & Local Config ---
 .env.*
+!.env.*.example
 
 # --- OS Files ---
 .DS_Store
