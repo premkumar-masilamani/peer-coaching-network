@@ -17,7 +17,7 @@ import {
   ExternalLink,
   BookOpen
 } from 'lucide-react';
-
+import { BOOKING_ERROR } from '../config';
 interface ScheduleModalProps {
   coach: UserProfile;
   startTime: Date;
@@ -106,9 +106,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       let errCode = 'UNKNOWN';
       if (err instanceof Error) {
         errCode = (err as { code?: string }).code || 'UNKNOWN';
-        if (err.message === 'SLOT_TAKEN') {
+        if (err.message === BOOKING_ERROR.SLOT_TAKEN) {
           message = 'Sorry, this slot was just scheduled by someone else. Please pick another time.';
-        } else if (err.message === 'BOOKED_AS_CLIENT' || err.message === 'BOOKED_AS_COACH') {
+        } else if (err.message === BOOKING_ERROR.BOOKED_AS_CLIENT || err.message === BOOKING_ERROR.BOOKED_AS_COACH) {
           message = 'You already have a session scheduled at this time. Please pick another slot.';
         } else if ((err as { code?: string }).code === 'GOOGLE_API_ERROR') {
           message = err.message;

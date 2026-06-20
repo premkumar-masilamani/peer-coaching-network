@@ -9,7 +9,7 @@ import {
 } from '../googleCalendar';
 import { getGoogleToken } from '../googleToken';
 import { logger } from '../../utils/logger';
-import { BOOKING_STATUS } from '../../config';
+import { BOOKING_STATUS, EVENT_TYPE, BOOKING_ERROR } from '../../config';
 
 // vi.hoisted for variables accessed inside vi.mock
 const {
@@ -432,7 +432,7 @@ describe('googleCalendar service', () => {
           '2026-06-18T11:00:00Z',
           'Career Development'
         )
-      ).rejects.toThrow('BOOKED_AS_CLIENT');
+      ).rejects.toThrow(BOOKING_ERROR.BOOKED_AS_CLIENT);
     });
 
     it('executes transaction and throws SLOT_TAKEN if coach is already booked as a client (coachAsClient exists)', async () => {
@@ -496,7 +496,7 @@ describe('googleCalendar service', () => {
           '2026-06-18T11:00:00Z',
           'Career Development'
         )
-      ).rejects.toThrow('BOOKED_AS_COACH');
+      ).rejects.toThrow(BOOKING_ERROR.BOOKED_AS_COACH);
     });
 
     it('executes transaction successfully and calls tx.set for booking and cache', async () => {
@@ -827,7 +827,7 @@ describe('googleCalendar service', () => {
       const events = await getUpcomingEvents();
       expect(events.length).toBe(1);
       expect(events[0].id).toBe('matching-booking-1');
-      expect(events[0].type).toBe('peer-coaching');
+      expect(events[0].type).toBe(EVENT_TYPE.PEER_COACHING);
       expect(events[0].coachUid).toBe('coach-123');
       expect(events[0].clientUid).toBe('client-123');
       expect(events[0].description).toBe('Peer Coaching Network session on the topic: Career Development. Created via PCN.');

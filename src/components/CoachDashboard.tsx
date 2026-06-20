@@ -31,7 +31,7 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getUtcForSlot, getTimezoneCode } from '../utils/timezoneHelpers';
 import { sanitizeImageUrl } from '../utils/url';
-import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS } from '../config';
+import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE } from '../config';
 
 
 export const CoachDashboard: React.FC = () => {
@@ -103,7 +103,7 @@ export const CoachDashboard: React.FC = () => {
   }, [coachesBaseBusy, liveBookings, now]);
 
   const userBusyEvents = useMemo(() => {
-    const baseGoogleEvents = userBaseBusyEvents.filter(e => e.type !== 'peer-coaching');
+    const baseGoogleEvents = userBaseBusyEvents.filter(e => e.type !== EVENT_TYPE.PEER_COACHING);
     const currentUid = currentUser?.uid;
     if (!currentUid) return baseGoogleEvents;
     
@@ -126,7 +126,7 @@ export const CoachDashboard: React.FC = () => {
         description: `Coaching session`,
         start: { dateTime: startStr },
         end: { dateTime: endStr },
-        type: 'peer-coaching',
+        type: EVENT_TYPE.PEER_COACHING,
         meetLink: b.googleMeetLink,
         coachUid: b.coachUid,
         clientUid: b.clientUid
@@ -161,7 +161,7 @@ export const CoachDashboard: React.FC = () => {
 
   const getBookingForSlot = (slotStart: Date, slotEnd: Date) => {
     return userBusyEvents.find(e => {
-      if (e.type !== 'peer-coaching') return false;
+      if (e.type !== EVENT_TYPE.PEER_COACHING) return false;
       const start = new Date(e.start.dateTime);
       const end = new Date(e.end.dateTime);
       return slotStart < end && slotEnd > start;
@@ -314,7 +314,7 @@ export const CoachDashboard: React.FC = () => {
   // Check if current user is unavailable (due to template gaps, blocked dates, or google calendar events, excluding active PCN bookings)
   const isUserUnavailable = (slotStart: Date, slotEnd: Date) => {
     return userBusyEvents.some(e => {
-      if (e.type === 'peer-coaching') return false;
+      if (e.type === EVENT_TYPE.PEER_COACHING) return false;
       const start = new Date(e.start.dateTime);
       const end = new Date(e.end.dateTime);
       return slotStart < end && slotEnd > start;

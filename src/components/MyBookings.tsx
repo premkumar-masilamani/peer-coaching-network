@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { sanitizeMeetLink } from '../utils/url';
 import { getTimezoneCode } from '../utils/timezoneHelpers';
+import { EVENT_TYPE } from '../config';
 
 export const MyBookings: React.FC = () => {
   const { user, profile } = useAuth();
@@ -27,7 +28,7 @@ export const MyBookings: React.FC = () => {
     try {
       const list = await getUpcomingEvents();
       // Identify peer-coaching sessions by an explicit type tag.
-      const coachingSessions = list.filter(e => e.type === 'peer-coaching');
+      const coachingSessions = list.filter(e => e.type === EVENT_TYPE.PEER_COACHING);
       setSessions(coachingSessions);
     } catch (e) {
       console.error('Error loading bookings:', e);
@@ -57,7 +58,7 @@ export const MyBookings: React.FC = () => {
       try {
         const list = await getUpcomingEvents();
         if (cancelled) return;
-        const coachingSessions = list.filter(e => e.type === 'peer-coaching');
+        const coachingSessions = list.filter(e => e.type === EVENT_TYPE.PEER_COACHING);
         setSessions(coachingSessions);
       } catch (e) {
         console.error('Error loading bookings:', e);
@@ -124,7 +125,7 @@ export const MyBookings: React.FC = () => {
                   const timeStr = `${start.toLocaleTimeString([], { timeZone: viewerTimezone, ...timeOpts })} ${getTimezoneCode(start, viewerTimezone)}`;
                   const dateStr = start.toLocaleDateString([], { timeZone: viewerTimezone, month: 'short', day: 'numeric', weekday: 'short', year: 'numeric' });
                   const safeMeetLink = sanitizeMeetLink(session.meetLink);
-                  const isCancellable = session.type === 'peer-coaching';
+                  const isCancellable = session.type === EVENT_TYPE.PEER_COACHING;
 
                   return (
                     <div

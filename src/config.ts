@@ -138,3 +138,26 @@ export const TABS = {
   SYSTEM_LOGS:  'system-logs',
 } as const;
 export type TabKey = (typeof TABS)[keyof typeof TABS];
+
+// ── Calendar Event Type ───────────────────────────────────────────────────────
+
+/**
+ * Type tag used on CalendarEvent objects to distinguish PCN sessions.
+ */
+export const EVENT_TYPE = {
+  PEER_COACHING: 'peer-coaching',
+} as const;
+export type EventType = (typeof EVENT_TYPE)[keyof typeof EVENT_TYPE];
+
+// ── Booking Error Codes ───────────────────────────────────────────────────────
+
+/**
+ * Specific booking-related error codes thrown by the service layer.
+ */
+export const BOOKING_ERROR = {
+  SLOT_TAKEN: 'SLOT_TAKEN',
+  BOOKED_AS_CLIENT: 'BOOKED_AS_CLIENT',
+  BOOKED_AS_COACH: 'BOOKED_AS_COACH',
+} as const;
+export type BookingError = (typeof BOOKING_ERROR)[keyof typeof BOOKING_ERROR];
+
