@@ -11,8 +11,8 @@ Peer Coaching Network ("collaborative Calendly for coaches") is a Single Page Ap
 The project contains a [Makefile](file:///Users/premkumar/Code/peer-coaching-network/Makefile) defining developer tasks. Use these shortcuts during development:
 
 ```bash
-make run          # Start Vite dev server connecting to Firebase dev environment (runs: npm run dev)
-make local        # Start local Firebase emulators and run Vite connecting to it (runs: firebase emulators:exec "npm run local")
+make dev          # Start Vite dev server connecting to Firebase dev environment (runs: npm run dev)
+make local        # Start local Firebase emulators and run Vite connecting to it (runs: npm run local)
 make build        # Type-check TypeScript and build production bundle (runs: tsc -b && vite build)
 make lint         # Run ESLint validation checks (runs: eslint .)
 make emulator     # Start local Firebase emulator suite only (Auth on :9099, Firestore on :8080, Hosting on :5002)
@@ -27,11 +27,24 @@ npm run preview   # Run a local web server previewing the production build folde
 
 ## ⚙️ Environment & Firebase Configuration
 
-Firebase configuration is loaded dynamically via `VITE_FIREBASE_*` environment variables (declared in `.env.dev`, `.env.local`, and `.env.prod`) inside [firebaseService.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/firebaseService.ts).
+Firebase configuration is loaded dynamically via environment variables (declared in `.env.dev`, `.env.emulator.local`, and `.env.prod`) inside [firebaseService.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/firebaseService.ts) and [config.ts](file:///Users/premkumar/Code/peer-coaching-network/src/config.ts).
 
-Key rules for Firebase configurations:
+To keep environment files clean, any variable whose value matches its application default behavior should be ignored/omitted from the `.env` file.
+
+Key environment flags and rules:
 - **Project Default**: If variables are missing, the configuration defaults to the `peer-coaching-network-dev` project.
-- **Local Emulators**: Set `VITE_USE_FIREBASE_EMULATOR=true` to route Auth and Firestore traffic to the local emulator suite. To prevent Hot Module Replacement (HMR) from attempting multiple emulator connections, the connection is guarded using a global `window._firebase_emulators_connected` flag.
+- **Local Emulators (`VITE_USE_FIREBASE_EMULATOR`)**: Controls whether traffic is routed to the local Firebase emulators (Auth on :9099, Firestore on :8080).
+  - **Default**: `false` (runs against actual Cloud Firebase).
+  - **Override**: Set `VITE_USE_FIREBASE_EMULATOR=true` in `.env.emulator.local` to connect to local emulators.
+  - To prevent Hot Module Replacement (HMR) from attempting multiple emulator connections, the connection is guarded using a global `window._firebase_emulators_connected` flag.
+- **Google Calendar Integration (`VITE_ENABLE_GOOGLE_INTEGRATION`)**: Controls whether the application integrates with the Google Calendar REST API for scheduling sessions.
+  - **Default**: `true` (enables real API interactions when a token is present).
+  - **Override**: Set `VITE_ENABLE_GOOGLE_INTEGRATION=false` in `.env.emulator.local` to disable API calls and run calendar integration in sandbox fallback mode (persisting bookings only to Firestore).
+- **Logger Configuration (`VITE_LOG_LEVEL`)**: Controls the console logging output verbosity.
+  - **Default**: `'error'` (prints only error logs if unset).
+  - **Override**: Set to `'debug'`, `'info'`, or `'warn'` in `.env.emulator.local` or `.env.dev` to increase logging verbosity.
+- **Firestore Database ID (`VITE_FIRESTORE_DATABASE_ID`)**: Specifies which Cloud Firestore database instance to connect to.
+  - **Default**: `"pcn-dev"` (uses the pcn-dev database).
 - **Fail Fast Configuration**: The flag `isFirebaseConfigured` verifies if real config keys are present (or if we are on the emulator). In production, missing credentials throw a runtime exception rather than letting the application boot with broken credentials.
 - **Rules & Targets**: Deploys target **Firebase Hosting** (the `dist/` directory) with SPA rewrites enabled in [firebase.json](file:///Users/premkumar/Code/peer-coaching-network/firebase.json). Firestore security rules are configured in [firestore.rules](file:///Users/premkumar/Code/peer-coaching-network/firestore.rules).
 

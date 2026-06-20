@@ -51,6 +51,7 @@ vi.mock('firebase/auth', () => ({
   signInWithPopup: vi.fn(),
    GoogleAuthProvider: class {
     addScope = vi.fn();
+    setCustomParameters = vi.fn();
     static credentialFromResult() {
       return { accessToken: 'mock-access-token' };
     }
@@ -58,13 +59,16 @@ vi.mock('firebase/auth', () => ({
   signOut: vi.fn(),
   onAuthStateChanged: vi.fn(),
 }));
-const { mockGetDoc, mockSetDoc, mockUpdateDoc, mockGetDocs, mockOnSnapshot } = vi.hoisted(() => ({
-  mockGetDoc: vi.fn(),
-  mockSetDoc: vi.fn(),
-  mockUpdateDoc: vi.fn(),
-  mockGetDocs: vi.fn(),
-  mockOnSnapshot: vi.fn(),
-}));
+const { mockGetDoc, mockSetDoc, mockUpdateDoc, mockGetDocs, mockOnSnapshot } = vi.hoisted(() => {
+  (import.meta.env as any).VITE_USE_FIREBASE_EMULATOR = 'true';
+  return {
+    mockGetDoc: vi.fn(),
+    mockSetDoc: vi.fn(),
+    mockUpdateDoc: vi.fn(),
+    mockGetDocs: vi.fn(),
+    mockOnSnapshot: vi.fn(),
+  };
+});
 vi.mock('firebase/firestore', () => ({
   getFirestore: vi.fn(() => ({})),
   connectFirestoreEmulator: vi.fn(),

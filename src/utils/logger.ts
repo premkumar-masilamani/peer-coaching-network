@@ -12,8 +12,8 @@ const LOG_LEVELS = {
 type LogLevel = keyof typeof LOG_LEVELS;
 
 const getLogLevel = (): number => {
-  const envLevel = (import.meta.env.VITE_LOG_LEVEL || 'info').toLowerCase();
-  return LOG_LEVELS[envLevel as LogLevel] ?? LOG_LEVELS.info;
+  const envLevel = (import.meta.env.VITE_LOG_LEVEL || 'error').toLowerCase();
+  return LOG_LEVELS[envLevel as LogLevel] ?? LOG_LEVELS.error;
 };
 
 const shouldLog = (level: LogLevel): boolean => {
@@ -56,7 +56,8 @@ export const logger = {
       const apps = getApps();
       if (apps.length === 0) return;
       const app = getApp();
-      const db = getFirestore(app);
+      const databaseId = import.meta.env.VITE_FIRESTORE_DATABASE_ID || 'pcn-dev';
+      const db = getFirestore(app, databaseId);
       const auth = getAuth(app);
       
       const userId = auth.currentUser?.uid || null;

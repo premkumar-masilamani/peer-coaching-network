@@ -1,19 +1,22 @@
-.PHONY: install run build lint clean emulator local erd test coverage
+.PHONY: install build dev lint test coverage emulator local erd
 
 install:
 	npm install
 
-run:
-	npm run dev
-
 build:
 	npm run build
+
+dev:
+	npm run dev
 
 lint:
 	npm run lint
 
-clean:
-	rm -rf dist node_modules
+test:
+	npm run test
+
+coverage:
+	npm run coverage
 
 emulator:
 	firebase emulators:start
@@ -23,9 +26,3 @@ local:
 
 erd:
 	node scripts/generate-erd.js
-
-test:
-	npm run test
-
-coverage:
-	npm run coverage
