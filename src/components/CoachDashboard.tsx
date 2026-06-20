@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getUtcForSlot, getTimezoneCode } from '../utils/timezoneHelpers';
-import { sanitizeImageUrl } from '../utils/url';
+import { sanitizeImageUrl, navigateToProfile } from '../utils/url';
 import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE } from '../config';
 
 
@@ -649,6 +649,13 @@ export const CoachDashboard: React.FC = () => {
           border-radius: 50%;
           object-fit: cover;
           flex-shrink: 0;
+          cursor: pointer;
+          transition: transform 0.2s ease, opacity 0.2s ease;
+        }
+
+        .mini-coach-avatar:hover {
+          transform: scale(1.05);
+          opacity: 0.9;
         }
 
         .mini-coach-details {
@@ -661,7 +668,15 @@ export const CoachDashboard: React.FC = () => {
           white-space: nowrap;
           overflow: hidden;
           text-overflow: ellipsis;
+          cursor: pointer;
+          transition: color 0.15s ease;
         }
+
+        .mini-coach-name:hover {
+          color: hsl(var(--primary));
+          text-decoration: underline;
+        }
+
 
         .mini-coach-location {
           font-size: 0.75rem;
@@ -1018,10 +1033,17 @@ export const CoachDashboard: React.FC = () => {
                                         src={sanitizeImageUrl(coach.photoURL)}
                                         alt={formatDisplayName(coach) || 'Coach'}
                                         className="mini-coach-avatar"
-                                        style={{ border: `1.5px solid ${borderCol}` }}
+                                        style={{ border: `1.5px solid ${borderCol}`, cursor: 'pointer' }}
+                                        onClick={() => navigateToProfile(coach.userId)}
                                       />
                                       <div className="mini-coach-details">
-                                        <div className="mini-coach-name">{formatDisplayName(coach)}</div>
+                                        <div 
+                                          className="mini-coach-name"
+                                          style={{ cursor: 'pointer' }}
+                                          onClick={() => navigateToProfile(coach.userId)}
+                                        >
+                                          {formatDisplayName(coach)}
+                                        </div>
                                         <div className="mini-coach-location">
                                           <MapPin size={10} color="hsl(var(--primary))" />
                                           {coach.country || 'Remote'}
