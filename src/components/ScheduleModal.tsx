@@ -70,7 +70,11 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!topic.trim()) return;
+    if (!topic.trim()) {
+      setErrorMsg('Please enter a coaching topic to confirm your booking.');
+      setBookingStatus('error');
+      return;
+    }
 
     setBookingStatus('booking');
     setErrorMsg('');
@@ -236,7 +240,13 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 className="input-field"
                 placeholder="e.g. Life coaching feedback, ICF log hours practice..."
                 value={topic}
-                onChange={(e) => setTopic(e.target.value)}
+                onChange={(e) => {
+                  setTopic(e.target.value);
+                  if (bookingStatus === 'error' && e.target.value.trim()) {
+                    setBookingStatus('idle');
+                    setErrorMsg('');
+                  }
+                }}
                 required
                 autoFocus
                 rows={10}
@@ -272,7 +282,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               <button 
                 type="submit" 
                 className="btn btn-primary"
-                disabled={!topic.trim() || bookingStatus === 'booking'}
+                disabled={bookingStatus === 'booking'}
                 style={{ flex: 2 }}
               >
                 {bookingStatus === 'booking' ? 'Scheduling...' : 'Confirm Session'}
