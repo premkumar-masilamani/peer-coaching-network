@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { scheduleMeeting } from '../services/googleCalendar';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { logger } from '../utils/logger';
 import type { UserProfile } from '../services/firebaseService';
-import { formatDisplayName } from '../services/firebaseService';
+import { formatDisplayName, logAnalyticsEvent } from '../services/firebaseService';
 import { sanitizeMeetLink } from '../utils/url';
 import { getTimezoneCode } from '../utils/timezoneHelpers';
 import { 
@@ -42,6 +42,13 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
 
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+  useEffect(() => {
+    logAnalyticsEvent('booking_modal_open', {
+      coachUid: coach.userId,
+      startTime: startTime.toISOString(),
+    });
+  }, [coach.userId, startTime]);
   
   const timeString = startTime.toLocaleTimeString([], { 
     timeZone: viewerTimezone,
@@ -79,6 +86,11 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         endTime.toISOString(),
         topic.trim()
       );
+      logAnalyticsEvent('booking_success', {
+        coachUid: coach.userId,
+        startTime: startTime.toISOString(),
+        topic: topic.trim(),
+      });
       setCreatedEvent(event);
       setBookingStatus('success');
       if (onBookingSuccess) {
@@ -87,13 +99,23 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     } catch (err) {
       logger.error('Failed to schedule meeting:', err);
       let message = 'Something went wrong while scheduling. Please try again.';
-      if (err instanceof Error && err.message === 'SLOT_TAKEN') {
-        message = 'Sorry, this slot was just scheduled by someone else. Please pick another time.';
-      } else if (err instanceof Error && err.message === 'SELF_CONFLICT') {
-        message = 'You already have a session scheduled at this time. Please pick another slot.';
-      } else if (err instanceof Error && (err as { code?: string }).code === 'GOOGLE_API_ERROR') {
-        message = err.message;
+      let errCode = 'UNKNOWN';
+      if (err instanceof Error) {
+        errCode = (err as { code?: string }).code || 'UNKNOWN';
+        if (err.message === 'SLOT_TAKEN') {
+          message = 'Sorry, this slot was just scheduled by someone else. Please pick another time.';
+        } else if (err.message === 'SELF_CONFLICT') {
+          message = 'You already have a session scheduled at this time. Please pick another slot.';
+        } else if ((err as { code?: string }).code === 'GOOGLE_API_ERROR') {
+          message = err.message;
+        }
       }
+      logAnalyticsEvent('booking_failure', {
+        coachUid: coach.userId,
+        startTime: startTime.toISOString(),
+        error: message,
+        code: errCode,
+      });
       setErrorMsg(message);
       setBookingStatus('error');
     }

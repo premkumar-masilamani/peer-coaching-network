@@ -10,7 +10,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { LeftNav } from './components/LeftNav';
 import { MyBookings } from './components/MyBookings';
 import { SystemLogs } from './components/SystemLogs';
-import { isApproved } from './services/firebaseService';
+import { isApproved, logAnalyticsEvent } from './services/firebaseService';
 import { Sparkles, AlertTriangle, X } from 'lucide-react';
 import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, THEME } from './config';
 
@@ -39,6 +39,8 @@ const AppContent: React.FC = () => {
     gender: profile?.gender,
   });
 
+  const approved = isApproved(profile) && (role === USER_ROLE.ADMIN || role === USER_ROLE.USER);
+
   // Sync theme with document class — only 'light' and 'dark' are supported.
   // Legacy 'system' values stored in Firestore are treated as 'dark'.
   useEffect(() => {
@@ -48,6 +50,17 @@ const AppContent: React.FC = () => {
       document.documentElement.classList.remove('light-theme');
     }
   }, [profile?.theme]);
+
+  // Track page/screen views on transitions
+  useEffect(() => {
+    if (!user) {
+      logAnalyticsEvent('screen_view', { screen_name: 'login' });
+    } else if (!approved) {
+      logAnalyticsEvent('screen_view', { screen_name: 'verification_notice' });
+    } else {
+      logAnalyticsEvent('screen_view', { screen_name: currentTab });
+    }
+  }, [user, approved, currentTab]);
 
   // Re-show the banner whenever the profile changes (e.g. after partial save)
   if (
@@ -62,8 +75,6 @@ const AppContent: React.FC = () => {
     });
     setBannerDismissed(false);
   }
-
-  const approved = isApproved(profile) && (role === USER_ROLE.ADMIN || role === USER_ROLE.USER);
 
   // Route to the default panel when approval state transitions, using React's
   // recommended "adjust state during render" pattern rather than an effect (no

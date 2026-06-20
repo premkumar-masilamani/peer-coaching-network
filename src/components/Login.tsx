@@ -7,12 +7,15 @@ import {
   Users
 } from 'lucide-react';
 
+import { logAnalyticsEvent } from '../services/firebaseService';
+
 export const Login: React.FC = () => {
   const { login } = useAuth();
 
   const handleRealLogin = async () => {
     try {
       await login();
+      logAnalyticsEvent('login_success');
     } catch (e) {
       console.error(e);
     }
