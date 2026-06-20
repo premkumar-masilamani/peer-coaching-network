@@ -23,7 +23,7 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
-import { type Qualification, type UserRole, type UserStatus, QUALIFICATION_OPTIONS, USER_ROLE, USER_STATUS, BOOKING_STATUS } from '../config';
+import { type Qualification, type UserRole, type UserStatus, QUALIFICATION_OPTIONS, USER_ROLE, USER_STATUS, BOOKING_STATUS, EVENT_TYPE } from '../config';
 
 interface AdminDashboardProps {
   initialFilter?: 'all' | UserStatus | UserRole;
@@ -114,7 +114,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
                 start: { dateTime: startStr },
                 end: { dateTime: endStr },
                 meetLink: data.googleMeetLink,
-                type: 'peer-coaching',
+                type: EVENT_TYPE.PEER_COACHING,
                 attendees: [
                   { email: coachProfile?.email || '', displayName: coachProfile?.displayName || '' },
                   { email: clientProfile?.email || '', displayName: clientProfile?.displayName || '' }
