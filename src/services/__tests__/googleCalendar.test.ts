@@ -176,6 +176,21 @@ describe('googleCalendar service', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockFetch.mock.calls[0][0]).toContain('conferenceDataVersion=1');
       expect(mockFetch.mock.calls[0][0]).toContain('sendUpdates=all');
+      
+      const fetchCallArgs = mockFetch.mock.calls[0];
+      const fetchBody = JSON.parse(fetchCallArgs[1].body);
+      expect(fetchBody.summary).toBe('[PCN] Peer Coaching: John Coach & Mock Client');
+      expect(fetchBody.description).toBe(
+        'Hello!\n\n' +
+        'A peer coaching session has been scheduled.\n\n' +
+        'Details:\n' +
+        '- Coach: John Coach (coach@example.com)\n' +
+        '- Client: Mock Client (client@example.com)\n' +
+        '- Topic: Career Development\n\n' +
+        'Please join the Google Meet link attached to this event.\n\n' +
+        'Created via Peer Coaching Network.'
+      );
+      
       expect(mockRunTransaction).toHaveBeenCalledTimes(1);
       expect(result.meetLink).toBe('https://meet.google.com/abc-defg-hij');
     });
