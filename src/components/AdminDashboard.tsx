@@ -6,7 +6,8 @@ import {
   formatMemberSince,
   getEffectiveRole,
   getEffectiveStatus,
-  db
+  db,
+  logAnalyticsEvent
 } from '../services/firebaseService';
 import type { UserProfile } from '../services/firebaseService';
 import { sanitizeImageUrl, sanitizeMeetLink } from '../utils/url';
@@ -223,11 +224,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
   ) => {
     setSavingId(uid);
     try {
+      const userToSave = users.find(u => u.userId === uid);
+      const originalStatus = userToSave ? getUserStatus(userToSave) : undefined;
+      const originalRole = userToSave ? getUserRole(userToSave) : undefined;
+      const originalQuals = userToSave?.qualifications || [];
+
       await updateProfile(uid, {
         userRole: roleToSave,
         userStatus: statusToSave,
         qualifications: qualificationsToSave
       });
+
+      // Log analytics events for changes
+      if (originalStatus !== statusToSave) {
+        if (statusToSave === USER_STATUS.ACTIVE) {
+          logAnalyticsEvent('admin_approve_user', { targetUid: uid });
+        } else {
+          logAnalyticsEvent('admin_deactivate_user', { targetUid: uid });
+        }
+      }
+      if (originalRole && originalRole !== roleToSave) {
+        logAnalyticsEvent('admin_update_role', { targetUid: uid, role: roleToSave });
+      }
+      const qualsChanged = originalQuals.length !== qualificationsToSave.length ||
+        !originalQuals.every(q => qualificationsToSave.includes(q)) ||
+        !qualificationsToSave.every(q => originalQuals.includes(q));
+      if (qualsChanged) {
+        logAnalyticsEvent('admin_update_qualifications', { targetUid: uid, qualifications: qualificationsToSave });
+      }
+
       setDrafts(prev => {
         const next = { ...prev };
         delete next[uid];

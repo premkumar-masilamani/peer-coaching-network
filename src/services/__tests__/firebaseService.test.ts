@@ -24,6 +24,7 @@ import {
   updateSchedule,
   subscribeToBookings
 } from '../firebaseService';
+import { logEvent } from 'firebase/analytics';
 import { Timestamp } from 'firebase/firestore';
 import { logger } from '../../utils/logger';
 import { BOOKING_STATUS } from '../../config';
@@ -33,6 +34,11 @@ vi.mock('firebase/app', () => ({
   initializeApp: vi.fn(),
   getApps: vi.fn(() => []),
   getApp: vi.fn(),
+}));
+
+vi.mock('firebase/analytics', () => ({
+  getAnalytics: vi.fn(() => ({})),
+  logEvent: vi.fn(),
 }));
 
 vi.mock('../../utils/logger', () => ({
@@ -727,6 +733,51 @@ describe('firebaseService', () => {
       await import('../firebaseService');
 
       expect(logger.error).toHaveBeenCalled();
+      vi.unstubAllEnvs();
+    });
+  });
+
+  describe('logAnalyticsEvent', () => {
+    it('behaves as a safe no-op when VITE_FIREBASE_MEASUREMENT_ID is missing', async () => {
+      vi.resetModules();
+      vi.mocked(logEvent).mockClear();
+      vi.stubEnv('VITE_FIREBASE_MEASUREMENT_ID', '');
+
+      const { logAnalyticsEvent } = await import('../firebaseService');
+      logAnalyticsEvent('test_event', { foo: 'bar' });
+
+      expect(logEvent).not.toHaveBeenCalled();
+      vi.unstubAllEnvs();
+    });
+
+    it('logs event using firebase analytics logEvent when VITE_FIREBASE_MEASUREMENT_ID is present', async () => {
+      vi.resetModules();
+      vi.mocked(logEvent).mockClear();
+      vi.stubEnv('VITE_FIREBASE_MEASUREMENT_ID', 'G-TESTID123');
+
+      const { logAnalyticsEvent } = await import('../firebaseService');
+      logAnalyticsEvent('test_event', { foo: 'bar' });
+
+      expect(logEvent).toHaveBeenCalledWith(expect.any(Object), 'test_event', { foo: 'bar' });
+      vi.unstubAllEnvs();
+    });
+
+    it('logs error if logEvent throws an error', async () => {
+      vi.resetModules();
+      vi.mocked(logEvent).mockClear();
+      vi.mocked(logger.error).mockClear();
+      vi.stubEnv('VITE_FIREBASE_MEASUREMENT_ID', 'G-TESTID123');
+      vi.mocked(logEvent).mockImplementationOnce(() => {
+        throw new Error('Analytics failed');
+      });
+
+      const { logAnalyticsEvent } = await import('../firebaseService');
+      logAnalyticsEvent('test_event', { foo: 'bar' });
+
+      expect(logger.error).toHaveBeenCalledWith(
+        '[Analytics] Failed to log event "test_event":',
+        expect.any(Error)
+      );
       vi.unstubAllEnvs();
     });
   });
