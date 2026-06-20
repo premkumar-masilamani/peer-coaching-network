@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getUpcomingEvents, cancelBooking } from '../services/googleCalendar';
+import { logAnalyticsEvent } from '../services/firebaseService';
 import type { CalendarEvent } from '../services/googleCalendar';
 import {
   Calendar,
@@ -39,6 +40,7 @@ export const MyBookings: React.FC = () => {
     setCancellingId(bookingId);
     try {
       await cancelBooking(bookingId);
+      logAnalyticsEvent('cancel_booking', { bookingId });
       await loadSessions();
     } catch (e) {
       console.error('Error cancelling booking:', e);

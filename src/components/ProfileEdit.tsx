@@ -12,7 +12,7 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
 import { getCredentialDescription } from '../utils/credentials';
-import { formatDisplayName, formatMemberSince } from '../services/firebaseService';
+import { formatDisplayName, formatMemberSince, logAnalyticsEvent } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
 import { GENDER_OPTIONS, type Gender, type Qualification } from '../config';
 
@@ -90,6 +90,12 @@ export const ProfileEdit: React.FC = () => {
         qualifications,
         bio,
         timezone
+      });
+      logAnalyticsEvent('update_profile', {
+        gender: gender === '' ? undefined : gender,
+        country,
+        timezone,
+        hasBio: !!bio,
       });
       setSuccessMsg('Profile changes saved successfully!');
       setTimeout(() => setSuccessMsg(''), 4000);
