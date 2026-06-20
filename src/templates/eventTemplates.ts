@@ -8,7 +8,7 @@ export interface EventTemplateData {
 
 export const DEFAULT_EVENT_TEMPLATES = {
   summary: '[PCN] Peer Coaching: {coachName} & {clientName}',
-  description: 'Hello!\n\nA peer coaching session has been scheduled.\n\nDetails:\n- Coach: {coachName} ({coachEmail})\n- Client: {clientName} ({clientEmail})\n- Topic: {topic}\n\nPlease join the Google Meet link attached to this event.\n\nCreated via Peer Coaching Network.'
+  description: 'Hello!\n\nA peer coaching session has been scheduled.\n\nDetails:\n- Coach: {coachName} ({coachEmail})\n- Client: {clientName} ({clientEmail})\n- Topic: {topic}\n\nPlease join the Google Meet via the link attached to this event.\n\nCreated via Peer Coaching Network.'
 };
 
 export const resolveEventTemplate = (template: string, data: EventTemplateData): string => {
