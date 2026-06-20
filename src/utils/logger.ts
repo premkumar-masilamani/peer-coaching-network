@@ -58,7 +58,10 @@ export const logger = {
       const app = getApp();
       const databaseId = import.meta.env.VITE_FIRESTORE_DATABASE_ID;
       if (!databaseId) {
-        throw new Error('Missing required environment variable: VITE_FIRESTORE_DATABASE_ID.');
+        throw new Error(
+          'Missing required environment variable: VITE_FIRESTORE_DATABASE_ID. ' +
+          'Please specify the Firestore database name (e.g. pcn-dev) in your environment configuration.'
+        );
       }
       const db = getFirestore(app, databaseId);
       const auth = getAuth(app);
