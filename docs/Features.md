@@ -83,7 +83,7 @@ When you find a coach you would like to meet with, booking is simple:
 1. Click the **"Book Peer"** button on their card.
 2. You will see a weekly calendar grid. Click the **Left/Right Chevrons (< and >)** to flip the pages week-by-week (up to 2 months into the future).
 3. Click on a time slot highlighted as **"Available"**.
-4. **Conflict Safety:** If the slot conflicts with your own availability or calendar commitments, the booking button will be disabled.
+4. **Double-Booking Prevention:** If the slot overlaps with your own availability or calendar commitments, it will be hidden from the dashboard, or shown as a booking if a session is already scheduled on the PCN.
 5. Type the topic you would like to focus on (e.g., "Life coaching feedback" or "Active listening practice").
 6. Click **"Confirm Booking"**. The app will immediately schedule the session and generate a secure **Google Meet video link**.
 

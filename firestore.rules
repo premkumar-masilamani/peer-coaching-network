@@ -100,8 +100,8 @@ service cloud.firestore {
 
     match /busySlotsCache/{uid} {
       // Derived busy-slot cache. Readable by any signed-in user, but only the
-      // OWNER may write their own cache — no cross-user writes. Live booking
-      // conflicts are surfaced from the authoritative `bookings` collection
+      // OWNER may write their own cache — no cross-user writes. Live bookings
+      // are surfaced from the authoritative `bookings` collection
       // instead. See BUG-001.
       allow read: if isSignedIn();
       allow write: if isOwner(uid);

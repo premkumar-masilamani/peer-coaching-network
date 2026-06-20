@@ -31,7 +31,7 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getUtcForSlot, getTimezoneCode } from '../utils/timezoneHelpers';
 import { sanitizeImageUrl } from '../utils/url';
-import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS } from '../config';
+import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE } from '../config';
 
 
 export const CoachDashboard: React.FC = () => {
@@ -103,7 +103,7 @@ export const CoachDashboard: React.FC = () => {
   }, [coachesBaseBusy, liveBookings, now]);
 
   const userBusyEvents = useMemo(() => {
-    const baseGoogleEvents = userBaseBusyEvents.filter(e => e.type !== 'peer-coaching');
+    const baseGoogleEvents = userBaseBusyEvents.filter(e => e.type !== EVENT_TYPE.PEER_COACHING);
     const currentUid = currentUser?.uid;
     if (!currentUid) return baseGoogleEvents;
     
@@ -126,13 +126,17 @@ export const CoachDashboard: React.FC = () => {
         description: `Coaching session`,
         start: { dateTime: startStr },
         end: { dateTime: endStr },
-        type: 'peer-coaching',
-        meetLink: b.googleMeetLink
+        type: EVENT_TYPE.PEER_COACHING,
+        meetLink: b.googleMeetLink,
+        coachUid: b.coachUid,
+        clientUid: b.clientUid
       });
     });
     
-    return [...baseGoogleEvents, ...liveUserEvents];
-  }, [userBaseBusyEvents, liveBookings, currentUser]);
+    const userTemplateBusy = profile ? (coachesBaseBusy[profile.userId] || []) : [];
+    
+    return [...baseGoogleEvents, ...liveUserEvents, ...userTemplateBusy];
+  }, [userBaseBusyEvents, liveBookings, currentUser, profile, coachesBaseBusy]);
   
   // Tab states
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -157,7 +161,7 @@ export const CoachDashboard: React.FC = () => {
 
   const getBookingForSlot = (slotStart: Date, slotEnd: Date) => {
     return userBusyEvents.find(e => {
-      if (e.type !== 'peer-coaching') return false;
+      if (e.type !== EVENT_TYPE.PEER_COACHING) return false;
       const start = new Date(e.start.dateTime);
       const end = new Date(e.end.dateTime);
       return slotStart < end && slotEnd > start;
@@ -228,7 +232,8 @@ export const CoachDashboard: React.FC = () => {
       endDay.setDate(today.getDate() + BOOKING_HORIZON_DAYS);
       const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
 
-      const availability = await getCoachesBusySlots(coaches, timeMin, timeMax);
+      const allProfiles = profile ? [...coaches, profile] : coaches;
+      const availability = await getCoachesBusySlots(allProfiles, timeMin, timeMax);
       setCoachesBaseBusy(availability);
 
       const allEvents = await getUpcomingEvents();
@@ -256,7 +261,8 @@ export const CoachDashboard: React.FC = () => {
         endDay.setDate(today.getDate() + BOOKING_HORIZON_DAYS);
         const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
 
-        const availability = await getCoachesBusySlots(coaches, timeMin, timeMax);
+        const allProfiles = profile ? [...coaches, profile] : coaches;
+        const availability = await getCoachesBusySlots(allProfiles, timeMin, timeMax);
         if (cancelled) return;
         setCoachesBaseBusy(availability);
 
@@ -270,7 +276,7 @@ export const CoachDashboard: React.FC = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [coaches, viewerTimezone]);
+  }, [coaches, viewerTimezone, profile]);
 
   // Handle booking success with optimistic updates
   const handleBookingSuccess = (newEvent: CalendarEvent) => {
@@ -305,9 +311,10 @@ export const CoachDashboard: React.FC = () => {
     });
   };
 
-  // Check if current user has a calendar conflict
-  const hasUserConflict = (slotStart: Date, slotEnd: Date) => {
+  // Check if current user is unavailable (due to template gaps, blocked dates, or google calendar events, excluding active PCN bookings)
+  const isUserUnavailable = (slotStart: Date, slotEnd: Date) => {
     return userBusyEvents.some(e => {
+      if (e.type === EVENT_TYPE.PEER_COACHING) return false;
       const start = new Date(e.start.dateTime);
       const end = new Date(e.end.dateTime);
       return slotStart < end && slotEnd > start;
@@ -376,6 +383,58 @@ export const CoachDashboard: React.FC = () => {
     return `${startStr} - ${endStr} ${getTimezoneCode(start, viewerTimezone)}`;
   };
 
+  const getParticipantNames = (event: CalendarEvent) => {
+    let coachName = 'Coach';
+    if (event.coachUid) {
+      if (event.coachUid === currentUser?.uid && profile) {
+        coachName = profile.displayName;
+      } else {
+        const found = coaches.find(c => c.userId === event.coachUid);
+        if (found) coachName = found.displayName;
+      }
+    }
+    if (coachName === 'Coach' && event.attendees?.[0]) {
+      coachName = event.attendees[0].displayName || event.attendees[0].email;
+    }
+
+    let clientName = 'Client';
+    if (event.clientUid) {
+      if (event.clientUid === currentUser?.uid && profile) {
+        clientName = profile.displayName;
+      } else {
+        const found = coaches.find(c => c.userId === event.clientUid);
+        if (found) clientName = found.displayName;
+      }
+    }
+    if (clientName === 'Client' && event.attendees?.[1]) {
+      clientName = event.attendees[1].displayName || event.attendees[1].email;
+    }
+
+    return { coachName, clientName };
+  };
+
+  const getBookingTopic = (event: CalendarEvent) => {
+    if (!event.description) return event.summary;
+    if (event.description.includes('Peer Coaching Network session on the topic: ')) {
+      return event.description
+        .replace('Peer Coaching Network session on the topic: ', '')
+        .replace('. Created via PCN.', '')
+        .trim();
+    }
+    const match = event.description.match(/-\s*Topic:\s*([^\n\r]+)/i);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+    return event.summary;
+  };
+
+  const getFormattedDateTime = (dateTimeStr: string) => {
+    const d = new Date(dateTimeStr);
+    const date = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ` ${getTimezoneCode(d, viewerTimezone)}`;
+    return { date, time };
+  };
+
   const truncateBio = (text?: string, limit = 90) => {
     if (!text) return 'No biography provided yet.';
     if (text.length <= limit) return text;
@@ -391,32 +450,36 @@ export const CoachDashboard: React.FC = () => {
       // Check if there is an active booking for this slot
       const booking = getBookingForSlot(slot.startTime, slot.endTime);
       
-      let coachesForSlot: UserProfile[] = [];
-      let anyAvailable = false;
-      let conflict = false;
-      
-      if (booking) {
-        // If there's a booking, we only show the coach of that booking.
-        // No need to show other coaches' availability for the same slot.
-        const bookedCoach = coaches.find(c => c.userId === booking.coachUid);
-        if (bookedCoach) {
-          coachesForSlot = [bookedCoach];
-          anyAvailable = true;
-        }
-      } else {
-        coachesForSlot = isPassed ? [] : getCoachesForSlot(slot.startTime, slot.endTime, false);
-        anyAvailable = isPassed ? false : getCoachesForSlot(slot.startTime, slot.endTime, true).length > 0;
-        conflict = hasUserConflict(slot.startTime, slot.endTime);
+      // If the current user is unavailable at this slot (excluding bookings),
+      // we filter it out (hide it) unless there is a booking already!
+      const userUnavailable = isUserUnavailable(slot.startTime, slot.endTime);
+      if (userUnavailable && !booking) {
+        return { slot, isPassed: true, coaches: [], anyAvailable: false, booking: null };
       }
       
-      return { slot, isPassed, coaches: coachesForSlot, anyAvailable, conflict, booking };
+      // Always get all available coaches for this slot
+      let coachesForSlot = isPassed ? [] : getCoachesForSlot(slot.startTime, slot.endTime, false);
+      let anyAvailable = isPassed ? false : getCoachesForSlot(slot.startTime, slot.endTime, true).length > 0;
+      
+      if (booking) {
+        // Find the other participant in this booking (could be coach or client)
+        const otherParticipantId = booking.coachUid === currentUser?.uid ? booking.clientUid : booking.coachUid;
+        const bookedUser = coaches.find(c => c.userId === otherParticipantId);
+        if (bookedUser) {
+          coachesForSlot = coachesForSlot.filter(c => c.userId !== bookedUser.userId);
+          coachesForSlot.unshift(bookedUser);
+        }
+        anyAvailable = true;
+      }
+      
+      return { slot, isPassed, coaches: coachesForSlot, anyAvailable, booking };
     });
     return {
-      displaySlots: enriched.filter(e => !e.isPassed && e.coaches.length > 0),
+      displaySlots: enriched.filter(e => !e.isPassed && (e.coaches.length > 0 || e.booking)),
       hasGeneralSlots: enriched.some(e => e.anyAvailable)
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slots, coaches, coachesBusy, userBusyEvents, now, nameSearch, genderFilter, countryFilter, selectedQuals]);
+  }, [slots, coaches, coachesBusy, userBusyEvents, now, nameSearch, genderFilter, countryFilter, selectedQuals, currentUser]);
 
   return (
     <>
@@ -524,11 +587,7 @@ export const CoachDashboard: React.FC = () => {
           transition: all 0.2s ease;
         }
 
-        .slot-row.has-conflict {
-          border-color: hsl(var(--warning) / 0.4);
-          border-left: 4px solid hsl(var(--warning));
-          background: var(--bg-surface);
-        }
+
 
         .slot-row.is-passed {
           opacity: 0.5;
@@ -874,7 +933,6 @@ export const CoachDashboard: React.FC = () => {
             <div ref={carouselRef} className="date-tabs-container">
               {days.map((day, index) => {
                 const isActive = index === selectedDayIndex;
-                const isTodayTab = index === 0;
                 return (
                   <div 
                     key={day.toISOString()}
@@ -882,7 +940,7 @@ export const CoachDashboard: React.FC = () => {
                     className={`date-tab ${isActive ? 'active' : ''}`}
                   >
                     <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: isActive ? 0.9 : 0.6 }}>
-                      {isTodayTab ? 'Today' : formatTabDayName(day)}
+                      {formatTabDayName(day)}
                     </span>
                     <span style={{ fontSize: '1rem', fontWeight: 800, marginTop: '2px' }}>
                       {formatTabDate(day)}
@@ -915,11 +973,11 @@ export const CoachDashboard: React.FC = () => {
                 const displaySlots = slotView.displaySlots;
 
                 if (displaySlots.length > 0) {
-                  return displaySlots.map(({ slot, conflict, booking, coaches: slotCoaches }) => {
+                  return displaySlots.map(({ slot, booking, coaches: slotCoaches }) => {
                     return (
                       <div 
                         key={slot.hour} 
-                        className={`slot-row ${conflict ? 'has-conflict' : ''} ${booking ? 'has-booking' : ''}`}
+                        className={`slot-row ${booking ? 'has-booking' : ''}`}
                       >
                         <div className="slot-header">
                           <div className="slot-time">
@@ -928,13 +986,11 @@ export const CoachDashboard: React.FC = () => {
                           </div>
                           
                           <div style={{ display: 'flex', gap: '8px' }}>
-                            {conflict && !booking && (
-                              <span className="badge badge-pending" style={{ fontSize: '0.65rem', gap: '4px' }}>
-                                <AlertTriangle size={10} />
-                                Your Calendar Conflict
+                            {booking ? (
+                              <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>
+                                Session Already Booked
                               </span>
-                            )}
-                            {!booking && (
+                            ) : (
                               <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>
                                 {slotCoaches.length} Available
                               </span>
@@ -953,10 +1009,6 @@ export const CoachDashboard: React.FC = () => {
                               if (hasMCC) borderCol = 'hsl(var(--mcc-platinum))';
                               else if (hasPCC) borderCol = 'hsl(var(--pcc-silver))';
                               else if (hasACC) borderCol = 'hsl(var(--acc-gold))';
-
-                              // slotCoaches are already filtered to non-busy coaches,
-                              // so the only remaining disabler is the viewer's own conflict.
-                              const isDisabled = conflict;
 
                               return (
                                 <div key={coach.userId} className="mini-coach-card">
@@ -993,59 +1045,83 @@ export const CoachDashboard: React.FC = () => {
                                     </div>
                                   </div>
 
-                                  {booking ? (
-                                    <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-                                      <button
-                                        onClick={() => setSelectedBookingForView(booking)}
-                                        className="btn btn-secondary"
-                                        style={{
-                                          flex: 1,
-                                          padding: '6px 8px',
-                                          fontSize: '0.85rem',
-                                          borderRadius: '8px',
-                                          height: '36px',
-                                          fontWeight: 700
-                                        }}
-                                      >
-                                        View Session
-                                      </button>
-                                      <button
-                                        onClick={() => setBookingToCancel(booking)}
-                                        disabled={cancellingId === booking.id}
-                                        className="btn btn-danger"
-                                        style={{
-                                          flex: 1,
-                                          padding: '6px 8px',
-                                          fontSize: '0.85rem',
-                                          borderRadius: '8px',
-                                          height: '36px',
-                                          fontWeight: 700
-                                        }}
-                                      >
-                                        Cancel
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <button
-                                      onClick={() => {
-                                        setActiveBookingCoach(coach);
-                                        setActiveBookingSlot({ startTime: slot.startTime, endTime: slot.endTime });
-                                      }}
-                                      disabled={isDisabled}
-                                      className={isDisabled ? "btn btn-disabled" : "btn btn-primary"}
-                                      style={{
-                                        width: '100%',
-                                        padding: '6px 12px',
-                                        fontSize: '0.85rem',
-                                        borderRadius: '8px',
-                                        height: '36px',
-                                        fontWeight: 700,
-                                        cursor: isDisabled ? 'not-allowed' : 'pointer'
-                                      }}
-                                    >
-                                      {conflict ? 'Conflict' : 'Book Session'}
-                                    </button>
-                                  )}
+                                  {(() => {
+                                    const isThisParticipantBooked = booking && (booking.coachUid === coach.userId || booking.clientUid === coach.userId);
+                                    if (isThisParticipantBooked) {
+                                      return (
+                                        <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                                          <button
+                                            onClick={() => setSelectedBookingForView(booking)}
+                                            className="btn btn-secondary"
+                                            style={{
+                                              flex: 1,
+                                              padding: '6px 8px',
+                                              fontSize: '0.85rem',
+                                              borderRadius: '8px',
+                                              height: '36px',
+                                              fontWeight: 700
+                                            }}
+                                          >
+                                            View
+                                          </button>
+                                          <button
+                                            onClick={() => setBookingToCancel(booking)}
+                                            disabled={cancellingId === booking.id}
+                                            className="btn btn-danger"
+                                            style={{
+                                              flex: 1,
+                                              padding: '6px 8px',
+                                              fontSize: '0.85rem',
+                                              borderRadius: '8px',
+                                              height: '36px',
+                                              fontWeight: 700
+                                            }}
+                                          >
+                                            Cancel
+                                          </button>
+                                        </div>
+                                      );
+                                    } else if (booking) {
+                                      return (
+                                        <button
+                                          disabled={true}
+                                          className="btn btn-disabled"
+                                          style={{
+                                            width: '100%',
+                                            padding: '6px 12px',
+                                            fontSize: '0.85rem',
+                                            borderRadius: '8px',
+                                            height: '36px',
+                                            fontWeight: 700,
+                                            cursor: 'not-allowed'
+                                          }}
+                                        >
+                                          Session Booked
+                                        </button>
+                                      );
+                                    } else {
+                                      return (
+                                        <button
+                                          onClick={() => {
+                                            setActiveBookingCoach(coach);
+                                            setActiveBookingSlot({ startTime: slot.startTime, endTime: slot.endTime });
+                                          }}
+                                          className="btn btn-primary"
+                                          style={{
+                                            width: '100%',
+                                            padding: '6px 12px',
+                                            fontSize: '0.85rem',
+                                            borderRadius: '8px',
+                                            height: '36px',
+                                            fontWeight: 700,
+                                            cursor: 'pointer'
+                                          }}
+                                        >
+                                          Book Session
+                                        </button>
+                                      );
+                                    }
+                                  })()}
                                 </div>
                               );
                             })}
@@ -1156,15 +1232,30 @@ export const CoachDashboard: React.FC = () => {
             </h3>
 
             <div className="glass-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', marginBottom: '24px' }}>
-              <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                <strong>Coach:</strong> {selectedBookingForView.attendees?.find(a => a.email !== currentUser?.email)?.displayName || 'Coach'}
-              </p>
-              <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                <strong>Topic:</strong> {selectedBookingForView.description?.replace('Peer Coaching Network session on the topic: ', '').replace('. Created via PCN.', '') || selectedBookingForView.summary}
-              </p>
-              <p style={{ fontSize: '0.85rem', marginBottom: '12px' }}>
-                <strong>Time:</strong> {new Date(selectedBookingForView.start.dateTime).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(selectedBookingForView.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </p>
+              {(() => {
+                const { coachName, clientName } = getParticipantNames(selectedBookingForView);
+                const topic = getBookingTopic(selectedBookingForView);
+                const { date, time } = getFormattedDateTime(selectedBookingForView.start.dateTime);
+                return (
+                  <>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Coach:</strong> {coachName}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Client:</strong> {clientName}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Topic:</strong> {topic}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Date:</strong> {date}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '0px' }}>
+                      <strong>Time:</strong> {time}
+                    </p>
+                  </>
+                );
+              })()}
               
               {selectedBookingForView.meetLink && (
                 <div style={{
@@ -1220,15 +1311,30 @@ export const CoachDashboard: React.FC = () => {
             </h3>
 
             <div className="glass-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>
-              <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                <strong>Coach:</strong> {bookingToCancel.attendees?.find(a => a.email !== currentUser?.email)?.displayName || 'Coach'}
-              </p>
-              <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                <strong>Topic:</strong> {bookingToCancel.description?.replace('Peer Coaching Network session on the topic: ', '').replace('. Created via PCN.', '') || bookingToCancel.summary}
-              </p>
-              <p style={{ fontSize: '0.85rem', marginBottom: '12px' }}>
-                <strong>Time:</strong> {new Date(bookingToCancel.start.dateTime).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(bookingToCancel.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </p>
+              {(() => {
+                const { coachName, clientName } = getParticipantNames(bookingToCancel);
+                const topic = getBookingTopic(bookingToCancel);
+                const { date, time } = getFormattedDateTime(bookingToCancel.start.dateTime);
+                return (
+                  <>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Coach:</strong> {coachName}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Client:</strong> {clientName}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Topic:</strong> {topic}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Date:</strong> {date}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '0px' }}>
+                      <strong>Time:</strong> {time}
+                    </p>
+                  </>
+                );
+              })()}
             </div>
             
             <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', marginBottom: '24px', lineHeight: 1.4, textAlign: 'center' }}>

@@ -15,9 +15,13 @@ export const TelemetryErrors = {
     code: 'TRANSACTION_FAILURE',
     message: 'Firestore transaction failed to persist booking after maximum retries.'
   },
-  CLIENT_CONFLICT: {
-    code: 'CLIENT_CONFLICT',
-    message: 'Client has a double-booking conflict.'
+  BOOKED_AS_CLIENT: {
+    code: 'BOOKED_AS_CLIENT',
+    message: 'Client is already booked as a client in another session at this time.'
+  },
+  BOOKED_AS_COACH: {
+    code: 'BOOKED_AS_COACH',
+    message: 'Client is already booked as a coach in another session at this time.'
   },
   SLOT_TAKEN: {
     code: 'SLOT_TAKEN',
