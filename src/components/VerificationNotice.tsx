@@ -55,7 +55,7 @@ export const VerificationNotice: React.FC = () => {
         bio,
         timezone
       });
-      setSuccessMsg('Profile updated! Administrators will review your details.');
+      setSuccessMsg('Profile updated!');
       setTimeout(() => setSuccessMsg(''), 4000);
     } catch (e) {
       console.error(e);

@@ -112,7 +112,7 @@ export const Login: React.FC = () => {
             color: 'hsl(var(--accent))',
             marginBottom: '16px'
           }}>
-            <Target size="{22}"/>
+            <Target size={22}/>
           </div>
           <h4 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>Verified Coaches</h4>
           <p style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>
@@ -132,7 +132,7 @@ export const Login: React.FC = () => {
             color: 'hsl(var(--primary))',
             marginBottom: '16px'
           }}>
-            <Compass size="{22}"/>
+            <Compass size={22}/>
           </div>
           <h4 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>Elevate Your Skills</h4>
           <p style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>
@@ -152,7 +152,7 @@ export const Login: React.FC = () => {
             color: 'hsl(var(--success))',
             marginBottom: '16px'
           }}>
-            <Users size="{22}"/>
+            <Users size={22}/>
           </div>
           <h4 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>Broaden Your Network</h4>
           <p style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>

@@ -203,7 +203,7 @@ export const scheduleMeeting = async (
       createRequest: {
         requestId: Math.random().toString(36).substring(2, 12),
         conferenceSolutionKey: {
-          type: 'hangoutMeet',
+          type: 'hangoutsMeet',
         },
       },
     },
@@ -233,7 +233,7 @@ export const scheduleMeeting = async (
   if (ENABLE_GOOGLE_INTEGRATION && token) {
     try {
       const response = await fetch(
-        'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1',
+        'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all',
         {
           method: 'POST',
           headers: {
@@ -485,7 +485,7 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
   if (ENABLE_GOOGLE_INTEGRATION && token && data.googleEventId) {
     try {
       await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${data.googleEventId}`,
+        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${data.googleEventId}?sendUpdates=all`,
         {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` },
@@ -646,8 +646,10 @@ export const getCoachesBusySlots = async (
     coachesBusySlots[coach.userId] = [];
   });
 
-  // Try to load FreeBusy information from Google Calendar if a valid token is present
-  if (ENABLE_GOOGLE_INTEGRATION && token) {
+  const validCoaches = coaches.filter((c) => c.email && c.email.includes('@'));
+
+  // Try to load FreeBusy information from Google Calendar if a valid token is present and we have valid emails to query
+  if (ENABLE_GOOGLE_INTEGRATION && token && validCoaches.length > 0) {
     try {
       const response = await fetch(
         'https://www.googleapis.com/calendar/v3/freeBusy',
@@ -660,7 +662,7 @@ export const getCoachesBusySlots = async (
           body: JSON.stringify({
             timeMin,
             timeMax,
-            items: coaches.map(c => ({ id: c.email })),
+            items: validCoaches.map((c) => ({ id: c.email })),
           }),
         }
       );
