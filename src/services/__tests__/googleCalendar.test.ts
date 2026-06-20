@@ -176,7 +176,7 @@ describe('googleCalendar service', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockFetch.mock.calls[0][0]).toContain('conferenceDataVersion=1');
       expect(mockFetch.mock.calls[0][0]).toContain('sendUpdates=all');
-      
+
       const fetchCallArgs = mockFetch.mock.calls[0];
       const fetchBody = JSON.parse(fetchCallArgs[1].body);
       expect(fetchBody.summary).toBe('[PCN] Peer Coaching: John Coach & Mock Client');
@@ -187,10 +187,10 @@ describe('googleCalendar service', () => {
         '- Coach: John Coach (coach@example.com)\n' +
         '- Client: Mock Client (client@example.com)\n' +
         '- Topic: Career Development\n\n' +
-        'Please join the Google Meet link attached to this event.\n\n' +
+        'Please join the Google Meet via the link attached to this event.\n\n' +
         'Created via Peer Coaching Network.'
       );
-      
+
       expect(mockRunTransaction).toHaveBeenCalledTimes(1);
       expect(result.meetLink).toBe('https://meet.google.com/abc-defg-hij');
     });
@@ -531,7 +531,7 @@ describe('googleCalendar service', () => {
 
     it('retries transaction on transient failure and eventually succeeds', async () => {
       vi.mocked(getGoogleToken).mockReturnValue(null);
-      
+
       let attemptCount = 0;
       mockRunTransaction.mockImplementation(async (_db, callback) => {
         attemptCount++;
@@ -566,7 +566,7 @@ describe('googleCalendar service', () => {
   describe('cancelBooking', () => {
     it('cancels the booking in Firestore and releases client cache', async () => {
       vi.mocked(getGoogleToken).mockReturnValue(null);
-      
+
       mockGetDoc.mockResolvedValueOnce({
         exists: () => true,
         data: () => ({
@@ -625,7 +625,7 @@ describe('googleCalendar service', () => {
 
     it('handles deleteDoc failure in cancelBooking gracefully', async () => {
       vi.mocked(getGoogleToken).mockReturnValue(null);
-      
+
       mockGetDoc.mockResolvedValueOnce({
         exists: () => true,
         data: () => ({
@@ -646,7 +646,7 @@ describe('googleCalendar service', () => {
 
     it('handles google event delete fetch failure gracefully', async () => {
       vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
-      
+
       mockGetDoc.mockResolvedValueOnce({
         exists: () => true,
         data: () => ({
@@ -871,7 +871,7 @@ describe('googleCalendar service', () => {
       mockGetDocs.mockRejectedValueOnce(new Error('Chunk query failed'));
 
       const coaches = [{ userId: 'coach-1', email: 'coach@example.com' }] as any[];
-      
+
       mockGetDoc.mockImplementation(async (ref: any) => {
         if (ref.path.endsWith('availableDays')) {
           return { exists: () => true, data: () => ({ monday: { enabled: false } }) };
@@ -953,7 +953,7 @@ describe('googleCalendar service', () => {
 
       const coaches = [{ userId: 'coach-1', email: 'coach@example.com' }] as any[];
       const result = await getCoachesBusySlots(coaches, '2026-06-18T00:00:00Z', '2026-06-25T00:00:00Z');
-      
+
       expect(mockFetch).not.toHaveBeenCalled();
       expect(result['coach-1']).toBeDefined();
     });
