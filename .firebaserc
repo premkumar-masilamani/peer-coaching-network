@@ -1,5 +1,6 @@
 {
   "projects": {
-    "default": "peer-coaching-network-dev"
+    "default": "peer-coaching-network-dev",
+    "prod": "peer-coaching-network"
   }
 }
