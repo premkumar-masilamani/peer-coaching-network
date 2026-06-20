@@ -45,8 +45,10 @@ export const navigateToProfile = (uid: string): void => {
 // Clears the profile query parameter from the URL, returning back to the normal dashboard/navigation.
 export const clearProfileFromUrl = (): void => {
   const url = new URL(window.location.href);
-  url.searchParams.delete('profile');
-  window.history.pushState({}, '', url.toString());
-  window.dispatchEvent(new PopStateEvent('popstate'));
+  if (url.searchParams.has('profile')) {
+    url.searchParams.delete('profile');
+    window.history.pushState({}, '', url.toString());
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  }
 };
 

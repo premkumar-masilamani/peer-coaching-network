@@ -33,6 +33,12 @@ const AppContent: React.FC = () => {
   const [adminTabFilter, setAdminTabFilter] = useState<'all' | UserStatus | UserRole>('all');
   const [publicProfileUid, setPublicProfileUid] = useState<string | null>(null);
 
+  const handleTabChange = (tab: TabKey) => {
+    setCurrentTab(tab);
+    clearProfileFromUrl();
+  };
+
+
   // Sync profile ID from URL search parameters on popstate / mount.
   useEffect(() => {
     const handleUrlChange = () => {
@@ -162,7 +168,7 @@ const AppContent: React.FC = () => {
         <div className="bg-gradient-radial" />
         <Header
           currentTab={currentTab}
-          setCurrentTab={setCurrentTab}
+          setCurrentTab={handleTabChange}
           setAdminTabFilter={setAdminTabFilter}
         />
         <main className="content-wrapper" style={{ overflowY: 'auto', padding: '0 16px 16px 16px' }}>
@@ -182,7 +188,7 @@ const AppContent: React.FC = () => {
       <div className="bg-gradient-radial" />
       <Header
         currentTab={currentTab}
-        setCurrentTab={setCurrentTab}
+        setCurrentTab={handleTabChange}
         setAdminTabFilter={setAdminTabFilter}
       />
 
@@ -190,7 +196,7 @@ const AppContent: React.FC = () => {
         <div className="app-main-layout">
           <LeftNav
             currentTab={currentTab}
-            setCurrentTab={setCurrentTab}
+            setCurrentTab={handleTabChange}
             collapsed={navCollapsed}
             setCollapsed={setNavCollapsed}
           />
@@ -222,7 +228,7 @@ const AppContent: React.FC = () => {
                   </span>
                 </div>
                 <button
-                  onClick={() => setCurrentTab(TABS.PROFILE)}
+                  onClick={() => handleTabChange(TABS.PROFILE)}
                   style={{
                     background: 'hsl(var(--warning))',
                     color: '#000',
