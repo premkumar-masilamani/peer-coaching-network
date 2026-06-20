@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
   let databaseId = env.VITE_FIRESTORE_DATABASE_ID || process.env.VITE_FIRESTORE_DATABASE_ID;
 
   if (!databaseId && mode === 'production') {
-    const devEnv = loadEnv('dev', process.cwd(), '');
+    const devEnv = loadEnv('development', process.cwd(), '');
     databaseId = devEnv.VITE_FIRESTORE_DATABASE_ID;
   }
 
