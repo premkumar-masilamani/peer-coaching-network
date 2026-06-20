@@ -142,13 +142,6 @@ const firebaseConfig = {
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const databaseId = import.meta.env.VITE_FIRESTORE_DATABASE_ID;
-if (!databaseId) {
-  throw new Error(
-    'Missing required environment variable: VITE_FIRESTORE_DATABASE_ID. ' +
-    'Please specify the Firestore database name (e.g. pcn-dev) in your environment configuration.'
-  );
-}
-
 export const db = getFirestore(app, databaseId);
 
 // Connect to Emulators during development/testing if configured
