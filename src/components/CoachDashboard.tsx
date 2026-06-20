@@ -383,6 +383,58 @@ export const CoachDashboard: React.FC = () => {
     return `${startStr} - ${endStr} ${getTimezoneCode(start, viewerTimezone)}`;
   };
 
+  const getParticipantNames = (event: CalendarEvent) => {
+    let coachName = 'Coach';
+    if (event.coachUid) {
+      if (event.coachUid === currentUser?.uid && profile) {
+        coachName = profile.displayName;
+      } else {
+        const found = coaches.find(c => c.userId === event.coachUid);
+        if (found) coachName = found.displayName;
+      }
+    }
+    if (coachName === 'Coach' && event.attendees?.[0]) {
+      coachName = event.attendees[0].displayName || event.attendees[0].email;
+    }
+
+    let clientName = 'Client';
+    if (event.clientUid) {
+      if (event.clientUid === currentUser?.uid && profile) {
+        clientName = profile.displayName;
+      } else {
+        const found = coaches.find(c => c.userId === event.clientUid);
+        if (found) clientName = found.displayName;
+      }
+    }
+    if (clientName === 'Client' && event.attendees?.[1]) {
+      clientName = event.attendees[1].displayName || event.attendees[1].email;
+    }
+
+    return { coachName, clientName };
+  };
+
+  const getBookingTopic = (event: CalendarEvent) => {
+    if (!event.description) return event.summary;
+    if (event.description.includes('Peer Coaching Network session on the topic: ')) {
+      return event.description
+        .replace('Peer Coaching Network session on the topic: ', '')
+        .replace('. Created via PCN.', '')
+        .trim();
+    }
+    const match = event.description.match(/-\s*Topic:\s*([^\n\r]+)/i);
+    if (match && match[1]) {
+      return match[1].trim();
+    }
+    return event.summary;
+  };
+
+  const getFormattedDateTime = (dateTimeStr: string) => {
+    const d = new Date(dateTimeStr);
+    const date = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ` ${getTimezoneCode(d, viewerTimezone)}`;
+    return { date, time };
+  };
+
   const truncateBio = (text?: string, limit = 90) => {
     if (!text) return 'No biography provided yet.';
     if (text.length <= limit) return text;
@@ -1180,15 +1232,30 @@ export const CoachDashboard: React.FC = () => {
             </h3>
 
             <div className="glass-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', marginBottom: '24px' }}>
-              <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                <strong>Coach:</strong> {selectedBookingForView.attendees?.find(a => a.email !== currentUser?.email)?.displayName || 'Coach'}
-              </p>
-              <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                <strong>Topic:</strong> {selectedBookingForView.description?.replace('Peer Coaching Network session on the topic: ', '').replace('. Created via PCN.', '') || selectedBookingForView.summary}
-              </p>
-              <p style={{ fontSize: '0.85rem', marginBottom: '12px' }}>
-                <strong>Time:</strong> {new Date(selectedBookingForView.start.dateTime).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(selectedBookingForView.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </p>
+              {(() => {
+                const { coachName, clientName } = getParticipantNames(selectedBookingForView);
+                const topic = getBookingTopic(selectedBookingForView);
+                const { date, time } = getFormattedDateTime(selectedBookingForView.start.dateTime);
+                return (
+                  <>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Coach:</strong> {coachName}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Client:</strong> {clientName}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Topic:</strong> {topic}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Date:</strong> {date}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '0px' }}>
+                      <strong>Time:</strong> {time}
+                    </p>
+                  </>
+                );
+              })()}
               
               {selectedBookingForView.meetLink && (
                 <div style={{
@@ -1244,15 +1311,30 @@ export const CoachDashboard: React.FC = () => {
             </h3>
 
             <div className="glass-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>
-              <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                <strong>Coach:</strong> {bookingToCancel.attendees?.find(a => a.email !== currentUser?.email)?.displayName || 'Coach'}
-              </p>
-              <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                <strong>Topic:</strong> {bookingToCancel.description?.replace('Peer Coaching Network session on the topic: ', '').replace('. Created via PCN.', '') || bookingToCancel.summary}
-              </p>
-              <p style={{ fontSize: '0.85rem', marginBottom: '12px' }}>
-                <strong>Time:</strong> {new Date(bookingToCancel.start.dateTime).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(bookingToCancel.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </p>
+              {(() => {
+                const { coachName, clientName } = getParticipantNames(bookingToCancel);
+                const topic = getBookingTopic(bookingToCancel);
+                const { date, time } = getFormattedDateTime(bookingToCancel.start.dateTime);
+                return (
+                  <>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Coach:</strong> {coachName}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Client:</strong> {clientName}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Topic:</strong> {topic}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <strong>Date:</strong> {date}
+                    </p>
+                    <p style={{ fontSize: '0.85rem', marginBottom: '0px' }}>
+                      <strong>Time:</strong> {time}
+                    </p>
+                  </>
+                );
+              })()}
             </div>
             
             <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', marginBottom: '24px', lineHeight: 1.4, textAlign: 'center' }}>
