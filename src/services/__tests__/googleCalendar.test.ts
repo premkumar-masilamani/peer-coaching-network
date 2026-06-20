@@ -19,14 +19,17 @@ const {
   mockDeleteDoc,
   mockRunTransaction,
   mockGetDocs
-} = vi.hoisted(() => ({
-  mockGetDoc: vi.fn(),
-  mockSetDoc: vi.fn(),
-  mockUpdateDoc: vi.fn(),
-  mockDeleteDoc: vi.fn(),
-  mockRunTransaction: vi.fn(),
-  mockGetDocs: vi.fn(),
-}));
+} = vi.hoisted(() => {
+  (import.meta.env as any).VITE_FIRESTORE_DATABASE_ID = 'pcn-dev';
+  return {
+    mockGetDoc: vi.fn(),
+    mockSetDoc: vi.fn(),
+    mockUpdateDoc: vi.fn(),
+    mockDeleteDoc: vi.fn(),
+    mockRunTransaction: vi.fn(),
+    mockGetDocs: vi.fn(),
+  };
+});
 
 vi.mock('firebase/app', () => ({
   initializeApp: vi.fn(),
@@ -172,6 +175,7 @@ describe('googleCalendar service', () => {
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockFetch.mock.calls[0][0]).toContain('conferenceDataVersion=1');
+      expect(mockFetch.mock.calls[0][0]).toContain('sendUpdates=all');
       expect(mockRunTransaction).toHaveBeenCalledTimes(1);
       expect(result.meetLink).toBe('https://meet.google.com/abc-defg-hij');
     });
@@ -600,6 +604,7 @@ describe('googleCalendar service', () => {
       expect(mockDeleteDoc).toHaveBeenCalledTimes(1);
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockFetch.mock.calls[0][0]).toContain('gcal-event-123');
+      expect(mockFetch.mock.calls[0][0]).toContain('sendUpdates=all');
       expect(mockFetch.mock.calls[0][1].method).toBe('DELETE');
     });
 

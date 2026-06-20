@@ -97,6 +97,10 @@ export interface UserProfile {
   createdAt: Timestamp;
 }
 
+/**
+ * Flag to connect to local Firebase emulators (Auth, Firestore) instead of Cloud.
+ * Defaults to false. Set VITE_USE_FIREBASE_EMULATOR=true to enable.
+ */
 const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
 
 // Required config that has no safe default. Against the emulator these are not
@@ -137,7 +141,8 @@ const firebaseConfig = {
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
-const db = getFirestore(app);
+const databaseId = import.meta.env.VITE_FIRESTORE_DATABASE_ID;
+export const db = getFirestore(app, databaseId);
 
 // Connect to Emulators during development/testing if configured
 if (useEmulator) {
@@ -157,7 +162,7 @@ if (useEmulator) {
 // emulator), instead of being hardcoded true. See BUG-013.
 export const isFirebaseConfigured = useEmulator || missingConfig.length === 0;
 
-export { auth, db };
+export { auth };
 
 // Standardized Auth Actions
 export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAuthCredential | null }> => {
@@ -165,6 +170,8 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
   // Request Google Calendar access
   provider.addScope('https://www.googleapis.com/auth/calendar');
   provider.addScope('https://www.googleapis.com/auth/calendar.events');
+  // Force Google to prompt the user to select an account on login
+  provider.setCustomParameters({ prompt: 'select_account' });
   const result = await signInWithPopup(auth, provider);
   const credential = GoogleAuthProvider.credentialFromResult(result);
   

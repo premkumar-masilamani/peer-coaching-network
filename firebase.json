@@ -1,6 +1,6 @@
 {
   "firestore": {
-    "database": "(default)",
+    "database": "pcn-dev",
     "location": "asia-south1",
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"

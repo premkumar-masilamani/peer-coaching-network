@@ -74,7 +74,7 @@ service cloud.firestore {
           request.resource.data.coachUid,
           request.resource.data.clientUid
         ]
-        && bookingId.startsWith(request.resource.data.coachUid + '_');
+        && bookingId.matches(request.resource.data.coachUid + '_.*');
 
       // Participants (or admins) may modify/cancel a booking.
       allow update, delete: if isSignedIn()
@@ -91,7 +91,7 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
         && request.resource.data.clientUid == request.auth.uid
-        && cacheId.startsWith(request.resource.data.clientUid + '_');
+        && cacheId.matches(request.resource.data.clientUid + '_.*');
       allow delete: if isSignedIn()
         && (isAdmin()
           || resource.data.clientUid == request.auth.uid
