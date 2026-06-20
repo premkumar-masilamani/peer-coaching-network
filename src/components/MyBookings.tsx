@@ -118,7 +118,7 @@ export const MyBookings: React.FC = () => {
                 <p style={{ fontSize: '0.9rem' }}>No upcoming sessions scheduled. Browse the Dashboard to schedule a session with a peer coach.</p>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
                 {upcoming.map((session) => {
                   const start = new Date(session.start.dateTime);
                   const timeOpts = { hour: '2-digit', minute: '2-digit' } as const;
@@ -215,7 +215,7 @@ export const MyBookings: React.FC = () => {
                 Past Sessions ({completed.length})
               </h3>
               
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
                 {completed.map((session) => {
                   const start = new Date(session.start.dateTime);
                   const timeOpts = { hour: '2-digit', minute: '2-digit' } as const;
