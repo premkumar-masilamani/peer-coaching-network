@@ -17,7 +17,7 @@ import {
   ExternalLink,
   BookOpen
 } from 'lucide-react';
-
+import { BOOKING_ERROR } from '../config';
 interface ScheduleModalProps {
   coach: UserProfile;
   startTime: Date;
@@ -70,7 +70,11 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
   const handleBook = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!topic.trim()) return;
+    if (!topic.trim()) {
+      setErrorMsg('Please enter a coaching topic to confirm your booking.');
+      setBookingStatus('error');
+      return;
+    }
 
     setBookingStatus('booking');
     setErrorMsg('');
@@ -102,9 +106,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       let errCode = 'UNKNOWN';
       if (err instanceof Error) {
         errCode = (err as { code?: string }).code || 'UNKNOWN';
-        if (err.message === 'SLOT_TAKEN') {
+        if (err.message === BOOKING_ERROR.SLOT_TAKEN) {
           message = 'Sorry, this slot was just scheduled by someone else. Please pick another time.';
-        } else if (err.message === 'SELF_CONFLICT') {
+        } else if (err.message === BOOKING_ERROR.BOOKED_AS_CLIENT || err.message === BOOKING_ERROR.BOOKED_AS_COACH) {
           message = 'You already have a session scheduled at this time. Please pick another slot.';
         } else if ((err as { code?: string }).code === 'GOOGLE_API_ERROR') {
           message = err.message;
@@ -236,7 +240,13 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 className="input-field"
                 placeholder="e.g. Life coaching feedback, ICF log hours practice..."
                 value={topic}
-                onChange={(e) => setTopic(e.target.value)}
+                onChange={(e) => {
+                  setTopic(e.target.value);
+                  if (bookingStatus === 'error' && e.target.value.trim()) {
+                    setBookingStatus('idle');
+                    setErrorMsg('');
+                  }
+                }}
                 required
                 autoFocus
                 rows={10}
@@ -272,7 +282,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               <button 
                 type="submit" 
                 className="btn btn-primary"
-                disabled={!topic.trim() || bookingStatus === 'booking'}
+                disabled={bookingStatus === 'booking'}
                 style={{ flex: 2 }}
               >
                 {bookingStatus === 'booking' ? 'Scheduling...' : 'Confirm Session'}

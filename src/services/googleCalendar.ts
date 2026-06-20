@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, d
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { getGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION, LOG_SEVERITY, BOOKING_STATUS } from '../config';
+import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION, LOG_SEVERITY, BOOKING_STATUS, EVENT_TYPE, BOOKING_ERROR } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 import { resolveEventTemplate, DEFAULT_EVENT_TEMPLATES } from '../templates/eventTemplates';
@@ -118,8 +118,16 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
         for (const d of snap.docs) {
           const data = d.data();
           if (data.status === BOOKING_STATUS.CANCELLED) continue; // skip cancelled bookings (BUG-016)
-          // De-duplicate strictly by stable id, never by coincidental start time. See BUG-010.
-          if (!seenIds.has(data.bookingId)) {
+          
+          const existingEvent = events.find(e => e.id === data.bookingId);
+          if (existingEvent) {
+            existingEvent.type = EVENT_TYPE.PEER_COACHING;
+            existingEvent.coachUid = data.coachUid;
+            existingEvent.clientUid = data.clientUid;
+            if (data.topic) {
+              existingEvent.description = `Peer Coaching Network session on the topic: ${data.topic}. Created via PCN.`;
+            }
+          } else if (!seenIds.has(data.bookingId)) {
             seenIds.add(data.bookingId);
             const startStr: string = data.startTime && typeof data.startTime.toDate === 'function'
               ? data.startTime.toDate().toISOString()
@@ -141,7 +149,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
               start: { dateTime: startStr },
               end: { dateTime: endStr },
               meetLink: data.googleMeetLink,
-              type: 'peer-coaching',
+              type: EVENT_TYPE.PEER_COACHING,
               coachUid: data.coachUid,
               clientUid: data.clientUid,
               attendees: [
@@ -339,16 +347,16 @@ export const scheduleMeeting = async (
           ]);
 
           if (coachAsCoachDoc.exists() && coachAsCoachDoc.data()?.status !== BOOKING_STATUS.CANCELLED) {
-            throw new Error('SLOT_TAKEN');
+            throw new Error(BOOKING_ERROR.SLOT_TAKEN);
           }
           if (coachAsClientDoc.exists()) {
-            throw new Error('SLOT_TAKEN');
+            throw new Error(BOOKING_ERROR.SLOT_TAKEN);
           }
           if (clientAsClientDoc.exists()) {
-            throw new Error('SELF_CONFLICT');
+            throw new Error(BOOKING_ERROR.BOOKED_AS_CLIENT);
           }
           if (clientAsCoachDoc.exists() && clientAsCoachDoc.data()?.status !== BOOKING_STATUS.CANCELLED) {
-            throw new Error('SELF_CONFLICT');
+            throw new Error(BOOKING_ERROR.BOOKED_AS_COACH);
           }
 
           tx.set(bookingRef, bookingData);
@@ -368,12 +376,20 @@ export const scheduleMeeting = async (
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         // If it's a logical error, do not retry!
-        if (err instanceof Error && (err.message === 'SLOT_TAKEN' || err.message === 'SELF_CONFLICT')) {
-          const telemetryErr = err.message === 'SLOT_TAKEN'
-            ? TelemetryErrors.SLOT_TAKEN
-            : TelemetryErrors.CLIENT_CONFLICT;
+        if (
+          err instanceof Error &&
+          (err.message === BOOKING_ERROR.SLOT_TAKEN ||
+            err.message === BOOKING_ERROR.BOOKED_AS_CLIENT ||
+            err.message === BOOKING_ERROR.BOOKED_AS_COACH)
+        ) {
+          const telemetryErr =
+            err.message === BOOKING_ERROR.SLOT_TAKEN
+              ? TelemetryErrors.SLOT_TAKEN
+              : err.message === BOOKING_ERROR.BOOKED_AS_CLIENT
+              ? TelemetryErrors.BOOKED_AS_CLIENT
+              : TelemetryErrors.BOOKED_AS_COACH;
           logger.warn(`Booking collision: ${telemetryErr.message}`);
-          await logger.telemetry(LOG_SEVERITY.WARN, 'booking_conflict', {
+          await logger.telemetry(LOG_SEVERITY.WARN, 'booking_collision', {
             clientUid,
             coachUid,
             startIso,
@@ -460,7 +476,7 @@ export const scheduleMeeting = async (
     start: { dateTime: startIso },
     end: { dateTime: endIso },
     meetLink: realMeetLink,
-    type: 'peer-coaching',
+    type: EVENT_TYPE.PEER_COACHING,
     attendees: [
       { email: coachEmail, displayName: coachName },
       { email: clientEmail, displayName: resolvedClientName }
