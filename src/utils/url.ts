@@ -33,3 +33,20 @@ export const sanitizeImageUrl = (
 ): string => {
   return sanitizeHttpsUrl(url) || fallback;
 };
+
+// Programmatically navigates to a coach/user public profile by modifying URL query parameters.
+export const navigateToProfile = (uid: string): void => {
+  const url = new URL(window.location.href);
+  url.searchParams.set('profile', uid);
+  window.history.pushState({}, '', url.toString());
+  window.dispatchEvent(new PopStateEvent('popstate'));
+};
+
+// Clears the profile query parameter from the URL, returning back to the normal dashboard/navigation.
+export const clearProfileFromUrl = (): void => {
+  const url = new URL(window.location.href);
+  url.searchParams.delete('profile');
+  window.history.pushState({}, '', url.toString());
+  window.dispatchEvent(new PopStateEvent('popstate'));
+};
+

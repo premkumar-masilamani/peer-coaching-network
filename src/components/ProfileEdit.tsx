@@ -8,6 +8,9 @@ import {
   CheckCircle,
   Circle,
   FileText,
+  ExternalLink,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
@@ -15,6 +18,8 @@ import { getCredentialDescription } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince, logAnalyticsEvent } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
 import { GENDER_OPTIONS, type Gender, type Qualification } from '../config';
+import { navigateToProfile } from '../utils/url';
+
 
 // ── Profile completion logic ──────────────────────────────────────────────────
 interface CompletionItem {
@@ -52,10 +57,12 @@ function getCompletionItems(profile: ReturnType<typeof useAuth>['profile']): Com
 
 export const ProfileEdit: React.FC = () => {
   const { user, profile, updateProfileDetails } = useAuth();
+  const [copied, setCopied] = useState(false);
 
   // State for editable profile details
   const [gender, setGender] = useState<Gender | ''>(profile?.gender || '');
   const [country, setCountry] = useState(profile?.country || '');
+
   const [qualifications] = useState<Qualification[]>(profile?.qualifications || []);
   const [bio, setBio] = useState(profile?.bio || '');
   const [timezone, setTimezone] = useState(profile?.timezone || '');
@@ -138,8 +145,56 @@ export const ProfileEdit: React.FC = () => {
                 Member since {formatMemberSince(profile.createdAt)}
               </p>
             )}
+            {user?.uid && (
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => navigateToProfile(user.uid)}
+                  className="btn btn-secondary"
+                  style={{ 
+                    padding: '4px 10px', 
+                    fontSize: '0.75rem', 
+                    height: '28px', 
+                    gap: '4px',
+                    borderColor: 'var(--border-light)',
+                    background: 'transparent',
+                    color: 'var(--text-secondary)'
+                  }}
+                >
+                  <ExternalLink size={12} />
+                  View Public Profile
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const profileLink = `${window.location.origin}${window.location.pathname}?profile=${user.uid}`;
+                    try {
+                      await navigator.clipboard.writeText(profileLink);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    } catch (err) {
+                      console.error('Failed to copy link:', err);
+                    }
+                  }}
+                  className="btn btn-secondary"
+                  style={{ 
+                    padding: '4px 10px', 
+                    fontSize: '0.75rem', 
+                    height: '28px', 
+                    gap: '4px',
+                    borderColor: copied ? 'hsl(var(--success) / 0.4)' : 'var(--border-light)',
+                    background: copied ? 'hsl(var(--success) / 0.05)' : 'transparent',
+                    color: copied ? 'hsl(var(--success))' : 'var(--text-secondary)'
+                  }}
+                >
+                  {copied ? <Check size={12} /> : <Copy size={12} />}
+                  {copied ? 'Link Copied!' : 'Copy Public Link'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
+
 
         {/* ── Profile completion widget ────────────────────────────────────── */}
         <div style={{
