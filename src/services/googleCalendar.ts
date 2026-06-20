@@ -7,6 +7,7 @@ import { getGoogleToken } from './googleToken';
 import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION, LOG_SEVERITY, BOOKING_STATUS } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
+import { resolveEventTemplate, DEFAULT_EVENT_TEMPLATES } from '../templates/eventTemplates';
 
 export interface CalendarEvent {
   id: string;
@@ -184,12 +185,29 @@ export const scheduleMeeting = async (
                  Math.random().toString(36).substring(2, 5);
   const meetLink = `https://meet.google.com/${meetId}`;
 
-  const coachFirstName = coachName.replace(/\s*\([^)]*\)/g, '').trim().split(' ')[0] || 'Coach';
-  const clientFirstName = clientName.replace(/\s*\([^)]*\)/g, '').trim().split(' ')[0] || 'Peer';
+  const currentUser = auth?.currentUser;
+  const clientEmail = currentUser?.email || '';
+  const resolvedClientName = currentUser?.displayName || clientName;
+
+  const resolvedSummary = resolveEventTemplate(DEFAULT_EVENT_TEMPLATES.summary, {
+    coachName,
+    coachEmail,
+    clientName: resolvedClientName,
+    clientEmail,
+    topic,
+  });
+
+  const resolvedDescription = resolveEventTemplate(DEFAULT_EVENT_TEMPLATES.description, {
+    coachName,
+    coachEmail,
+    clientName: resolvedClientName,
+    clientEmail,
+    topic,
+  });
 
   const eventPayload = {
-    summary: `${coachFirstName} / ${clientFirstName} - Peer Coaching Session`,
-    description: `Peer Coaching Network session on the topic: ${topic}. Created via PCN.`,
+    summary: resolvedSummary,
+    description: resolvedDescription,
     start: {
       dateTime: startIso,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -221,10 +239,6 @@ export const scheduleMeeting = async (
     bookingId,
     clientBookingCacheId: `${clientUid}_${startIso}`
   });
-
-  const currentUser = auth?.currentUser;
-  const clientEmail = currentUser?.email || '';
-  const resolvedClientName = currentUser?.displayName || clientName;
 
   let realMeetLink = meetLink;
   let googleEventId = `booking-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
