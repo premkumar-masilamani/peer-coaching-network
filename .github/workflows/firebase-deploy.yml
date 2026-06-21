@@ -47,7 +47,7 @@ jobs:
       - name: Deploy to Firebase (Dev)
         uses: w9jds/firebase-action@v2.2.0
         with:
-          args: deploy --only firestore,hosting --project peer-coaching-network-dev
+          args: deploy --only firestore:${{ vars.DEV_VITE_FIRESTORE_DATABASE_ID }},hosting --project peer-coaching-network-dev --debug
         env:
           GCP_SA_KEY: ${{ secrets.DEV_FIREBASE_SERVICE_ACCOUNT }}
 
@@ -86,6 +86,6 @@ jobs:
       - name: Deploy to Firebase (Production)
         uses: w9jds/firebase-action@v2.2.0
         with:
-          args: deploy --only firestore,hosting --project peer-coaching-network
+          args: deploy --only firestore:${{ vars.PROD_VITE_FIRESTORE_DATABASE_ID }},hosting --project peer-coaching-network --debug
         env:
           GCP_SA_KEY: ${{ secrets.PROD_FIREBASE_SERVICE_ACCOUNT }}
