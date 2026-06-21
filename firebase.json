@@ -1,10 +1,18 @@
 {
-  "firestore": {
-    "database": "pcn-dev",
-    "location": "asia-south1",
-    "rules": "firestore.rules",
-    "indexes": "firestore.indexes.json"
-  },
+  "firestore": [
+    {
+      "database": "pcn-dev",
+      "location": "asia-south1",
+      "rules": "firestore.rules",
+      "indexes": "firestore.indexes.json"
+    },
+    {
+      "database": "pcn-prod",
+      "location": "asia-south1",
+      "rules": "firestore.rules",
+      "indexes": "firestore.indexes.json"
+    }
+  ],
   "hosting": {
     "public": "dist",
     "ignore": [
