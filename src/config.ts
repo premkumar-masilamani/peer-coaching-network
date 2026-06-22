@@ -136,6 +136,7 @@ export const TABS = {
   BOOKINGS:     'bookings',
   ADMIN:        'admin',
   SYSTEM_LOGS:  'system-logs',
+  INVITE_COACHES: 'invite-coaches',
 } as const;
 export type TabKey = (typeof TABS)[keyof typeof TABS];
 
