@@ -305,5 +305,28 @@ Always use the `--debug` flag in the deployment arguments inside GitHub Actions.
 *   **Variables**: Environment variables prefixed with `VITE_` (such as project IDs, API keys, or database IDs) are injected directly into the client bundle at build-time. Since they are exposed in the client's browser, they are public by design and must be stored as **GitHub Variables**.
 *   **Secrets**: Administrative credentials (such as `DEV_FIREBASE_SERVICE_ACCOUNT` or any private key files) must never be public and must be stored as encrypted **GitHub Secrets**.
 
+---
+
+## ✉️ Invited Users & Google Profile Sync
+
+### 1. The `invitedUsersCache` Collection
+To bypass the default manual verification queue, admins can pre-approve coaches by inviting them. These invitations are stored in the `invitedUsersCache` collection:
+* **Key**: The lowercased email address of the invited coach (e.g., `invitedUsersCache/coach@example.com`).
+* **TTL Policy (7-Day Expiry)**: Documents contain `createdAt` and `expiresAt` timestamps. The invitation has a Time To Live (TTL) of 7 days (`createdAt + 604800 seconds`).
+* **Expiry Check**: Because Firestore TTL deletion is eventually consistent, client queries and the login resolver must filter out/reject expired invitations where `expiresAt < now`.
+* **Revoking**: Admins can revoke active invitations at any time, which deletes the corresponding document from the cache.
+
+### 2. First-Login Check & Merge
+When a user authenticates via Google Sign-In for the first time (i.e. `users/{uid}` does not exist):
+1. The system checks if a valid, non-expired invitation exists at `invitedUsersCache/{lowercasedEmail}`.
+2. If found, the user profile document is created directly with `userStatus: 'active'`, `userRole` matching the invited role, and `qualifications: []`. Google's name, email, and photoURL take priority.
+3. The temporary invitation document in `invitedUsersCache` is deleted.
+4. If no valid invitation is found, the system registers the user using the fallback signup flow (`userStatus: 'inactive'`, `userRole: 'user'`).
+
+### 3. Google Profile Syncing
+To ensure profile details remain up-to-date and take priority:
+* On every successful login (for both new and existing users), the authentication engine compares the user's Firestore `displayName`, `email`, and `photoURL` with the values returned by Google.
+* If any discrepancies are found, the Firestore document is updated to match Google's credentials.
+
 
 
