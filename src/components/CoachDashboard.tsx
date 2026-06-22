@@ -1103,24 +1103,6 @@ export const CoachDashboard: React.FC = () => {
                                           </button>
                                         </div>
                                       );
-                                    } else if (booking) {
-                                      return (
-                                        <button
-                                          disabled={true}
-                                          className="btn btn-disabled"
-                                          style={{
-                                            width: '100%',
-                                            padding: '6px 12px',
-                                            fontSize: '0.85rem',
-                                            borderRadius: '8px',
-                                            height: '36px',
-                                            fontWeight: 700,
-                                            cursor: 'not-allowed'
-                                          }}
-                                        >
-                                          Session Booked
-                                        </button>
-                                      );
                                     } else {
                                       return (
                                         <button
