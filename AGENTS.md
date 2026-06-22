@@ -267,4 +267,43 @@ For Single Page Applications (SPA) with no external routing libraries (e.g., Rea
      });
      ```
 
+---
+
+## 🚀 Multi-Database Deployments & CI/CD Configuration
+
+When working with multi-environment setups (e.g., Development and Production) that target distinct Firebase project IDs and separate Firestore databases (e.g., `pcn-dev` and `pcn-prod`):
+
+### 1. Multi-Database Firestore Configuration (`firebase.json`)
+By default, `firebase.json` hardcodes a single `firestore` configuration. For multi-database projects, this must be converted into an **array of database configurations**:
+```json
+  "firestore": [
+    {
+      "database": "pcn-dev",
+      "location": "asia-south1",
+      "rules": "firestore.rules",
+      "indexes": "firestore.indexes.json"
+    },
+    {
+      "database": "pcn-prod",
+      "location": "asia-south1",
+      "rules": "firestore.rules",
+      "indexes": "firestore.indexes.json"
+    }
+  ]
+```
+
+### 2. Dynamic Target Deployment
+Instead of standard deployments that target all configurations, specify the target database dynamically in your deployment command using the `--only` flag. This avoids database-not-found errors during deployment to environments where not all databases exist:
+```yaml
+args: deploy --only firestore:${{ vars.DEV_VITE_FIRESTORE_DATABASE_ID }},hosting --project ${{ vars.DEV_VITE_FIREBASE_PROJECT_ID }}
+```
+
+### 3. Debugging CI/CD Failures
+Always use the `--debug` flag in the deployment arguments inside GitHub Actions. If a step fails (e.g., due to insufficient Service Account roles/permissions or incorrect credentials), it provides the full verbose output to pinpoint the error.
+
+### 4. Variables vs. Secrets Configuration
+*   **Variables**: Environment variables prefixed with `VITE_` (such as project IDs, API keys, or database IDs) are injected directly into the client bundle at build-time. Since they are exposed in the client's browser, they are public by design and must be stored as **GitHub Variables**.
+*   **Secrets**: Administrative credentials (such as `DEV_FIREBASE_SERVICE_ACCOUNT` or any private key files) must never be public and must be stored as encrypted **GitHub Secrets**.
+
+
 
