@@ -319,14 +319,25 @@ To bypass the default manual verification queue, admins can pre-approve coaches 
 ### 2. First-Login Check & Merge
 When a user authenticates via Google Sign-In for the first time (i.e. `users/{uid}` does not exist):
 1. The system checks if a valid, non-expired invitation exists at `invitedUsersCache/{lowercasedEmail}`.
-2. If found, the user profile document is created directly with `userStatus: 'active'`, `userRole` matching the invited role, and `qualifications: []`. Google's name, email, and photoURL take priority.
+2. If found, the user profile document is created directly with `userStatus: 'active'`, `userRole` matching the invited role, `email` explicitly lowercased, and `qualifications: []`. Google's name, email, and photoURL take priority.
 3. The temporary invitation document in `invitedUsersCache` is deleted.
-4. If no valid invitation is found, the system registers the user using the fallback signup flow (`userStatus: 'inactive'`, `userRole: 'user'`).
+4. If no valid invitation is found, the system registers the user using the fallback signup flow (`userStatus: 'inactive'`, `userRole: 'user'`, and the email is stored in lowercase).
 
-### 3. Google Profile Syncing
-To ensure profile details remain up-to-date and take priority:
+### 3. Google Profile Syncing & Casing Normalization
+To ensure profile details remain up-to-date, case-insensitive, and take priority:
 * On every successful login (for both new and existing users), the authentication engine compares the user's Firestore `displayName`, `email`, and `photoURL` with the values returned by Google.
+* **Email Casing**: To prevent Firestore string query mismatch issues (since Firestore query matches are case-sensitive), emails must always be stored in lowercase. During profile creation and Google Profile sync updates, the incoming Google email is converted to lowercase before comparison and write.
 * If any discrepancies are found, the Firestore document is updated to match Google's credentials.
+
+---
+
+## 📅 Time Slot Agenda & Conditional Button Layout
+
+### 1. Booking Participation Actions
+* **Involved Coaches**: Only the coaches directly involved in a scheduled coaching session (as the host coach or the client) should see the **"View"** and **"Cancel"** action buttons on the booked slot.
+* **Other Available Coaches**: When a booking exists in a slot, other active coaches who are free during that hour are still displayed with the active **"Book Session"** button (instead of a disabled "Session Booked" button), allowing users to request multiple sessions in the same slot if needed.
+* **Header Status**: The slot row header displays a **"Session Already Booked"** badge if any booking exists in the slot, allowing users to quickly scan booked/taken slots.
+* **Busy Status Filter**: Any coach who is busy (either booked by another user or has a blocked date/template gap) is filtered out and excluded from the available coaches grid entirely, preventing redundant rendering.
 
 
 
