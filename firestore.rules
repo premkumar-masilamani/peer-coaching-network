@@ -107,6 +107,14 @@ service cloud.firestore {
       allow write: if isOwner(uid);
     }
 
+    match /invitedUsersCache/{email} {
+      // Admins have full access.
+      allow create, update, read, delete: if isAdmin();
+
+      // Authenticated users can read or delete their own invitation.
+      allow read, delete: if isSignedIn() && email == request.auth.token.email;
+    }
+
     match /systemLogs/{logId} {
       // Any signed-in user can submit logs, but only admins can read or manage them.
       allow create: if isSignedIn();
@@ -114,3 +122,4 @@ service cloud.firestore {
     }
   }
 }
+

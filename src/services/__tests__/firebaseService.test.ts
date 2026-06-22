@@ -22,7 +22,10 @@ import {
   setUserRoleAndStatus,
   getSchedule,
   updateSchedule,
-  subscribeToBookings
+  subscribeToBookings,
+  createInvitation,
+  subscribeToInvitations,
+  revokeInvitation
 } from '../firebaseService';
 import { logEvent } from 'firebase/analytics';
 import { Timestamp } from 'firebase/firestore';
@@ -65,7 +68,7 @@ vi.mock('firebase/auth', () => ({
   signOut: vi.fn(),
   onAuthStateChanged: vi.fn(),
 }));
-const { mockGetDoc, mockSetDoc, mockUpdateDoc, mockGetDocs, mockOnSnapshot } = vi.hoisted(() => {
+const { mockGetDoc, mockSetDoc, mockUpdateDoc, mockGetDocs, mockOnSnapshot, mockDeleteDoc } = vi.hoisted(() => {
   (import.meta.env as any).VITE_USE_FIREBASE_EMULATOR = 'true';
   (import.meta.env as any).VITE_FIRESTORE_DATABASE_ID = 'pcn-dev';
   return {
@@ -74,26 +77,40 @@ const { mockGetDoc, mockSetDoc, mockUpdateDoc, mockGetDocs, mockOnSnapshot } = v
     mockUpdateDoc: vi.fn(),
     mockGetDocs: vi.fn(),
     mockOnSnapshot: vi.fn(),
+    mockDeleteDoc: vi.fn(),
   };
 });
-vi.mock('firebase/firestore', () => ({
-  getFirestore: vi.fn(() => ({})),
-  connectFirestoreEmulator: vi.fn(),
-  doc: vi.fn((_db, col, ...paths) => ({ id: paths[paths.length - 1] || col, path: `${col}/${paths.join('/')}` })),
-  collection: vi.fn((_db, col) => ({ id: col, path: col })),
-  query: vi.fn((col, ...queries) => ({ id: col.id, path: col.path, queries })),
-  where: vi.fn((field, op, val) => ({ field, op, val })),
-  getDoc: mockGetDoc,
-  setDoc: mockSetDoc,
-  updateDoc: mockUpdateDoc,
-  getDocs: mockGetDocs,
-  onSnapshot: mockOnSnapshot,
-  documentId: vi.fn(() => 'documentId'),
-  Timestamp: {
-    now: vi.fn(() => ({ toDate: () => new Date('2026-06-18T00:00:00Z'), seconds: 1776518400 })),
-    fromDate: vi.fn((date) => ({ toDate: () => date, seconds: date.getTime() / 1000 })),
-  },
-}));
+vi.mock('firebase/firestore', () => {
+  class MockTimestamp {
+    seconds: number;
+    nanoseconds: number;
+    constructor(seconds: number, nanoseconds: number) {
+      this.seconds = seconds;
+      this.nanoseconds = nanoseconds;
+    }
+    toDate() { return new Date(this.seconds * 1000); }
+    toMillis() { return this.seconds * 1000; }
+    static now = vi.fn(() => new MockTimestamp(1776518400, 0));
+    static fromDate = vi.fn((date) => new MockTimestamp(date.getTime() / 1000, 0));
+  }
+
+  return {
+    getFirestore: vi.fn(() => ({})),
+    connectFirestoreEmulator: vi.fn(),
+    doc: vi.fn((_db, col, ...paths) => ({ id: paths[paths.length - 1] || col, path: `${col}/${paths.join('/')}` })),
+    collection: vi.fn((_db, col) => ({ id: col, path: col })),
+    query: vi.fn((col, ...queries) => ({ id: col.id, path: col.path, queries })),
+    where: vi.fn((field, op, val) => ({ field, op, val })),
+    getDoc: mockGetDoc,
+    setDoc: mockSetDoc,
+    updateDoc: mockUpdateDoc,
+    deleteDoc: mockDeleteDoc,
+    getDocs: mockGetDocs,
+    onSnapshot: mockOnSnapshot,
+    documentId: vi.fn(() => 'documentId'),
+    Timestamp: MockTimestamp,
+  };
+});
 
 describe('firebaseService', () => {
   beforeEach(() => {
@@ -781,4 +798,71 @@ describe('firebaseService', () => {
       vi.unstubAllEnvs();
     });
   });
+
+  describe('invitedUsersCache', () => {
+    describe('createInvitation', () => {
+      it('throws error if email is empty', async () => {
+        await expect(createInvitation('', 'user')).rejects.toThrow('Email address is required.');
+      });
+
+      it('throws error if email format is invalid', async () => {
+        await expect(createInvitation('invalid-email', 'user')).rejects.toThrow('Invalid email format.');
+      });
+
+      it('throws error if user is already registered', async () => {
+        mockGetDocs.mockResolvedValueOnce({
+          empty: false,
+        });
+
+        await expect(createInvitation('existing@example.com', 'user')).rejects.toThrow('This email is already registered as a user.');
+      });
+
+      it('throws error if an active invitation already exists', async () => {
+        mockGetDocs.mockResolvedValueOnce({
+          empty: true,
+        });
+        mockGetDoc.mockResolvedValueOnce({
+          exists: () => true,
+          data: () => ({
+            email: 'invited@example.com',
+            userRole: 'user',
+            createdAt: Timestamp.now(),
+            expiresAt: new Timestamp(Timestamp.now().seconds + 3600, 0),
+          }),
+        });
+
+        await expect(createInvitation('invited@example.com', 'user')).rejects.toThrow('An active invitation already exists for this email.');
+      });
+
+      it('creates invitation if email is valid and no active invitation exists', async () => {
+        mockGetDocs.mockResolvedValueOnce({
+          empty: true,
+        });
+        mockGetDoc.mockResolvedValueOnce({
+          exists: () => false,
+        });
+
+        await createInvitation('newcoach@example.com', 'admin');
+        expect(mockSetDoc).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'newcoach@example.com' }),
+          expect.objectContaining({
+            email: 'newcoach@example.com',
+            userRole: 'admin',
+            createdAt: expect.any(Object),
+            expiresAt: expect.any(Object),
+          })
+        );
+      });
+    });
+
+    describe('revokeInvitation', () => {
+      it('deletes the invitation from invitedUsersCache', async () => {
+        await revokeInvitation('revoke@example.com');
+        expect(mockDeleteDoc).toHaveBeenCalledWith(
+          expect.objectContaining({ id: 'revoke@example.com' })
+        );
+      });
+    });
+  });
 });
+

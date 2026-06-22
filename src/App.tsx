@@ -10,6 +10,7 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { LeftNav } from './components/LeftNav';
 import { MyBookings } from './components/MyBookings';
 import { SystemLogs } from './components/SystemLogs';
+import { InviteCoaches } from './components/InviteCoaches';
 import { PublicProfile } from './components/PublicProfile';
 import { isApproved, logAnalyticsEvent } from './services/firebaseService';
 import { Sparkles, AlertTriangle, X } from 'lucide-react';
@@ -278,6 +279,7 @@ const AppContent: React.FC = () => {
                 {currentTab === TABS.AVAILABILITY && <AvailabilityEdit />}
                 {currentTab === TABS.BOOKINGS && <MyBookings />}
                 {currentTab === TABS.SYSTEM_LOGS && role === USER_ROLE.ADMIN && <SystemLogs />}
+                {currentTab === TABS.INVITE_COACHES && role === USER_ROLE.ADMIN && <InviteCoaches />}
                 {currentTab === TABS.ADMIN && role === USER_ROLE.ADMIN && (
                   <AdminDashboard
                     initialFilter={adminTabFilter}
