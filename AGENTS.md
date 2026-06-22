@@ -339,5 +339,14 @@ To ensure profile details remain up-to-date, case-insensitive, and take priority
 * **Header Status**: The slot row header displays a **"Session Already Booked"** badge if any booking exists in the slot, allowing users to quickly scan booked/taken slots.
 * **Busy Status Filter**: Any coach who is busy (either booked by another user or has a blocked date/template gap) is filtered out and excluded from the available coaches grid entirely, preventing redundant rendering.
 
+2. If found, the user profile document is created directly with `userStatus: 'active'`, `userRole` matching the invited role, and `qualifications: []`. Google's name, email, and photoURL take priority.
+3. The temporary invitation document in `invitedUsersCache` is deleted.
+4. If no valid invitation is found, the system registers the user using the fallback signup flow (`userStatus: 'inactive'`, `userRole: 'user'`).
+
+### 3. Google Profile Syncing
+To ensure profile details remain up-to-date and take priority:
+* On every successful login (for both new and existing users), the authentication engine compares the user's Firestore `displayName`, `email`, and `photoURL` with the values returned by Google.
+* If any discrepancies are found, the Firestore document is updated to match Google's credentials.
+
 
 
