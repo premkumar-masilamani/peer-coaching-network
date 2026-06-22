@@ -236,55 +236,56 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
       }
     }
 
-    // Create new user profile
-    const newProfile: UserProfile = {
-      userId: result.user.uid,
-      email,
-      displayName,
-      photoURL: result.user.photoURL,
-      userRole: assignedRole,
-      userStatus: initialStatus,
-      qualifications: [] as Qualification[],
-      gender: '' as unknown as Gender,
-      country: '',
-      bio: '',
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-      createdAt: Timestamp.now(),
-      theme: THEME.LIGHT
-    };
-    await setDoc(userDocRef, newProfile);
-
-    // Initialize schedule sub-collection documents
-    const availableDaysRef = doc(db, 'users', result.user.uid, 'schedule', 'availableDays');
-    const blockedDatesRef = doc(db, 'users', result.user.uid, 'schedule', 'blockedDates');
-    await setDoc(availableDaysRef, DEFAULT_AVAILABLE_DAYS);
-    await setDoc(blockedDatesRef, { blockedDates: [] });
-
-    // Clean up invitation if we consumed it
-    if (hasValidInvite) {
-      try {
-        await deleteDoc(inviteRef);
-      } catch (err) {
-        logger.error(`Failed to delete invitation document for ${cleanEmail}:`, err);
-      }
-    }
-  } else {
-    // Sync Google Profile data in database during login (Google takes priority)
-    const existingProfile = userDoc.data() as UserProfile;
-    const updates: Partial<UserProfile> = {};
-    if (result.user.displayName && existingProfile.displayName !== result.user.displayName) {
-      updates.displayName = result.user.displayName;
-    }
-    if (result.user.email && existingProfile.email !== result.user.email) {
-      updates.email = result.user.email;
-    }
-    if (result.user.photoURL && existingProfile.photoURL !== result.user.photoURL) {
-      updates.photoURL = result.user.photoURL;
-    }
-    
-    if (Object.keys(updates).length > 0) {
-      await updateDoc(userDocRef, updates);
-    }
+     // Create new user profile
+     const newProfile: UserProfile = {
+       userId: result.user.uid,
+       email: cleanEmail,
+       displayName,
+       photoURL: result.user.photoURL,
+       userRole: assignedRole,
+       userStatus: initialStatus,
+       qualifications: [] as Qualification[],
+       gender: '' as unknown as Gender,
+       country: '',
+       bio: '',
+       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+       createdAt: Timestamp.now(),
+       theme: THEME.LIGHT
+     };
+     await setDoc(userDocRef, newProfile);
+ 
+     // Initialize schedule sub-collection documents
+     const availableDaysRef = doc(db, 'users', result.user.uid, 'schedule', 'availableDays');
+     const blockedDatesRef = doc(db, 'users', result.user.uid, 'schedule', 'blockedDates');
+     await setDoc(availableDaysRef, DEFAULT_AVAILABLE_DAYS);
+     await setDoc(blockedDatesRef, { blockedDates: [] });
+ 
+     // Clean up invitation if we consumed it
+     if (hasValidInvite) {
+       try {
+         await deleteDoc(inviteRef);
+       } catch (err) {
+         logger.error(`Failed to delete invitation document for ${cleanEmail}:`, err);
+       }
+     }
+   } else {
+     // Sync Google Profile data in database during login (Google takes priority)
+     const existingProfile = userDoc.data() as UserProfile;
+     const updates: Partial<UserProfile> = {};
+     if (result.user.displayName && existingProfile.displayName !== result.user.displayName) {
+       updates.displayName = result.user.displayName;
+     }
+     const incomingEmail = result.user.email ? result.user.email.toLowerCase() : null;
+     if (incomingEmail && existingProfile.email !== incomingEmail) {
+       updates.email = incomingEmail;
+     }
+     if (result.user.photoURL && existingProfile.photoURL !== result.user.photoURL) {
+       updates.photoURL = result.user.photoURL;
+     }
+     
+     if (Object.keys(updates).length > 0) {
+       await updateDoc(userDocRef, updates);
+     }
   }
   
   return { user: result.user, credential };
