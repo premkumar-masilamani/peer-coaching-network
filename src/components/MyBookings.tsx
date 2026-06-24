@@ -25,8 +25,8 @@ export const MyBookings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [currentPage, setCurrentPage] = useState(1);
 
-  const loadSessions = async () => {
-    setLoading(true);
+  const loadSessions = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const list = await getUpcomingEvents();
       // Identify peer-coaching sessions by an explicit type tag.
@@ -35,16 +35,20 @@ export const MyBookings: React.FC = () => {
     } catch (e) {
       console.error('Error loading bookings:', e);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   const handleCancel = async (bookingId: string) => {
+    if (!window.confirm('Are you sure you want to cancel this session? This action cannot be undone.')) {
+      return;
+    }
+
     setCancellingId(bookingId);
     try {
       await cancelBooking(bookingId);
       logAnalyticsEvent('cancel_booking', { bookingId });
-      await loadSessions();
+      await loadSessions(true); // Silent refresh to avoid UI flicker
     } catch (e) {
       console.error('Error cancelling booking:', e);
     } finally {
@@ -142,7 +146,7 @@ export const MyBookings: React.FC = () => {
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <button 
-            onClick={loadSessions} 
+            onClick={() => loadSessions(false)} 
             className="btn btn-secondary" 
             style={{ padding: '8px 16px', fontSize: '0.85rem', height: '38px', gap: '6px' }}
             disabled={loading}
