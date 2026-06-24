@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../context/AuthContext';
-import { scheduleMeeting } from '../services/googleCalendar';
-import type { CalendarEvent } from '../services/googleCalendar';
-import { logger } from '../utils/logger';
-import type { UserProfile } from '../services/firebaseService';
-import { formatDisplayName, logAnalyticsEvent } from '../services/firebaseService';
-import { sanitizeMeetLink } from '../utils/url';
-import { getTimezoneCode } from '../utils/timezoneHelpers';
+import { useAuth } from '../../context/AuthContext';
+import { scheduleMeeting } from '../../services/googleCalendar';
+import type { CalendarEvent } from '../../services/googleCalendar';
+import { logger } from '../../utils/logger';
+import type { UserProfile } from '../../services/firebaseService';
+import { formatDisplayName, logAnalyticsEvent } from '../../services/firebaseService';
+import { sanitizeMeetLink } from '../../utils/url';
+import { getTimezoneCode } from '../../utils/timezoneHelpers';
 import { 
   X, 
   Calendar, 
@@ -17,7 +17,7 @@ import {
   ExternalLink,
   BookOpen
 } from 'lucide-react';
-import { BOOKING_ERROR } from '../config';
+import { BOOKING_ERROR } from '../../config';
 interface ScheduleModalProps {
   coach: UserProfile;
   startTime: Date;

@@ -354,5 +354,12 @@ To ensure profile details remain up-to-date, case-insensitive, and take priority
 ## 📝 String Literals & Constants
 
 1. **No Magic Strings**: Never use string literals directly in the codebase (e.g., `'users'`, `'admin'`, `'supportRequests'`) if the value is used in more than one place. 
-2. **Centralized Configuration**: All repeating string literals must be extracted to a centralized, strictly-typed constant object (e.g., `COLLECTIONS`, `USER_ROLE`, `SUPPORT_STATUS`) inside `src/config.ts`.
+2. **Centralized Configuration**: All repeating string literals must be extracted to a centralized, strictly-typed constant object (e.g., `COLLECTIONS`, `USER_ROLE`, `SUPPORT_STATUS`) inside the `src/config/` module.
 3. **Usage**: Import and use these constants globally to ensure type safety, prevent typos, and make future refactoring easier.
+
+---
+
+## 🏗 Modular Architecture
+
+1. **Reusable Modals**: Never use inline JSX overlays (e.g., `<div className="modal-overlay">`) directly within page components. All modals must be extracted into standalone, reusable components inside `src/components/modals/` and imported as needed.
+2. **Directory-as-a-Module Configuration**: Always manage configurations using the barrel export pattern. Instead of using a single large configuration file, split domain-specific constants (like `collections.ts`, `userTypes.ts`, `telemetryErrors.ts`) into smaller files inside `src/config/` and export them entirely from `src/config/index.ts`. Import them across the app using `import { ... } from '../config'`.
