@@ -52,19 +52,7 @@ export const LeftNav: React.FC<LeftNavProps> = ({
           <span className="nav-text">Dashboard</span>
         </button>
 
-        {/* Platform Admin */}
-        {isAdmin && (
-          <button
-            onClick={() => setCurrentTab(TABS.ADMIN)}
-            className={`sidebar-nav-item ${currentTab === TABS.ADMIN ? 'active' : ''}`}
-            title={collapsed ? 'Platform Admin' : undefined}
-          >
-            <span className="nav-icon">
-              <Shield size={18} />
-            </span>
-            <span className="nav-text">Platform Admin</span>
-          </button>
-        )}
+
 
 
 
@@ -123,6 +111,23 @@ export const LeftNav: React.FC<LeftNavProps> = ({
       </div>
 
       <div className="sidebar-footer">
+        {/* Admin */}
+        {isAdmin && (
+          <>
+            <div style={{ height: '1px', background: 'var(--border-light)', margin: '4px 16px 8px 16px' }} />
+            <button
+              onClick={() => setCurrentTab(TABS.ADMIN)}
+              className={`sidebar-nav-item ${currentTab === TABS.ADMIN ? 'active' : ''}`}
+              title={collapsed ? 'Admin' : undefined}
+            >
+              <span className="nav-icon">
+                <Shield size={18} />
+              </span>
+              <span className="nav-text">Admin</span>
+            </button>
+          </>
+        )}
+
         {/* Theme Toggle */}
         <button
           onClick={async () => {
