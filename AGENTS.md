@@ -184,8 +184,7 @@ Tab keys are lowercase slugs set via `setCurrentTab`. The human-readable label a
 | `'profile'` | My Profile | `ProfileEdit` |
 | `'availability'` | My Availability | `AvailabilityEdit` |
 | `'bookings'` | My Sessions | `MyBookings` |
-| `'admin'` | Admin Panel | `AdminDashboard` |
-| `'system-logs'` | System Logs | `SystemLogs` (admin only) |
+| `'admin'` | Platform Admin | `PlatformAdminDashboard` (admin only) |
 
 - `setCurrentTab` is owned by `AppContent` in `App.tsx` and passed as a prop to `LeftNav` and `Header`. Sub-components like `CoachDashboard` do **not** receive it — cross-tab navigation from within a sub-component should be handled via the banner or a parent-level prop if genuinely needed.
 
