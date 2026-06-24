@@ -16,7 +16,7 @@ export const SupportDesk: React.FC = () => {
   const [requests, setRequests] = useState<SupportRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [filter, setFilter] = useState<FilterType>('all');
+  const [filter, setFilter] = useState<FilterType>('open');
   
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [selectedRequest, setSelectedRequest] = useState<SupportRequest | null>(null);
@@ -43,9 +43,23 @@ export const SupportDesk: React.FC = () => {
 
   useEffect(() => {
     (async () => {
-      await loadRequests();
+      if (profile?.userRole === 'admin') {
+        await loadRequests();
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.userRole]);
+
+  useEffect(() => {
+    const handleTabReclick = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail === 'support-requests') {
+        setView('list');
+        setSelectedRequest(null);
+      }
+    };
+    window.addEventListener('tab-reclick', handleTabReclick);
+    return () => window.removeEventListener('tab-reclick', handleTabReclick);
   }, []);
 
   const filteredRequests = requests.filter(req => {
@@ -119,7 +133,7 @@ export const SupportDesk: React.FC = () => {
       {/* Header Area */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <h2 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <MessageSquare size={24} /> {view === 'list' ? 'Support Desk' : 'Request Thread'}
+          <MessageSquare size={24} /> {view === 'list' ? 'Support Desk' : (selectedRequest?.subject || 'Request Thread')}
         </h2>
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -153,7 +167,7 @@ export const SupportDesk: React.FC = () => {
               onClick={() => { setView('list'); setSelectedRequest(null); }}
               style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
             >
-              <ChevronLeft size={16} /> Back to Desk
+              <ChevronLeft size={16} /> Back
             </button>
           )}
           {view === 'list' && (
@@ -195,15 +209,10 @@ export const SupportDesk: React.FC = () => {
 
           {/* Thread Header */}
           <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-              <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.25rem' }}>{selectedRequest.subject}</h3>
-              <span className={`status-badge ${selectedRequest.status}`} style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', background: selectedRequest.status === 'open' ? 'var(--success-bg, #dcfce7)' : 'var(--border-color)', color: selectedRequest.status === 'open' ? 'var(--success, #166534)' : 'var(--text-secondary)' }}>
-                {selectedRequest.status === 'open' ? 'Open' : 'Closed'}
-              </span>
-            </div>
-            <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <div><strong>Coach:</strong> {selectedRequest.userDisplayName} ({selectedRequest.userEmail})</div>
-              <div><strong>Category:</strong> {selectedRequest.category} &nbsp;|&nbsp; <strong> Created:</strong> {new Date(selectedRequest.createdAt).toLocaleDateString()}</div>
+            <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+              <strong>Category:</strong> {selectedRequest.category} &nbsp;|&nbsp; 
+              <strong>Status:</strong> {selectedRequest.status === 'open' ? 'Open' : 'Closed'} &nbsp;|&nbsp; 
+              <strong>Created:</strong> {new Date(selectedRequest.createdAt).toLocaleDateString()}
             </div>
           </div>
           
@@ -224,7 +233,7 @@ export const SupportDesk: React.FC = () => {
                   gap: '8px'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    <strong>{isAdmin ? 'You (Admin)' : msg.senderName}</strong>
+                    <strong>{isAdmin ? 'You (Admin)' : `${msg.senderName} (${selectedRequest.userEmail})`}</strong>
                     <span>{new Date(msg.createdAt).toLocaleString()}</span>
                   </div>
                   <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
@@ -273,24 +282,18 @@ export const SupportDesk: React.FC = () => {
             filteredRequests.map(req => (
               <div 
                 key={req.id} 
+                className="glass-panel glass-panel-interactive"
                 style={{ 
-                  background: 'var(--card-bg)', 
-                  border: '1px solid var(--border-color)', 
-                  borderRadius: '12px', 
                   padding: '16px',
-                  cursor: 'pointer',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  transition: 'border-color 0.2s ease'
                 }}
                 onClick={() => { setSelectedRequest(req); setView('detail'); }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span className={`status-badge ${req.status}`} style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', background: req.status === 'open' ? 'var(--success-bg, #dcfce7)' : 'var(--border-color)', color: req.status === 'open' ? 'var(--success, #166534)' : 'var(--text-secondary)' }}>
+                    <span className={`badge badge-${req.status}`} style={{ padding: '2px 6px', fontSize: '0.7rem' }}>
                       {req.status === 'open' ? 'Open' : 'Closed'}
                     </span>
                     <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1rem' }}>{req.subject}</h4>

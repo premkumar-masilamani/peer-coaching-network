@@ -87,14 +87,19 @@ export const LeftNav: React.FC<LeftNavProps> = ({
         {/* Support Requests */}
         {isAdmin && (
           <button
-            onClick={() => setCurrentTab(TABS.SUPPORT_REQUESTS)}
+            onClick={() => {
+              if (currentTab === TABS.SUPPORT_REQUESTS) {
+                window.dispatchEvent(new CustomEvent('tab-reclick', { detail: TABS.SUPPORT_REQUESTS }));
+              }
+              setCurrentTab(TABS.SUPPORT_REQUESTS);
+            }}
             className={`sidebar-nav-item ${currentTab === TABS.SUPPORT_REQUESTS ? 'active' : ''}`}
-            title={collapsed ? 'Support Requests' : undefined}
+            title={collapsed ? 'Support Desk' : undefined}
           >
             <span className="nav-icon">
               <MessageSquare size={18} />
             </span>
-            <span className="nav-text">Support Requests</span>
+            <span className="nav-text">Support Desk</span>
           </button>
         )}
 
@@ -136,7 +141,12 @@ export const LeftNav: React.FC<LeftNavProps> = ({
 
         {/* Get Support */}
         <button
-          onClick={() => setCurrentTab(TABS.SUPPORT)}
+          onClick={() => {
+            if (currentTab === TABS.SUPPORT) {
+              window.dispatchEvent(new CustomEvent('tab-reclick', { detail: TABS.SUPPORT }));
+            }
+            setCurrentTab(TABS.SUPPORT);
+          }}
           className={`sidebar-nav-item ${currentTab === TABS.SUPPORT ? 'active' : ''}`}
           title={collapsed ? 'Get Support' : undefined}
         >

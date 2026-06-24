@@ -4,16 +4,18 @@ import {
   getSupportRequestsForUser, 
   createSupportRequest, 
   addMessageToSupportRequest, 
+  updateSupportRequestStatus,
   type SupportRequest 
 } from '../services/firebaseService';
 import { SUPPORT_CATEGORIES, type SupportCategory } from '../config';
-import { MessageSquare, Plus, RefreshCw, Send, ChevronLeft, LifeBuoy, Tag, Type, AlignLeft } from 'lucide-react';
+import { MessageSquare, Plus, RefreshCw, Send, ChevronLeft, LifeBuoy, Tag, Type, AlignLeft, CheckCircle, Circle } from 'lucide-react';
 
 export const SupportFeedback: React.FC = () => {
   const { profile } = useAuth();
   const [tickets, setTickets] = useState<SupportRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'open' | 'closed'>('open');
   
   const [view, setView] = useState<'list' | 'detail' | 'new'>('list');
   const [selectedTicket, setSelectedTicket] = useState<SupportRequest | null>(null);
@@ -49,6 +51,18 @@ export const SupportFeedback: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
+  useEffect(() => {
+    const handleTabReclick = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail === 'support') {
+        setView('list');
+        setSelectedTicket(null);
+      }
+    };
+    window.addEventListener('tab-reclick', handleTabReclick);
+    return () => window.removeEventListener('tab-reclick', handleTabReclick);
+  }, []);
+
   const handleCreateRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profile || !subject.trim() || !message.trim()) return;
@@ -73,6 +87,26 @@ export const SupportFeedback: React.FC = () => {
       setSubmitting(false);
     }
   };
+
+  const handleToggleStatus = async () => {
+    if (!selectedTicket) return;
+    setSubmitting(true);
+    try {
+      const newStatus = selectedTicket.status === 'open' ? 'closed' : 'open';
+      await updateSupportRequestStatus(selectedTicket.id, newStatus);
+      setSelectedTicket(prev => prev ? { ...prev, status: newStatus } : null);
+      await loadTickets();
+    } catch (err) {
+      console.error('Failed to update status', err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const filteredTickets = tickets.filter(ticket => {
+    if (filter === 'all') return true;
+    return ticket.status === filter;
+  });
 
   const handleSendReply = async () => {
     if (!profile || !selectedTicket || !replyText.trim()) return;
@@ -110,10 +144,33 @@ export const SupportFeedback: React.FC = () => {
         <h2 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           {view === 'list' && <><LifeBuoy size={24} /> Get Support</>}
           {view === 'new' && <><Plus size={24} /> New Support Request</>}
-          {view === 'detail' && <><MessageSquare size={24} /> Request Detail</>}
+          {view === 'detail' && selectedTicket && <><MessageSquare size={24} /> {selectedTicket.subject}</>}
         </h2>
         
-        <div style={{ display: 'flex', gap: '12px' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {view === 'list' && (
+            <div style={{ display: 'flex', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden', marginRight: '8px' }}>
+              {(['all', 'open', 'closed'] as const).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  style={{
+                    padding: '6px 12px',
+                    border: 'none',
+                    background: filter === f ? 'hsl(var(--primary))' : 'transparent',
+                    color: filter === f ? '#fff' : 'hsl(var(--text-secondary))',
+                    fontSize: '0.875rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    textTransform: 'capitalize',
+                    borderRadius: '6px'
+                  }}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
+          )}
           {view !== 'list' && (
             <button 
               className="btn btn-secondary" 
@@ -202,17 +259,25 @@ export const SupportFeedback: React.FC = () => {
       {/* Detail Thread View */}
       {view === 'detail' && selectedTicket && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {/* User Controls */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <button 
+              onClick={handleToggleStatus}
+              disabled={submitting}
+              className="btn btn-secondary"
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              {selectedTicket.status === 'open' ? <CheckCircle size={16} color="var(--success, #166534)" /> : <Circle size={16} />}
+              {selectedTicket.status === 'open' ? 'Mark as Closed' : 'Reopen Request'}
+            </button>
+          </div>
+          
           {/* Thread Header */}
           <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-              <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.25rem' }}>{selectedTicket.subject}</h3>
-              <span className={`status-badge ${selectedTicket.status}`} style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 600, textTransform: 'uppercase', background: selectedTicket.status === 'open' ? 'var(--success-bg, #dcfce7)' : 'var(--border-color)', color: selectedTicket.status === 'open' ? 'var(--success, #166534)' : 'var(--text-secondary)' }}>
-                {selectedTicket.status === 'open' ? 'Open' : 'Closed'}
-              </span>
-            </div>
             <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
               <strong>Category:</strong> {selectedTicket.category} &nbsp;|&nbsp; 
-              <strong> Created:</strong> {new Date(selectedTicket.createdAt).toLocaleDateString()}
+              <strong>Status:</strong> {selectedTicket.status === 'open' ? 'Open' : 'Closed'} &nbsp;|&nbsp; 
+              <strong>Created:</strong> {new Date(selectedTicket.createdAt).toLocaleDateString()}
             </div>
           </div>
           
@@ -276,33 +341,27 @@ export const SupportFeedback: React.FC = () => {
       {/* List View */}
       {view === 'list' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {tickets.length === 0 ? (
+          {filteredTickets.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '48px 24px', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px', color: 'var(--text-muted)' }}>
               <LifeBuoy size={48} style={{ opacity: 0.2, marginBottom: '16px' }} />
-              <p style={{ margin: 0 }}>You haven't submitted any support requests yet.</p>
+              <p style={{ margin: 0 }}>No support requests found.</p>
             </div>
           ) : (
-            tickets.map(ticket => (
+            filteredTickets.map(ticket => (
               <div 
                 key={ticket.id} 
+                className="glass-panel glass-panel-interactive"
                 style={{ 
-                  background: 'var(--card-bg)', 
-                  border: '1px solid var(--border-color)', 
-                  borderRadius: '12px', 
                   padding: '16px',
-                  cursor: 'pointer',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  transition: 'border-color 0.2s ease'
                 }}
                 onClick={() => { setSelectedTicket(ticket); setView('detail'); }}
-                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
-                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <span className={`status-badge ${ticket.status}`} style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 600, textTransform: 'uppercase', background: ticket.status === 'open' ? 'var(--success-bg, #dcfce7)' : 'var(--border-color)', color: ticket.status === 'open' ? 'var(--success, #166534)' : 'var(--text-secondary)' }}>
+                    <span className={`badge badge-${ticket.status}`} style={{ padding: '2px 6px', fontSize: '0.7rem' }}>
                       {ticket.status === 'open' ? 'Open' : 'Closed'}
                     </span>
                     <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1rem' }}>{ticket.subject}</h4>
