@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, d
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { getGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION, LOG_SEVERITY, BOOKING_STATUS, EVENT_TYPE, BOOKING_ERROR } from '../config';
+import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION, LOG_SEVERITY, BOOKING_STATUS, EVENT_TYPE, BOOKING_ERROR, COLLECTIONS } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 import { resolveEventTemplate, DEFAULT_EVENT_TEMPLATES } from '../templates/eventTemplates';
@@ -96,16 +96,16 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
   const currentUser = auth?.currentUser;
   if (currentUser && db) {
     try {
-      const qClient = query(collection(db, 'bookings'), where('clientUid', '==', currentUser.uid));
+      const qClient = query(collection(db, COLLECTIONS.BOOKINGS), where('clientUid', '==', currentUser.uid));
       const snapClient = await getDocs(qClient);
 
-      const qHost = query(collection(db, 'bookings'), where('coachUid', '==', currentUser.uid));
+      const qHost = query(collection(db, COLLECTIONS.BOOKINGS), where('coachUid', '==', currentUser.uid));
       const snapHost = await getDocs(qHost);
 
       const profileCache = new Map<string, UserProfile>();
       const getProfile = async (uid: string): Promise<UserProfile | null> => {
         if (profileCache.has(uid)) return profileCache.get(uid)!;
-        const userSnap = await getDoc(doc(db, 'users', uid));
+        const userSnap = await getDoc(doc(db, COLLECTIONS.USERS, uid));
         if (userSnap.exists()) {
           const profile = userSnap.data() as UserProfile;
           profileCache.set(uid, profile);
@@ -307,10 +307,10 @@ export const scheduleMeeting = async (
   }
 
   if (db) {
-    const bookingRef = doc(db, 'bookings', bookingId);
-    const clientBookingCacheRef = doc(db, 'clientBookingCache', `${clientUid}_${startIso}`);
-    const coachAsClientRef = doc(db, 'clientBookingCache', `${coachUid}_${startIso}`);
-    const clientAsCoachRef = doc(db, 'bookings', `${clientUid}_${startIso}`);
+    const bookingRef = doc(db, COLLECTIONS.BOOKINGS, bookingId);
+    const clientBookingCacheRef = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${clientUid}_${startIso}`);
+    const coachAsClientRef = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${coachUid}_${startIso}`);
+    const clientAsCoachRef = doc(db, COLLECTIONS.BOOKINGS, `${clientUid}_${startIso}`);
 
     const bookingData = {
       bookingId,
@@ -492,7 +492,7 @@ export const scheduleMeeting = async (
 // getCoachesAvailability. See BUG-001/003/016.
 export const cancelBooking = async (bookingId: string): Promise<void> => {
   if (!db) return;
-  const ref = doc(db, 'bookings', bookingId);
+  const ref = doc(db, COLLECTIONS.BOOKINGS, bookingId);
   const snap = await getDoc(ref);
   if (!snap.exists()) return;
   const data = snap.data();
@@ -505,7 +505,7 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
     : (data.startTime?.dateTime || data.startTime);
   if (data.clientUid && startIso) {
     try {
-      await deleteDoc(doc(db, 'clientBookingCache', `${data.clientUid}_${startIso}`));
+      await deleteDoc(doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${data.clientUid}_${startIso}`));
     } catch (e) {
       logger.error('Error releasing client booking cache:', e);
     }
