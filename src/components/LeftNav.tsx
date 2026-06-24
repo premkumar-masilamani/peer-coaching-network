@@ -110,11 +110,10 @@ export const LeftNav: React.FC<LeftNavProps> = ({
         </button>
       </div>
 
-      <div className="sidebar-footer">
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
         {/* Admin */}
         {isAdmin && (
-          <>
-            <div style={{ height: '1px', background: 'var(--border-light)', margin: '4px 16px 8px 16px' }} />
+          <div style={{ padding: '0 12px 16px 12px' }}>
             <button
               onClick={() => setCurrentTab(TABS.ADMIN)}
               className={`sidebar-nav-item ${currentTab === TABS.ADMIN ? 'active' : ''}`}
@@ -125,10 +124,11 @@ export const LeftNav: React.FC<LeftNavProps> = ({
               </span>
               <span className="nav-text">Admin</span>
             </button>
-          </>
+          </div>
         )}
 
-        {/* Theme Toggle */}
+        <div className="sidebar-footer">
+          {/* Theme Toggle */}
         <button
           onClick={async () => {
             // Treat any value other than 'light' (incl. legacy 'system') as 'dark'
@@ -175,6 +175,7 @@ export const LeftNav: React.FC<LeftNavProps> = ({
         >
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
+      </div>
       </div>
     </aside>
   );
