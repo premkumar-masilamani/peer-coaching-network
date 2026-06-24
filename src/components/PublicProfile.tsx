@@ -88,8 +88,8 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
           <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))', marginBottom: '20px' }}>
             The requested coaching profile does not exist or you do not have permission to view it.
           </p>
-          <button onClick={onClose} className="btn btn-secondary" style={{ display: 'inline-flex', gap: '8px', alignItems: 'center' }}>
-            <ArrowLeft size={14} /> Back to Dashboard
+          <button onClick={onClose} className="btn btn-secondary">
+            <ArrowLeft size={16} /> Back to Dashboard
           </button>
         </div>
       </div>
@@ -111,37 +111,23 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
         
         {/* Navigation & Sharing Row */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button 
-            onClick={onClose} 
-            className="btn btn-secondary" 
-            style={{ 
-              padding: '6px 12px', 
-              fontSize: '0.8rem', 
-              height: '32px', 
-              gap: '6px',
-              border: 'none',
-              background: 'transparent',
-              boxShadow: 'none',
-              color: 'var(--text-secondary)'
-            }}
+          <button
+            onClick={onClose}
+            className="btn btn-secondary"
           >
-            <ArrowLeft size={14} /> Back
+            <ArrowLeft size={16} /> Back
           </button>
 
           <button
             onClick={handleCopyLink}
             className="btn btn-secondary"
-            style={{ 
-              padding: '6px 14px', 
-              fontSize: '0.8rem', 
-              height: '32px', 
-              gap: '6px',
-              borderColor: copied ? 'hsl(var(--success) / 0.4)' : 'var(--border-light)',
-              color: copied ? 'hsl(var(--success))' : 'var(--text-secondary)',
-              background: copied ? 'hsl(var(--success) / 0.05)' : 'var(--bg-surface-elevated)'
-            }}
+            style={copied ? {
+              borderColor: 'hsl(var(--success))',
+              color: 'hsl(var(--success))',
+              background: 'hsl(var(--success) / 0.05)'
+            } : undefined}
           >
-            {copied ? <Check size={13} /> : <Copy size={13} />}
+            {copied ? <Check size={16} /> : <Copy size={16} />}
             {copied ? 'Link Copied!' : 'Copy Profile Link'}
           </button>
         </div>

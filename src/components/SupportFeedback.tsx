@@ -175,7 +175,6 @@ export const SupportFeedback: React.FC = () => {
             <button 
               className="btn btn-secondary" 
               onClick={() => { setView('list'); setSelectedTicket(null); }}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
             >
               <ChevronLeft size={16} /> Back
             </button>
