@@ -11,8 +11,7 @@ import {
   Sun,
   Moon,
   LogOut,
-  Terminal,
-  UserPlus
+  Terminal
 } from 'lucide-react';
 import { type Theme, TABS, type TabKey, USER_ROLE, USER_STATUS, THEME } from '../config';
 
@@ -67,19 +66,7 @@ export const LeftNav: React.FC<LeftNavProps> = ({
           </button>
         )}
 
-        {/* Invite Coaches */}
-        {isAdmin && (
-          <button
-            onClick={() => setCurrentTab(TABS.INVITE_COACHES)}
-            className={`sidebar-nav-item ${currentTab === TABS.INVITE_COACHES ? 'active' : ''}`}
-            title={collapsed ? 'Invite Coaches' : undefined}
-          >
-            <span className="nav-icon">
-              <UserPlus size={18} />
-            </span>
-            <span className="nav-text">Invite Coaches</span>
-          </button>
-        )}
+
 
         {/* System Logs */}
         {isAdmin && (
