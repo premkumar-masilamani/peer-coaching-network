@@ -137,9 +137,18 @@ export const TABS = {
   ADMIN:        'admin',
   SYSTEM_LOGS:  'system-logs',
   SUPPORT:      'support',
-  SUPPORT_REQUESTS: 'support-requests',
+  SUPPORT_DESK: 'support-desk',
 } as const;
 export type TabKey = (typeof TABS)[keyof typeof TABS];
+
+// ── Support Status ────────────────────────────────────────────────────────────
+
+export const SUPPORT_STATUS = {
+  OPEN: 'open',
+  CLOSED: 'closed',
+} as const;
+export const SUPPORT_STATUSES = [SUPPORT_STATUS.OPEN, SUPPORT_STATUS.CLOSED] as const;
+export type SupportStatus = (typeof SUPPORT_STATUSES)[number];
 
 // ── Calendar Event Type ───────────────────────────────────────────────────────
 

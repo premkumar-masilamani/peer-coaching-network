@@ -53,7 +53,7 @@ export const SupportDesk: React.FC = () => {
   useEffect(() => {
     const handleTabReclick = (e: Event) => {
       const customEvent = e as CustomEvent;
-      if (customEvent.detail === 'support-requests') {
+      if (customEvent.detail === 'support-desk') {
         setView('list');
         setSelectedRequest(null);
       }

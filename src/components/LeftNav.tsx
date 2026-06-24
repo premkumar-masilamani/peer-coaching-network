@@ -84,16 +84,16 @@ export const LeftNav: React.FC<LeftNavProps> = ({
           </button>
         )}
 
-        {/* Support Requests */}
-        {isAdmin && (
+        {/* Support Desk */}
+        {role === USER_ROLE.ADMIN && (
           <button
             onClick={() => {
-              if (currentTab === TABS.SUPPORT_REQUESTS) {
-                window.dispatchEvent(new CustomEvent('tab-reclick', { detail: TABS.SUPPORT_REQUESTS }));
+              if (currentTab === TABS.SUPPORT_DESK) {
+                window.dispatchEvent(new CustomEvent('tab-reclick', { detail: TABS.SUPPORT_DESK }));
               }
-              setCurrentTab(TABS.SUPPORT_REQUESTS);
+              setCurrentTab(TABS.SUPPORT_DESK);
             }}
-            className={`sidebar-nav-item ${currentTab === TABS.SUPPORT_REQUESTS ? 'active' : ''}`}
+            className={`sidebar-nav-item ${currentTab === TABS.SUPPORT_DESK ? 'active' : ''}`}
             title={collapsed ? 'Support Desk' : undefined}
           >
             <span className="nav-icon">

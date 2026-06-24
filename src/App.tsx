@@ -281,7 +281,7 @@ const AppContent: React.FC = () => {
                 {currentTab === TABS.BOOKINGS && <MyBookings />}
                 {currentTab === TABS.SYSTEM_LOGS && role === USER_ROLE.ADMIN && <SystemLogs />}
                 {currentTab === TABS.SUPPORT && <SupportFeedback />}
-                {currentTab === TABS.SUPPORT_REQUESTS && role === USER_ROLE.ADMIN && <SupportDesk />}
+                {currentTab === TABS.SUPPORT_DESK && role === USER_ROLE.ADMIN && <SupportDesk />}
                 {currentTab === TABS.ADMIN && role === USER_ROLE.ADMIN && (
                   <AdminDashboard
                     initialFilter={adminTabFilter}

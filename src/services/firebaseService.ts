@@ -28,7 +28,7 @@ import {
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory } from '../config';
+import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -663,7 +663,7 @@ export interface SupportMessage {
   id: string;
   senderId: string;
   senderName: string;
-  senderRole: 'user' | 'admin';
+  senderRole: UserRole;
   content: string;
   createdAt: string; // ISO string
 }
@@ -675,7 +675,7 @@ export interface SupportRequest {
   userEmail: string;
   category: SupportCategory;
   subject: string;
-  status: 'open' | 'closed';
+  status: SupportStatus;
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
   messages: SupportMessage[];
@@ -776,7 +776,7 @@ export const addMessageToSupportRequest = async (
   });
 };
 
-export const updateSupportRequestStatus = async (requestId: string, status: 'open' | 'closed'): Promise<void> => {
+export const updateSupportRequestStatus = async (requestId: string, status: SupportStatus): Promise<void> => {
   if (!db) throw new Error('Firestore not initialized');
   const docRef = doc(db, 'supportRequests', requestId);
   await updateDoc(docRef, {
