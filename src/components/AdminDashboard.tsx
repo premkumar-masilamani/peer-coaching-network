@@ -23,7 +23,7 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
-import { type Qualification, type UserRole, type UserStatus, QUALIFICATION_OPTIONS, USER_ROLE, USER_STATUS, BOOKING_STATUS, EVENT_TYPE } from '../config';
+import { type Qualification, type UserRole, type UserStatus, QUALIFICATION_OPTIONS, USER_ROLE, USER_STATUS, BOOKING_STATUS, EVENT_TYPE, COLLECTIONS } from '../config';
 
 interface AdminDashboardProps {
   initialFilter?: 'all' | UserStatus | UserRole;
@@ -66,10 +66,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
       }
       try {
         // Query by stable userId, not email. See BUG-019.
-        const qClient = query(collection(db, 'bookings'), where('clientUid', '==', coach.userId));
+        const qClient = query(collection(db, COLLECTIONS.BOOKINGS), where('clientUid', '==', coach.userId));
         const snapClient = await getDocs(qClient);
 
-        const qHost = query(collection(db, 'bookings'), where('coachUid', '==', coach.userId));
+        const qHost = query(collection(db, COLLECTIONS.BOOKINGS), where('coachUid', '==', coach.userId));
         const snapHost = await getDocs(qHost);
 
         const meetings: CalendarEvent[] = [];
@@ -78,7 +78,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
         const profileCache = new Map<string, UserProfile>();
         const getProfile = async (uid: string): Promise<UserProfile | null> => {
           if (profileCache.has(uid)) return profileCache.get(uid)!;
-          const userSnap = await getDoc(doc(db, 'users', uid));
+          const userSnap = await getDoc(doc(db, COLLECTIONS.USERS, uid));
           if (userSnap.exists()) {
             const profile = userSnap.data() as UserProfile;
             profileCache.set(uid, profile);

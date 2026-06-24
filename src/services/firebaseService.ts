@@ -28,7 +28,7 @@ import {
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus } from '../config';
+import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus, COLLECTIONS } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -206,7 +206,7 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
   }
   
   // Check/create user document in firestore
-  const userDocRef = doc(db, 'users', result.user.uid);
+  const userDocRef = doc(db, COLLECTIONS.USERS, result.user.uid);
   const userDoc = await getDoc(userDocRef);
   
   if (!userDoc.exists()) {
@@ -240,8 +240,8 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
      await setDoc(userDocRef, newProfile);
  
      // Initialize schedule sub-collection documents
-     const availableDaysRef = doc(db, 'users', result.user.uid, 'schedule', 'availableDays');
-     const blockedDatesRef = doc(db, 'users', result.user.uid, 'schedule', 'blockedDates');
+     const availableDaysRef = doc(db, COLLECTIONS.USERS, result.user.uid, COLLECTIONS.SCHEDULE, COLLECTIONS.AVAILABLE_DAYS);
+     const blockedDatesRef = doc(db, COLLECTIONS.USERS, result.user.uid, COLLECTIONS.SCHEDULE, COLLECTIONS.BLOCKED_DATES);
      await setDoc(availableDaysRef, DEFAULT_AVAILABLE_DAYS);
      await setDoc(blockedDatesRef, { blockedDates: [] });
    } else {
@@ -278,7 +278,7 @@ export const subscribeToAuth = (callback: (user: User | null) => void): (() => v
 
 // Firestore Profile Listeners and Mutators
 export const subscribeToProfile = (uid: string, callback: (profile: UserProfile | null) => void): (() => void) => {
-  const docRef = doc(db, 'users', uid);
+  const docRef = doc(db, COLLECTIONS.USERS, uid);
   return onSnapshot(docRef, (docSnap) => {
     if (docSnap.exists()) {
       callback(docSnap.data() as UserProfile);
@@ -291,7 +291,7 @@ export const subscribeToProfile = (uid: string, callback: (profile: UserProfile 
 // Generic mutator. Used by admin operations that legitimately write privileged
 // fields; server-side Firestore rules enforce that only admins may do so.
 export const updateProfile = async (uid: string, updates: Partial<UserProfile>): Promise<void> => {
-  const docRef = doc(db, 'users', uid);
+  const docRef = doc(db, COLLECTIONS.USERS, uid);
   await updateDoc(docRef, updates);
 };
 
@@ -312,7 +312,7 @@ export const updateOwnProfile = async (uid: string, updates: Partial<UserProfile
     }
   }
   if (Object.keys(safeUpdates).length === 0) return;
-  await updateDoc(doc(db, 'users', uid), safeUpdates);
+  await updateDoc(doc(db, COLLECTIONS.USERS, uid), safeUpdates);
 };
 
 // Canonical approval/role helpers — the single source of truth for user status and role.
@@ -342,7 +342,7 @@ export const formatMemberSince = (createdAt?: Timestamp | string | null): string
 
 // Admin Specific Operations
 export const subscribeToAllUsers = (callback: (users: UserProfile[]) => void): (() => void) => {
-  const q = collection(db, 'users');
+  const q = collection(db, COLLECTIONS.USERS);
   return onSnapshot(q, (querySnap) => {
     const users: UserProfile[] = [];
     querySnap.forEach((doc) => {
@@ -356,7 +356,7 @@ export const subscribeToAllUsers = (callback: (users: UserProfile[]) => void): (
 // users-collection download for the dashboard (BUG-006). We filter on the
 // userStatus field.
 export const subscribeToActiveCoaches = (callback: (users: UserProfile[]) => void): (() => void) => {
-  const q = query(collection(db, 'users'), where('userStatus', '==', USER_STATUS.ACTIVE));
+  const q = query(collection(db, COLLECTIONS.USERS), where('userStatus', '==', USER_STATUS.ACTIVE));
   return onSnapshot(q, (querySnap) => {
     const users: UserProfile[] = [];
     querySnap.forEach((d) => users.push(d.data() as UserProfile));
@@ -367,7 +367,7 @@ export const subscribeToActiveCoaches = (callback: (users: UserProfile[]) => voi
 // Live count of pending (inactive) users — transfers only pending documents
 // rather than the whole collection just to derive a badge number (BUG-006).
 export const subscribeToPendingUsersCount = (callback: (count: number) => void): (() => void) => {
-  const q = query(collection(db, 'users'), where('userStatus', '==', USER_STATUS.INACTIVE));
+  const q = query(collection(db, COLLECTIONS.USERS), where('userStatus', '==', USER_STATUS.INACTIVE));
   return onSnapshot(q, (querySnap) => callback(querySnap.size));
 };
 
@@ -390,8 +390,8 @@ export const formatDisplayName = (user: { displayName?: string | null } | null |
 };
 
 export const getSchedule = async (userId: string): Promise<{ availableDays: AvailableDays; blockedDates: string[] }> => {
-  const availableDaysRef = doc(db, 'users', userId, 'schedule', 'availableDays');
-  const blockedDatesRef = doc(db, 'users', userId, 'schedule', 'blockedDates');
+  const availableDaysRef = doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.SCHEDULE, COLLECTIONS.AVAILABLE_DAYS);
+  const blockedDatesRef = doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.SCHEDULE, COLLECTIONS.BLOCKED_DATES);
   
   const [daysSnap, datesSnap] = await Promise.all([
     getDoc(availableDaysRef),
@@ -409,8 +409,8 @@ export const updateSchedule = async (
   availableDays: AvailableDays,
   blockedDates: string[]
 ): Promise<void> => {
-  const availableDaysRef = doc(db, 'users', userId, 'schedule', 'availableDays');
-  const blockedDatesRef = doc(db, 'users', userId, 'schedule', 'blockedDates');
+  const availableDaysRef = doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.SCHEDULE, COLLECTIONS.AVAILABLE_DAYS);
+  const blockedDatesRef = doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.SCHEDULE, COLLECTIONS.BLOCKED_DATES);
   
   await Promise.all([
     setDoc(availableDaysRef, availableDays),
@@ -452,8 +452,8 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
   if (!db) return;
   logger.debug(`Starting busy slots cache recalculation for user: ${uid}`);
   try {
-    const userDocRef = doc(db, 'users', uid);
-    const busySlotsCacheRef = doc(db, 'busySlotsCache', uid);
+    const userDocRef = doc(db, COLLECTIONS.USERS, uid);
+    const busySlotsCacheRef = doc(db, COLLECTIONS.BUSY_SLOTS_CACHE, uid);
 
     const [userDoc, busySlotsCacheDoc, schedule] = await Promise.all([
       getDoc(userDocRef),
@@ -468,7 +468,7 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
     const { availableDays, blockedDates } = schedule;
     
     // Query bookings
-    const bookingsCol = collection(db, 'bookings');
+    const bookingsCol = collection(db, COLLECTIONS.BOOKINGS);
     const q1 = query(bookingsCol, where('coachUid', '==', uid));
     const snap1 = await getDocs(q1);
     
@@ -645,7 +645,7 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
 
 export const subscribeToBookings = (callback: (bookings: DocumentData[]) => void): (() => void) => {
   if (!db) return () => {};
-  const q = query(collection(db, 'bookings'), where('status', '==', BOOKING_STATUS.CONFIRMED));
+  const q = query(collection(db, COLLECTIONS.BOOKINGS), where('status', '==', BOOKING_STATUS.CONFIRMED));
   return onSnapshot(q, (querySnap) => {
     const list: DocumentData[] = [];
     querySnap.forEach((doc) => {
@@ -696,12 +696,12 @@ export const createSupportRequest = async (
     id: Date.now().toString(),
     senderId: userId,
     senderName: userDisplayName,
-    senderRole: 'user',
+    senderRole: USER_ROLE.USER,
     content: messageText,
     createdAt: now,
   };
 
-  const supportRequestsRef = collection(db, 'supportRequests');
+  const supportRequestsRef = collection(db, COLLECTIONS.SUPPORT_REQUESTS);
   const docRef = doc(supportRequestsRef); // Generate new ID
   
   const newRequest: SupportRequest = {
@@ -723,7 +723,7 @@ export const createSupportRequest = async (
 
 export const getSupportRequestsForUser = async (userId: string): Promise<SupportRequest[]> => {
   if (!db) return [];
-  const q = query(collection(db, 'supportRequests'), where('userId', '==', userId));
+  const q = query(collection(db, COLLECTIONS.SUPPORT_REQUESTS), where('userId', '==', userId));
   const snap = await getDocs(q);
   const requests: SupportRequest[] = [];
   snap.forEach(d => requests.push(d.data() as SupportRequest));
@@ -733,7 +733,7 @@ export const getSupportRequestsForUser = async (userId: string): Promise<Support
 
 export const getAllSupportRequests = async (): Promise<SupportRequest[]> => {
   if (!db) return [];
-  const q = query(collection(db, 'supportRequests'));
+  const q = query(collection(db, COLLECTIONS.SUPPORT_REQUESTS));
   const snap = await getDocs(q);
   const requests: SupportRequest[] = [];
   snap.forEach(d => requests.push(d.data() as SupportRequest));
@@ -744,11 +744,11 @@ export const addMessageToSupportRequest = async (
   requestId: string,
   senderId: string,
   senderName: string,
-  senderRole: 'user' | 'admin',
+  isAdmin: boolean,
   content: string
 ): Promise<void> => {
   if (!db) throw new Error('Firestore not initialized');
-  const docRef = doc(db, 'supportRequests', requestId);
+  const docRef = doc(db, COLLECTIONS.SUPPORT_REQUESTS, requestId);
   const docSnap = await getDoc(docRef);
   
   if (!docSnap.exists()) {
@@ -762,7 +762,7 @@ export const addMessageToSupportRequest = async (
     id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
     senderId,
     senderName,
-    senderRole,
+    senderRole: isAdmin ? USER_ROLE.ADMIN : USER_ROLE.USER,
     content,
     createdAt: now,
   };
@@ -778,7 +778,7 @@ export const addMessageToSupportRequest = async (
 
 export const updateSupportRequestStatus = async (requestId: string, status: SupportStatus): Promise<void> => {
   if (!db) throw new Error('Firestore not initialized');
-  const docRef = doc(db, 'supportRequests', requestId);
+  const docRef = doc(db, COLLECTIONS.SUPPORT_REQUESTS, requestId);
   await updateDoc(docRef, {
     status,
     updatedAt: new Date().toISOString()
@@ -787,6 +787,6 @@ export const updateSupportRequestStatus = async (requestId: string, status: Supp
 
 export const deleteSupportRequest = async (requestId: string): Promise<void> => {
   if (!db) throw new Error('Firestore not initialized');
-  const docRef = doc(db, 'supportRequests', requestId);
+  const docRef = doc(db, COLLECTIONS.SUPPORT_REQUESTS, requestId);
   await deleteDoc(docRef);
 };

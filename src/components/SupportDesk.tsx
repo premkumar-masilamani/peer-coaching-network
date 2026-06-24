@@ -75,7 +75,7 @@ export const SupportDesk: React.FC = () => {
         selectedRequest.id,
         profile.userId,
         profile.displayName,
-        'admin',
+        true,
         replyText.trim()
       );
       setReplyText('');

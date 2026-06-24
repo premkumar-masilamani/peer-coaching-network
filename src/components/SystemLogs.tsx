@@ -24,7 +24,7 @@ import {
   EyeOff 
 } from 'lucide-react';
 
-import { type LogSeverity, LOG_SEVERITY } from '../config';
+import { type LogSeverity, LOG_SEVERITY, COLLECTIONS } from '../config';
 
 // LogSeverity is imported from config — 'error' | 'warn' | 'info'
 
@@ -88,7 +88,7 @@ export const SystemLogs: React.FC = () => {
     if (!db) return;
 
     let q = query(
-      collection(db, 'systemLogs'),
+      collection(db, COLLECTIONS.SYSTEM_LOGS),
       orderBy('timestamp', 'desc')
     );
 
