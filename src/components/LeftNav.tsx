@@ -56,18 +56,6 @@ export const LeftNav: React.FC<LeftNavProps> = ({
 
 
 
-        {/* My Availability */}
-        <button
-          onClick={() => setCurrentTab(TABS.AVAILABILITY)}
-          className={`sidebar-nav-item ${currentTab === TABS.AVAILABILITY ? 'active' : ''}`}
-          title={collapsed ? 'My Availability' : undefined}
-        >
-          <span className="nav-icon">
-            <Calendar size={18} />
-          </span>
-          <span className="nav-text">My Availability</span>
-        </button>
-
         {/* My Bookings */}
         <button
           onClick={() => setCurrentTab(TABS.BOOKINGS)}
@@ -78,6 +66,18 @@ export const LeftNav: React.FC<LeftNavProps> = ({
             <BookOpen size={18} />
           </span>
           <span className="nav-text">My Sessions</span>
+        </button>
+
+        {/* My Availability */}
+        <button
+          onClick={() => setCurrentTab(TABS.AVAILABILITY)}
+          className={`sidebar-nav-item ${currentTab === TABS.AVAILABILITY ? 'active' : ''}`}
+          title={collapsed ? 'My Availability' : undefined}
+        >
+          <span className="nav-icon">
+            <Calendar size={18} />
+          </span>
+          <span className="nav-text">My Availability</span>
         </button>
 
         {/* My Profile */}
