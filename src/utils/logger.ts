@@ -20,7 +20,7 @@ const shouldLog = (level: LogLevel): boolean => {
   return LOG_LEVELS[level] >= getLogLevel();
 };
 
-import { type LogSeverity } from '../config';
+import { type LogSeverity, COLLECTIONS } from '../config';
 
 export const logger = {
   debug: (message: string, ...optionalParams: unknown[]): void => {
@@ -63,7 +63,7 @@ export const logger = {
       const userId = auth.currentUser?.uid || null;
       const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days TTL
 
-      await addDoc(collection(db, 'systemLogs'), {
+      await addDoc(collection(db, COLLECTIONS.SYSTEM_LOGS), {
         type,
         event,
         userId,

@@ -10,7 +10,7 @@ export const initializeLogger = (firestoreInstance: Firestore, authInstance: Aut
   auth = authInstance;
 };
 
-import { type LogSeverity } from '../config';
+import { type LogSeverity, COLLECTIONS } from '../config';
 
 export type LogType = LogSeverity;
 
@@ -24,7 +24,7 @@ export const logEvent = async (
     const userId = auth?.currentUser?.uid || null;
     const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days TTL
 
-    await addDoc(collection(db, 'systemLogs'), {
+    await addDoc(collection(db, COLLECTIONS.SYSTEM_LOGS), {
       type,
       event,
       userId,

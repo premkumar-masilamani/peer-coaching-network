@@ -116,7 +116,7 @@ export const SupportFeedback: React.FC = () => {
         selectedTicket.id,
         profile.userId,
         profile.displayName,
-        'user',
+        false,
         replyText.trim()
       );
       setReplyText('');
