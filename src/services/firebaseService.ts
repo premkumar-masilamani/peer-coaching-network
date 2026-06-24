@@ -16,7 +16,6 @@ import {
   getDoc, 
   setDoc, 
   updateDoc, 
-  deleteDoc,
   collection, 
   onSnapshot,
   connectFirestoreEmulator,
@@ -218,23 +217,8 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
 
     const cleanEmail = email.toLowerCase();
     
-    // Check if there is an invitation in invitedUsersCache
-    const inviteRef = doc(db, 'invitedUsersCache', cleanEmail);
-    const inviteSnap = await getDoc(inviteRef);
-    
-    let assignedRole: UserRole = USER_ROLE.USER;
-    let initialStatus: UserStatus = USER_STATUS.INACTIVE;
-    let hasValidInvite = false;
-    
-    if (inviteSnap.exists()) {
-      const inviteData = inviteSnap.data() as InvitedUserCache;
-      const now = Timestamp.now();
-      if (inviteData.expiresAt && inviteData.expiresAt.toMillis() > now.toMillis()) {
-        assignedRole = inviteData.userRole;
-        initialStatus = USER_STATUS.ACTIVE;
-        hasValidInvite = true;
-      }
-    }
+    const assignedRole: UserRole = USER_ROLE.USER;
+    const initialStatus: UserStatus = USER_STATUS.INACTIVE;
 
      // Create new user profile
      const newProfile: UserProfile = {
@@ -259,15 +243,6 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
      const blockedDatesRef = doc(db, 'users', result.user.uid, 'schedule', 'blockedDates');
      await setDoc(availableDaysRef, DEFAULT_AVAILABLE_DAYS);
      await setDoc(blockedDatesRef, { blockedDates: [] });
- 
-     // Clean up invitation if we consumed it
-     if (hasValidInvite) {
-       try {
-         await deleteDoc(inviteRef);
-       } catch (err) {
-         logger.error(`Failed to delete invitation document for ${cleanEmail}:`, err);
-       }
-     }
    } else {
      // Sync Google Profile data in database during login (Google takes priority)
      const existingProfile = userDoc.data() as UserProfile;
@@ -406,73 +381,6 @@ export const setUserRoleAndStatus = async (
   });
 };
 
-export interface InvitedUserCache {
-  email: string;
-  userRole: UserRole;
-  createdAt: Timestamp;
-  expiresAt: Timestamp;
-}
-
-export const createInvitation = async (email: string, role: UserRole): Promise<void> => {
-  const cleanEmail = email.trim().toLowerCase();
-  if (!cleanEmail) throw new Error('Email address is required.');
-
-  // Validate email format
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(cleanEmail)) {
-    throw new Error('Invalid email format.');
-  }
-
-  // Check if already registered in 'users'
-  const userQuery = query(collection(db, 'users'), where('email', '==', cleanEmail));
-  const userSnap = await getDocs(userQuery);
-  if (!userSnap.empty) {
-    throw new Error('This email is already registered as a user.');
-  }
-
-  // Check if there is already an active invitation in 'invitedUsersCache'
-  const inviteRef = doc(db, 'invitedUsersCache', cleanEmail);
-  const inviteSnap = await getDoc(inviteRef);
-  if (inviteSnap.exists()) {
-    const data = inviteSnap.data() as InvitedUserCache;
-    const now = Timestamp.now();
-    if (data.expiresAt && data.expiresAt.toMillis() > now.toMillis()) {
-      throw new Error('An active invitation already exists for this email.');
-    }
-  }
-
-  const createdAt = Timestamp.now();
-  // 7 days in seconds = 7 * 24 * 60 * 60 = 604800
-  const expiresAt = new Timestamp(createdAt.seconds + 604800, createdAt.nanoseconds);
-
-  await setDoc(inviteRef, {
-    email: cleanEmail,
-    userRole: role,
-    createdAt,
-    expiresAt
-  });
-};
-
-export const subscribeToInvitations = (callback: (invites: InvitedUserCache[]) => void): (() => void) => {
-  const q = query(
-    collection(db, 'invitedUsersCache'),
-    where('expiresAt', '>', Timestamp.now())
-  );
-  return onSnapshot(q, (querySnap) => {
-    const invites: InvitedUserCache[] = [];
-    querySnap.forEach((docSnap) => {
-      invites.push(docSnap.data() as InvitedUserCache);
-    });
-    invites.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
-    callback(invites);
-  });
-};
-
-export const revokeInvitation = async (email: string): Promise<void> => {
-  const cleanEmail = email.trim().toLowerCase();
-  const inviteRef = doc(db, 'invitedUsersCache', cleanEmail);
-  await deleteDoc(inviteRef);
-};
 
 
 export const formatDisplayName = (user: { displayName?: string | null } | null | undefined): string => {

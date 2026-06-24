@@ -22,10 +22,7 @@ import {
   setUserRoleAndStatus,
   getSchedule,
   updateSchedule,
-  subscribeToBookings,
-  createInvitation,
-  subscribeToInvitations,
-  revokeInvitation
+  subscribeToBookings
 } from '../firebaseService';
 import { logEvent } from 'firebase/analytics';
 import { Timestamp } from 'firebase/firestore';
@@ -796,72 +793,6 @@ describe('firebaseService', () => {
         expect.any(Error)
       );
       vi.unstubAllEnvs();
-    });
-  });
-
-  describe('invitedUsersCache', () => {
-    describe('createInvitation', () => {
-      it('throws error if email is empty', async () => {
-        await expect(createInvitation('', 'user')).rejects.toThrow('Email address is required.');
-      });
-
-      it('throws error if email format is invalid', async () => {
-        await expect(createInvitation('invalid-email', 'user')).rejects.toThrow('Invalid email format.');
-      });
-
-      it('throws error if user is already registered', async () => {
-        mockGetDocs.mockResolvedValueOnce({
-          empty: false,
-        });
-
-        await expect(createInvitation('existing@example.com', 'user')).rejects.toThrow('This email is already registered as a user.');
-      });
-
-      it('throws error if an active invitation already exists', async () => {
-        mockGetDocs.mockResolvedValueOnce({
-          empty: true,
-        });
-        mockGetDoc.mockResolvedValueOnce({
-          exists: () => true,
-          data: () => ({
-            email: 'invited@example.com',
-            userRole: 'user',
-            createdAt: Timestamp.now(),
-            expiresAt: new Timestamp(Timestamp.now().seconds + 3600, 0),
-          }),
-        });
-
-        await expect(createInvitation('invited@example.com', 'user')).rejects.toThrow('An active invitation already exists for this email.');
-      });
-
-      it('creates invitation if email is valid and no active invitation exists', async () => {
-        mockGetDocs.mockResolvedValueOnce({
-          empty: true,
-        });
-        mockGetDoc.mockResolvedValueOnce({
-          exists: () => false,
-        });
-
-        await createInvitation('newcoach@example.com', 'admin');
-        expect(mockSetDoc).toHaveBeenCalledWith(
-          expect.objectContaining({ id: 'newcoach@example.com' }),
-          expect.objectContaining({
-            email: 'newcoach@example.com',
-            userRole: 'admin',
-            createdAt: expect.any(Object),
-            expiresAt: expect.any(Object),
-          })
-        );
-      });
-    });
-
-    describe('revokeInvitation', () => {
-      it('deletes the invitation from invitedUsersCache', async () => {
-        await revokeInvitation('revoke@example.com');
-        expect(mockDeleteDoc).toHaveBeenCalledWith(
-          expect.objectContaining({ id: 'revoke@example.com' })
-        );
-      });
     });
   });
 });
