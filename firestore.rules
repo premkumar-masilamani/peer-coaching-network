@@ -113,6 +113,19 @@ service cloud.firestore {
       allow create: if isSignedIn();
       allow read, update, delete: if isAdmin();
     }
+
+    match /supportRequests/{requestId} {
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid;
+      
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid);
+
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.userId == request.auth.uid
+            && request.resource.data.userId == resource.data.userId);
+
+      allow delete: if isAdmin();
+    }
   }
 }
-

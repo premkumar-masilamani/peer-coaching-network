@@ -11,7 +11,9 @@ import {
   Sun,
   Moon,
   LogOut,
-  Terminal
+  Terminal,
+  LifeBuoy,
+  MessageSquare
 } from 'lucide-react';
 import { type Theme, TABS, type TabKey, USER_ROLE, USER_STATUS, THEME } from '../config';
 
@@ -82,6 +84,20 @@ export const LeftNav: React.FC<LeftNavProps> = ({
           </button>
         )}
 
+        {/* Support Requests */}
+        {isAdmin && (
+          <button
+            onClick={() => setCurrentTab(TABS.SUPPORT_REQUESTS)}
+            className={`sidebar-nav-item ${currentTab === TABS.SUPPORT_REQUESTS ? 'active' : ''}`}
+            title={collapsed ? 'Support Requests' : undefined}
+          >
+            <span className="nav-icon">
+              <MessageSquare size={18} />
+            </span>
+            <span className="nav-text">Support Requests</span>
+          </button>
+        )}
+
         {/* My Availability */}
         <button
           onClick={() => setCurrentTab(TABS.AVAILABILITY)}
@@ -116,6 +132,18 @@ export const LeftNav: React.FC<LeftNavProps> = ({
             <User size={18} />
           </span>
           <span className="nav-text">My Profile</span>
+        </button>
+
+        {/* Get Support */}
+        <button
+          onClick={() => setCurrentTab(TABS.SUPPORT)}
+          className={`sidebar-nav-item ${currentTab === TABS.SUPPORT ? 'active' : ''}`}
+          title={collapsed ? 'Get Support' : undefined}
+        >
+          <span className="nav-icon">
+            <LifeBuoy size={18} />
+          </span>
+          <span className="nav-text">Get Support</span>
         </button>
       </div>
 

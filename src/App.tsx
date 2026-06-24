@@ -11,6 +11,8 @@ import { LeftNav } from './components/LeftNav';
 import { MyBookings } from './components/MyBookings';
 import { SystemLogs } from './components/SystemLogs';
 import { PublicProfile } from './components/PublicProfile';
+import { SupportFeedback } from './components/SupportFeedback';
+import { SupportDesk } from './components/SupportDesk';
 import { isApproved, logAnalyticsEvent } from './services/firebaseService';
 import { Sparkles, AlertTriangle, X } from 'lucide-react';
 import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, THEME } from './config';
@@ -278,6 +280,8 @@ const AppContent: React.FC = () => {
                 {currentTab === TABS.AVAILABILITY && <AvailabilityEdit />}
                 {currentTab === TABS.BOOKINGS && <MyBookings />}
                 {currentTab === TABS.SYSTEM_LOGS && role === USER_ROLE.ADMIN && <SystemLogs />}
+                {currentTab === TABS.SUPPORT && <SupportFeedback />}
+                {currentTab === TABS.SUPPORT_REQUESTS && role === USER_ROLE.ADMIN && <SupportDesk />}
                 {currentTab === TABS.ADMIN && role === USER_ROLE.ADMIN && (
                   <AdminDashboard
                     initialFilter={adminTabFilter}
