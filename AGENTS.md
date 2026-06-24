@@ -174,6 +174,31 @@ Coaches select credentials representing their ICF level: ACC, PCC, or MCC.
 
 ---
 
+## 🎨 UI Styling & Design System Enforcement
+
+To prevent styling regressions and ensure the application remains beautiful and accessible in both Light and Dark modes, strictly adhere to the following UI guidelines:
+
+1. **CSS Variables & HSL Wrapping**:
+   - All theme colors in `index.css` (e.g., `--primary`, `--bg-base`, `--text-primary`) are defined as raw HSL channel values (e.g., `173 80% 40%`).
+   - You **MUST ALWAYS** wrap them in the `hsl()` function when using them in inline styles or CSS (e.g., `hsl(var(--primary))`). 
+   - Never write `background: 'var(--primary)'` — this is invalid CSS and will cause elements to lose their styling entirely, leading to invisible text or backgrounds.
+
+2. **Buttons & Interactive Elements**:
+   - Never use ad-hoc inline styles for standard buttons (e.g., avoiding `background: hsl(var(--primary)); color: #fff; border-radius: 20px;`).
+   - Always use the predefined CSS utility classes: `className="btn btn-primary"` or `className="btn btn-secondary"`. 
+   - These classes are explicitly configured in `index.css` to handle hover states, transitions, glassmorphism borders, and proper text contrast switching across both light and dark themes.
+
+3. **Semantic Text Colors**:
+   - Use `hsl(var(--text-primary))` for main headings and active text.
+   - Use `hsl(var(--text-secondary))` for subtitles, inactive tabs, or supporting text.
+   - Use `hsl(var(--text-muted))` for hints and minor details.
+   - Do not hardcode hex colors (like `#ffffff` or `#333333`) for text, as they will inevitably become unreadable when the theme is toggled.
+
+4. **Glassmorphism & Panels**:
+   - When building cards, modals, or wrappers, use `className="glass-panel"`. This automatically applies the correct background opacity, backdrop blur, borders, and shadows that adjust perfectly to the active theme.
+
+---
+
 ## 🗺 Navigation Tab Keys
 
 Tab keys are lowercase slugs set via `setCurrentTab`. The human-readable label and the key can differ — always use the **key** for routing logic, never the label.
