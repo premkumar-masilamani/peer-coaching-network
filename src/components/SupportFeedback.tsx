@@ -7,7 +7,7 @@ import {
   type SupportRequest 
 } from '../services/firebaseService';
 import { SUPPORT_CATEGORIES, type SupportCategory } from '../config';
-import { MessageSquare, Plus, RefreshCw, Send, ChevronLeft, LifeBuoy } from 'lucide-react';
+import { MessageSquare, Plus, RefreshCw, Send, ChevronLeft, LifeBuoy, Tag, Type, AlignLeft } from 'lucide-react';
 
 export const SupportFeedback: React.FC = () => {
   const { profile } = useAuth();
@@ -147,31 +147,43 @@ export const SupportFeedback: React.FC = () => {
 
       {/* New Request Form */}
       {view === 'new' && (
-        <form onSubmit={handleCreateRequest} style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label className="form-label">Category</label>
+        <form onSubmit={handleCreateRequest} style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '16px' }}>
+          <div className="form-group">
+            <label className="form-label" htmlFor="support-category">
+              <Tag size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+              Category
+            </label>
             <select 
-              className="form-select" 
+              id="support-category"
+              className="input-field" 
               value={category} 
               onChange={e => setCategory(e.target.value as SupportCategory)}
             >
               {SUPPORT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
-          <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label className="form-label">Subject</label>
+          <div className="form-group">
+            <label className="form-label" htmlFor="support-subject">
+              <Type size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+              Subject
+            </label>
             <input 
-              className="form-input" 
+              id="support-subject"
+              className="input-field" 
               placeholder="Briefly describe your issue or request" 
               value={subject} 
               onChange={e => setSubject(e.target.value)} 
               required
             />
           </div>
-          <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <label className="form-label">Message Details</label>
+          <div className="form-group">
+            <label className="form-label" htmlFor="support-message">
+              <AlignLeft size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+              Message Details
+            </label>
             <textarea 
-              className="form-input" 
+              id="support-message"
+              className="input-field" 
               placeholder="Provide as much detail as possible..." 
               rows={6}
               value={message} 
@@ -241,7 +253,7 @@ export const SupportFeedback: React.FC = () => {
               </div>
             )}
             <textarea 
-              className="form-input" 
+              className="input-field" 
               placeholder="Type a reply..." 
               rows={4}
               value={replyText}

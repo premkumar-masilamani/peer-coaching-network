@@ -238,7 +238,7 @@ export const SupportDesk: React.FC = () => {
           {/* Reply Box */}
           <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <textarea 
-              className="form-input" 
+              className="input-field" 
               placeholder="Type a reply to the coach..." 
               rows={4}
               value={replyText}
