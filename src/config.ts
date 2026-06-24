@@ -159,7 +159,6 @@ export const COLLECTIONS = {
   SUPPORT_REQUESTS: 'supportRequests',
   SYSTEM_LOGS: 'systemLogs',
 } as const;
-
 // ── Support Status ────────────────────────────────────────────────────────────
 
 export const SUPPORT_STATUS = {
