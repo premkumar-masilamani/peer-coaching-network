@@ -215,8 +215,8 @@ export const SupportDesk: React.FC = () => {
                 <div key={msg.id} style={{ 
                   alignSelf: isAdmin ? 'flex-end' : 'flex-start',
                   maxWidth: '80%',
-                  background: isAdmin ? 'var(--primary-bg)' : 'var(--card-bg)',
-                  border: `1px solid ${isAdmin ? 'var(--primary-border)' : 'var(--border-color)'}`,
+                  background: 'var(--card-bg)',
+                  border: '1px solid var(--border-color)',
                   borderRadius: '12px',
                   padding: '16px',
                   display: 'flex',

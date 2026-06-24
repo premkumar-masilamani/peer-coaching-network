@@ -225,8 +225,8 @@ export const SupportFeedback: React.FC = () => {
                 <div key={msg.id} style={{ 
                   alignSelf: isMe ? 'flex-end' : 'flex-start',
                   maxWidth: '80%',
-                  background: isMe ? 'var(--primary-light, #eff6ff)' : (isAdmin ? 'var(--warning-light, #fef3c7)' : 'var(--card-bg)'),
-                  border: `1px solid ${isMe ? 'var(--primary, #3b82f6)' : 'var(--border-color)'}`,
+                  background: 'var(--card-bg)',
+                  border: '1px solid var(--border-color)',
                   borderRadius: '12px',
                   padding: '16px',
                   display: 'flex',
