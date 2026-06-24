@@ -389,6 +389,18 @@ p {
   border: 1px solid rgba(251, 191, 36, 0.25);
 }
 
+.badge-open {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.25);
+}
+
+.badge-closed {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
 /* Custom Grid Configurations */
 .coach-grid {
   display: grid;

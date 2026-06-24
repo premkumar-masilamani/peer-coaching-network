@@ -11,7 +11,9 @@ import {
   Sun,
   Moon,
   LogOut,
-  Terminal
+  Terminal,
+  LifeBuoy,
+  MessageSquare
 } from 'lucide-react';
 import { type Theme, TABS, type TabKey, USER_ROLE, USER_STATUS, THEME } from '../config';
 
@@ -82,6 +84,25 @@ export const LeftNav: React.FC<LeftNavProps> = ({
           </button>
         )}
 
+        {/* Support Desk */}
+        {role === USER_ROLE.ADMIN && (
+          <button
+            onClick={() => {
+              if (currentTab === TABS.SUPPORT_DESK) {
+                window.dispatchEvent(new CustomEvent('tab-reclick', { detail: TABS.SUPPORT_DESK }));
+              }
+              setCurrentTab(TABS.SUPPORT_DESK);
+            }}
+            className={`sidebar-nav-item ${currentTab === TABS.SUPPORT_DESK ? 'active' : ''}`}
+            title={collapsed ? 'Support Desk' : undefined}
+          >
+            <span className="nav-icon">
+              <MessageSquare size={18} />
+            </span>
+            <span className="nav-text">Support Desk</span>
+          </button>
+        )}
+
         {/* My Availability */}
         <button
           onClick={() => setCurrentTab(TABS.AVAILABILITY)}
@@ -116,6 +137,23 @@ export const LeftNav: React.FC<LeftNavProps> = ({
             <User size={18} />
           </span>
           <span className="nav-text">My Profile</span>
+        </button>
+
+        {/* Get Support */}
+        <button
+          onClick={() => {
+            if (currentTab === TABS.SUPPORT) {
+              window.dispatchEvent(new CustomEvent('tab-reclick', { detail: TABS.SUPPORT }));
+            }
+            setCurrentTab(TABS.SUPPORT);
+          }}
+          className={`sidebar-nav-item ${currentTab === TABS.SUPPORT ? 'active' : ''}`}
+          title={collapsed ? 'Get Support' : undefined}
+        >
+          <span className="nav-icon">
+            <LifeBuoy size={18} />
+          </span>
+          <span className="nav-text">Get Support</span>
         </button>
       </div>
 

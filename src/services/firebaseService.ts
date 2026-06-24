@@ -22,12 +22,13 @@ import {
   query,
   where,
   getDocs,
-  Timestamp
+  Timestamp,
+  deleteDoc
 } from 'firebase/firestore';
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS } from '../config';
+import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -654,4 +655,138 @@ export const subscribeToBookings = (callback: (bookings: DocumentData[]) => void
   }, (err) => {
     logger.error('Error in subscribeToBookings:', err);
   });
+};
+
+// ── Support and Feedback Ticket System ────────────────────────────────────────
+
+export interface SupportMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderRole: UserRole;
+  content: string;
+  createdAt: string; // ISO string
+}
+
+export interface SupportRequest {
+  id: string;
+  userId: string;
+  userDisplayName: string;
+  userEmail: string;
+  category: SupportCategory;
+  subject: string;
+  status: SupportStatus;
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
+  messages: SupportMessage[];
+}
+
+export const createSupportRequest = async (
+  userId: string,
+  userDisplayName: string,
+  userEmail: string,
+  category: SupportCategory,
+  subject: string,
+  messageText: string
+): Promise<string> => {
+  if (!db) throw new Error('Firestore not initialized');
+  const now = new Date().toISOString();
+  
+  const initialMessage: SupportMessage = {
+    id: Date.now().toString(),
+    senderId: userId,
+    senderName: userDisplayName,
+    senderRole: 'user',
+    content: messageText,
+    createdAt: now,
+  };
+
+  const supportRequestsRef = collection(db, 'supportRequests');
+  const docRef = doc(supportRequestsRef); // Generate new ID
+  
+  const newRequest: SupportRequest = {
+    id: docRef.id,
+    userId,
+    userDisplayName,
+    userEmail,
+    category,
+    subject,
+    status: 'open',
+    createdAt: now,
+    updatedAt: now,
+    messages: [initialMessage]
+  };
+
+  await setDoc(docRef, newRequest);
+  return docRef.id;
+};
+
+export const getSupportRequestsForUser = async (userId: string): Promise<SupportRequest[]> => {
+  if (!db) return [];
+  const q = query(collection(db, 'supportRequests'), where('userId', '==', userId));
+  const snap = await getDocs(q);
+  const requests: SupportRequest[] = [];
+  snap.forEach(d => requests.push(d.data() as SupportRequest));
+  // Sort by updatedAt desc client-side
+  return requests.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+};
+
+export const getAllSupportRequests = async (): Promise<SupportRequest[]> => {
+  if (!db) return [];
+  const q = query(collection(db, 'supportRequests'));
+  const snap = await getDocs(q);
+  const requests: SupportRequest[] = [];
+  snap.forEach(d => requests.push(d.data() as SupportRequest));
+  return requests.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+};
+
+export const addMessageToSupportRequest = async (
+  requestId: string,
+  senderId: string,
+  senderName: string,
+  senderRole: 'user' | 'admin',
+  content: string
+): Promise<void> => {
+  if (!db) throw new Error('Firestore not initialized');
+  const docRef = doc(db, 'supportRequests', requestId);
+  const docSnap = await getDoc(docRef);
+  
+  if (!docSnap.exists()) {
+    throw new Error('Support request not found');
+  }
+  
+  const request = docSnap.data() as SupportRequest;
+  const now = new Date().toISOString();
+  
+  const newMessage: SupportMessage = {
+    id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
+    senderId,
+    senderName,
+    senderRole,
+    content,
+    createdAt: now,
+  };
+
+  const updatedMessages = [...(request.messages || []), newMessage];
+  
+  await updateDoc(docRef, {
+    messages: updatedMessages,
+    updatedAt: now,
+    status: 'open' // Always set to open when a new message is sent
+  });
+};
+
+export const updateSupportRequestStatus = async (requestId: string, status: SupportStatus): Promise<void> => {
+  if (!db) throw new Error('Firestore not initialized');
+  const docRef = doc(db, 'supportRequests', requestId);
+  await updateDoc(docRef, {
+    status,
+    updatedAt: new Date().toISOString()
+  });
+};
+
+export const deleteSupportRequest = async (requestId: string): Promise<void> => {
+  if (!db) throw new Error('Firestore not initialized');
+  const docRef = doc(db, 'supportRequests', requestId);
+  await deleteDoc(docRef);
 };
