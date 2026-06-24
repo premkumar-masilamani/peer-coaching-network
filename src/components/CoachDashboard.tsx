@@ -11,6 +11,7 @@ import {
 import type { CalendarEvent } from '../services/googleCalendar';
 import type { DocumentData } from 'firebase/firestore';
 import { ScheduleModal } from './ScheduleModal';
+import { CancelModal } from './CancelModal';
 import { 
   Filter, 
   Search, 
@@ -21,7 +22,6 @@ import {
   X,
   RefreshCw,
   Clock,
-  AlertTriangle,
   Info,
   ChevronLeft,
   ChevronRight,
@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getUtcForSlot, getTimezoneCode } from '../utils/timezoneHelpers';
+import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
 import { sanitizeImageUrl, navigateToProfile } from '../utils/url';
 import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE } from '../config';
 
@@ -383,50 +384,7 @@ export const CoachDashboard: React.FC = () => {
     return `${startStr} - ${endStr} ${getTimezoneCode(start, viewerTimezone)}`;
   };
 
-  const getParticipantNames = (event: CalendarEvent) => {
-    let coachName = 'Coach';
-    if (event.coachUid) {
-      if (event.coachUid === currentUser?.uid && profile) {
-        coachName = profile.displayName;
-      } else {
-        const found = coaches.find(c => c.userId === event.coachUid);
-        if (found) coachName = found.displayName;
-      }
-    }
-    if (coachName === 'Coach' && event.attendees?.[0]) {
-      coachName = event.attendees[0].displayName || event.attendees[0].email;
-    }
 
-    let clientName = 'Client';
-    if (event.clientUid) {
-      if (event.clientUid === currentUser?.uid && profile) {
-        clientName = profile.displayName;
-      } else {
-        const found = coaches.find(c => c.userId === event.clientUid);
-        if (found) clientName = found.displayName;
-      }
-    }
-    if (clientName === 'Client' && event.attendees?.[1]) {
-      clientName = event.attendees[1].displayName || event.attendees[1].email;
-    }
-
-    return { coachName, clientName };
-  };
-
-  const getBookingTopic = (event: CalendarEvent) => {
-    if (!event.description) return event.summary;
-    if (event.description.includes('Peer Coaching Network session on the topic: ')) {
-      return event.description
-        .replace('Peer Coaching Network session on the topic: ', '')
-        .replace('. Created via PCN.', '')
-        .trim();
-    }
-    const match = event.description.match(/-\s*Topic:\s*([^\n\r]+)/i);
-    if (match && match[1]) {
-      return match[1].trim();
-    }
-    return event.summary;
-  };
 
   const getFormattedDateTime = (dateTimeStr: string) => {
     const d = new Date(dateTimeStr);
@@ -1237,7 +1195,7 @@ export const CoachDashboard: React.FC = () => {
 
             <div className="glass-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', marginBottom: '24px' }}>
               {(() => {
-                const { coachName, clientName } = getParticipantNames(selectedBookingForView);
+                const { coachName, clientName } = getParticipantNames(selectedBookingForView, currentUser?.uid, profile, coaches);
                 const topic = getBookingTopic(selectedBookingForView);
                 const { date, time } = getFormattedDateTime(selectedBookingForView.start.dateTime);
                 return (
@@ -1291,95 +1249,31 @@ export const CoachDashboard: React.FC = () => {
       )}
 
       {/* Cancel confirmation modal overlay */}
-      {bookingToCancel && (
-        <div className="modal-overlay" style={{ pointerEvents: 'auto' }}>
-          <div className="glass-panel modal-content" style={{ padding: '32px', position: 'relative', maxWidth: '440px', width: '100%', border: '1px solid rgba(239, 68, 68, 0.3)' }}>
-            
-            {/* Warning Icon */}
-            <div style={{
-              background: 'rgba(239, 68, 68, 0.1)',
-              width: '56px',
-              height: '56px',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#f87171',
-              margin: '0 auto 20px auto'
-            }}>
-              <AlertTriangle size={32} />
-            </div>
-
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '12px', textAlign: 'center' }}>
-              Cancel Session?
-            </h3>
-
-            <div className="glass-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>
-              {(() => {
-                const { coachName, clientName } = getParticipantNames(bookingToCancel);
-                const topic = getBookingTopic(bookingToCancel);
-                const { date, time } = getFormattedDateTime(bookingToCancel.start.dateTime);
-                return (
-                  <>
-                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                      <strong>Coach:</strong> {coachName}
-                    </p>
-                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                      <strong>Client:</strong> {clientName}
-                    </p>
-                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                      <strong>Topic:</strong> {topic}
-                    </p>
-                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                      <strong>Date:</strong> {date}
-                    </p>
-                    <p style={{ fontSize: '0.85rem', marginBottom: '0px' }}>
-                      <strong>Time:</strong> {time}
-                    </p>
-                  </>
-                );
-              })()}
-            </div>
-            
-            <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', marginBottom: '24px', lineHeight: 1.4, textAlign: 'center' }}>
-              Are you sure you want to cancel this peer coaching session? This will remove the event from Google Calendar and release the slot.
-            </p>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <button
-                onClick={async () => {
-                  const idToCancel = bookingToCancel.id;
-                  setBookingToCancel(null);
-                  setCancellingId(idToCancel);
-                  try {
-                    await cancelBooking(idToCancel);
-                    await loadCalendarData();
-                  } catch (err) {
-                    console.error('Failed to cancel booking:', err);
-                    alert('Failed to cancel booking. Please try again.');
-                  } finally {
-                    setCancellingId(null);
-                  }
-                }}
-                className="btn btn-danger"
-                style={{
-                  width: '100%',
-                  fontWeight: 600
-                }}
-              >
-                Yes, Cancel Session
-              </button>
-              <button
-                onClick={() => setBookingToCancel(null)}
-                className="btn btn-secondary"
-                style={{ width: '100%' }}
-              >
-                No, Keep Session
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <CancelModal
+        isOpen={!!bookingToCancel}
+        onClose={() => setBookingToCancel(null)}
+        onConfirm={async () => {
+          if (!bookingToCancel) return;
+          const idToCancel = bookingToCancel.id;
+          setBookingToCancel(null);
+          setCancellingId(idToCancel);
+          try {
+            await cancelBooking(idToCancel);
+            await loadCalendarData();
+          } catch (err) {
+            console.error('Failed to cancel booking:', err);
+            alert('Failed to cancel booking. Please try again.');
+          } finally {
+            setCancellingId(null);
+          }
+        }}
+        isCancelling={!!cancellingId}
+        coachName={bookingToCancel ? getParticipantNames(bookingToCancel, currentUser?.uid, profile, coaches).coachName : ''}
+        clientName={bookingToCancel ? getParticipantNames(bookingToCancel, currentUser?.uid, profile, coaches).clientName : ''}
+        topic={bookingToCancel ? getBookingTopic(bookingToCancel) : ''}
+        date={bookingToCancel ? getFormattedDateTime(bookingToCancel.start.dateTime).date : ''}
+        time={bookingToCancel ? getFormattedDateTime(bookingToCancel.start.dateTime).time : ''}
+      />
     </>
   );
 };

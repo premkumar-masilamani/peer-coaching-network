@@ -11,6 +11,8 @@ import {
   RefreshCw,
   XCircle
 } from 'lucide-react';
+import { CancelModal } from './CancelModal';
+import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
 import { sanitizeMeetLink } from '../utils/url';
 import { getTimezoneCode } from '../utils/timezoneHelpers';
 import { EVENT_TYPE } from '../config';
@@ -21,6 +23,7 @@ export const MyBookings: React.FC = () => {
   const [sessions, setSessions] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [bookingToCancel, setBookingToCancel] = useState<CalendarEvent | null>(null);
   const [now] = useState(() => Date.now());
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [currentPage, setCurrentPage] = useState(1);
@@ -40,10 +43,6 @@ export const MyBookings: React.FC = () => {
   };
 
   const handleCancel = async (bookingId: string) => {
-    if (!window.confirm('Are you sure you want to cancel this session? This action cannot be undone.')) {
-      return;
-    }
-
     setCancellingId(bookingId);
     try {
       await cancelBooking(bookingId);
@@ -279,7 +278,7 @@ export const MyBookings: React.FC = () => {
 
                             {isCancellable && (
                               <button
-                                onClick={() => handleCancel(session.id)}
+                                onClick={() => setBookingToCancel(session)}
                                 disabled={cancellingId === session.id}
                                 className="btn btn-secondary"
                                 style={{
@@ -333,6 +332,24 @@ export const MyBookings: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Cancel confirmation modal overlay */}
+      <CancelModal
+        isOpen={!!bookingToCancel}
+        onClose={() => setBookingToCancel(null)}
+        onConfirm={async () => {
+          if (!bookingToCancel) return;
+          const idToCancel = bookingToCancel.id;
+          setBookingToCancel(null);
+          await handleCancel(idToCancel);
+        }}
+        isCancelling={!!cancellingId}
+        coachName={bookingToCancel ? getParticipantNames(bookingToCancel, user.uid, profile).coachName : ''}
+        clientName={bookingToCancel ? getParticipantNames(bookingToCancel, user.uid, profile).clientName : ''}
+        topic={bookingToCancel ? getBookingTopic(bookingToCancel) : ''}
+        date={bookingToCancel ? new Date(bookingToCancel.start.dateTime).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+        time={bookingToCancel ? new Date(bookingToCancel.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: viewerTimezone }) + ` ${getTimezoneCode(new Date(bookingToCancel.start.dateTime), viewerTimezone)}` : ''}
+      />
     </div>
   );
 };
