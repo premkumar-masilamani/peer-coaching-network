@@ -12,6 +12,7 @@ import type { CalendarEvent } from '../services/googleCalendar';
 import type { DocumentData } from 'firebase/firestore';
 import { ScheduleModal } from './ScheduleModal';
 import { CancelModal } from './CancelModal';
+import { SessionDetailsModal } from './SessionDetailsModal';
 import { 
   Filter, 
   Search, 
@@ -25,8 +26,7 @@ import {
   Info,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
-  ExternalLink
+  ChevronDown
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getUtcForSlot, getTimezoneCode } from '../utils/timezoneHelpers';
@@ -1169,84 +1169,17 @@ export const CoachDashboard: React.FC = () => {
       )}
 
       {/* Booking details view modal overlay */}
-      {selectedBookingForView && (
-        <div className="modal-overlay" style={{ pointerEvents: 'auto' }}>
-          <div className="glass-panel modal-content" style={{ padding: '32px', position: 'relative', maxWidth: '440px', width: '100%', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
-            
-            {/* Close Button */}
-            <button 
-              onClick={() => setSelectedBookingForView(null)} 
-              style={{
-                position: 'absolute',
-                top: '20px',
-                right: '20px',
-                background: 'transparent',
-                border: 'none',
-                color: 'hsl(var(--text-muted))',
-                cursor: 'pointer'
-              }}
-            >
-              <X size={18} />
-            </button>
-
-            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '20px' }}>
-              Session Details
-            </h3>
-
-            <div className="glass-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', marginBottom: '24px' }}>
-              {(() => {
-                const { coachName, clientName } = getParticipantNames(selectedBookingForView, currentUser?.uid, profile, coaches);
-                const topic = getBookingTopic(selectedBookingForView);
-                const { date, time } = getFormattedDateTime(selectedBookingForView.start.dateTime);
-                return (
-                  <>
-                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                      <strong>Coach:</strong> {coachName}
-                    </p>
-                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                      <strong>Client:</strong> {clientName}
-                    </p>
-                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                      <strong>Topic:</strong> {topic}
-                    </p>
-                    <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
-                      <strong>Date:</strong> {date}
-                    </p>
-                    <p style={{ fontSize: '0.85rem', marginBottom: '0px' }}>
-                      <strong>Time:</strong> {time}
-                    </p>
-                  </>
-                );
-              })()}
-              
-              {selectedBookingForView.meetLink && (
-                <div style={{
-                  borderTop: '1px solid var(--border-light)',
-                  paddingTop: '12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px'
-                }}>
-                  <a
-                    href={selectedBookingForView.meetLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="btn btn-primary"
-                    style={{ padding: '8px 16px', fontSize: '0.85rem', width: '100%', gap: '6px' }}
-                  >
-                    Join Google Meet
-                    <ExternalLink size={12} />
-                  </a>
-                </div>
-              )}
-            </div>
-
-            <button onClick={() => setSelectedBookingForView(null)} className="btn btn-secondary" style={{ width: '100%' }}>
-              Close Window
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Booking details view modal overlay */}
+      <SessionDetailsModal
+        isOpen={!!selectedBookingForView}
+        onClose={() => setSelectedBookingForView(null)}
+        coachName={selectedBookingForView ? getParticipantNames(selectedBookingForView, currentUser?.uid, profile, coaches).coachName : ''}
+        clientName={selectedBookingForView ? getParticipantNames(selectedBookingForView, currentUser?.uid, profile, coaches).clientName : ''}
+        topic={selectedBookingForView ? getBookingTopic(selectedBookingForView) : ''}
+        date={selectedBookingForView ? getFormattedDateTime(selectedBookingForView.start.dateTime).date : ''}
+        time={selectedBookingForView ? getFormattedDateTime(selectedBookingForView.start.dateTime).time : ''}
+        meetLink={selectedBookingForView?.meetLink || null}
+      />
 
       {/* Cancel confirmation modal overlay */}
       <CancelModal
