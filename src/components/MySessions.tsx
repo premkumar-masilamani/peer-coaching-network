@@ -18,7 +18,7 @@ import { sanitizeMeetLink } from '../utils/url';
 import { getTimezoneCode } from '../utils/timezoneHelpers';
 import { EVENT_TYPE } from '../config';
 
-export const MyBookings: React.FC = () => {
+export const MySessions: React.FC = () => {
   const { user, profile } = useAuth();
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const [sessions, setSessions] = useState<CalendarEvent[]>([]);

@@ -3,12 +3,12 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { Header } from './components/Header';
 import { Login } from './components/Login';
 import { VerificationNotice } from './components/VerificationNotice';
-import { CoachDashboard } from './components/CoachDashboard';
+import { UpcomingSessions } from './components/UpcomingSessions';
 import { ProfileEdit } from './components/ProfileEdit';
 import { AvailabilityEdit } from './components/AvailabilityEdit';
-import { PlatformAdminDashboard } from './components/PlatformAdminDashboard';
+import { AdminDashboard } from './components/AdminDashboard';
 import { LeftNav } from './components/LeftNav';
-import { MyBookings } from './components/MyBookings';
+import { MySessions } from './components/MySessions';
 import { PublicProfile } from './components/PublicProfile';
 import { SupportFeedback } from './components/SupportFeedback';
 import { isApproved, logAnalyticsEvent } from './services/firebaseService';
@@ -273,13 +273,13 @@ const AppContent: React.FC = () => {
               <PublicProfile uid={publicProfileUid} onClose={clearProfileFromUrl} />
             ) : (
               <>
-                {currentTab === TABS.DASHBOARD && <CoachDashboard />}
+                {currentTab === TABS.DASHBOARD && <UpcomingSessions />}
                 {currentTab === TABS.PROFILE && <ProfileEdit />}
                 {currentTab === TABS.AVAILABILITY && <AvailabilityEdit />}
-                {currentTab === TABS.BOOKINGS && <MyBookings />}
+                {currentTab === TABS.BOOKINGS && <MySessions />}
                 {currentTab === TABS.SUPPORT && <SupportFeedback />}
                 {currentTab === TABS.ADMIN && role === USER_ROLE.ADMIN && (
-                  <PlatformAdminDashboard
+                  <AdminDashboard
                     initialFilter={adminTabFilter}
                     setInitialFilter={setAdminTabFilter}
                   />
