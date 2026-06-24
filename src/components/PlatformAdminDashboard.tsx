@@ -21,51 +21,27 @@ export const PlatformAdminDashboard: React.FC<PlatformAdminDashboardProps> = ({
         display: 'flex',
         gap: '8px',
         marginBottom: '24px',
-        borderBottom: '1px solid var(--border)',
+        borderBottom: '1px solid var(--glass-border)',
         paddingBottom: '16px'
       }}>
         <button
           onClick={() => setAdminTab('users')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '20px',
-            background: adminTab === 'users' ? 'var(--primary)' : 'transparent',
-            color: adminTab === 'users' ? '#fff' : 'var(--text-secondary)',
-            border: 'none',
-            cursor: 'pointer',
-            fontWeight: adminTab === 'users' ? 600 : 400,
-            transition: 'all 0.2s ease'
-          }}
+          className={`btn ${adminTab === 'users' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ padding: '8px 16px', fontSize: '0.85rem', height: '36px', borderRadius: '20px' }}
         >
           Users & Roles
         </button>
         <button
           onClick={() => setAdminTab('logs')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '20px',
-            background: adminTab === 'logs' ? 'var(--primary)' : 'transparent',
-            color: adminTab === 'logs' ? '#fff' : 'var(--text-secondary)',
-            border: 'none',
-            cursor: 'pointer',
-            fontWeight: adminTab === 'logs' ? 600 : 400,
-            transition: 'all 0.2s ease'
-          }}
+          className={`btn ${adminTab === 'logs' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ padding: '8px 16px', fontSize: '0.85rem', height: '36px', borderRadius: '20px' }}
         >
           System Logs
         </button>
         <button
           onClick={() => setAdminTab('support')}
-          style={{
-            padding: '8px 16px',
-            borderRadius: '20px',
-            background: adminTab === 'support' ? 'var(--primary)' : 'transparent',
-            color: adminTab === 'support' ? '#fff' : 'var(--text-secondary)',
-            border: 'none',
-            cursor: 'pointer',
-            fontWeight: adminTab === 'support' ? 600 : 400,
-            transition: 'all 0.2s ease'
-          }}
+          className={`btn ${adminTab === 'support' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ padding: '8px 16px', fontSize: '0.85rem', height: '36px', borderRadius: '20px' }}
         >
           Support Desk
         </button>
