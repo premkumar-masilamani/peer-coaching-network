@@ -10,14 +10,14 @@ import {
   logAnalyticsEvent
 } from '../services/firebaseService';
 import type { UserProfile } from '../services/firebaseService';
+import { ReviewChangesModal } from './modals/ReviewChangesModal';
 import { sanitizeImageUrl, sanitizeMeetLink } from '../utils/url';
 import {
   Search,
   UserCheck,
   Info,
   Video,
-  ExternalLink,
-  X
+  ExternalLink
 } from 'lucide-react';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
@@ -755,68 +755,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ initialFilter = 
       </div>
 
       {/* Custom React Approval Modal */}
-      {approvalModalData && (
-        <div className="modal-overlay" style={{ pointerEvents: 'auto' }} onClick={() => setApprovalModalData(null)}>
-          <div className="glass-panel modal-content" style={{ padding: '32px', position: 'relative', border: '1px solid rgba(139, 92, 246, 0.3)' }} onClick={(e) => e.stopPropagation()}>
-            <button
-              onClick={() => setApprovalModalData(null)}
-              style={{
-                position: 'absolute',
-                top: '20px',
-                right: '20px',
-                background: 'transparent',
-                border: 'none',
-                color: 'hsl(var(--text-muted))',
-                cursor: 'pointer'
-              }}
-            >
-              <X size={18} />
-            </button>
-
-            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '8px' }}>Review changes</h3>
-            <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', marginBottom: '20px' }}>
-              <strong>{approvalModalData.userName}</strong>:
-            </p>
-
-            {approvalModalData.changes.length === 0 ? (
-              <div className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px', textAlign: 'center' }}>
-                <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-muted))' }}>No modifications detected in draft.</p>
-              </div>
-            ) : (
-              <div className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>
-                <ul style={{ paddingLeft: '20px', margin: 0, fontSize: '0.95rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {approvalModalData.changes.map((chg, idx) => (
-                    <li key={idx} style={{ color: 'hsl(var(--text-secondary))' }}>
-                      {chg}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button
-                onClick={() => setApprovalModalData(null)}
-                className="btn btn-secondary"
-                style={{ flex: 1 }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={async () => {
-                  const { uid, roleToSave, statusToSave, qualificationsToSave } = approvalModalData;
-                  setApprovalModalData(null);
-                  await executeApproval(uid, roleToSave, statusToSave, qualificationsToSave);
-                }}
-                className="btn btn-primary"
-                style={{ flex: 1 }}
-              >
-                Confirm Approval
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Custom React Approval Modal */}
+      <ReviewChangesModal
+        isOpen={!!approvalModalData}
+        userName={approvalModalData?.userName || ''}
+        changes={approvalModalData?.changes || []}
+        onClose={() => setApprovalModalData(null)}
+        onConfirm={async () => {
+          if (!approvalModalData) return;
+          const { uid, roleToSave, statusToSave, qualificationsToSave } = approvalModalData;
+          setApprovalModalData(null);
+          await executeApproval(uid, roleToSave, statusToSave, qualificationsToSave);
+        }}
+      />
     </div>
   );
 };
