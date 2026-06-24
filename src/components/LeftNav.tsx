@@ -11,9 +11,7 @@ import {
   Sun,
   Moon,
   LogOut,
-  Terminal,
-  LifeBuoy,
-  MessageSquare
+  LifeBuoy
 } from 'lucide-react';
 import { type Theme, TABS, type TabKey, USER_ROLE, USER_STATUS, THEME } from '../config';
 
@@ -54,54 +52,9 @@ export const LeftNav: React.FC<LeftNavProps> = ({
           <span className="nav-text">Dashboard</span>
         </button>
 
-        {/* Admin Panel */}
-        {isAdmin && (
-          <button
-            onClick={() => setCurrentTab(TABS.ADMIN)}
-            className={`sidebar-nav-item ${currentTab === TABS.ADMIN ? 'active' : ''}`}
-            title={collapsed ? 'Admin Panel' : undefined}
-          >
-            <span className="nav-icon">
-              <Shield size={18} />
-            </span>
-            <span className="nav-text">Admin Panel</span>
-          </button>
-        )}
 
 
 
-        {/* System Logs */}
-        {isAdmin && (
-          <button
-            onClick={() => setCurrentTab(TABS.SYSTEM_LOGS)}
-            className={`sidebar-nav-item ${currentTab === TABS.SYSTEM_LOGS ? 'active' : ''}`}
-            title={collapsed ? 'System Logs' : undefined}
-          >
-            <span className="nav-icon">
-              <Terminal size={18} />
-            </span>
-            <span className="nav-text">System Logs</span>
-          </button>
-        )}
-
-        {/* Support Desk */}
-        {role === USER_ROLE.ADMIN && (
-          <button
-            onClick={() => {
-              if (currentTab === TABS.SUPPORT_DESK) {
-                window.dispatchEvent(new CustomEvent('tab-reclick', { detail: TABS.SUPPORT_DESK }));
-              }
-              setCurrentTab(TABS.SUPPORT_DESK);
-            }}
-            className={`sidebar-nav-item ${currentTab === TABS.SUPPORT_DESK ? 'active' : ''}`}
-            title={collapsed ? 'Support Desk' : undefined}
-          >
-            <span className="nav-icon">
-              <MessageSquare size={18} />
-            </span>
-            <span className="nav-text">Support Desk</span>
-          </button>
-        )}
 
         {/* My Availability */}
         <button
@@ -157,8 +110,25 @@ export const LeftNav: React.FC<LeftNavProps> = ({
         </button>
       </div>
 
-      <div className="sidebar-footer">
-        {/* Theme Toggle */}
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        {/* Admin */}
+        {isAdmin && (
+          <div style={{ padding: '0 12px 16px 12px' }}>
+            <button
+              onClick={() => setCurrentTab(TABS.ADMIN)}
+              className={`sidebar-nav-item ${currentTab === TABS.ADMIN ? 'active' : ''}`}
+              title={collapsed ? 'Admin' : undefined}
+            >
+              <span className="nav-icon">
+                <Shield size={18} />
+              </span>
+              <span className="nav-text">Admin</span>
+            </button>
+          </div>
+        )}
+
+        <div className="sidebar-footer">
+          {/* Theme Toggle */}
         <button
           onClick={async () => {
             // Treat any value other than 'light' (incl. legacy 'system') as 'dark'
@@ -205,6 +175,7 @@ export const LeftNav: React.FC<LeftNavProps> = ({
         >
           {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
         </button>
+      </div>
       </div>
     </aside>
   );
