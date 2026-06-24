@@ -11,6 +11,8 @@ import {
   RefreshCw,
   XCircle
 } from 'lucide-react';
+import { CancelModal } from './CancelModal';
+import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
 import { sanitizeMeetLink } from '../utils/url';
 import { getTimezoneCode } from '../utils/timezoneHelpers';
 import { EVENT_TYPE } from '../config';
@@ -21,10 +23,13 @@ export const MyBookings: React.FC = () => {
   const [sessions, setSessions] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [bookingToCancel, setBookingToCancel] = useState<CalendarEvent | null>(null);
   const [now] = useState(() => Date.now());
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
+  const [currentPage, setCurrentPage] = useState(1);
 
-  const loadSessions = async () => {
-    setLoading(true);
+  const loadSessions = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const list = await getUpcomingEvents();
       // Identify peer-coaching sessions by an explicit type tag.
@@ -33,7 +38,7 @@ export const MyBookings: React.FC = () => {
     } catch (e) {
       console.error('Error loading bookings:', e);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -42,7 +47,7 @@ export const MyBookings: React.FC = () => {
     try {
       await cancelBooking(bookingId);
       logAnalyticsEvent('cancel_booking', { bookingId });
-      await loadSessions();
+      await loadSessions(true); // Silent refresh to avoid UI flicker
     } catch (e) {
       console.error('Error cancelling booking:', e);
     } finally {
@@ -97,6 +102,35 @@ export const MyBookings: React.FC = () => {
       }));
   }, [upcoming, viewerTimezone]);
 
+  const groupedPast = useMemo(() => {
+    const groups: { [dateStr: string]: CalendarEvent[] } = {};
+    completed.forEach(session => {
+      const start = new Date(session.start.dateTime);
+      const dateStr = start.toLocaleDateString([], { 
+        timeZone: viewerTimezone, 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      });
+      if (!groups[dateStr]) {
+        groups[dateStr] = [];
+      }
+      groups[dateStr].push(session);
+    });
+    
+    return Object.keys(groups)
+      .sort((a, b) => new Date(groups[b][0].start.dateTime).getTime() - new Date(groups[a][0].start.dateTime).getTime())
+      .map(dateStr => ({
+        dateStr,
+        sessions: groups[dateStr].sort((a, b) => new Date(b.start.dateTime).getTime() - new Date(a.start.dateTime).getTime())
+      }));
+  }, [completed, viewerTimezone]);
+
+  const activeGroups = activeTab === 'upcoming' ? groupedUpcoming : groupedPast;
+  const totalPages = Math.max(1, Math.ceil(activeGroups.length / 5));
+  const paginatedGroups = activeGroups.slice((currentPage - 1) * 5, currentPage * 5);
+
   if (!user) return null;
 
   return (
@@ -111,7 +145,7 @@ export const MyBookings: React.FC = () => {
         
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           <button 
-            onClick={loadSessions} 
+            onClick={() => loadSessions(false)} 
             className="btn btn-secondary" 
             style={{ padding: '8px 16px', fontSize: '0.85rem', height: '38px', gap: '6px' }}
             disabled={loading}
@@ -123,6 +157,25 @@ export const MyBookings: React.FC = () => {
         </div>
       </div>
 
+      {!loading && (
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid var(--border-light)', paddingBottom: '16px' }}>
+          <button
+            onClick={() => { setActiveTab('upcoming'); setCurrentPage(1); }}
+            className={`btn ${activeTab === 'upcoming' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ padding: '8px 16px', fontSize: '0.85rem', height: '36px', borderRadius: '20px' }}
+          >
+            Upcoming Sessions
+          </button>
+          <button
+            onClick={() => { setActiveTab('past'); setCurrentPage(1); }}
+            className={`btn ${activeTab === 'past' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ padding: '8px 16px', fontSize: '0.85rem', height: '36px', borderRadius: '20px' }}
+          >
+            Past Sessions
+          </button>
+        </div>
+      )}
+
       {loading ? (
         <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 32px' }}>
           <RefreshCw size={28} className="animate-spin" style={{ color: 'hsl(var(--primary))', marginBottom: '16px' }} />
@@ -130,21 +183,24 @@ export const MyBookings: React.FC = () => {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-          {/* Upcoming Sessions */}
           <div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <Calendar size={18} style={{ color: 'hsl(var(--primary))' }} />
-              Upcoming Sessions ({upcoming.length})
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', color: activeTab === 'past' ? 'hsl(var(--text-secondary))' : 'hsl(var(--text-primary))' }}>
+              <Calendar size={18} style={{ color: activeTab === 'upcoming' ? 'hsl(var(--primary))' : 'hsl(var(--text-muted))' }} />
+              {activeTab === 'upcoming' ? `Upcoming Sessions (${upcoming.length})` : `Past Sessions (${completed.length})`}
             </h3>
             
-            {upcoming.length === 0 ? (
+            {paginatedGroups.length === 0 ? (
               <div className="glass-panel" style={{ textAlign: 'center', padding: '48px 24px', color: 'hsl(var(--text-muted))' }}>
                 <Clock size={32} style={{ marginBottom: '12px', opacity: 0.4 }} />
-                <p style={{ fontSize: '0.9rem' }}>No upcoming sessions scheduled. Browse the Dashboard to schedule a session with a peer coach.</p>
+                <p style={{ fontSize: '0.9rem' }}>
+                  {activeTab === 'upcoming' 
+                    ? 'No upcoming sessions scheduled. Browse the Dashboard to schedule a session with a peer coach.' 
+                    : 'No past sessions found.'}
+                </p>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                {groupedUpcoming.map((group) => (
+                {paginatedGroups.map((group) => (
                   <div key={group.dateStr}>
                     <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '12px', color: 'hsl(var(--text-secondary))', borderBottom: '1px solid var(--border-light)', paddingBottom: '6px' }}>
                       {group.dateStr}
@@ -155,40 +211,53 @@ export const MyBookings: React.FC = () => {
                         const timeOpts = { hour: '2-digit', minute: '2-digit' } as const;
                         const timeStr = `${start.toLocaleTimeString([], { timeZone: viewerTimezone, ...timeOpts })} ${getTimezoneCode(start, viewerTimezone)}`;
                         const safeMeetLink = sanitizeMeetLink(session.meetLink);
-                        const isCancellable = session.type === EVENT_TYPE.PEER_COACHING;
+                        const isCancellable = activeTab === 'upcoming' && session.type === EVENT_TYPE.PEER_COACHING;
 
                         return (
                           <div
                             key={session.id}
-                            className="glass-panel glass-panel-interactive"
-                            style={{ padding: '20px', borderLeft: '4px solid hsl(var(--primary))' }}
+                            className={`glass-panel ${activeTab === 'upcoming' ? 'glass-panel-interactive' : ''}`}
+                            style={{ 
+                              padding: '20px', 
+                              borderLeft: `4px solid ${activeTab === 'upcoming' ? 'hsl(var(--primary))' : 'hsl(var(--text-muted))'}`,
+                              opacity: activeTab === 'past' ? 0.65 : 1
+                            }}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                              <span className="badge badge-user" style={{ fontSize: '0.65rem', padding: '3px 8px', textTransform: 'none' }}>
-                                Confirmed
+                              <span 
+                                className={`badge ${activeTab === 'upcoming' ? 'badge-user' : ''}`} 
+                                style={{ 
+                                  fontSize: '0.65rem', 
+                                  padding: '3px 8px', 
+                                  textTransform: 'none',
+                                  background: activeTab === 'past' ? 'var(--btn-secondary-bg)' : undefined,
+                                  color: activeTab === 'past' ? 'hsl(var(--text-muted))' : undefined
+                                }}
+                              >
+                                {activeTab === 'upcoming' ? 'Confirmed' : 'Completed'}
                               </span>
-                              {safeMeetLink && (
+                              {safeMeetLink && activeTab === 'upcoming' && (
                                 <span style={{ fontSize: '0.7rem', color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
                                   <Video size={12} /> Google Meet
                                 </span>
                               )}
                             </div>
                             
-                            <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px', color: 'hsl(var(--text-primary))', lineHeight: '1.4' }}>
+                            <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px', color: activeTab === 'upcoming' ? 'hsl(var(--text-primary))' : 'hsl(var(--text-secondary))', lineHeight: '1.4' }}>
                               {session.summary}
                             </h4>
-                            <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-secondary))', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                              <Clock size={12} style={{ color: 'hsl(var(--primary))' }} />
+                            <p style={{ fontSize: '0.8rem', color: activeTab === 'upcoming' ? 'hsl(var(--text-secondary))' : 'hsl(var(--text-muted))', marginBottom: activeTab === 'upcoming' ? '16px' : '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <Clock size={12} style={{ color: activeTab === 'upcoming' ? 'hsl(var(--primary))' : undefined }} />
                               {timeStr}
                             </p>
 
-                            {session.description && (
+                            {session.description && activeTab === 'upcoming' && (
                               <p style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', marginBottom: '16px', lineHeight: 1.4, background: 'var(--panel-hover-bg)', padding: '8px', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
                                 {session.description}
                               </p>
                             )}
                             
-                            {safeMeetLink && (
+                            {safeMeetLink && activeTab === 'upcoming' && (
                               <a
                                 href={safeMeetLink}
                                 target="_blank"
@@ -209,7 +278,7 @@ export const MyBookings: React.FC = () => {
 
                             {isCancellable && (
                               <button
-                                onClick={() => handleCancel(session.id)}
+                                onClick={() => setBookingToCancel(session)}
                                 disabled={cancellingId === session.id}
                                 className="btn btn-secondary"
                                 style={{
@@ -235,53 +304,52 @@ export const MyBookings: React.FC = () => {
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Completed Sessions */}
-          {completed.length > 0 && (
-            <div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px', color: 'hsl(var(--text-secondary))' }}>
-                <Clock size={18} style={{ color: 'hsl(var(--text-muted))' }} />
-                Past Sessions ({completed.length})
-              </h3>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
-                {completed.map((session) => {
-                  const start = new Date(session.start.dateTime);
-                  const timeOpts = { hour: '2-digit', minute: '2-digit' } as const;
-                  const timeStr = `${start.toLocaleTimeString([], { timeZone: viewerTimezone, ...timeOpts })} ${getTimezoneCode(start, viewerTimezone)}`;
-                  const dateStr = start.toLocaleDateString([], { timeZone: viewerTimezone, month: 'short', day: 'numeric', weekday: 'short', year: 'numeric' });
-                  
-                  return (
-                    <div 
-                      key={session.id} 
-                      className="glass-panel" 
-                      style={{ padding: '20px', opacity: 0.65, borderLeft: '4px solid hsl(var(--text-muted))' }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                        <span className="badge" style={{ fontSize: '0.65rem', padding: '3px 8px', textTransform: 'none', background: 'var(--btn-secondary-bg)', color: 'hsl(var(--text-muted))' }}>
-                          Completed
-                        </span>
-                      </div>
-                      
-                      <h4 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '6px', color: 'hsl(var(--text-secondary))', lineHeight: '1.4' }}>
-                        {session.summary}
-                      </h4>
-                      <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))', marginBottom: '8px' }}>
-                        {dateStr}
-                      </p>
-                      <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <Clock size={12} />
-                        {timeStr}
-                      </p>
-                    </div>
-                  );
-                })}
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px', marginTop: '32px' }}>
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                >
+                  Previous
+                </button>
+                <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))' }}>
+                  Page {currentPage} of {totalPages}
+                </span>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  className="btn btn-secondary"
+                  style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                >
+                  Next
+                </button>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
+
+      {/* Cancel confirmation modal overlay */}
+      <CancelModal
+        isOpen={!!bookingToCancel}
+        onClose={() => setBookingToCancel(null)}
+        onConfirm={async () => {
+          if (!bookingToCancel) return;
+          const idToCancel = bookingToCancel.id;
+          setBookingToCancel(null);
+          await handleCancel(idToCancel);
+        }}
+        isCancelling={!!cancellingId}
+        coachName={bookingToCancel ? getParticipantNames(bookingToCancel, user.uid, profile).coachName : ''}
+        clientName={bookingToCancel ? getParticipantNames(bookingToCancel, user.uid, profile).clientName : ''}
+        topic={bookingToCancel ? getBookingTopic(bookingToCancel) : ''}
+        date={bookingToCancel ? new Date(bookingToCancel.start.dateTime).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : ''}
+        time={bookingToCancel ? new Date(bookingToCancel.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: viewerTimezone }) + ` ${getTimezoneCode(new Date(bookingToCancel.start.dateTime), viewerTimezone)}` : ''}
+      />
     </div>
   );
 };
