@@ -325,5 +325,10 @@ To ensure profile details remain up-to-date, case-insensitive, and take priority
 * **Header Status**: The slot row header displays a **"Session Already Booked"** badge if any booking exists in the slot, allowing users to quickly scan booked/taken slots.
 * **Busy Status Filter**: Any coach who is busy (either booked by another user or has a blocked date/template gap) is filtered out and excluded from the available coaches grid entirely, preventing redundant rendering.
 
+---
 
+## 📝 String Literals & Constants
 
+1. **No Magic Strings**: Never use string literals directly in the codebase (e.g., `'users'`, `'admin'`, `'supportRequests'`) if the value is used in more than one place. 
+2. **Centralized Configuration**: All repeating string literals must be extracted to a centralized, strictly-typed constant object (e.g., `COLLECTIONS`, `USER_ROLE`, `SUPPORT_STATUS`) inside `src/config.ts`.
+3. **Usage**: Import and use these constants globally to ensure type safety, prevent typos, and make future refactoring easier.
