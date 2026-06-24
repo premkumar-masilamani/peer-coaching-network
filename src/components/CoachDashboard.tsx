@@ -10,9 +10,9 @@ import {
 } from '../services/googleCalendar';
 import type { CalendarEvent } from '../services/googleCalendar';
 import type { DocumentData } from 'firebase/firestore';
-import { ScheduleModal } from './ScheduleModal';
-import { CancelModal } from './CancelModal';
-import { SessionDetailsModal } from './SessionDetailsModal';
+import { ScheduleModal } from './modals/ScheduleModal';
+import { CancelModal } from './modals/CancelModal';
+import { SessionDetailsModal } from './modals/SessionDetailsModal';
 import { 
   Filter, 
   Search, 

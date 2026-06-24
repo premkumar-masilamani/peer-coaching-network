@@ -10,7 +10,7 @@ import {
   logAnalyticsEvent
 } from '../services/firebaseService';
 import type { UserProfile } from '../services/firebaseService';
-import { ReviewChangesModal } from './ReviewChangesModal';
+import { ReviewChangesModal } from './modals/ReviewChangesModal';
 import { sanitizeImageUrl, sanitizeMeetLink } from '../utils/url';
 import {
   Search,

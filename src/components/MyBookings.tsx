@@ -11,7 +11,7 @@ import {
   RefreshCw,
   XCircle
 } from 'lucide-react';
-import { CancelModal } from './CancelModal';
+import { CancelModal } from './modals/CancelModal';
 import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
 import { sanitizeMeetLink } from '../utils/url';
 import { getTimezoneCode } from '../utils/timezoneHelpers';
