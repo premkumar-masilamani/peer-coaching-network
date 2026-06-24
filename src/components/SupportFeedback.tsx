@@ -154,7 +154,6 @@ export const SupportFeedback: React.FC = () => {
               className="form-select" 
               value={category} 
               onChange={e => setCategory(e.target.value as SupportCategory)}
-              style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
             >
               {SUPPORT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -167,7 +166,6 @@ export const SupportFeedback: React.FC = () => {
               value={subject} 
               onChange={e => setSubject(e.target.value)} 
               required
-              style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
             />
           </div>
           <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -179,11 +177,10 @@ export const SupportFeedback: React.FC = () => {
               value={message} 
               onChange={e => setMessage(e.target.value)} 
               required
-              style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
             />
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
-            <button type="submit" className="btn btn-primary" disabled={submitting || !subject.trim() || !message.trim()} style={{ padding: '10px 20px', borderRadius: '8px', background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer', fontWeight: 600 }}>
+            <button type="submit" className="btn btn-primary" disabled={submitting || !subject.trim() || !message.trim()}>
               {submitting ? 'Submitting...' : 'Submit Request'}
             </button>
           </div>
@@ -249,14 +246,13 @@ export const SupportFeedback: React.FC = () => {
               rows={4}
               value={replyText}
               onChange={e => setReplyText(e.target.value)}
-              style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button 
                 className="btn btn-primary" 
                 onClick={handleSendReply}
                 disabled={submitting || !replyText.trim()}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
               >
                 <Send size={16} /> {submitting ? 'Sending...' : 'Send Reply'}
               </button>

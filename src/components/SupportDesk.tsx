@@ -132,12 +132,13 @@ export const SupportDesk: React.FC = () => {
                   style={{
                     padding: '6px 12px',
                     border: 'none',
-                    background: filter === f ? 'var(--primary)' : 'transparent',
-                    color: filter === f ? '#fff' : 'var(--text-secondary)',
+                    background: filter === f ? 'hsl(var(--primary))' : 'transparent',
+                    color: filter === f ? '#fff' : 'hsl(var(--text-secondary))',
                     fontSize: '0.875rem',
                     fontWeight: 600,
                     cursor: 'pointer',
-                    textTransform: 'capitalize'
+                    textTransform: 'capitalize',
+                    borderRadius: '6px'
                   }}
                 >
                   {f}
@@ -183,9 +184,10 @@ export const SupportDesk: React.FC = () => {
               {selectedRequest.status === 'open' ? 'Mark as Closed' : 'Reopen Request'}
             </button>
             <button 
+              className="btn"
               onClick={handleDelete}
               disabled={submitting}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px', background: 'var(--danger-bg, #fee2e2)', color: 'var(--danger, #991b1b)', border: '1px solid var(--danger, #991b1b)', cursor: 'pointer', fontWeight: 600 }}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '8px', background: '#fee2e2', color: '#991b1b', border: '1px solid #991b1b', cursor: 'pointer', fontWeight: 600 }}
             >
               <Trash2 size={16} /> Delete Conversation
             </button>
@@ -241,7 +243,6 @@ export const SupportDesk: React.FC = () => {
               rows={4}
               value={replyText}
               onChange={e => setReplyText(e.target.value)}
-              style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -251,7 +252,7 @@ export const SupportDesk: React.FC = () => {
                 className="btn btn-primary" 
                 onClick={handleSendReply}
                 disabled={submitting || !replyText.trim()}
-                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '8px', background: 'var(--primary)', color: '#fff', border: 'none', cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
               >
                 <Send size={16} /> {submitting ? 'Sending...' : 'Send Reply'}
               </button>
