@@ -141,6 +141,24 @@ export const TABS = {
 } as const;
 export type TabKey = (typeof TABS)[keyof typeof TABS];
 
+// ── API Configuration ─────────────────────────────────────────────────────────
+
+export const DEV_API_URL = 'http://localhost:5000/api';
+export const PROD_API_URL = 'https://app.peercoachingnetwork.com'; // Adjust to actual prod URL
+
+// ── Firestore Collections ─────────────────────────────────────────────────────
+
+export const COLLECTIONS = {
+  USERS: 'users',
+  SCHEDULE: 'schedule',
+  AVAILABLE_DAYS: 'availableDays',
+  BLOCKED_DATES: 'blockedDates',
+  BOOKINGS: 'bookings',
+  CLIENT_BOOKING_CACHE: 'clientBookingCache',
+  BUSY_SLOTS_CACHE: 'busySlotsCache',
+  SUPPORT_REQUESTS: 'supportRequests',
+  SYSTEM_LOGS: 'systemLogs',
+} as const;
 // ── Support Status ────────────────────────────────────────────────────────────
 
 export const SUPPORT_STATUS = {
@@ -184,4 +202,3 @@ export const SUPPORT_CATEGORY = {
 } as const;
 export const SUPPORT_CATEGORIES = [SUPPORT_CATEGORY.BUG, SUPPORT_CATEGORY.FEATURE, SUPPORT_CATEGORY.INQUIRY] as const;
 export type SupportCategory = (typeof SUPPORT_CATEGORIES)[number];
-
