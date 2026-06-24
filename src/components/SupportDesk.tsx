@@ -165,7 +165,6 @@ export const SupportDesk: React.FC = () => {
             <button 
               className="btn btn-secondary" 
               onClick={() => { setView('list'); setSelectedRequest(null); }}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
             >
               <ChevronLeft size={16} /> Back
             </button>
