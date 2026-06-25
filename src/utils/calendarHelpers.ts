@@ -1,5 +1,5 @@
 import type { CalendarEvent } from '../services/googleCalendar';
-import type { UserProfile } from '../services/firebaseService';
+import { type UserProfile, formatDisplayName } from '../services/firebaseService';
 
 export const getParticipantNames = (
   event: CalendarEvent, 
@@ -10,10 +10,10 @@ export const getParticipantNames = (
   let coachName = 'Coach';
   if (event.coachUid) {
     if (event.coachUid === currentUserId && currentUserProfile) {
-      coachName = currentUserProfile.displayName;
+      coachName = formatDisplayName(currentUserProfile) || 'Coach';
     } else {
       const found = coaches.find(c => c.userId === event.coachUid);
-      if (found) coachName = found.displayName;
+      if (found) coachName = formatDisplayName(found) || 'Coach';
     }
   }
   if (coachName === 'Coach' && event.attendees?.[0]) {
@@ -23,10 +23,10 @@ export const getParticipantNames = (
   let clientName = 'Client';
   if (event.clientUid) {
     if (event.clientUid === currentUserId && currentUserProfile) {
-      clientName = currentUserProfile.displayName;
+      clientName = formatDisplayName(currentUserProfile) || 'Client';
     } else {
       const found = coaches.find(c => c.userId === event.clientUid);
-      if (found) clientName = found.displayName;
+      if (found) clientName = formatDisplayName(found) || 'Client';
     }
   }
   if (clientName === 'Client' && event.attendees?.[1]) {

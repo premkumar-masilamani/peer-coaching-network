@@ -1,5 +1,5 @@
 import type { UserProfile, AvailableDays } from './firebaseService';
-import { db, auth, recalculateUserBusySlotsCache, getSchedule, timestampToTimeString } from './firebaseService';
+import { db, auth, recalculateUserBusySlotsCache, getSchedule, timestampToTimeString, formatDisplayName } from './firebaseService';
 import { collection, query, where, getDocs, doc, getDoc, updateDoc, deleteDoc, documentId, runTransaction, Timestamp } from 'firebase/firestore';
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
@@ -139,8 +139,8 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
             const coachProfile = await getProfile(data.coachUid);
             const clientProfile = await getProfile(data.clientUid);
 
-            const coachFirstName = coachProfile ? coachProfile.displayName.split(' ')[0] : 'Coach';
-            const clientFirstName = clientProfile ? clientProfile.displayName.split(' ')[0] : 'Peer';
+            const coachFirstName = coachProfile ? (coachProfile.firstName || (formatDisplayName(coachProfile) || 'Coach').split(' ')[0]) : 'Coach';
+            const clientFirstName = clientProfile ? (clientProfile.firstName || (formatDisplayName(clientProfile) || 'Peer').split(' ')[0]) : 'Peer';
 
             events.push({
               id: data.bookingId,
@@ -153,8 +153,8 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
               coachUid: data.coachUid,
               clientUid: data.clientUid,
               attendees: [
-                { email: coachProfile?.email || '', displayName: coachProfile?.displayName || '' },
-                { email: clientProfile?.email || '', displayName: clientProfile?.displayName || '' }
+                { email: coachProfile?.email || '', displayName: coachProfile ? formatDisplayName(coachProfile) : '' },
+                { email: clientProfile?.email || '', displayName: clientProfile ? formatDisplayName(clientProfile) : '' }
               ]
             });
           }
