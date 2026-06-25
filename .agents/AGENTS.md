@@ -23,7 +23,7 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Flat Routing**: Uses custom state (`currentTab`) and `window.history.pushState` + `PopStateEvent('popstate')`. Always clear routing parameters across global tab transitions. Guard history with `url.searchParams.has()` before pushing state.
 
 ## 3. Data & Storage Patterns
-- **No Magic Strings**: Prohibited. Extract repeating strings (roles, statuses, tabs, collections) into typed constants inside `src/config/` and use barrel exports (`src/config/index.ts`).
+- **No Magic Strings**: Never use string literals directly in the codebase (e.g., `'users'`, `'admin'`) if the value is used in more than one place. All repeating string literals must be extracted to a centralized, strictly-typed constant object (e.g., `COLLECTIONS`, `USER_ROLE`) inside the `src/config/` module and used globally to ensure type safety.
 - **Email Normalization**: To prevent Firestore query mismatches, emails must always be converted to and stored in lowercase.
 - **Concurrency Protection**: Calculations in `recalculateUserBusySlotsCache` must be serialized using a promise chain (`recalcChains`) to prevent interleaving writes from corrupting the busy slots cache.
 - **Scheduling Guarantee**: Always use a Firestore transaction with a deterministic ID (`${coachUid}_${startIso}`) when persisting bookings to prevent double-booking.
@@ -48,7 +48,14 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Specific Modification Feedback**: Provide concrete, contextual diff statements to `ReviewChangesModal` (e.g., `"Added blocked date: Dec 25, 2026"`). Do not push generic fallback messages.
 - **Save Button Layout**: Save buttons inside complex user-editable forms (`ProfileEdit`, `AvailabilityEdit`) must be placed logically close to the fields they govern (e.g., at the bottom of the form or column container), rather than floating loosely in a global page header.
 
-## 7. Updating This Document (Future Changes)
+## 7. Layout & Coding Conventions
+- **Named Exports**: Expose modules as named exports (e.g. `export const ProfileEdit`) rather than default exports.
+- **Verbatim Module Syntax**: When importing type definitions, prefix them with the `type` keyword (e.g. `import { type UserRole, type UserStatus } from '../config'`) to comply with `verbatimModuleSyntax` and prevent build failures.
+- **Constant & Type Naming**:
+  - **No Hardcoded Options**: Fixed option values (roles, user statuses, themes, genders, qualifications, navigation tabs, and log severities) must never be hardcoded. They should reference centralized object constants in `src/config/` (e.g., `USER_ROLE`, `USER_STATUS`, `THEME`, `GENDER`, `QUALIFICATION`, `LOG_SEVERITY`, and `TABS`).
+  - **Suffix Consistency**: Union types derived from config option arrays must not use the "Value" suffix (e.g. use `Gender`, `Theme`, `Qualification`, `UserRole`, `UserStatus`, and `LogSeverity` consistently).
+
+## 8. Updating This Document (Future Changes)
 - **Constraint Focus**: Only append rules that dictate *how* code must be written (e.g., specific hooks to use, UI utility classes, security invariants, strict rendering patterns).
 - **No Narrative**: Do not append narrative descriptions of features, component overviews, or step-by-step explanations of "how things work" under the hood. Let the code speak for itself.
 - **Conciseness**: Keep entries extremely concise and organized by domain. Remove obsolete or deprecated rules immediately.
