@@ -143,10 +143,10 @@ export const AvailabilityEdit: React.FC = () => {
 
   // NOTE: the editable form is seeded once from the profile via the useState
   // initializers above. We deliberately do NOT re-sync from later profile
-  // snapshots, which would clobber the user's unsaved edits. See BUG-008.
+  // snapshots, which would clobber the user's unsaved edits.
 
   // Derive the slot-validation message during render — no effect, no setState,
-  // so it can never race or trip the cascading-render lint rule. See BUG-015.
+  // so it can never race or trip the cascading-render lint rule.
   const validationError = (() => {
     for (const day of DAYS_OF_WEEK) {
       const dayData = weekly[day.key];

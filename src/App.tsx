@@ -106,7 +106,7 @@ const AppContent: React.FC = () => {
 
   // Route to the default panel when approval state transitions, using React's
   // recommended "adjust state during render" pattern rather than an effect (no
-  // setTimeout hack, no cascading-render lint violation). See BUG-012/015.
+  // setTimeout hack, no cascading-render lint violation).
   const [prevApproved, setPrevApproved] = useState(approved);
   if (approved !== prevApproved) {
     setPrevApproved(approved);

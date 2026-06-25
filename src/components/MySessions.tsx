@@ -61,7 +61,7 @@ export const MySessions: React.FC = () => {
   };
 
   // Initial load. Inlined (rather than calling loadSessions) so no setState runs
-  // synchronously in the effect body — loading already starts true. See BUG-015.
+  // synchronously in the effect body — loading already starts true.
   useEffect(() => {
     let cancelled = false;
     (async () => {

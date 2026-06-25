@@ -3,7 +3,7 @@
 // The token is deliberately NOT persisted to sessionStorage/localStorage so it
 // cannot be exfiltrated by XSS or read by other scripts on the page. It lives
 // only for the lifetime of the current page (lost on reload, re-acquired via a
-// fresh sign-in). See BUG-003.
+// fresh sign-in).
 
 let googleAccessToken: string | null = null;
 
