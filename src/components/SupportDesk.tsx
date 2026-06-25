@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { 
   getAllSupportRequests, 
   addMessageToSupportRequest, 
@@ -7,7 +8,7 @@ import {
   deleteSupportRequest,
   type SupportRequest 
 } from '../services/firebaseService';
-import { MessageSquare, RefreshCw, Send, ChevronLeft, Trash2, CheckCircle, Circle } from 'lucide-react';
+import { MessageSquare, Send, ChevronLeft, Trash2, CheckCircle, Circle } from 'lucide-react';
 
 type FilterType = 'all' | 'open' | 'closed';
 
@@ -22,7 +23,7 @@ export const SupportDesk: React.FC = () => {
   const [selectedRequest, setSelectedRequest] = useState<SupportRequest | null>(null);
   const [replyText, setReplyText] = useState('');
 
-  const loadRequests = async () => {
+  const loadRequests = useCallback(async () => {
     try {
       const data = await getAllSupportRequests();
       setRequests(data);
@@ -39,7 +40,13 @@ export const SupportDesk: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedRequest]);
+
+  useFocusRefresh(useCallback(() => {
+    if (profile?.userRole === 'admin') {
+      loadRequests();
+    }
+  }, [loadRequests, profile?.userRole]));
 
   useEffect(() => {
     (async () => {
@@ -169,16 +176,7 @@ export const SupportDesk: React.FC = () => {
               <ChevronLeft size={16} /> Back
             </button>
           )}
-          {view === 'list' && (
-            <button 
-              className="btn btn-secondary" 
-              onClick={() => { setLoading(true); loadRequests(); }}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-              disabled={loading}
-            >
-              <RefreshCw size={16} className={loading ? "spin" : ""} /> Refresh
-            </button>
-          )}
+
         </div>
       </div>
 
