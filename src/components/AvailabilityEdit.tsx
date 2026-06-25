@@ -701,6 +701,7 @@ export const AvailabilityEdit: React.FC = () => {
             isOpen={isCalendarOpen} 
             onClose={() => setIsCalendarOpen(false)} 
             onSelectDate={handleAddBlockedDate} 
+            blockedDates={blockedDates}
           />
 
           {/* Blocked Date List */}

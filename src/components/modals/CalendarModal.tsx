@@ -5,12 +5,14 @@ interface CalendarModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectDate: (dateString: string) => void;
+  blockedDates?: string[];
 }
 
 export const CalendarModal: React.FC<CalendarModalProps> = ({
   isOpen,
   onClose,
-  onSelectDate
+  onSelectDate,
+  blockedDates = []
 }) => {
   const [currentDate, setCurrentDate] = useState(() => {
     const today = new Date();
@@ -25,6 +27,11 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
 
   const handleNextMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
+  };
+
+  const handleToday = () => {
+    const today = new Date();
+    setCurrentDate(new Date(today.getFullYear(), today.getMonth(), 1));
   };
 
   const year = currentDate.getFullYear();
@@ -62,6 +69,23 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
       
       const isPast = dateString < todayStr;
       const isToday = dateString === todayStr;
+      const isBlocked = blockedDates.includes(dateString);
+
+      // Determine styling based on state
+      let bgColor = 'var(--panel-bg)';
+      let borderColor = 'rgba(139, 92, 246, 0.1)';
+      let textColor = 'hsl(var(--text-primary))';
+
+      if (isPast) {
+        bgColor = 'transparent';
+        textColor = 'hsl(var(--text-muted))';
+      } else if (isBlocked) {
+        bgColor = 'rgba(239, 68, 68, 0.1)';
+        borderColor = 'rgba(239, 68, 68, 0.3)';
+        textColor = '#f87171'; // red
+      } else if (isToday) {
+        borderColor = 'hsl(var(--primary))';
+      }
 
       days.push(
         <button
@@ -69,11 +93,11 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
           onClick={() => !isPast && onSelectDate(dateString)}
           disabled={isPast}
           style={{
-            background: isPast ? 'transparent' : 'var(--panel-bg)',
-            border: isToday ? '1px solid hsl(var(--primary))' : '1px solid rgba(139, 92, 246, 0.1)',
+            background: bgColor,
+            border: `1px solid ${borderColor}`,
             borderRadius: '8px',
-            padding: '10px',
-            color: isPast ? 'hsl(var(--text-muted))' : 'hsl(var(--text-primary))',
+            padding: '10px 4px',
+            color: textColor,
             cursor: isPast ? 'not-allowed' : 'pointer',
             opacity: isPast ? 0.5 : 1,
             display: 'flex',
@@ -81,17 +105,24 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
             justifyContent: 'center',
             fontWeight: isToday ? 700 : 500,
             transition: 'all 0.2s ease',
+            width: '100%',
           }}
           onMouseEnter={(e) => {
-            if (!isPast) {
+            if (!isPast && !isBlocked) {
               e.currentTarget.style.background = 'rgba(139, 92, 246, 0.2)';
               e.currentTarget.style.borderColor = 'hsl(var(--primary))';
+            } else if (isBlocked && !isPast) {
+              e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)';
+              e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.5)';
             }
           }}
           onMouseLeave={(e) => {
-            if (!isPast) {
+            if (!isPast && !isBlocked) {
               e.currentTarget.style.background = 'var(--panel-bg)';
               e.currentTarget.style.borderColor = isToday ? 'hsl(var(--primary))' : 'rgba(139, 92, 246, 0.1)';
+            } else if (isBlocked && !isPast) {
+              e.currentTarget.style.background = 'rgba(239, 68, 68, 0.1)';
+              e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.3)';
             }
           }}
         >
@@ -109,7 +140,14 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
     <div className="modal-overlay" style={{ pointerEvents: 'auto', zIndex: 9999 }} onClick={onClose}>
       <div 
         className="glass-panel modal-content" 
-        style={{ padding: '24px', position: 'relative', border: '1px solid rgba(139, 92, 246, 0.3)', width: '100%', maxWidth: '400px' }} 
+        style={{ 
+          padding: '24px', 
+          position: 'relative', 
+          border: '1px solid rgba(139, 92, 246, 0.3)', 
+          width: '100%', 
+          maxWidth: '450px',
+          background: 'hsl(var(--bg-surface))'
+        }} 
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -128,7 +166,33 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
           <X size={18} />
         </button>
 
-        <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '20px' }}>Select date to block</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>Select date to block</h3>
+          <button
+            type="button"
+            onClick={handleToday}
+            style={{
+              marginRight: '24px',
+              background: 'transparent',
+              border: '1px solid rgba(139, 92, 246, 0.3)',
+              borderRadius: '6px',
+              padding: '4px 10px',
+              fontSize: '0.8rem',
+              color: 'hsl(var(--primary))',
+              cursor: 'pointer',
+              fontWeight: 600,
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = 'rgba(139, 92, 246, 0.1)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            Today
+          </button>
+        </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <button 
