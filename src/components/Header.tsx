@@ -21,7 +21,7 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
   React.useEffect(() => {
     if (role === USER_ROLE.ADMIN && isActive) {
       // Subscribe to a count derived from only the pending docs, not the whole
-      // users collection. See BUG-006. (The badge is hidden for non-admins, so
+      // users collection. (The badge is hidden for non-admins, so
       // no explicit reset is needed when this branch is skipped.)
       const unsub = subscribeToPendingUsersCount(setPendingCount);
       return () => unsub();

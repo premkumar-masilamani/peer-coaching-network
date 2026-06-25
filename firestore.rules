@@ -19,7 +19,7 @@ service cloud.firestore {
     // document-based check. Promoting admin to a Firebase Auth custom claim
     // (set only by a trusted backend) would add defense-in-depth and remove the
     // per-check get(); that requires a server component this client-only app
-    // does not yet have. See BUG-008.
+    // does not yet have.
     function isAdmin() {
       return isSignedIn()
         && currentUserDoc().userRole == 'admin'
@@ -33,7 +33,7 @@ service cloud.firestore {
         && request.resource.data.userStatus == resource.data.userStatus;
     }
 
-    // Identity fields are immutable on a self-update (defense-in-depth). See BUG-008.
+    // Identity fields are immutable on a self-update (defense-in-depth).
     function selfUpdateAllowed() {
       return privilegedFieldsUnchanged()
         && request.resource.data.userId == resource.data.userId
@@ -46,7 +46,7 @@ service cloud.firestore {
       allow read: if isSignedIn();
 
       // Self sign-up: a user may create only their own document, only as a
-      // pending account (inactive), and only with the 'user' role. See BUG-008.
+      // pending account (inactive), and only with the 'user' role.
       allow create: if isOwner(uid)
         && request.resource.data.userStatus == 'inactive'
         && request.resource.data.userRole == 'user';
@@ -85,7 +85,7 @@ service cloud.firestore {
     }
 
     // Per-mentee/per-slot locks that prevent a mentee double-booking themselves
-    // across coaches in the same time slot. See BUG-003.
+    // across coaches in the same time slot.
     match /clientBookingCache/{cacheId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
@@ -101,7 +101,7 @@ service cloud.firestore {
       // Derived busy-slot cache. Readable by any signed-in user, but only the
       // OWNER may write their own cache — no cross-user writes. Live bookings
       // are surfaced from the authoritative `bookings` collection
-      // instead. See BUG-001.
+      // instead.
       allow read: if isSignedIn();
       allow write: if isOwner(uid);
     }

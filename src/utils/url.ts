@@ -1,6 +1,6 @@
 // URL validation helpers. Data in Firestore is client-written, so any string
 // that ends up in an href/src must be protocol-checked before rendering to
-// avoid javascript:-URI script execution and phishing payloads. See BUG-007.
+// avoid javascript:-URI script execution and phishing payloads.
 
 // Returns the URL only if it is a well-formed https URL, otherwise undefined.
 export const sanitizeHttpsUrl = (url?: string | null): string | undefined => {

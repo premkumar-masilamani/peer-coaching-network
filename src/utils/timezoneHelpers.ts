@@ -34,7 +34,7 @@ export const parseLocalTime = (timeStr: string): { hour: number; minute: number 
   const minute = parseInt(match[2]);
   const ampm = match[3];
   // Range validation — reject impossible values (e.g. "25:99") instead of
-  // letting them through as nonsensical minute totals. See BUG-011.
+  // letting them through as nonsensical minute totals.
   if (minute < 0 || minute > 59) return { hour: 0, minute: 0 };
   if (ampm) {
     if (hour < 1 || hour > 12) return { hour: 0, minute: 0 };
@@ -61,7 +61,7 @@ export const getUtcForLocalDateTime = (
   let utcGuess = new Date(Date.UTC(year, month - 1, day, hour, minute));
 
   // Fixed-point correction. Extra iterations give the offset room to settle
-  // across DST transitions; it breaks early once converged. See BUG-014.
+  // across DST transitions; it breaks early once converged.
   for (let i = 0; i < 5; i++) {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone,
@@ -96,7 +96,7 @@ export const getUtcForLocalDateTime = (
 
 // Convert a wall-clock hour on a given local date to the corresponding UTC
 // instant. Thin wrapper over getUtcForLocalDateTime so this conversion lives in
-// exactly one place (previously duplicated in CoachDashboard). See BUG-014.
+// exactly one place (previously duplicated in CoachDashboard).
 export const getUtcForSlot = (date: Date, hour: number, timeZone: string): Date => {
   return getUtcForLocalDateTime(
     date.getFullYear(),
