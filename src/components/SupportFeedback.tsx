@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { 
   getSupportRequestsForUser, 
   createSupportRequest, 
@@ -8,7 +9,7 @@ import {
   type SupportRequest 
 } from '../services/firebaseService';
 import { SUPPORT_CATEGORIES, type SupportCategory } from '../config';
-import { MessageSquare, Plus, RefreshCw, Send, ChevronLeft, LifeBuoy, Tag, Type, AlignLeft, CheckCircle, Circle } from 'lucide-react';
+import { MessageSquare, Plus, Send, ChevronLeft, LifeBuoy, Tag, Type, AlignLeft, CheckCircle, Circle } from 'lucide-react';
 
 export const SupportFeedback: React.FC = () => {
   const { profile } = useAuth();
@@ -28,7 +29,7 @@ export const SupportFeedback: React.FC = () => {
   // Reply State
   const [replyText, setReplyText] = useState('');
 
-  const loadTickets = async () => {
+  const loadTickets = useCallback(async () => {
     if (!profile) return;
     try {
       const data = await getSupportRequestsForUser(profile.userId);
@@ -42,7 +43,9 @@ export const SupportFeedback: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [profile, selectedTicket]);
+
+  useFocusRefresh(loadTickets);
 
   useEffect(() => {
     (async () => {
@@ -180,23 +183,13 @@ export const SupportFeedback: React.FC = () => {
             </button>
           )}
           {view === 'list' && (
-            <>
-              <button 
-                className="btn btn-secondary" 
-                onClick={() => { setLoading(true); loadTickets(); }}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-                disabled={loading}
-              >
-                <RefreshCw size={16} className={loading ? "spin" : ""} /> Refresh
-              </button>
-              <button 
-                className="btn btn-primary" 
-                onClick={() => setView('new')}
-                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-              >
-                <Plus size={16} /> New Request
-              </button>
-            </>
+            <button 
+              className="btn btn-primary" 
+              onClick={() => setView('new')}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Plus size={16} /> New Request
+            </button>
           )}
         </div>
       </div>
