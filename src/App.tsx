@@ -3,18 +3,19 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { Header } from './components/Header';
 import { Login } from './components/Login';
 import { VerificationNotice } from './components/VerificationNotice';
-import { CoachDashboard } from './components/CoachDashboard';
+import { UpcomingSessions } from './components/UpcomingSessions';
 import { ProfileEdit } from './components/ProfileEdit';
 import { AvailabilityEdit } from './components/AvailabilityEdit';
-import { PlatformAdminDashboard } from './components/PlatformAdminDashboard';
+import { AdminDashboard } from './components/AdminDashboard';
 import { LeftNav } from './components/LeftNav';
-import { MyBookings } from './components/MyBookings';
+import { MySessions } from './components/MySessions';
 import { PublicProfile } from './components/PublicProfile';
 import { SupportFeedback } from './components/SupportFeedback';
 import { isApproved, logAnalyticsEvent } from './services/firebaseService';
 import { Sparkles, AlertTriangle, X } from 'lucide-react';
 import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, THEME } from './config';
 import { clearProfileFromUrl } from './utils/url';
+import { UnsavedChangesProvider, useUnsavedChanges } from './context/UnsavedChangesContext';
 
 
 // Fields that matter for the non-blocking profile-complete banner.
@@ -29,13 +30,16 @@ const getMissingProfileFields = (profile: ReturnType<typeof useAuth>['profile'])
 
 const AppContent: React.FC = () => {
   const { user, role, loading, profile } = useAuth();
+  const { navigateWithConfirmation } = useUnsavedChanges();
   const [currentTab, setCurrentTab] = useState<TabKey>(TABS.DASHBOARD);
   const [adminTabFilter, setAdminTabFilter] = useState<'all' | UserStatus | UserRole>('all');
   const [publicProfileUid, setPublicProfileUid] = useState<string | null>(null);
 
   const handleTabChange = (tab: TabKey) => {
-    setCurrentTab(tab);
-    clearProfileFromUrl();
+    navigateWithConfirmation(tab, () => {
+      setCurrentTab(tab);
+      clearProfileFromUrl();
+    });
   };
 
 
@@ -273,13 +277,13 @@ const AppContent: React.FC = () => {
               <PublicProfile uid={publicProfileUid} onClose={clearProfileFromUrl} />
             ) : (
               <>
-                {currentTab === TABS.DASHBOARD && <CoachDashboard />}
+                {currentTab === TABS.DASHBOARD && <UpcomingSessions />}
                 {currentTab === TABS.PROFILE && <ProfileEdit />}
                 {currentTab === TABS.AVAILABILITY && <AvailabilityEdit />}
-                {currentTab === TABS.BOOKINGS && <MyBookings />}
+                {currentTab === TABS.BOOKINGS && <MySessions />}
                 {currentTab === TABS.SUPPORT && <SupportFeedback />}
                 {currentTab === TABS.ADMIN && role === USER_ROLE.ADMIN && (
-                  <PlatformAdminDashboard
+                  <AdminDashboard
                     initialFilter={adminTabFilter}
                     setInitialFilter={setAdminTabFilter}
                   />
@@ -297,7 +301,9 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <UnsavedChangesProvider>
+        <AppContent />
+      </UnsavedChangesProvider>
     </AuthProvider>
   );
 }

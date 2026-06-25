@@ -36,7 +36,7 @@ import { sanitizeImageUrl, navigateToProfile } from '../utils/url';
 import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE } from '../config';
 
 
-export const CoachDashboard: React.FC = () => {
+export const UpcomingSessions: React.FC = () => {
   const { user: currentUser, profile } = useAuth();
   
   // Ref for date carousel scrolling
