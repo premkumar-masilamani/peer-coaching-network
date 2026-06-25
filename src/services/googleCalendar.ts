@@ -96,10 +96,13 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
   const currentUser = auth?.currentUser;
   if (currentUser && db) {
     try {
-      const qClient = query(collection(db, COLLECTIONS.BOOKINGS), where('clientUid', '==', currentUser.uid));
-      const snapClient = await getDocs(qClient);
+      let qClient = query(collection(db, COLLECTIONS.BOOKINGS), where('clientUid', '==', currentUser.uid));
+      let qHost = query(collection(db, COLLECTIONS.BOOKINGS), where('coachUid', '==', currentUser.uid));
 
-      const qHost = query(collection(db, COLLECTIONS.BOOKINGS), where('coachUid', '==', currentUser.uid));
+      qClient = query(qClient, where('endTime', '>=', Timestamp.now()));
+      qHost = query(qHost, where('endTime', '>=', Timestamp.now()));
+
+      const snapClient = await getDocs(qClient);
       const snapHost = await getDocs(qHost);
 
       const profileCache = new Map<string, UserProfile>();
