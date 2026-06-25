@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { parseLocalTime } from '../utils/timezoneHelpers';
 import { useUnsavedChanges } from '../context/UnsavedChangesContext';
+import { CalendarModal } from './modals/CalendarModal';
 
 interface TimeRange {
   start: string;
@@ -134,11 +135,11 @@ export const AvailabilityEdit: React.FC = () => {
   }, [uid]);
 
   // UI state
-  const [newBlockedDate, setNewBlockedDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [blockErrorMsg, setBlockErrorMsg] = useState('');
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // NOTE: the editable form is seeded once from the profile via the useState
   // initializers above. We deliberately do NOT re-sync from later profile
@@ -254,27 +255,26 @@ export const AvailabilityEdit: React.FC = () => {
     setTimeout(() => setSuccessMsg(''), 3000);
   };
 
-  const handleAddBlockedDate = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newBlockedDate) return;
+  const handleAddBlockedDate = (selectedDate: string) => {
+    if (!selectedDate) return;
 
     const todayStr = getTodayDateString();
-    if (newBlockedDate < todayStr) {
+    if (selectedDate < todayStr) {
       setBlockErrorMsg('You cannot block a past date.');
       setTimeout(() => setBlockErrorMsg(''), 3000);
       return;
     }
 
-    if (blockedDates.includes(newBlockedDate)) {
+    if (blockedDates.includes(selectedDate)) {
       setBlockErrorMsg('This date is already blocked.');
       setTimeout(() => setBlockErrorMsg(''), 3000);
       return;
     }
 
-    logAnalyticsEvent('block_date', { date: newBlockedDate });
-    setBlockedDates(prev => [...prev, newBlockedDate].sort());
-    setNewBlockedDate('');
+    logAnalyticsEvent('block_date', { date: selectedDate });
+    setBlockedDates(prev => [...prev, selectedDate].sort());
     setBlockErrorMsg('');
+    setIsCalendarOpen(false);
   };
 
   // Remove blocked date
@@ -686,26 +686,23 @@ export const AvailabilityEdit: React.FC = () => {
           )}
 
           {/* Date Adder Form */}
-          <form onSubmit={handleAddBlockedDate} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
-            <input
-              type="date"
-              className="input-field"
-              min={getTodayDateString()}
-              value={newBlockedDate}
-              onChange={(e) => {
-                setNewBlockedDate(e.target.value);
-                setBlockErrorMsg('');
-              }}
-              style={{ width: '100%', minHeight: '38px', fontSize: '0.85rem' }}
-            />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '20px' }}>
             <button
-              type="submit"
+              type="button"
+              onClick={() => setIsCalendarOpen(true)}
               className="btn btn-secondary"
               style={{ width: '100%', fontSize: '0.85rem', padding: '8px 12px', fontWeight: 600 }}
             >
-              Add unavailable date
+              Select dates to block
             </button>
-          </form>
+          </div>
+          
+          <CalendarModal 
+            isOpen={isCalendarOpen} 
+            onClose={() => setIsCalendarOpen(false)} 
+            onSelectDate={handleAddBlockedDate} 
+            blockedDates={blockedDates}
+          />
 
           {/* Blocked Date List */}
           <div>
