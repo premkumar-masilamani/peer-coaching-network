@@ -2,10 +2,10 @@ import { Timestamp } from 'firebase/firestore';
 import type { IcfCredential } from '../config';
 
 /**
- * Validates a user's credentials against the ICF Coach Directory.
- * Uses the public ICF Azure Search API to find the coach by name.
+ * Validates a user's credentials against the public ICF Coach Directory.
+ * Fetches the ICF directory HTML directly and parses the results table.
  * 
- * Note: Since the public API may not expose the exact expiration date,
+ * Note: If the directory does not expose an expiration date,
  * we estimate it based on active status, or fall back to a default value.
  */
 export const verifyIcfCredential = async (
@@ -13,47 +13,63 @@ export const verifyIcfCredential = async (
   lastName: string
 ): Promise<IcfCredential | null> => {
   try {
-    const query = `${firstName} ${lastName}`.trim();
-    if (!query) return null;
+    const fn = firstName.trim();
+    const ln = lastName.trim();
+    if (!fn && !ln) return null;
 
-    // Call the ICF Azure Search API
-    const response = await fetch('https://icf-ccf.azurewebsites.net/api/search', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ keywords: query })
-    });
+    // Use the exact URL requested by the user
+    const url = `https://apps.coachingfederation.org/eweb/DynamicPage.aspx?webcode=ICFDirectory&firstname=${encodeURIComponent(fn)}&lastname=${encodeURIComponent(ln)}`;
+    const response = await fetch(url);
 
     if (!response.ok) {
-      console.warn('ICF Directory API returned an error:', response.status);
+      console.warn('ICF Directory returned an error:', response.status);
       return null;
     }
 
-    const data = await response.json();
-    
-    if (data && data.results && data.results.length > 0) {
-      // Find exact name match if possible, or take the first
-      let match = data.results.find((r: { fullName?: string; credential?: string; key?: string }) => 
-        r.fullName?.toLowerCase().includes(firstName.toLowerCase()) && 
-        r.fullName?.toLowerCase().includes(lastName.toLowerCase())
-      );
-      
-      if (!match) {
-        match = data.results[0];
-      }
+    const html = await response.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
 
-      if (match.credential) {
-        // The API only returns active coaches. If they are in the directory, their credential is valid.
-        // Since we don't have the exact expiry string (e.g. "December 2024") from the API, 
-        // we simulate an expiry date for 1 year in the future.
-        const now = new Date();
-        const nextYear = new Date(now.getFullYear() + 1, 11, 31); // Dec 31 of next year
-        
-        return {
-          level: match.credential, // e.g. "ACC", "PCC", "MCC"
-          expiryDate: Timestamp.fromDate(nextYear)
-        };
+    const resultsTable = doc.getElementById('tblResults');
+    if (!resultsTable) {
+      return null;
+    }
+
+    const rows = resultsTable.querySelectorAll('tr');
+    // Skip header row
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const cells = row.querySelectorAll('td');
+      if (cells.length >= 3) {
+        const nameCell = cells[0].textContent?.trim().toLowerCase() || '';
+        // Check if the row matches the user's name
+        if (nameCell.includes(fn.toLowerCase()) && nameCell.includes(ln.toLowerCase())) {
+          const credCell = cells[2].textContent?.trim() || '';
+          if (credCell) {
+            // e.g. "ACC 3/2025 - 3/2028" or just "ACC"
+            const match = credCell.match(/^([A-Z]{3})(?:\s+.*-\s+(\d{1,2})\/(\d{4}))?/);
+            if (match) {
+              const level = match[1];
+              let expiryDate: Date;
+              if (match[2] && match[3]) {
+                const month = parseInt(match[2], 10);
+                const year = parseInt(match[3], 10);
+                // day 0 of month 'month' gives the last day of the previous month (which is the target month because month is 0-indexed)
+                // e.g. year = 2028, month = 3 -> new Date(2028, 3, 0) = March 31, 2028
+                expiryDate = new Date(Date.UTC(year, month, 0, 23, 59, 59));
+              } else {
+                // Fallback if no date is found but credential exists
+                const now = new Date();
+                expiryDate = new Date(Date.UTC(now.getFullYear() + 1, 11, 31, 23, 59, 59));
+              }
+
+              return {
+                level,
+                expiryDate: Timestamp.fromDate(expiryDate)
+              };
+            }
+          }
+        }
       }
     }
 
