@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { subscribeToActiveCoaches, formatDisplayName, subscribeToBookings } from '../services/firebaseService';
 import { getShortCredential, getCredentialBadgeClass, getCredentialDescription } from '../utils/credentials';
 import type { UserProfile } from '../services/firebaseService';
@@ -218,7 +219,7 @@ export const CoachDashboard: React.FC = () => {
   }, []);
 
   // Load calendar availability for coaches + user upcoming sessions
-  const loadCalendarData = async () => {
+  const loadCalendarData = useCallback(async () => {
     if (coaches.length === 0) {
       setLoadingCalendar(false);
       return;
@@ -244,7 +245,9 @@ export const CoachDashboard: React.FC = () => {
     } finally {
       setLoadingCalendar(false);
     }
-  };
+  }, [coaches, viewerTimezone, profile]);
+
+  useFocusRefresh(loadCalendarData);
 
   // Load calendar data when the coach list changes. Runs inside an async IIFE so
   // no setState happens synchronously in the effect body (no setTimeout hack).
@@ -689,17 +692,6 @@ export const CoachDashboard: React.FC = () => {
                 <Filter size={15} color="hsl(var(--primary))" />
                 Filter Available Coaches
               </h4>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <button 
-                  onClick={loadCalendarData} 
-                  className="btn btn-secondary" 
-                  style={{ padding: '6px 12px', fontSize: '0.75rem', height: '32px', gap: '6px' }}
-                  disabled={loadingCalendar || loadingCoaches}
-                >
-                  <RefreshCw size={12} className={loadingCalendar ? 'animate-spin' : ''} />
-                  Refresh
-                </button>
-              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
