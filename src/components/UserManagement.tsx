@@ -691,7 +691,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                                Verify
                              </button>
                              <a 
-                               href={`${ICF_DIRECTORY_URL}&keywords=${encodeURIComponent((u.firstName || '') + ' ' + (u.lastName || ''))}`}
+                               href={ICF_DIRECTORY_URL.replace('{firstName}', encodeURIComponent(u.firstName || '')).replace('{lastName}', encodeURIComponent(u.lastName || ''))}
                                target="_blank" 
                                rel="noopener noreferrer"
                                onClick={(e) => e.stopPropagation()}

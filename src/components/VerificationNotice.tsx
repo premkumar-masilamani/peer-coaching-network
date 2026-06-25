@@ -215,7 +215,7 @@ export const VerificationNotice: React.FC = () => {
               </div>
               <div style={{ marginTop: '4px' }}>
                 <a 
-                  href={`${ICF_DIRECTORY_URL}&keywords=${encodeURIComponent((profile?.firstName || '') + ' ' + (profile?.lastName || ''))}`}
+                  href={ICF_DIRECTORY_URL.replace('{firstName}', encodeURIComponent(profile?.firstName || '')).replace('{lastName}', encodeURIComponent(profile?.lastName || ''))}
                   target="_blank" 
                   rel="noopener noreferrer"
                   style={{ fontSize: '0.8rem', color: 'hsl(var(--primary))', textDecoration: 'none' }}

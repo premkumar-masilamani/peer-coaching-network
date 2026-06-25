@@ -46,28 +46,48 @@ export const verifyIcfCredential = async (
         const nameCell = cells[0].textContent?.trim().toLowerCase() || '';
         // Check if the row matches the user's name
         if (nameCell.includes(fn.toLowerCase()) && nameCell.includes(ln.toLowerCase())) {
-          const credCell = cells[2].textContent?.trim() || '';
-          if (credCell) {
-            // e.g. "ACC 3/2025 - 3/2028" or just "ACC"
-            const match = credCell.match(/^([A-Z]{3})(?:\s+.*-\s+(\d{1,2})\/(\d{4}))?/);
-            if (match) {
-              const level = match[1];
-              let expiryDate: Date;
-              if (match[2] && match[3]) {
-                const month = parseInt(match[2], 10);
-                const year = parseInt(match[3], 10);
-                // day 0 of month 'month' gives the last day of the previous month (which is the target month because month is 0-indexed)
-                // e.g. year = 2028, month = 3 -> new Date(2028, 3, 0) = March 31, 2028
-                expiryDate = new Date(Date.UTC(year, month, 0, 23, 59, 59));
-              } else {
-                // Fallback if no date is found but credential exists
-                const now = new Date();
-                expiryDate = new Date(Date.UTC(now.getFullYear() + 1, 11, 31, 23, 59, 59));
-              }
+          const credCellHtml = cells[2].innerHTML || '';
+          if (credCellHtml) {
+            // Split by <br> or <br/> to handle multiple credentials
+            const credLines = credCellHtml.split(/<br\s*\/?>/i);
+            let bestLevel = '';
+            let bestExpiryDate = new Date(0);
+            let foundValid = false;
 
+            for (const line of credLines) {
+              const cleanLine = line.replace(/<[^>]+>/g, '').trim();
+              if (!cleanLine) continue;
+
+              const match = cleanLine.match(/^([A-Z]{3})(?:\s+.*-\s+(\d{1,2})\/(\d{4}))?/);
+              if (match) {
+                const level = match[1];
+                let expiryDate: Date;
+                if (match[2] && match[3]) {
+                  const month = parseInt(match[2], 10);
+                  const year = parseInt(match[3], 10);
+                  // day 0 gives the last day of the previous month
+                  expiryDate = new Date(Date.UTC(year, month, 0, 23, 59, 59));
+                } else {
+                  // Fallback if no date is found but credential exists
+                  const now = new Date();
+                  expiryDate = new Date(Date.UTC(now.getFullYear() + 1, 11, 31, 23, 59, 59));
+                }
+
+                // Determine hierarchy: MCC > PCC > ACC
+                const levelWeight = (l: string) => l === 'MCC' ? 3 : l === 'PCC' ? 2 : l === 'ACC' ? 1 : 0;
+                
+                if (!foundValid || levelWeight(level) > levelWeight(bestLevel)) {
+                  bestLevel = level;
+                  bestExpiryDate = expiryDate;
+                  foundValid = true;
+                }
+              }
+            }
+
+            if (foundValid) {
               return {
-                level,
-                expiryDate: Timestamp.fromDate(expiryDate)
+                level: bestLevel,
+                expiryDate: Timestamp.fromDate(bestExpiryDate)
               };
             }
           }
