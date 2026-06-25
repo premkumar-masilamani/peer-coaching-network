@@ -480,6 +480,8 @@ describe('firebaseService', () => {
           userId: 'user-123',
           email: 'test@example.com',
           displayName: 'Test User',
+          firstName: 'Test',
+          lastName: 'User',
           photoURL: 'https://photo.url',
         }),
       });
@@ -506,6 +508,8 @@ describe('firebaseService', () => {
           userId: 'user-123',
           email: 'test@example.com',
           displayName: 'Test User',
+          firstName: 'Test',
+          lastName: 'User',
           photoURL: 'https://old-photo.url',
         }),
       });

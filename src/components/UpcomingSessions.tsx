@@ -14,6 +14,8 @@ import type { DocumentData } from 'firebase/firestore';
 import { ScheduleModal } from './modals/ScheduleModal';
 import { CancelModal } from './modals/CancelModal';
 import { SessionDetailsModal } from './modals/SessionDetailsModal';
+import { getPrimaryCredential, mapIcfLevelToQualification } from '../utils/credentialHelpers';
+
 import { 
   Filter, 
   Search, 
@@ -968,9 +970,12 @@ export const UpcomingSessions: React.FC = () => {
                             {slotCoaches.map((coach) => {
                               // Border mapping based on highest qualification
                               let borderCol = 'var(--border-light)';
-                              const hasMCC = coach.qualifications?.some(q => getShortCredential(q) === 'MCC');
-                              const hasPCC = coach.qualifications?.some(q => getShortCredential(q) === 'PCC');
-                              const hasACC = coach.qualifications?.some(q => getShortCredential(q) === 'ACC');
+                              const primaryCred = getPrimaryCredential(coach.icfCredentials);
+                              const primaryQual = primaryCred ? mapIcfLevelToQualification(primaryCred.level) : null;
+                              const hasMCC = primaryQual === 'ICF MCC';
+                              const hasPCC = primaryQual === 'ICF PCC';
+                              const hasACC = primaryQual === 'ICF ACC';
+                              
                               if (hasMCC) borderCol = 'hsl(var(--mcc-platinum))';
                               else if (hasPCC) borderCol = 'hsl(var(--pcc-silver))';
                               else if (hasACC) borderCol = 'hsl(var(--acc-gold))';
@@ -999,15 +1004,15 @@ export const UpcomingSessions: React.FC = () => {
                                           {coach.country || 'Remote'}
                                         </div>
                                         <div className="mini-coach-quals">
-                                          {coach.qualifications?.map(q => {
-                                            const shortCode = getShortCredential(q);
-                                            const qBadge = getCredentialBadgeClass(q);
-                                            return (
-                                              <span key={q} className={`badge ${qBadge}`} style={{ fontSize: '0.55rem', padding: '2px 6px' }}>
-                                                {shortCode}
-                                              </span>
-                                            );
-                                          })}
+                                          {primaryQual ? (
+                                            <span className={`badge ${getCredentialBadgeClass(primaryQual as Qualification)}`} style={{ fontSize: '0.55rem', padding: '2px 6px' }}>
+                                              {getShortCredential(primaryQual as Qualification)}
+                                            </span>
+                                          ) : (
+                                            <span style={{ fontSize: '0.6rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
+                                              Trainee Coach
+                                            </span>
+                                          )}
                                         </div>
                                       </div>
                                     </div>

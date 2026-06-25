@@ -17,8 +17,11 @@ import { getTimezonesForCountry } from '../utils/timezones';
 import { getCredentialDescription } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince, logAnalyticsEvent } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
-import { GENDER_OPTIONS, type Gender, type Qualification } from '../config';
+import { GENDER_OPTIONS, type Gender, type Qualification, ICF_DIRECTORY_URL } from '../config';
 import { navigateToProfile } from '../utils/url';
+import { getPrimaryCredential, mapIcfLevelToQualification } from '../utils/credentialHelpers';
+import { verifyIcfCredential } from '../services/icfService';
+import { updateVerifiedCredentials } from '../services/firebaseService';
 
 
 // ── Profile completion logic ──────────────────────────────────────────────────
@@ -71,6 +74,34 @@ export const ProfileEdit: React.FC = () => {
 
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  
+  const [verifying, setVerifying] = useState(false);
+  const [verifyMsg, setVerifyMsg] = useState('');
+
+  
+  const primaryCredential = getPrimaryCredential(profile?.icfCredentials);
+
+  const handleVerify = async () => {
+    if (!profile) return;
+    setVerifying(true);
+    setVerifyMsg('');
+    try {
+      const cred = await verifyIcfCredential(profile.firstName, profile.lastName);
+      if (cred) {
+        const newQual = mapIcfLevelToQualification(cred.level);
+        await updateVerifiedCredentials(profile.userId, [cred], newQual);
+        setVerifyMsg(`Successfully verified as ${cred.level}!`);
+        // Refresh local profile state by not doing anything (onSnapshot will update profile)
+      } else {
+        setVerifyMsg('Could not find active credential in ICF Directory.');
+      }
+    } catch (e) {
+      console.error('Error verifying credentials:', e);
+      setVerifyMsg('Error verifying credentials.');
+    } finally {
+      setVerifying(false);
+    }
+  };
 
   const handleCountryChange = (selectedCountry: string) => {
     setCountry(selectedCountry);
@@ -281,26 +312,46 @@ export const ProfileEdit: React.FC = () => {
               <Award size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
               Credentials
             </label>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-              {qualifications && qualifications.length > 0 ? (
-                qualifications.map((qual) => (
-                  <div
-                    key={qual}
-                    style={{
-                      fontSize: '0.9rem',
-                      color: 'hsl(var(--text-primary))',
-                      padding: '2px 0',
-                      fontWeight: 500
-                    }}
-                  >
-                    {getCredentialDescription(qual)}
-                  </div>
-                ))
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
+              {primaryCredential ? (
+                <div style={{ fontSize: '0.9rem', color: 'hsl(var(--text-primary))', fontWeight: 500 }}>
+                  {getCredentialDescription(mapIcfLevelToQualification(primaryCredential.level) || primaryCredential.level)}
+                  <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', marginLeft: '8px' }}>
+                    (Expires: {primaryCredential.expiryDate.toDate().toLocaleDateString(undefined, { month: 'short', year: 'numeric' })})
+                  </span>
+                </div>
               ) : (
                 <div style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>
-                  No credentials assigned
+                  Trainee Coach
                 </div>
               )}
+              
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={handleVerify}
+                  disabled={verifying}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+                >
+                  {verifying ? 'Verifying...' : 'Verify with ICF Directory'}
+                </button>
+                {verifyMsg && (
+                  <span style={{ fontSize: '0.8rem', color: verifyMsg.includes('Success') ? 'hsl(var(--success))' : 'hsl(var(--warning))' }}>
+                    {verifyMsg}
+                  </span>
+                )}
+              </div>
+              <div style={{ marginTop: '4px' }}>
+                <a 
+                  href={`${ICF_DIRECTORY_URL}&keywords=${encodeURIComponent((profile?.firstName || '') + ' ' + (profile?.lastName || ''))}`}
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  style={{ fontSize: '0.8rem', color: 'hsl(var(--primary))', textDecoration: 'none' }}
+                >
+                  Search ICF Directory for {profile?.firstName} {profile?.lastName} <ExternalLink size={10} style={{ display: 'inline' }} />
+                </a>
+              </div>
             </div>
           </div>
 

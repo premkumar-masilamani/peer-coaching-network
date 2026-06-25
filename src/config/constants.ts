@@ -8,3 +8,5 @@ export const ENABLE_GOOGLE_INTEGRATION = import.meta.env.VITE_ENABLE_GOOGLE_INTE
 
 export const DEV_API_URL = 'http://localhost:5000/api';
 export const PROD_API_URL = 'https://app.peercoachingnetwork.com';
+
+export const ICF_DIRECTORY_URL = 'https://apps.coachingfederation.org/eweb/DynamicPage.aspx?webcode=ICFDirectory';

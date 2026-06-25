@@ -23,6 +23,8 @@ import {
   getCredentialDescription 
 } from '../utils/credentials';
 import { sanitizeImageUrl } from '../utils/url';
+import { getPrimaryCredential, mapIcfLevelToQualification } from '../utils/credentialHelpers';
+import type { Qualification } from '../config';
 
 interface PublicProfileProps {
   uid: string;
@@ -98,9 +100,12 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
 
   // Border mapping based on highest qualification
   let borderCol = 'var(--border-light)';
-  const hasMCC = profile.qualifications?.some(q => getShortCredential(q) === 'MCC');
-  const hasPCC = profile.qualifications?.some(q => getShortCredential(q) === 'PCC');
-  const hasACC = profile.qualifications?.some(q => getShortCredential(q) === 'ACC');
+  const primaryCred = getPrimaryCredential(profile.icfCredentials);
+  const primaryQual = primaryCred ? mapIcfLevelToQualification(primaryCred.level) : null;
+  const hasMCC = primaryQual === 'ICF MCC';
+  const hasPCC = primaryQual === 'ICF PCC';
+  const hasACC = primaryQual === 'ICF ACC';
+  
   if (hasMCC) borderCol = 'hsl(var(--mcc-platinum))';
   else if (hasPCC) borderCol = 'hsl(var(--pcc-silver))';
   else if (hasACC) borderCol = 'hsl(var(--acc-gold))';
@@ -192,20 +197,14 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
 
           {/* Qualifications Badges */}
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px', justifyContent: 'center' }}>
-            {profile.qualifications && profile.qualifications.length > 0 ? (
-              profile.qualifications.map((q) => {
-                const shortCode = getShortCredential(q);
-                const cls = getCredentialBadgeClass(q);
-                return (
-                  <span key={q} className={`badge ${cls}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                    <Award size={12} style={{ marginRight: '4px' }} />
-                    {shortCode}
-                  </span>
-                );
-              })
+            {primaryQual ? (
+              <span className={`badge ${getCredentialBadgeClass(primaryQual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
+                <Award size={12} style={{ marginRight: '4px' }} />
+                {getShortCredential(primaryQual as Qualification)}
+              </span>
             ) : (
               <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
-                Pending credential review
+                Trainee Coach
               </span>
             )}
 
@@ -225,15 +224,14 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
         </div>
 
         {/* Credentials and Certifications Descriptions */}
-        {profile.qualifications && profile.qualifications.length > 0 && (
+        {primaryQual && primaryCred && (
           <div className="glass-panel" style={{ padding: '24px' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Award size={16} style={{ color: 'hsl(var(--primary))' }} />
               ICF Credentials
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {profile.qualifications.map((q) => (
-                <div key={q} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                   <div style={{ 
                     marginTop: '6px',
                     width: '6px', 
@@ -243,14 +241,16 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
                   }} />
                   <div>
                     <h4 style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {getShortCredential(q)}
+                      {getShortCredential(primaryQual as Qualification)}
                     </h4>
                     <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-secondary))', marginTop: '2px' }}>
-                      {getCredentialDescription(q)}
+                      {getCredentialDescription(primaryQual as Qualification)}
+                    </p>
+                    <p style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', marginTop: '2px' }}>
+                      Expires: {primaryCred.expiryDate.toDate().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
                     </p>
                   </div>
                 </div>
-              ))}
             </div>
           </div>
         )}

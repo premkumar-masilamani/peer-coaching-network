@@ -28,7 +28,7 @@ import {
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus, COLLECTIONS } from '../config';
+import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus, COLLECTIONS, type IcfCredential } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -87,11 +87,14 @@ export const DEFAULT_AVAILABLE_DAYS: AvailableDays = {
 export interface UserProfile {
   userId: string;
   email: string;
-  displayName: string;
+  firstName: string;
+  lastName: string;
+  displayName?: string; // Optional legacy field
   photoURL: string | null;
   gender: Gender;
   country: string;
   qualifications?: Qualification[];
+  icfCredentials?: IcfCredential[];
   bio: string;
   timezone: string;
   userRole: UserRole;
@@ -218,6 +221,10 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
 
     const cleanEmail = email.toLowerCase();
     
+    const parts = displayName.trim().split(' ');
+    const firstName = parts[0] || '';
+    const lastName = parts.slice(1).join(' ') || '';
+    
     const assignedRole: UserRole = USER_ROLE.USER;
     const initialStatus: UserStatus = USER_STATUS.INACTIVE;
 
@@ -225,11 +232,14 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
      const newProfile: UserProfile = {
        userId: result.user.uid,
        email: cleanEmail,
+       firstName,
+       lastName,
        displayName,
        photoURL: result.user.photoURL,
        userRole: assignedRole,
        userStatus: initialStatus,
        qualifications: [] as Qualification[],
+       icfCredentials: [],
        gender: '' as unknown as Gender,
        country: '',
        bio: '',
@@ -248,8 +258,18 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
      // Sync Google Profile data in database during login (Google takes priority)
      const existingProfile = userDoc.data() as UserProfile;
      const updates: Partial<UserProfile> = {};
-     if (result.user.displayName && existingProfile.displayName !== result.user.displayName) {
-       updates.displayName = result.user.displayName;
+     if (result.user.displayName) {
+       const parts = result.user.displayName.trim().split(' ');
+       const inFirst = parts[0] || '';
+       const inLast = parts.slice(1).join(' ') || '';
+       
+       if (existingProfile.firstName !== inFirst || existingProfile.lastName !== inLast) {
+         updates.firstName = inFirst;
+         updates.lastName = inLast;
+       }
+       if (existingProfile.displayName !== result.user.displayName) {
+         updates.displayName = result.user.displayName;
+       }
      }
      const incomingEmail = result.user.email ? result.user.email.toLowerCase() : null;
      if (incomingEmail && existingProfile.email !== incomingEmail) {
@@ -384,9 +404,23 @@ export const setUserRoleAndStatus = async (
 
 
 
-export const formatDisplayName = (user: { displayName?: string | null } | null | undefined): string => {
+export const formatDisplayName = (user: { firstName?: string; lastName?: string; displayName?: string | null } | null | undefined): string => {
   if (!user) return '';
+  if (user.firstName || user.lastName) {
+    return `${user.firstName || ''} ${user.lastName || ''}`.trim();
+  }
   return (user.displayName || '').replace(/\s*\([^)]*\)/g, '').trim();
+};
+
+export const updateVerifiedCredentials = async (uid: string, credentials: IcfCredential[], newQualification?: Qualification): Promise<void> => {
+  const userDocRef = doc(db, COLLECTIONS.USERS, uid);
+  const updates: Partial<UserProfile> = {
+    icfCredentials: credentials
+  };
+  if (newQualification) {
+    updates.qualifications = [newQualification];
+  }
+  await updateDoc(userDocRef, updates);
 };
 
 export const getSchedule = async (userId: string): Promise<{ availableDays: AvailableDays; blockedDates: string[] }> => {
