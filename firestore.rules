@@ -30,8 +30,7 @@ service cloud.firestore {
     // profile must leave these unchanged.
     function privilegedFieldsUnchanged() {
       return request.resource.data.userRole == resource.data.userRole
-        && request.resource.data.userStatus == resource.data.userStatus
-        && request.resource.data.qualifications == resource.data.qualifications;
+        && request.resource.data.userStatus == resource.data.userStatus;
     }
 
     // Identity fields are immutable on a self-update (defense-in-depth). See BUG-008.

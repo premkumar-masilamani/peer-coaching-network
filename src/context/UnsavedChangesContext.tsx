@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
 import { ReviewChangesModal } from '../components/modals/ReviewChangesModal';
 
 type SaveFunction = () => Promise<boolean>;
@@ -40,7 +40,7 @@ export const UnsavedChangesProvider: React.FC<{ children: ReactNode }> = ({ chil
     }
   }, [isDirty, onSave]);
 
-  const navigateWithConfirmation = useCallback((tab: string, performNavigation: () => void) => {
+  const navigateWithConfirmation = useCallback((_tab: string, performNavigation: () => void) => {
     if (isDirty) {
       setModalState({ isOpen: true, mode: 'navigate', navigateAction: performNavigation });
     } else {
