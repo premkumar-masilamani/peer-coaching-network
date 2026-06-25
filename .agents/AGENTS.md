@@ -363,3 +363,12 @@ To ensure profile details remain up-to-date, case-insensitive, and take priority
 
 1. **Reusable Modals**: Never use inline JSX overlays (e.g., `<div className="modal-overlay">`) directly within page components. All modals must be extracted into standalone, reusable components inside `src/components/modals/` and imported as needed.
 2. **Directory-as-a-Module Configuration**: Always manage configurations using the barrel export pattern. Instead of using a single large configuration file, split domain-specific constants (like `collections.ts`, `userTypes.ts`, `telemetryErrors.ts`) into smaller files inside `src/config/` and export them entirely from `src/config/index.ts`. Import them across the app using `import { ... } from '../config'`.
+
+---
+
+## 💾 Unsaved State & Navigation Interception
+
+1. **Global Tracking**: The application uses a global `UnsavedChangesContext` to track form dirtiness and intercept cross-tab navigation. Any form that mutates local state without persisting to Firestore must integrate the `useUnsavedChanges` hook to block accidental navigation.
+2. **Context Dependencies**: When extracting handlers (like `executeApproval` or `handleSave`) into `useEffect` hooks for the context's `setPageDirtyState`, you must wrap them in `useCallback` to prevent infinite cascading renders, since `setPageDirtyState` will re-trigger the context cycle if the handler identity changes.
+3. **Specific Modification Feedback**: The unified `ReviewChangesModal` accepts an array of strings detailing what changed. Instead of pushing generic fallback messages, use a diffing engine (e.g., against initial state on load) to push concrete, contextual change statements (e.g., `"Added blocked date: Dec 25, 2026"`).
+4. **Save Button Layout**: Save buttons inside complex user-editable forms (`ProfileEdit`, `AvailabilityEdit`) must be placed logically close to the fields they govern (e.g., at the bottom of the form or column container), rather than floating loosely in a global page header.
