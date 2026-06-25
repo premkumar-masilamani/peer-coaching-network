@@ -1,374 +1,54 @@
 # Peer Coaching Network — AI Agent Guide
 
-Welcome, Agent! This document acts as the definitive codebase guide, architectural reference, and runtime manual for working with the Peer Coaching Network application. 
-
-Peer Coaching Network ("collaborative Calendly for coaches") is a Single Page Application (SPA) built using **Vite + React 19 + TypeScript** where ICF-credentialed coaches book peer coaching sessions with each other. The backend is entirely serverless, running client-side with direct connections to **Cloud Firestore** and the **Google Calendar REST API**.
+This document acts as the definitive codebase guide and runtime manual. It strictly details prescriptive engineering constraints and patterns to guide AI development.
 
 ---
 
-## 🛠 Repository Commands
+## 1. Tech Stack & Environment
+- **Core**: Vite + React 19 + TypeScript (SPA), Cloud Firestore, Google Calendar REST API.
+- **Environment Overrides**:
+  - `VITE_USE_FIREBASE_EMULATOR=true`: Routes to local emulators (Auth :9099, Firestore :8080).
+  - `VITE_ENABLE_GOOGLE_INTEGRATION=false`: Disables real API calls; runs sandbox fallback mode.
+  - `VITE_LOG_LEVEL`: Overrides console verbosity (`'debug'`, `'info'`, `'warn'`, `'error'`).
+- **Commands**:
+  - `make dev` / `make local` (emulator) / `make build` / `make build-prod` / `make lint` / `make emulator` / `make install` / `npm run test`
+- **Deployments**: 
+  - `firebase.json` uses an array of database configurations (`firestore: [{ database: "pcn-dev", ... }, { database: "pcn-prod", ... }]`).
+  - Deploy using dynamic targets: `firebase deploy --only firestore:${VITE_FIRESTORE_DATABASE_ID},hosting`
 
-The project contains a [Makefile](file:///Users/premkumar/Code/peer-coaching-network/Makefile) defining developer tasks. Use these shortcuts during development:
-
-```bash
-make dev          # Start Vite dev server connecting to Firebase dev environment (runs: npm run dev)
-make local        # Start local Firebase emulators and run Vite connecting to it (runs: npm run local)
-make build        # Type-check TypeScript and build dev bundle (runs: npm run build:dev)
-make build-dev    # Same as make build — explicit dev build (runs: npm run build:dev)
-make build-prod   # Type-check TypeScript and build production bundle (runs: npm run build:prod)
-make lint         # Run ESLint validation checks (runs: eslint .)
-make emulator     # Start local Firebase emulator suite only (Auth on :9099, Firestore on :8080, Hosting on :5002)
-make install      # Install all npm dependencies (runs: npm install)
-npm run preview   # Run a local web server previewing the production build folder (dist/)
-```
-
-> [!NOTE]
-> There is a unit test suite configured in this repository. Run `npm run test` or `vitest run` to execute the tests.
-
----
-
-## ⚙️ Environment & Firebase Configuration
-
-Firebase configuration is loaded dynamically via environment variables (declared in `.env.development` and `.env.emulator`) inside [firebaseService.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/firebaseService.ts) and [config.ts](file:///Users/premkumar/Code/peer-coaching-network/src/config.ts).
-
-To keep environment files clean, any variable whose value matches its application default behavior should be ignored/omitted from the `.env` file.
-
-Key environment flags and rules:
-- **Project Default**: If variables are missing, the configuration defaults to the `peer-coaching-network-dev` project.
-- **Local Emulators (`VITE_USE_FIREBASE_EMULATOR`)**: Controls whether traffic is routed to the local Firebase emulators (Auth on :9099, Firestore on :8080).
-  - **Default**: `false` (runs against actual Cloud Firebase).
-  - **Override**: Set `VITE_USE_FIREBASE_EMULATOR=true` in `.env.emulator` to connect to local emulators.
-  - To prevent Hot Module Replacement (HMR) from attempting multiple emulator connections, the connection is guarded using a global `window._firebase_emulators_connected` flag.
-- **Google Calendar Integration (`VITE_ENABLE_GOOGLE_INTEGRATION`)**: Controls whether the application integrates with the Google Calendar REST API for scheduling sessions.
-  - **Default**: `true` (enables real API interactions when a token is present).
-  - **Override**: Set `VITE_ENABLE_GOOGLE_INTEGRATION=false` in `.env.emulator` to disable API calls and run calendar integration in sandbox fallback mode (persisting bookings only to Firestore).
-- **Logger Configuration (`VITE_LOG_LEVEL`)**: Controls the console logging output verbosity.
-  - **Default**: `'error'` (prints only error logs if unset).
-  - **Override**: Set to `'debug'`, `'info'`, or `'warn'` in `.env.emulator` or `.env.development` to increase logging verbosity.
-- **Firestore Database ID (`VITE_FIRESTORE_DATABASE_ID`)**: Specifies which Cloud Firestore database instance to connect to.
-  - **Default**: `"pcn-dev"` (uses the pcn-dev database).
-- **Fail Fast Configuration**: The flag `isFirebaseConfigured` verifies if real config keys are present (or if we are on the emulator). In production, missing credentials throw a runtime exception rather than letting the application boot with broken credentials.
-- **Rules & Targets**: Deploys target **Firebase Hosting** (the `dist/` directory) with SPA rewrites enabled in [firebase.json](file:///Users/premkumar/Code/peer-coaching-network/firebase.json). Firestore security rules are configured in [firestore.rules](file:///Users/premkumar/Code/peer-coaching-network/firestore.rules).
-
----
-
-## 🏛 Architecture & State Flow
-
-The codebase strictly decouples UI components from storage and calendar providers by isolating them behind a dedicated service layer:
-
-```mermaid
-graph TD
-  UI[React Components] --> AuthContext[AuthContext.tsx]
-  UI --> Services[Service Layer]
-  Services --> FirebaseService[firebaseService.ts]
-  Services --> GoogleCalendar[googleCalendar.ts]
-  GoogleCalendar --> GoogleToken[googleToken.ts]
-  FirebaseService --> Firestore[(Firestore DB)]
-  GoogleCalendar --> GoogleAPI[Google Calendar API]
-```
-
-### 1. Service Layer
-- **[firebaseService.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/firebaseService.ts)**: Encapsulates Firebase initialization, Auth state, Firestore user profiles CRUD, administrative overrides, and the canonical availability calculation logic. It owns type definitions like `UserProfile`, `AvailableDays`, and `DayAvailability`.
-- **[googleCalendar.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/googleCalendar.ts)**: Handles Google Calendar REST API actions (events, freebusy status, Meet links) and persists bookings to Firestore. It reads credential tokens from [googleToken.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/googleToken.ts).
-- **[googleToken.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/googleToken.ts)**: Stashes and exposes OAuth tokens within `sessionStorage` (`google_access_token`).
-
-### 2. State & Auth Flow
-- **[AuthContext.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/context/AuthContext.tsx)**: The single source of truth for application authentication and state. It listens to `onAuthStateChanged` and registers a live Firestore `onSnapshot` listener to the active user's document inside the `users` collection to keep state synchronized.
-- **[App.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/App.tsx)**: Acts as a flat router based on custom state `currentTab` (no external routing library is used). It gates the entire layout depending on user status (`approved` vs `pending`).
+## 2. Architecture & State Flow
+- **Service Layer**: Keep UI components strictly decoupled from storage and Google APIs (use `src/services/firebaseService.ts` and `src/services/googleCalendar.ts`).
+- **Context Source of Truth**: `AuthContext.tsx` holds application auth and live Firestore profile state (`onSnapshot`).
 - **Adjust-During-Render**: App routing changes and filtering are derived during render rather than side-effects to prevent flickering or cascading-render warnings.
-
-### 3. Role and Approval Model
-Firestore profiles manage two systems for user authorization:
-1. **Legacy Role**: `role: 'admin' | 'user' | null` (where `null` represents a user pending review).
-2. **Current Role & Status**: `userRole: 'user' | 'admin'` alongside `userStatus: 'active' | 'inactive'`.
-
-The helper `setUserRoleAndStatus` keeps these systems aligned by setting `role` to `userRole` if `status` is `'active'`, or `null` otherwise. A user is treated as fully approved when `isApproved()` resolves to `true` (indicating `userStatus === 'active'`). New signups start as `inactive` with a `null` legacy role, awaiting approval on the admin desk.
-
----
-
-## 📅 The Availability Engine
-
-The peer-coaching booking workflow is supported by three Firestore collections and a schedule sub-collection:
-1. `users/{userId}`: Holds user profiles.
-2. `users/{userId}/schedule`: Sub-collection containing:
-   - `availableDays` document: Holds the weekly recurring availability template.
-   - `blockedDates` document: Holds user-defined blocked dates.
-3. `bookings/{bookingId}`: Contains confirmed session details (referencing `coachUid`, `clientUid`, `googleMeetLink`, and `topic`). Denormalized participant emails and names are removed and joined dynamically on the client side.
-4. `busySlotsCache/{userId}`: Cache holding derived busy intervals.
-
-### How recalculateUserBusySlotsCache Works
-The function `recalculateUserBusySlotsCache(uid)` in [firebaseService.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/firebaseService.ts) runs asynchronously in the background following bookings, cancellations, or profile updates.
-1. It reads the coach's weekly template and blocked dates from the `schedule` sub-collection.
-2. It queries active bookings for the coach (both as host and client) for the next horizon window (configured in [config.ts](file:///Users/premkumar/Code/peer-coaching-network/src/config.ts)).
-3. It maps weekly slots, blocked dates, and active bookings into UTC time windows.
-4. It derives the gaps where the coach is *unavailable* and writes these busy intervals into the `busySlotsCache` collection.
-
-To prevent concurrent writes from interleaving and corrupting user busy slots cache records, calculations are queued using a promise chain (`recalcChains` map) to serialize updates per user ID.
-
-### Scheduling & Double-Booking Protection
-- **Coach Protection**: Bookings are saved in the `bookings` collection with a deterministic identifier: `${coachUid}_${startIso}`. A transaction verifies this ID is unclaimed before scheduling a meeting.
-- **Mentee Protection**: Mentees (clients) cannot double-book themselves across coaches. The scheduling flow creates a temporary placeholder in `clientBookingCache/${clientUid}_${startIso}` inside the transaction. If either check fails, the transaction aborts and no Google Calendar events are created.
-- **Availability Overlay**: The method `getCoachesBusySlots` fetches busy slots caches in batches of 30 using Firestore `in` query limits. It overlays live bookings and generates fallbacks in-memory if a cached profile does not yet have a `busySlotsCache` document.
-- **Stale Cache Prevention**: If a day has no busy slots registered in the cache, the busy slots overlay engine automatically marks the entire day as unavailable (busy) to prevent infinite availability leaks due to stale caches.
-
----
-
-## 🌍 Timezones & Wall-Clock Corrections
-
-- Availability templates are created using local strings (e.g. `"10:00 AM"`), but are resolved and queried in UTC ISO strings.
-- Conversions are located inside [timezoneHelpers.ts](file:///Users/premkumar/Code/peer-coaching-network/src/utils/timezoneHelpers.ts).
-- `getUtcForLocalDateTime` maps local wall-clock times to UTC. It implements a fixed-point convergence algorithm (up to 5 iterations) to resolve discrepancies across Daylight Savings Time (DST) changes.
-- Country-to-timezone lists are mapped in [countries.ts](file:///Users/premkumar/Code/peer-coaching-network/src/utils/countries.ts) and [timezones.ts](file:///Users/premkumar/Code/peer-coaching-network/src/utils/timezones.ts). When editing profiles, selecting a country limits the timezone dropdown list to relevant options.
-
----
-
-## 🔑 Google API & Calendar Specifics
-
-- **OAuth Permissions**: Google login requests scopes to manage calendar events (`https://www.googleapis.com/auth/calendar` and `https://www.googleapis.com/auth/calendar.events`).
-- **Sandbox Mode**: When Google token is absent, or when Google Calendar integration is disabled, all calendar integrations run in a fallback mode (persisting bookings only to Firestore).
-- **Google Meet Links**: Scheduled meetings send POST requests to the calendar API with the parameter `conferenceDataVersion=1` to generate a real Google Meet room.
-- **Bookings Sync**: Active bookings are queried by stable uids rather than emails in [googleCalendar.ts](file:///Users/premkumar/Code/peer-coaching-network/src/services/googleCalendar.ts) to prevent email mismatch issues.
-- **Automated Integration**: Google Calendar sync configuration is fully automated. The application requests Google Calendar permissions during sign-in, and all confirmed coaching sessions are automatically scheduled on the Google Calendar with an automatic Google Meet video room.
-
----
-
-## 🏅 Credentials System
-
-Coaches select credentials representing their ICF level: ACC, PCC, or MCC.
-- Code definitions are mapped in [credentials.ts](file:///Users/premkumar/Code/peer-coaching-network/src/utils/credentials.ts), exposing method helpers like `getShortCredential`, `getCredentialDescription`, and `getCredentialBadgeClass`.
-- Credentials are read-only for coaches. Modifying credentials requires authorization and must be approved in the [AdminDashboard.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/AdminDashboard.tsx).
-
----
-
-## 🎨 Layout & Coding Conventions
-
-- **Named Exports**: Expose modules as named exports (e.g. `export const ProfileEdit`) rather than default exports.
-- **Flat Structure**: Components are stored flat within [components/](file:///Users/premkumar/Code/peer-coaching-network/src/components/).
-- **CSS Styling**: The layout utilizes inline styles combined with custom CSS variables specified in [index.css](file:///Users/premkumar/Code/peer-coaching-network/src/index.css). 
-- **Light/Dark Theme**: Themes are switched by appending or removing the class `.light-theme` on `document.documentElement` and reading/writing the `profile.theme` attribute.
-- **TypeScript & Import Conventions**:
-  - **Verbatim Module Syntax**: When importing type definitions, prefix them with the `type` keyword (e.g. `import { type UserRole, type UserStatus } from '../config'`) to comply with `verbatimModuleSyntax` and prevent build failures.
-- **Constant & Type Naming Conventions**:
-  - **No Hardcoded Options**: Fixed option values (roles, user statuses, themes, genders, qualifications, navigation tabs, and log severities) must never be hardcoded. They should reference centralized object constants in `src/config.ts` (e.g., `USER_ROLE`, `USER_STATUS`, `THEME`, `GENDER`, `QUALIFICATION`, `LOG_SEVERITY`, and `TABS`).
-  - **Suffix Consistency**: Union types derived from config option arrays must not use the `"Value"` suffix (e.g. use `Gender`, `Theme`, `Qualification`, `UserRole`, `UserStatus`, and `LogSeverity` consistently).
-- **Component Overview**:
-  - [Header.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/Header.tsx): The top header layout.
-  - [LeftNav.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/LeftNav.tsx): Side navigation menu.
-  - [CoachDashboard.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/CoachDashboard.tsx): Main dashboard showing a 56-day scrollable carousel of days and lists of available coaching slots.
-  - [ScheduleModal.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/ScheduleModal.tsx): Booking modal where users select meeting topics and confirm times.
-  - [MyBookings.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/MyBookings.tsx): Lists personal upcoming and completed sessions with option to cancel.
-  - [ProfileEdit.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/ProfileEdit.tsx): Form editing timezone, country, bio, and gender.
-  - [AvailabilityEdit.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/AvailabilityEdit.tsx): Setup weekly templates and dates blocked.
-  - [AdminDashboard.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/AdminDashboard.tsx): Admin desk allowing user status activation, role updates, and custom qualifications allocation.
-  - [VerificationNotice.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/VerificationNotice.tsx): Panel shown to pending/inactive users.
-  - [SystemLogs.tsx](file:///Users/premkumar/Code/peer-coaching-network/src/components/SystemLogs.tsx): Admin-only real-time log viewer paginating the `systemLogs` Firestore collection with multi-select severity filtering.
-
----
-
-## 🎨 Theme System
-
-- **Supported values**: `'light' | 'dark'` only. The legacy `'system'` value (which wired a `prefers-color-scheme` media query listener) has been **removed**.
-- **New user default**: `theme: 'light'` is set on signup in `firebaseService.ts`.
-- **Application**: `App.tsx` applies/removes the `.light-theme` class on `document.documentElement`. Any stored value that is not `'light'` (including old `'system'` records) is treated as dark.
-- **Toggle**: `LeftNav.tsx` flips between `'light'` and `'dark'` directly. Treat any non-`'light'` stored value as `'dark'` before computing the next state.
-
----
-
-## 🎨 UI Styling & Design System Enforcement
-
-To prevent styling regressions and ensure the application remains beautiful and accessible in both Light and Dark modes, strictly adhere to the following UI guidelines:
-
-1. **CSS Variables & HSL Wrapping**:
-   - All theme colors in `index.css` (e.g., `--primary`, `--bg-base`, `--text-primary`) are defined as raw HSL channel values (e.g., `173 80% 40%`).
-   - You **MUST ALWAYS** wrap them in the `hsl()` function when using them in inline styles or CSS (e.g., `hsl(var(--primary))`). 
-   - Never write `background: 'var(--primary)'` — this is invalid CSS and will cause elements to lose their styling entirely, leading to invisible text or backgrounds.
-
-2. **Buttons & Interactive Elements**:
-   - Never use ad-hoc inline styles for standard buttons (e.g., avoiding `background: hsl(var(--primary)); color: #fff; border-radius: 20px;`).
-   - Always use the predefined CSS utility classes: `className="btn btn-primary"` or `className="btn btn-secondary"`. 
-   - These classes are explicitly configured in `index.css` to handle hover states, transitions, glassmorphism borders, and proper text contrast switching across both light and dark themes.
-
-3. **Semantic Text Colors**:
-   - Use `hsl(var(--text-primary))` for main headings and active text.
-   - Use `hsl(var(--text-secondary))` for subtitles, inactive tabs, or supporting text.
-   - Use `hsl(var(--text-muted))` for hints and minor details.
-   - Do not hardcode hex colors (like `#ffffff` or `#333333`) for text, as they will inevitably become unreadable when the theme is toggled.
-
-4. **Glassmorphism & Panels**:
-   - When building cards, modals, or wrappers, use `className="glass-panel"`. This automatically applies the correct background opacity, backdrop blur, borders, and shadows that adjust perfectly to the active theme.
-
----
-
-## 🗺 Navigation Tab Keys
-
-Tab keys are lowercase slugs set via `setCurrentTab`. The human-readable label and the key can differ — always use the **key** for routing logic, never the label.
-
-| Key | Label | Component |
-|---|---|---|
-| `'dashboard'` | Dashboard | `CoachDashboard` |
-| `'profile'` | My Profile | `ProfileEdit` |
-| `'availability'` | My Availability | `AvailabilityEdit` |
-| `'bookings'` | My Sessions | `MyBookings` |
-| `'admin'` | Admin | `PlatformAdminDashboard` (admin only) |
-
-- `setCurrentTab` is owned by `AppContent` in `App.tsx` and passed as a prop to `LeftNav` and `Header`. Sub-components like `CoachDashboard` do **not** receive it — cross-tab navigation from within a sub-component should be handled via the banner or a parent-level prop if genuinely needed.
-
----
-
-## 🔔 Profile Completion Banner & Widget
-
-### Non-blocking banner (`App.tsx`)
-- A dismissible amber banner is shown at the top of the `<main>` content area on every tab **except** `'profile'` when the user's profile is incomplete.
-- Fields that trigger the banner: `country` (empty string), `bio` (empty string), `gender` (`'Others'` or unset).
-- The banner has a **"My Profile →"** button and an **✕ dismiss** button. It re-shows after profile changes if fields are still missing.
-- **Design rule**: Never block access to dashboard or any tab over an incomplete profile. The banner is advisory only.
-
-### Completion widget (`ProfileEdit.tsx`)
-- A progress bar + percentage + per-field checklist sits above the form in `ProfileEdit`.
-- Completion is computed against **local form state** (not saved Firestore state) so the bar animates live as the user fills in fields.
-- Tracked fields: `Country`, `Professional Bio`, `Gender` (non-default), `Timezone`.
-- Colour progression: amber (< 50%) → primary blue (≥ 50%) → green (100%).
-
----
-
-## 📊 System Logs Viewer
-
-- Located at `src/components/SystemLogs.tsx`. Admin-only; rendered when `currentTab === 'system-logs' && role === 'admin'`.
-- Reads from the `systemLogs` Firestore collection, ordered by `timestamp` desc.
-- **Pagination**: Uses Firestore cursor-based pagination (101-doc trick to detect `hasNext`). Cursors are stored in a `useRef` array indexed by page number.
-- **Severity filter**: Multi-select chip buttons (`'error'`, `'warn'`, `'info'`). An "All" chip resets the selection. Selection maps to Firestore queries:
-  - 0 or 3 selected → no `where` clause (show all)
-  - 1 selected → `where('type', '==', value)` (most efficient)
-  - 2 selected → `where('type', 'in', [v1, v2])`
-- **Row expansion**: Clicking a row or the eye button expands a detail panel showing copyable IDs (`logId`, `userId`, `bookingId`, `clientBookingCacheId`), error codes, and a raw JSON telemetry block.
-- **Do not** add an "API logging" description to this component — it surfaces system events and exceptions only.
-
----
-
-## 📅 Dashboard — Refresh Button
-
-The **Refresh** button in the "Filter Available Coaches" panel calls `loadCalendarData()`, which:
-1. Re-fetches `busySlotsCache` for all coaches via `getCoachesBusySlots()`.
-2. Re-fetches the current user's Google Calendar events via `getUpcomingEvents()`.
-
-It does **not** refresh the coach list (that has its own `onSnapshot` real-time listener). The button is disabled while `loadingCalendar || loadingCoaches` is true. It is fully functional and provides a manual escape hatch when calendar data may be stale.
-
----
-
-## 🧭 Light-Weight Routing & Query Parameters
-
-For Single Page Applications (SPA) with no external routing libraries (e.g., React Router), client-side routing can be modeled using URL query parameters (e.g., `?profile=userId`):
-1. **Programmatic Navigation**:
-   - Use `window.history.pushState` to update search parameters without triggering a full page reload.
-   - Dispatch a `PopStateEvent('popstate')` programmatically immediately after `pushState` so that other router-like components listening to the URL change can sync their state.
-2. **Tab Navigation Interception**:
-   - Any global tab transitions (e.g. from a side navigation panel or header) must clear active route-gating query parameters (like `profile=userId`) to return the user to the correct tab views. 
-   - Define a unified tab handler that sets the current tab state and invokes `clearProfileFromUrl()` to clear parameters.
-3. **History Guarding**:
-   - Always check if a query parameter exists (e.g. `url.searchParams.has('profile')`) before calling `pushState` to clear it, preventing redundant entries in the browser history.
-
----
-
-## ⚡ React State & Render Patterns
-
-1. **Avoid Cascading Renders (`react-hooks/set-state-in-effect`)**:
-   - Calling `setState` synchronously within the body of a `useEffect` triggers cascading render cycles.
-   - Use the **adjust state during render** pattern (updating state variables conditionally inside the component render body when props or data changes, before returning JSX) to reset state variables or auto-advance indices.
-   - Ensure the conditional check prevents infinite loops by verifying that the new value is different from the current state (e.g., `if (nextIdx !== -1 && nextIdx !== selectedDayIndex)`).
-
----
-
-## 🎨 Carousel UX & Scroll Centering
-
-1. **Active Tab Centering**:
-   - When programmatically updating index selections in a horizontal carousel, automatically center the active DOM node.
-   - Use a `useEffect` triggered by index changes to call `scrollIntoView` on the target child element:
-     ```typescript
-     activeEl.scrollIntoView({
-       behavior: 'smooth',
-       block: 'nearest',
-       inline: 'center'
-     });
-     ```
-
----
-
-## 🚀 Multi-Database Deployments & CI/CD Configuration
-
-When working with multi-environment setups (e.g., Development and Production) that target distinct Firebase project IDs and separate Firestore databases (e.g., `pcn-dev` and `pcn-prod`):
-
-### 1. Multi-Database Firestore Configuration (`firebase.json`)
-By default, `firebase.json` hardcodes a single `firestore` configuration. For multi-database projects, this must be converted into an **array of database configurations**:
-```json
-  "firestore": [
-    {
-      "database": "pcn-dev",
-      "location": "asia-south1",
-      "rules": "firestore.rules",
-      "indexes": "firestore.indexes.json"
-    },
-    {
-      "database": "pcn-prod",
-      "location": "asia-south1",
-      "rules": "firestore.rules",
-      "indexes": "firestore.indexes.json"
-    }
-  ]
-```
-
-### 2. Dynamic Target Deployment
-Instead of standard deployments that target all configurations, specify the target database dynamically in your deployment command using the `--only` flag. This avoids database-not-found errors during deployment to environments where not all databases exist:
-```yaml
-args: deploy --only firestore:${{ vars.DEV_VITE_FIRESTORE_DATABASE_ID }},hosting --project ${{ vars.DEV_VITE_FIREBASE_PROJECT_ID }}
-```
-
-### 3. Debugging CI/CD Failures
-Always use the `--debug` flag in the deployment arguments inside GitHub Actions. If a step fails (e.g., due to insufficient Service Account roles/permissions or incorrect credentials), it provides the full verbose output to pinpoint the error.
-
-### 4. Variables vs. Secrets Configuration
-*   **Variables**: Environment variables prefixed with `VITE_` (such as project IDs, API keys, or database IDs) are injected directly into the client bundle at build-time. Since they are exposed in the client's browser, they are public by design and must be stored as **GitHub Variables**.
-*   **Secrets**: Administrative credentials (such as `DEV_FIREBASE_SERVICE_ACCOUNT` or any private key files) must never be public and must be stored as encrypted **GitHub Secrets**.
-
----
-
-## ✉️ Google Profile Sync
-
-### 1. Google Profile Syncing & Casing Normalization
-To ensure profile details remain up-to-date, case-insensitive, and take priority:
-* On every successful login (for both new and existing users), the authentication engine compares the user's Firestore `displayName`, `email`, and `photoURL` with the values returned by Google.
-* **Email Casing**: To prevent Firestore string query mismatch issues (since Firestore query matches are case-sensitive), emails must always be stored in lowercase. During profile creation and Google Profile sync updates, the incoming Google email is converted to lowercase before comparison and write.
-* If any discrepancies are found, the Firestore document is updated to match Google's credentials.
-
----
-
-## 📅 Time Slot Agenda & Conditional Button Layout
-
-### 1. Booking Participation Actions
-* **Involved Coaches**: Only the coaches directly involved in a scheduled coaching session (as the host coach or the client) should see the **"View"** and **"Cancel"** action buttons on the booked slot.
-* **Other Available Coaches**: When a booking exists in a slot, other active coaches who are free during that hour are still displayed with the active **"Book Session"** button (instead of a disabled "Session Booked" button), allowing users to request multiple sessions in the same slot if needed.
-* **Header Status**: The slot row header displays a **"Session Already Booked"** badge if any booking exists in the slot, allowing users to quickly scan booked/taken slots.
-* **Busy Status Filter**: Any coach who is busy (either booked by another user or has a blocked date/template gap) is filtered out and excluded from the available coaches grid entirely, preventing redundant rendering.
-
----
-
-## 📝 String Literals & Constants
-
-1. **No Magic Strings**: Never use string literals directly in the codebase (e.g., `'users'`, `'admin'`, `'supportRequests'`) if the value is used in more than one place. 
-2. **Centralized Configuration**: All repeating string literals must be extracted to a centralized, strictly-typed constant object (e.g., `COLLECTIONS`, `USER_ROLE`, `SUPPORT_STATUS`) inside the `src/config/` module.
-3. **Usage**: Import and use these constants globally to ensure type safety, prevent typos, and make future refactoring easier.
-
----
-
-## 🏗 Modular Architecture
-
-1. **Reusable Modals**: Never use inline JSX overlays (e.g., `<div className="modal-overlay">`) directly within page components. All modals must be extracted into standalone, reusable components inside `src/components/modals/` and imported as needed.
-2. **Directory-as-a-Module Configuration**: Always manage configurations using the barrel export pattern. Instead of using a single large configuration file, split domain-specific constants (like `collections.ts`, `userTypes.ts`, `telemetryErrors.ts`) into smaller files inside `src/config/` and export them entirely from `src/config/index.ts`. Import them across the app using `import { ... } from '../config'`.
-
----
-
-## 💾 Unsaved State & Navigation Interception
-
-1. **Global Tracking**: The application uses a global `UnsavedChangesContext` to track form dirtiness and intercept cross-tab navigation. Any form that mutates local state without persisting to Firestore must integrate the `useUnsavedChanges` hook to block accidental navigation.
-2. **Context Dependencies**: When extracting handlers (like `executeApproval` or `handleSave`) into `useEffect` hooks for the context's `setPageDirtyState`, you must wrap them in `useCallback` to prevent infinite cascading renders, since `setPageDirtyState` will re-trigger the context cycle if the handler identity changes.
-3. **Specific Modification Feedback**: The unified `ReviewChangesModal` accepts an array of strings detailing what changed. Instead of pushing generic fallback messages, use a diffing engine (e.g., against initial state on load) to push concrete, contextual change statements (e.g., `"Added blocked date: Dec 25, 2026"`).
-4. **Save Button Layout**: Save buttons inside complex user-editable forms (`ProfileEdit`, `AvailabilityEdit`) must be placed logically close to the fields they govern (e.g., at the bottom of the form or column container), rather than floating loosely in a global page header.
+- **Flat Routing**: Uses custom state (`currentTab`) and `window.history.pushState` + `PopStateEvent('popstate')`. Always clear routing parameters across global tab transitions. Guard history with `url.searchParams.has()` before pushing state.
+
+## 3. Data & Storage Patterns
+- **No Magic Strings**: Prohibited. Extract repeating strings (roles, statuses, tabs, collections) into typed constants inside `src/config/` and use barrel exports (`src/config/index.ts`).
+- **Email Normalization**: To prevent Firestore query mismatches, emails must always be converted to and stored in lowercase.
+- **Concurrency Protection**: Calculations in `recalculateUserBusySlotsCache` must be serialized using a promise chain (`recalcChains`) to prevent interleaving writes from corrupting the busy slots cache.
+- **Scheduling Guarantee**: Always use a Firestore transaction with a deterministic ID (`${coachUid}_${startIso}`) when persisting bookings to prevent double-booking.
+- **Timezones**: Availability templates use local time strings (e.g., `"10:00 AM"`). They are resolved and queried in UTC ISO strings using `getUtcForLocalDateTime` to handle DST fixed-point convergence.
+
+## 4. React & Rendering Constraints
+- **Avoid Cascading Renders (`react-hooks/set-state-in-effect`)**: Do not call `setState` synchronously within a `useEffect`.
+- **Context Hooks Dependencies**: Always wrap extracted handlers (like `handleSave`) in `useCallback` when passing them into context state setters (like `setPageDirtyState`) to prevent infinite cascading render loops.
+- **Carousel Centering**: Use `activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })` inside a `useEffect` to automatically center selected carousel items.
+
+## 5. UI & Styling Guidelines
+- **CSS Variables & HSL**: Theme colors in `index.css` (e.g., `--primary`) are raw HSL values. You **MUST ALWAYS** wrap them in inline styles: `hsl(var(--primary))`.
+- **Theming**: Supported values are `'light' | 'dark'` only. No `'system'` fallback.
+- **Buttons & Interactive Elements**: Never use inline styles for buttons. Always use utility classes `className="btn btn-primary"` or `className="btn btn-secondary"`.
+- **Semantic Text**: Use `hsl(var(--text-primary))`, `hsl(var(--text-secondary))`, and `hsl(var(--text-muted))`. Do not hardcode hex values.
+- **Glassmorphism**: Use `className="glass-panel"` for intelligent theme-aware cards and containers.
+- **Modals**: Never use inline JSX overlays. All modals must be standalone components in `src/components/modals/`.
+- **Profile Banners**: Never block access to the dashboard or other tabs over an incomplete profile. Advisory banners only.
+
+## 6. Unsaved State Tracking
+- **Global Tracking**: Any form that mutates local state without persisting to Firestore must integrate the `useUnsavedChanges` hook to intercept and block accidental cross-tab navigation.
+- **Specific Modification Feedback**: Provide concrete, contextual diff statements to `ReviewChangesModal` (e.g., `"Added blocked date: Dec 25, 2026"`). Do not push generic fallback messages.
+- **Save Button Layout**: Save buttons inside complex user-editable forms (`ProfileEdit`, `AvailabilityEdit`) must be placed logically close to the fields they govern (e.g., at the bottom of the form or column container), rather than floating loosely in a global page header.
+
+## 7. Updating This Document (Future Changes)
+- **Constraint Focus**: Only append rules that dictate *how* code must be written (e.g., specific hooks to use, UI utility classes, security invariants, strict rendering patterns).
+- **No Narrative**: Do not append narrative descriptions of features, component overviews, or step-by-step explanations of "how things work" under the hood. Let the code speak for itself.
+- **Conciseness**: Keep entries extremely concise and organized by domain. Remove obsolete or deprecated rules immediately.
