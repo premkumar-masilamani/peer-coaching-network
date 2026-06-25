@@ -166,13 +166,11 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
           <X size={18} />
         </button>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, margin: 0 }}>Select date to block</h3>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '20px' }}>
           <button
             type="button"
             onClick={handleToday}
             style={{
-              marginRight: '24px',
               background: 'transparent',
               border: '1px solid rgba(139, 92, 246, 0.3)',
               borderRadius: '6px',
