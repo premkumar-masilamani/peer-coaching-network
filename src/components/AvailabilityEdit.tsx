@@ -375,7 +375,7 @@ export const AvailabilityEdit: React.FC = () => {
   }
 
   return (
-    <div className="animate-fade-in availability-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', width: '100%', alignItems: 'start' }}>
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
       <style>{`
         .availability-layout {
           grid-template-columns: 1fr 340px;
@@ -490,48 +490,57 @@ export const AvailabilityEdit: React.FC = () => {
         }
       `}</style>
 
-      {/* Main Weekly Schedule Panel */}
-      <div className="glass-panel" style={{ padding: '32px', position: 'relative' }}>
-        {/* Header Title with Save */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid var(--border-light)', paddingBottom: '16px' }}>
-          <div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Default Availability</h2>
+      {/* Global Header & Save Action */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'hsl(var(--text-primary))' }}>My Availability</h2>
+          <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))', marginTop: '4px' }}>
+            Manage your weekly schedule and upcoming blocked dates.
+          </p>
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={saving || hasValidationError}
+          className="btn btn-primary"
+          style={{
+            padding: '8px 24px',
+            fontWeight: 700,
+            borderRadius: '8px',
+            minWidth: '100px',
+            opacity: (saving || hasValidationError) ? 0.5 : 1,
+            cursor: (saving || hasValidationError) ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {saving ? 'Saving...' : 'Save Changes'}
+        </button>
+      </div>
+
+      {/* Notifications */}
+      {successMsg && (
+        <div className="badge badge-approved" style={{ width: '100%', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', gap: '8px' }}>
+          <Check size={16} />
+          <span>{successMsg}</span>
+        </div>
+      )}
+      {(validationError || errorMsg) && (
+        <div className="badge badge-pending" style={{ width: '100%', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', gap: '8px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+          <AlertTriangle size={16} />
+          <span>{validationError || errorMsg}</span>
+        </div>
+      )}
+
+      <div className="availability-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', width: '100%', alignItems: 'start' }}>
+        {/* Main Weekly Schedule Panel */}
+        <div className="glass-panel" style={{ padding: '32px', position: 'relative' }}>
+          {/* Header Title with Save */}
+          <div style={{ marginBottom: '24px', borderBottom: '1px solid var(--border-light)', paddingBottom: '16px' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Default Availability</h3>
             <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))', marginTop: '4px' }}>
               Define the recurring weekly slots when peer coaches can book sessions with you.
             </p>
           </div>
-          <button
-            onClick={handleSave}
-            disabled={saving || hasValidationError}
-            className="btn btn-primary"
-            style={{
-              padding: '8px 24px',
-              fontWeight: 700,
-              borderRadius: '8px',
-              minWidth: '100px',
-              opacity: (saving || hasValidationError) ? 0.5 : 1,
-              cursor: (saving || hasValidationError) ? 'not-allowed' : 'pointer'
-            }}
-          >
-            {saving ? 'Saving...' : 'Save'}
-          </button>
-        </div>
 
-        {/* Notifications */}
-        {successMsg && (
-          <div className="badge badge-approved" style={{ width: '100%', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '16px', gap: '8px' }}>
-            <Check size={16} />
-            <span>{successMsg}</span>
-          </div>
-        )}
-        {(validationError || errorMsg) && (
-          <div className="badge badge-pending" style={{ width: '100%', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '16px', gap: '8px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
-            <AlertTriangle size={16} />
-            <span>{validationError || errorMsg}</span>
-          </div>
-        )}
-
-        {/* Weekly Day List */}
+          {/* Weekly Day List */}
         <div>
           {DAYS_OF_WEEK.map(({ key, label }) => {
             const daySched = weekly[key];
@@ -702,6 +711,7 @@ export const AvailabilityEdit: React.FC = () => {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 };
