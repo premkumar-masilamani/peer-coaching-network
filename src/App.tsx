@@ -15,6 +15,7 @@ import { isApproved, logAnalyticsEvent } from './services/firebaseService';
 import { Sparkles, AlertTriangle, X } from 'lucide-react';
 import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, THEME } from './config';
 import { clearProfileFromUrl } from './utils/url';
+import { UnsavedChangesProvider, useUnsavedChanges } from './context/UnsavedChangesContext';
 
 
 // Fields that matter for the non-blocking profile-complete banner.
@@ -29,13 +30,16 @@ const getMissingProfileFields = (profile: ReturnType<typeof useAuth>['profile'])
 
 const AppContent: React.FC = () => {
   const { user, role, loading, profile } = useAuth();
+  const { navigateWithConfirmation } = useUnsavedChanges();
   const [currentTab, setCurrentTab] = useState<TabKey>(TABS.DASHBOARD);
   const [adminTabFilter, setAdminTabFilter] = useState<'all' | UserStatus | UserRole>('all');
   const [publicProfileUid, setPublicProfileUid] = useState<string | null>(null);
 
   const handleTabChange = (tab: TabKey) => {
-    setCurrentTab(tab);
-    clearProfileFromUrl();
+    navigateWithConfirmation(tab, () => {
+      setCurrentTab(tab);
+      clearProfileFromUrl();
+    });
   };
 
 
@@ -297,7 +301,9 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <UnsavedChangesProvider>
+        <AppContent />
+      </UnsavedChangesProvider>
     </AuthProvider>
   );
 }

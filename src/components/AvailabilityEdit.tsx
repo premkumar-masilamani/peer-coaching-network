@@ -20,6 +20,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { parseLocalTime } from '../utils/timezoneHelpers';
+import { useUnsavedChanges } from '../context/UnsavedChangesContext';
 
 interface TimeRange {
   start: string;
@@ -91,8 +92,12 @@ export const AvailabilityEdit: React.FC = () => {
   const uid = user?.uid || '';
 
   const [weekly, setWeekly] = useState<AvailableDaysFormState>(DEFAULT_FORM_WEEKLY);
+  const [initialWeekly, setInitialWeekly] = useState<AvailableDaysFormState | null>(null);
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
+  const [initialBlockedDates, setInitialBlockedDates] = useState<string[] | null>(null);
   const [loadingSchedule, setLoadingSchedule] = useState(true);
+
+  const { setPageDirtyState, requestExplicitSave } = useUnsavedChanges();
 
   useEffect(() => {
     let active = true;
@@ -113,7 +118,9 @@ export const AvailabilityEdit: React.FC = () => {
             };
           }
           setWeekly(mappedWeekly);
+          setInitialWeekly(mappedWeekly);
           setBlockedDates(sched.blockedDates);
+          setInitialBlockedDates(sched.blockedDates);
         }
       } catch (e) {
         console.error('Failed to load schedule:', e);
@@ -291,79 +298,97 @@ export const AvailabilityEdit: React.FC = () => {
     }
   };
 
-  // Save changes to Firestore
-  const handleSave = async () => {
-    if (!uid) return;
-    setSaving(true);
-    setSuccessMsg('');
-    setErrorMsg('');
-
-    // Basic slot validation
-    let isValid = true;
-    let timeOrderValid = true;
-    DAYS_OF_WEEK.forEach(day => {
-      const dayData = weekly[day.key];
-      if (dayData.enabled) {
-        dayData.slots.forEach(slot => {
-          if (!TIME_OPTIONS.includes(slot.start) || !TIME_OPTIONS.includes(slot.end)) {
-            isValid = false;
-          }
-          const startParsed = parseLocalTime(slot.start);
-          const endParsed = parseLocalTime(slot.end);
-          const startMin = startParsed.hour * 60 + startParsed.minute;
-          const endMin = endParsed.hour * 60 + endParsed.minute;
-          if (endMin <= startMin) {
-            timeOrderValid = false;
-          }
-        });
-      }
-    });
-
-    if (!isValid) {
-      setErrorMsg('Please select valid start and end times for all active slots.');
-      setSaving(false);
-      return;
+  useEffect(() => {
+    if (!initialWeekly || !initialBlockedDates) return;
+    const newChanges: string[] = [];
+    if (JSON.stringify(weekly) !== JSON.stringify(initialWeekly)) {
+      newChanges.push("Modified weekly schedule");
     }
-
-    if (!timeOrderValid) {
-      setErrorMsg('End times must be later than start times.');
-      setSaving(false);
-      return;
+    if (JSON.stringify(blockedDates) !== JSON.stringify(initialBlockedDates)) {
+      newChanges.push("Modified blocked dates");
     }
+    
+    const isDirty = newChanges.length > 0;
 
-    try {
-      const dbAvailableDays = {} as AvailableDays;
-      for (const day of Object.keys(weekly) as (keyof AvailableDaysFormState)[]) {
-        const dayData = weekly[day];
-        dbAvailableDays[day] = {
-          enabled: dayData.enabled,
-          slots: dayData.slots.map(s => ({
-            startTime: timeStringToTimestamp(s.start),
-            endTime: timeStringToTimestamp(s.end)
-          }))
-        };
-      }
+    const saveHandler = async (): Promise<boolean> => {
+      if (!uid) return false;
+      setSaving(true);
+      setSuccessMsg('');
+      setErrorMsg('');
 
-      // 1. Update schedule sub-collection
-      await updateSchedule(uid, dbAvailableDays, blockedDates);
-
-      // 2. Recompute and write actual busy intervals to busySlotsCache collection
-      await recalculateUserBusySlotsCache(uid);
-
-      logAnalyticsEvent('save_availability_template', {
-        enabledDays: Object.keys(weekly).filter(day => weekly[day as keyof AvailableDaysFormState].enabled),
-        blockedDatesCount: blockedDates.length,
+      // Basic slot validation
+      let isValid = true;
+      let timeOrderValid = true;
+      DAYS_OF_WEEK.forEach(day => {
+        const dayData = weekly[day.key];
+        if (dayData.enabled) {
+          dayData.slots.forEach(slot => {
+            if (!TIME_OPTIONS.includes(slot.start) || !TIME_OPTIONS.includes(slot.end)) {
+              isValid = false;
+            }
+            const startParsed = parseLocalTime(slot.start);
+            const endParsed = parseLocalTime(slot.end);
+            const startMin = startParsed.hour * 60 + startParsed.minute;
+            const endMin = endParsed.hour * 60 + endParsed.minute;
+            if (endMin <= startMin) {
+              timeOrderValid = false;
+            }
+          });
+        }
       });
 
-      setSuccessMsg('Availability template and schedules saved successfully!');
-      setTimeout(() => setSuccessMsg(''), 4000);
-    } catch (e) {
-      console.error(e);
-      setErrorMsg('Failed to save availability settings. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  };
+      if (!isValid) {
+        setErrorMsg('Please select valid start and end times for all active slots.');
+        setSaving(false);
+        return false;
+      }
+
+      if (!timeOrderValid) {
+        setErrorMsg('End times must be later than start times.');
+        setSaving(false);
+        return false;
+      }
+
+      try {
+        const dbAvailableDays = {} as AvailableDays;
+        for (const day of Object.keys(weekly) as (keyof AvailableDaysFormState)[]) {
+          const dayData = weekly[day];
+          dbAvailableDays[day] = {
+            enabled: dayData.enabled,
+            slots: dayData.slots.map(s => ({
+              startTime: timeStringToTimestamp(s.start),
+              endTime: timeStringToTimestamp(s.end)
+            }))
+          };
+        }
+
+        // 1. Update schedule sub-collection
+        await updateSchedule(uid, dbAvailableDays, blockedDates);
+
+        // 2. Recompute and write actual busy intervals to busySlotsCache collection
+        await recalculateUserBusySlotsCache(uid);
+
+        logAnalyticsEvent('save_availability_template', {
+          enabledDays: Object.keys(weekly).filter(day => weekly[day as keyof AvailableDaysFormState].enabled),
+          blockedDatesCount: blockedDates.length,
+        });
+
+        setSuccessMsg('Availability template and schedules saved successfully!');
+        setTimeout(() => setSuccessMsg(''), 4000);
+        setInitialWeekly(weekly);
+        setInitialBlockedDates(blockedDates);
+        return true;
+      } catch (e) {
+        console.error(e);
+        setErrorMsg('Failed to save availability settings. Please try again.');
+        return false;
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    setPageDirtyState(isDirty, newChanges, saveHandler);
+  }, [uid, weekly, blockedDates, initialWeekly, initialBlockedDates, setPageDirtyState]);
 
   if (loadingSchedule) {
     return (
@@ -499,7 +524,7 @@ export const AvailabilityEdit: React.FC = () => {
           </p>
         </div>
         <button
-          onClick={handleSave}
+          onClick={requestExplicitSave}
           disabled={saving || hasValidationError}
           className="btn btn-primary"
           style={{

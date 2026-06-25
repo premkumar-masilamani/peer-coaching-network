@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   subscribeToAllUsers,
   updateProfile,
@@ -11,6 +11,7 @@ import {
 } from '../services/firebaseService';
 import type { UserProfile } from '../services/firebaseService';
 import { ReviewChangesModal } from './modals/ReviewChangesModal';
+import { useUnsavedChanges } from '../context/UnsavedChangesContext';
 import { sanitizeImageUrl, sanitizeMeetLink } from '../utils/url';
 import {
   Search,
@@ -164,6 +165,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     });
     return () => unsub();
   }, []);
+  
 
 
   // Canonical role/status resolution lives in the service layer. See BUG-012.
@@ -216,7 +218,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     });
   };
 
-  const executeApproval = async (
+  const executeApproval = useCallback(async (
     uid: string,
     roleToSave: UserRole,
     statusToSave: UserStatus,
@@ -263,7 +265,44 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     } finally {
       setSavingId(null);
     }
-  };
+  }, [users]);
+
+  const { setPageDirtyState } = useUnsavedChanges();
+
+  useEffect(() => {
+    const draftKeys = Object.keys(drafts);
+    const isDirty = draftKeys.length > 0;
+    const newChanges: string[] = [];
+    
+    draftKeys.forEach(uid => {
+      const userToSave = users.find(u => u.userId === uid);
+      if (userToSave) {
+        newChanges.push(`Unsaved permissions for: ${formatDisplayName(userToSave)}`);
+      }
+    });
+
+    const saveHandler = async (): Promise<boolean> => {
+      try {
+        for (const uid of draftKeys) {
+          const userToSave = users.find(u => u.userId === uid);
+          if (!userToSave) continue;
+          
+          const draft = drafts[uid];
+          const roleToSave = draft.userRole || getUserRole(userToSave);
+          const statusToSave = draft.userStatus || getUserStatus(userToSave);
+          const qualificationsToSave = draft.qualifications !== undefined ? draft.qualifications : (userToSave.qualifications || []);
+          
+          await executeApproval(uid, roleToSave, statusToSave, qualificationsToSave);
+        }
+        return true;
+      } catch (e) {
+        console.error(e);
+        return false;
+      }
+    };
+
+    setPageDirtyState(isDirty, newChanges, saveHandler);
+  }, [drafts, users, setPageDirtyState, executeApproval]);
 
   // Filter logic
   const filteredUsers = users.filter((u) => {
