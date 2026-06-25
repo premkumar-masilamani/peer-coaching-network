@@ -301,12 +301,27 @@ export const AvailabilityEdit: React.FC = () => {
   useEffect(() => {
     if (!initialWeekly || !initialBlockedDates) return;
     const newChanges: string[] = [];
-    if (JSON.stringify(weekly) !== JSON.stringify(initialWeekly)) {
-      newChanges.push("Modified weekly schedule");
-    }
-    if (JSON.stringify(blockedDates) !== JSON.stringify(initialBlockedDates)) {
-      newChanges.push("Modified blocked dates");
-    }
+    DAYS_OF_WEEK.forEach(day => {
+      const initialDay = initialWeekly[day.key];
+      const currentDay = weekly[day.key];
+      
+      if (initialDay.enabled !== currentDay.enabled) {
+        newChanges.push(`${day.label}: ${currentDay.enabled ? 'Available' : 'Unavailable'}`);
+      } else if (currentDay.enabled && JSON.stringify(initialDay.slots) !== JSON.stringify(currentDay.slots)) {
+        const slotsStr = currentDay.slots.map(s => `${s.start} - ${s.end}`).join(', ');
+        newChanges.push(`${day.label} slots updated to: ${slotsStr || 'None'}`);
+      }
+    });
+
+    const addedDates = blockedDates.filter(d => !initialBlockedDates.includes(d));
+    const removedDates = initialBlockedDates.filter(d => !blockedDates.includes(d));
+    
+    addedDates.forEach(d => {
+      newChanges.push(`Added blocked date: ${formatReadableDate(d)}`);
+    });
+    removedDates.forEach(d => {
+      newChanges.push(`Removed blocked date: ${formatReadableDate(d)}`);
+    });
     
     const isDirty = newChanges.length > 0;
 
