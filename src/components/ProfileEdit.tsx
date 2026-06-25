@@ -24,6 +24,8 @@ import { verifyIcfCredential } from '../services/icfService';
 import { updateVerifiedCredentials } from '../services/firebaseService';
 
 
+import { useUnsavedChanges } from '../context/UnsavedChangesContext';
+
 // ── Profile completion logic ──────────────────────────────────────────────────
 interface CompletionItem {
   label: string;
@@ -60,6 +62,7 @@ function getCompletionItems(profile: ReturnType<typeof useAuth>['profile']): Com
 
 export const ProfileEdit: React.FC = () => {
   const { user, profile, updateProfileDetails } = useAuth();
+  const { setPageDirtyState, requestExplicitSave } = useUnsavedChanges();
   const [copied, setCopied] = useState(false);
 
   // State for editable profile details
@@ -103,6 +106,46 @@ export const ProfileEdit: React.FC = () => {
     }
   };
 
+  React.useEffect(() => {
+    const newChanges: string[] = [];
+    if (gender !== (profile?.gender || '')) newChanges.push(`Gender: ${profile?.gender || 'Not set'} -> ${gender || 'Not set'}`);
+    if (country !== (profile?.country || '')) newChanges.push(`Country: ${profile?.country || 'Not set'} -> ${country || 'Not set'}`);
+    if (bio !== (profile?.bio || '')) newChanges.push(`Bio updated`);
+    if (timezone !== (profile?.timezone || '')) newChanges.push(`Timezone: ${profile?.timezone || 'Not set'} -> ${timezone || 'Not set'}`);
+
+    const isDirty = newChanges.length > 0;
+    
+    const saveHandler = async () => {
+      setSaving(true);
+      setSuccessMsg('');
+      try {
+        await updateProfileDetails({
+          gender: gender === '' ? undefined : gender,
+          country,
+          qualifications,
+          bio,
+          timezone
+        });
+        logAnalyticsEvent('update_profile', {
+          gender: gender === '' ? undefined : gender,
+          country,
+          timezone,
+          hasBio: !!bio,
+        });
+        setSuccessMsg('Profile changes saved successfully!');
+        setTimeout(() => setSuccessMsg(''), 4000);
+        return true;
+      } catch (e) {
+        console.error(e);
+        return false;
+      } finally {
+        setSaving(false);
+      }
+    };
+    
+    setPageDirtyState(isDirty, newChanges, saveHandler);
+  }, [gender, country, bio, timezone, profile, qualifications, updateProfileDetails, setPageDirtyState]);
+
   const handleCountryChange = (selectedCountry: string) => {
     setCountry(selectedCountry);
     if (selectedCountry) {
@@ -117,32 +160,7 @@ export const ProfileEdit: React.FC = () => {
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSaving(true);
-    setSuccessMsg('');
-    try {
-      await updateProfileDetails({
-        gender: gender === '' ? undefined : gender,
-        country,
-        qualifications,
-        bio,
-        timezone
-      });
-      logAnalyticsEvent('update_profile', {
-        gender: gender === '' ? undefined : gender,
-        country,
-        timezone,
-        hasBio: !!bio,
-      });
-      setSuccessMsg('Profile changes saved successfully!');
-      setTimeout(() => setSuccessMsg(''), 4000);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSaving(false);
-    }
-  };
+
 
   // Compute completion against *current local state* so the bar updates live
   // while the user fills in the form (before saving).
@@ -158,8 +176,18 @@ export const ProfileEdit: React.FC = () => {
                   'hsl(var(--warning))';
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-      <div className="glass-panel" style={{ padding: '32px', width: '100%', maxWidth: '640px' }}>
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', maxWidth: '800px', margin: '0 auto' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h2 style={{ fontSize: '1.75rem', fontWeight: 800 }}>My Profile</h2>
+          <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-muted))', marginTop: '4px' }}>
+            Manage your personal information and preferences.
+          </p>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+        <div className="glass-panel" style={{ padding: '32px', width: '100%' }}>
 
         {/* ── Profile card header ─────────────────────────────────────────── */}
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '28px' }}>
@@ -305,7 +333,7 @@ export const ProfileEdit: React.FC = () => {
         </div>
 
         {/* ── Editable form ───────────────────────────────────────────────── */}
-        <form onSubmit={handleSave}>
+        <form onSubmit={(e) => { e.preventDefault(); requestExplicitSave(); }}>
           {/* 1. Credentials */}
           <div className="form-group">
             <label className="form-label">
@@ -447,8 +475,10 @@ export const ProfileEdit: React.FC = () => {
               {saving ? 'Saving...' : 'Save Profile'}
             </button>
           </div>
+
         </form>
       </div>
+    </div>
     </div>
   );
 };
