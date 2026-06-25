@@ -23,7 +23,8 @@ import {
   where,
   getDocs,
   Timestamp,
-  deleteDoc
+  deleteDoc,
+  orderBy
 } from 'firebase/firestore';
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
@@ -503,10 +504,10 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
     
     // Query bookings
     const bookingsCol = collection(db, COLLECTIONS.BOOKINGS);
-    const q1 = query(bookingsCol, where('coachUid', '==', uid));
+    const q1 = query(bookingsCol, where('coachUid', '==', uid), where('endTime', '>=', Timestamp.now()));
     const snap1 = await getDocs(q1);
     
-    const q2 = query(bookingsCol, where('clientUid', '==', uid));
+    const q2 = query(bookingsCol, where('clientUid', '==', uid), where('endTime', '>=', Timestamp.now()));
     const snap2 = await getDocs(q2);
     
     const bookings: DocumentData[] = [];
@@ -757,21 +758,20 @@ export const createSupportRequest = async (
 
 export const getSupportRequestsForUser = async (userId: string): Promise<SupportRequest[]> => {
   if (!db) return [];
-  const q = query(collection(db, COLLECTIONS.SUPPORT_REQUESTS), where('userId', '==', userId));
+  const q = query(collection(db, COLLECTIONS.SUPPORT_REQUESTS), where('userId', '==', userId), orderBy('updatedAt', 'desc'));
   const snap = await getDocs(q);
   const requests: SupportRequest[] = [];
   snap.forEach(d => requests.push(d.data() as SupportRequest));
-  // Sort by updatedAt desc client-side
-  return requests.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  return requests;
 };
 
 export const getAllSupportRequests = async (): Promise<SupportRequest[]> => {
   if (!db) return [];
-  const q = query(collection(db, COLLECTIONS.SUPPORT_REQUESTS));
+  const q = query(collection(db, COLLECTIONS.SUPPORT_REQUESTS), orderBy('updatedAt', 'desc'));
   const snap = await getDocs(q);
   const requests: SupportRequest[] = [];
   snap.forEach(d => requests.push(d.data() as SupportRequest));
-  return requests.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  return requests;
 };
 
 export const addMessageToSupportRequest = async (
