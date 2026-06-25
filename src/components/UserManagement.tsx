@@ -54,7 +54,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
   const [coachMeetings, setCoachMeetings] = useState<CalendarEvent[]>([]);
 
   // Mirror parent-driven filter changes using the adjust-during-render pattern
-  // (no effect, no setTimeout hack). See BUG-015.
+  // (no effect, no setTimeout hack).
   const [prevInitialFilter, setPrevInitialFilter] = useState(initialFilter);
   if (initialFilter !== prevInitialFilter) {
     setPrevInitialFilter(initialFilter);
@@ -71,7 +71,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
         return;
       }
       try {
-        // Query by stable userId, not email. See BUG-019.
+        // Query by stable userId, not email.
         const qClient = query(collection(db, COLLECTIONS.BOOKINGS), where('clientUid', '==', coach.userId));
         const snapClient = await getDocs(qClient);
 
@@ -173,7 +173,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
 
 
 
-  // Canonical role/status resolution lives in the service layer. See BUG-012.
+  // Canonical role/status resolution lives in the service layer.
   const getUserRole = (u: UserProfile): UserRole => getEffectiveRole(u);
   const getUserStatus = (u: UserProfile): UserStatus => getEffectiveStatus(u);
 
@@ -328,7 +328,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
 
   // If the selected coach vanished from the list, drop back to the list view.
   // Adjust-during-render (converges once selectedCoachUid is cleared) — avoids
-  // the previous unconditional setState-in-render. See BUG-015.
+  // the previous unconditional setState-in-render.
   if (selectedCoachUid && !loading && users.length > 0 && !users.find(u => u.userId === selectedCoachUid)) {
     setSelectedCoachUid(null);
   }

@@ -23,7 +23,7 @@ export interface CalendarEvent {
 }
 
 // Split an array into chunks of at most `size` (for Firestore `in` queries,
-// which accept up to 30 values). See BUG-005.
+// which accept up to 30 values).
 const chunkArray = <T>(arr: T[], size: number): T[][] => {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
@@ -92,7 +92,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
   }
 
   // Always query Firestore bookings where the current user is host or client (by
-  // stable userId, not email) and merge. See BUG-019.
+  // stable userId, not email) and merge.
   const currentUser = auth?.currentUser;
   if (currentUser && db) {
     try {
@@ -117,7 +117,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
       const processSnap = async (snap: QuerySnapshot<DocumentData>) => {
         for (const d of snap.docs) {
           const data = d.data();
-          if (data.status === BOOKING_STATUS.CANCELLED) continue; // skip cancelled bookings (BUG-016)
+          if (data.status === BOOKING_STATUS.CANCELLED) continue; // skip cancelled bookings
           
           const existingEvent = events.find(e => e.id === data.bookingId);
           if (existingEvent) {
@@ -236,7 +236,7 @@ export const scheduleMeeting = async (
   };
 
   // Deterministic per-slot document id so a coach can't be double-booked for the
-  // same time. See BUG-004.
+  // same time.
   const bookingId = `${coachUid}_${startIso}`;
 
   logger.info(`Attempting to book session for client ${clientUid} with coach ${coachUid} at ${startIso}`);
@@ -461,7 +461,7 @@ export const scheduleMeeting = async (
 
     // Recalculate ONLY the current user's own busy slots cache. The other
     // participant's cache is owner-only now; their booked time is surfaced live
-    // from the bookings overlay in getCoachesBusySlots. See BUG-001.
+    // from the bookings overlay in getCoachesBusySlots.
     if (currentUser?.uid) {
       recalculateUserBusySlotsCache(currentUser.uid).catch(err => {
         logger.error('Error recalculating busy slots cache:', err);
@@ -489,7 +489,7 @@ export const scheduleMeeting = async (
 // Cancel a booking: mark it cancelled, release the mentee slot hold, best-effort
 // remove the Google event, and recompute the canceller's own availability. The
 // other participant's freed slot is reflected live from the bookings overlay in
-// getCoachesAvailability. See BUG-001/003/016.
+// getCoachesAvailability.
 export const cancelBooking = async (bookingId: string): Promise<void> => {
   if (!db) return;
   const ref = doc(db, COLLECTIONS.BOOKINGS, bookingId);
@@ -499,7 +499,7 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
 
   await updateDoc(ref, { status: BOOKING_STATUS.CANCELLED, cancelledAt: Timestamp.now() });
 
-  // Release the mentee's per-slot hold so that time can be rebooked. See BUG-003.
+  // Release the mentee's per-slot hold so that time can be rebooked.
   const startIso = data.startTime && typeof data.startTime.toDate === 'function'
     ? data.startTime.toDate().toISOString()
     : (data.startTime?.dateTime || data.startTime);
@@ -731,7 +731,7 @@ export const getCoachesBusySlots = async (
 
     // 1. Load each coach's template-derived busy-slot cache, reading only the
     //    needed docs via batched `in` queries (not a whole-collection scan) and
-    //    tolerating partial failures. See BUG-005.
+    //    tolerating partial failures.
     const foundUids = new Set<string>();
     const busySlotsCacheResults = await Promise.allSettled(
       uidChunks.map(c =>
@@ -773,7 +773,7 @@ export const getCoachesBusySlots = async (
     });
 
     // 2. In-memory fallback for coaches without a cache doc. We do NOT cross-write
-    //    their busySlotsCache doc (owner-only writes now). See BUG-001/005.
+    //    their busySlotsCache doc (owner-only writes now).
     for (const coach of coaches) {
       if (!foundUids.has(coach.userId)) {
         const schedule = await getSchedule(coach.userId);
