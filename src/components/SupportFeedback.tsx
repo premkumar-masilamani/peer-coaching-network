@@ -8,6 +8,7 @@ import {
   updateSupportRequestStatus,
   type SupportRequest 
 } from '../services/firebaseService';
+import { formatDisplayName } from '../services/firebaseService';
 import { SUPPORT_CATEGORIES, type SupportCategory } from '../config';
 import { MessageSquare, Plus, Send, ChevronLeft, LifeBuoy, Tag, Type, AlignLeft, CheckCircle, Circle } from 'lucide-react';
 
@@ -74,7 +75,7 @@ export const SupportFeedback: React.FC = () => {
     try {
       await createSupportRequest(
         profile.userId,
-        profile.displayName,
+        formatDisplayName(profile),
         profile.email,
         category,
         subject.trim(),
@@ -118,7 +119,7 @@ export const SupportFeedback: React.FC = () => {
       await addMessageToSupportRequest(
         selectedTicket.id,
         profile.userId,
-        profile.displayName,
+        formatDisplayName(profile),
         false,
         replyText.trim()
       );

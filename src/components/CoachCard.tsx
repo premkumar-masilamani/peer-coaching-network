@@ -4,6 +4,8 @@ import { formatDisplayName } from '../services/firebaseService';
 import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
 import { sanitizeImageUrl } from '../utils/url';
 import { MapPin, Calendar, Award } from 'lucide-react';
+import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
+import type { Qualification } from '../config';
 
 interface CoachCardProps {
   coach: UserProfile;
@@ -17,6 +19,12 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
     if (text.length <= limit) return text;
     return text.substring(0, limit) + '...';
   };
+
+  const displayCredentials = getDisplayCredentials(coach.icfCredentials);
+  
+  const hasMCC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF MCC');
+  const hasPCC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF PCC');
+  const hasACC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF ACC');
 
   return (
     <div className="glass-panel glass-panel-interactive animate-fade-in" style={{
@@ -34,9 +42,9 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
         right: '-40px',
         width: '120px',
         height: '120px',
-        background: coach.qualifications?.some(q => getShortCredential(q) === 'MCC') 
+        background: hasMCC
           ? 'radial-gradient(circle, rgba(45, 212, 191, 0.08) 0%, rgba(0,0,0,0) 70%)'
-          : coach.qualifications?.some(q => getShortCredential(q) === 'PCC')
+          : hasPCC
           ? 'radial-gradient(circle, rgba(148, 163, 184, 0.08) 0%, rgba(0,0,0,0) 70%)'
           : 'radial-gradient(circle, rgba(217, 119, 6, 0.08) 0%, rgba(0,0,0,0) 70%)',
         filter: 'blur(20px)',
@@ -55,11 +63,11 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
               height: '56px',
               borderRadius: '50%',
               objectFit: 'cover',
-              border: coach.qualifications?.some(q => getShortCredential(q) === 'MCC')
+              border: hasMCC
                 ? '2px solid hsl(var(--mcc-platinum))'
-                : coach.qualifications?.some(q => getShortCredential(q) === 'PCC')
+                : hasPCC
                 ? '2px solid hsl(var(--pcc-silver))'
-                : coach.qualifications?.some(q => getShortCredential(q) === 'ACC')
+                : hasACC
                 ? '2px solid hsl(var(--acc-gold))'
                 : '2px solid var(--border-light)'
             }}
@@ -90,20 +98,19 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
 
         {/* Qualifications Badges */}
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
-          {coach.qualifications && coach.qualifications.length > 0 ? (
-            coach.qualifications.map((q) => {
-              const shortCode = getShortCredential(q);
-              const cls = getCredentialBadgeClass(q);
+          {displayCredentials.length > 0 ? (
+            displayCredentials.map((cred, idx) => {
+              const qual = mapIcfLevelToQualification(cred.level) || cred.level;
               return (
-                <span key={q} className={`badge ${cls}`} style={{ fontSize: '0.65rem' }}>
+                <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.65rem' }}>
                   <Award size={10} style={{ marginRight: '4px' }} />
-                  {shortCode}
+                  {getShortCredential(qual as Qualification)}
                 </span>
               );
             })
           ) : (
             <span style={{ fontSize: '0.7rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
-              Pending credential sync
+              Trainee Coach
             </span>
           )}
           

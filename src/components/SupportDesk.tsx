@@ -8,6 +8,7 @@ import {
   deleteSupportRequest,
   type SupportRequest 
 } from '../services/firebaseService';
+import { formatDisplayName } from '../services/firebaseService';
 import { MessageSquare, Send, ChevronLeft, Trash2, CheckCircle, Circle } from 'lucide-react';
 
 type FilterType = 'all' | 'open' | 'closed';
@@ -81,7 +82,7 @@ export const SupportDesk: React.FC = () => {
       await addMessageToSupportRequest(
         selectedRequest.id,
         profile.userId,
-        profile.displayName,
+        formatDisplayName(profile),
         true,
         replyText.trim()
       );

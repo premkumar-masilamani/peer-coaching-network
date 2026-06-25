@@ -24,7 +24,10 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
-import { type Qualification, type UserRole, type UserStatus, QUALIFICATION_OPTIONS, USER_ROLE, USER_STATUS, BOOKING_STATUS, EVENT_TYPE, COLLECTIONS } from '../config';
+import { type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, BOOKING_STATUS, EVENT_TYPE, COLLECTIONS, ICF_DIRECTORY_URL } from '../config';
+import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
+import { verifyIcfCredential } from '../services/icfService';
+import { updateVerifiedCredentials } from '../services/firebaseService';
 
 interface UserManagementProps {
   initialFilter?: 'all' | UserStatus | UserRole;
@@ -38,6 +41,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
   const [roleFilter, setRoleFilter] = useState<'all' | UserStatus | UserRole>(initialFilter);
   const [selectedCoachUid, setSelectedCoachUid] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [verifyErrorId, setVerifyErrorId] = useState<string | null>(null);
   const [approvalModalData, setApprovalModalData] = useState<{
     uid: string;
     userName: string;
@@ -105,8 +110,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
               const coachProfile = await getProfile(data.coachUid);
               const clientProfile = await getProfile(data.clientUid);
 
-              const coachFirstName = coachProfile ? coachProfile.displayName.split(' ')[0] : 'Coach';
-              const clientFirstName = clientProfile ? clientProfile.displayName.split(' ')[0] : 'Peer';
+              const coachFirstName = coachProfile ? (coachProfile.firstName || (formatDisplayName(coachProfile) || 'Coach').split(' ')[0]) : 'Coach';
+              const clientFirstName = clientProfile ? (clientProfile.firstName || (formatDisplayName(clientProfile) || 'Peer').split(' ')[0]) : 'Peer';
 
               meetings.push({
                 id: data.bookingId,
@@ -117,8 +122,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                 meetLink: data.googleMeetLink,
                 type: EVENT_TYPE.PEER_COACHING,
                 attendees: [
-                  { email: coachProfile?.email || '', displayName: coachProfile?.displayName || '' },
-                  { email: clientProfile?.email || '', displayName: clientProfile?.displayName || '' }
+                  { email: coachProfile?.email || '', displayName: coachProfile ? formatDisplayName(coachProfile) : '' },
+                  { email: clientProfile?.email || '', displayName: clientProfile ? formatDisplayName(clientProfile) : '' }
                 ]
               });
             }
@@ -165,7 +170,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     });
     return () => unsub();
   }, []);
-  
+
 
 
   // Canonical role/status resolution lives in the service layer. See BUG-012.
@@ -394,19 +399,20 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                 Credentials
               </h4>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {coach.qualifications && coach.qualifications.length > 0 ? (
-                  coach.qualifications.map((q) => {
-                    const shortCode = getShortCredential(q);
-                    const cls = getCredentialBadgeClass(q);
-                    return (
-                      <span key={q} className={`badge ${cls}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                        {shortCode}
-                      </span>
-                    );
-                  })
-                ) : (
-                  <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>No credentials listed</span>
-                )}
+                {(() => {
+                  const validCreds = getDisplayCredentials(coach.icfCredentials);
+                  if (validCreds.length > 0) {
+                    return validCreds.map((validCred, idx) => {
+                      const qual = mapIcfLevelToQualification(validCred.level) || validCred.level;
+                      return (
+                        <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
+                          {getShortCredential(qual as Qualification)}
+                        </span>
+                      );
+                    });
+                  }
+                  return <span className="badge" style={{ fontSize: '0.75rem', padding: '4px 10px', background: 'var(--panel-bg)', color: 'hsl(var(--text-muted))', border: '1px solid var(--border-light)' }}>Trainee Coach</span>;
+                })()}
               </div>
             </div>
           </div>
@@ -619,7 +625,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                 {filteredUsers.map((u) => {
                   const currentRole = drafts[u.userId]?.userRole || getUserRole(u);
                   const currentStatus = drafts[u.userId]?.userStatus || getUserStatus(u);
-                  const currentQuals: Qualification[] = (drafts[u.userId]?.qualifications || u.qualifications || []) as Qualification[];
+
 
                   return (
                     <tr
@@ -645,59 +651,70 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
 
                       {/* Credentials Column */}
                       <td>
-                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
-                          {QUALIFICATION_OPTIONS.map((q) => {
-                            const isActive = currentQuals.includes(q);
-                            const shortCode = getShortCredential(q);
-                            const cls = getCredentialBadgeClass(q);
-
-                            const toggleQual = () => {
-                              const nextQuals = isActive
-                                ? currentQuals.filter(item => item !== q)
-                                : [...currentQuals, q];
-                              setDrafts(prev => ({
-                                ...prev,
-                                [u.userId]: {
-                                  ...prev[u.userId],
-                                  qualifications: nextQuals
-                                }
-                              }));
-                            };
-
-                            return (
-                              <button
-                                key={q}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleQual();
-                                }}
-                                style={{
-                                  background: 'transparent',
-                                  border: 'none',
-                                  padding: '4px',
-                                  cursor: 'pointer',
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '6px'
-                                }}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={isActive}
-                                  readOnly
-                                  style={{
-                                    accentColor: 'hsl(var(--primary))',
-                                    cursor: 'pointer',
-                                    width: '14px',
-                                    height: '14px'
-                                  }}
-                                />
-                                <span className={`badge ${cls}`} style={{ fontSize: '0.65rem', padding: '3px 8px', borderRadius: '4px' }}>
-                                  {shortCode}
-                                </span>
-                              </button>
-                            );
-                          })}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
+                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                            {(() => {
+                               const validCreds = getDisplayCredentials(u.icfCredentials);
+                               if (validCreds.length > 0) {
+                                 return validCreds.map((validCred, idx) => {
+                                   const qual = mapIcfLevelToQualification(validCred.level) || validCred.level;
+                                   return (
+                                     <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                       <span className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
+                                         {getShortCredential(qual as Qualification)}
+                                       </span>
+                                       <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))' }}>
+                                         Expires: {validCred.expiryDate.toDate().toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                                       </span>
+                                     </div>
+                                   );
+                                 });
+                               }
+                               return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>Trainee Coach</span>;
+                             })()}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                             <button
+                               onClick={async (e) => {
+                                 e.stopPropagation();
+                                 setVerifyingId(u.userId);
+                                 setVerifyErrorId(null);
+                                 try {
+                                   const creds = await verifyIcfCredential(u.firstName, u.lastName);
+                                   if (creds && creds.length > 0) {
+                                     const newQuals = creds.map(c => mapIcfLevelToQualification(c.level)).filter(Boolean) as Qualification[];
+                                     await updateVerifiedCredentials(u.userId, creds, newQuals);
+                                   } else {
+                                     setVerifyErrorId(u.userId);
+                                   }
+                                 } catch (err) {
+                                   console.error('Verification error:', err);
+                                   setVerifyErrorId(u.userId);
+                                 } finally {
+                                   setVerifyingId(null);
+                                 }
+                               }}
+                               className="btn btn-secondary"
+                               style={{ fontSize: '0.7rem', padding: '4px 8px', alignSelf: 'flex-start' }}
+                               disabled={verifyingId === u.userId}
+                             >
+                               {verifyingId === u.userId ? 'Verifying...' : 'Verify with ICF Directory'}
+                             </button>
+                             <a 
+                               href={ICF_DIRECTORY_URL.replace('{firstName}', encodeURIComponent(u.firstName || '')).replace('{lastName}', encodeURIComponent(u.lastName || ''))}
+                               target="_blank" 
+                               rel="noopener noreferrer"
+                               onClick={(e) => e.stopPropagation()}
+                               style={{ fontSize: '0.7rem', color: 'hsl(var(--primary))', textDecoration: 'none' }}
+                             >
+                               Search ICF Directory for {u.firstName} {u.lastName} <ExternalLink size={10} style={{ display: 'inline' }} />
+                             </a>
+                             {verifyErrorId === u.userId && (
+                               <span style={{ fontSize: '0.7rem', color: 'hsl(var(--error))' }}>
+                                 Error verifying credentials. Please contact admin.
+                               </span>
+                             )}
+                          </div>
                         </div>
                       </td>
 
