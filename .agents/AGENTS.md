@@ -41,6 +41,8 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Semantic Text**: Use `hsl(var(--text-primary))`, `hsl(var(--text-secondary))`, and `hsl(var(--text-muted))`. Do not hardcode hex values.
 - **Glassmorphism**: Use `className="glass-panel"` for intelligent theme-aware cards and containers.
 - **Modals**: Never use inline JSX overlays. All modals must be standalone components in `src/components/modals/`.
+- **Modal Backgrounds**: Modals overlaying content must use opaque backgrounds (e.g., `background: hsl(var(--bg-surface))`) rather than transparent glass panels to prevent distracting visual bleed-through.
+- **Custom Popups & Feedback**: Prefer custom popup components over native inputs (e.g., `<input type="date">`) for complex selection. Provide clear visual feedback (e.g., highlighting pre-selected states) to prevent redundant interactions.
 - **Profile Banners**: Never block access to the dashboard or other tabs over an incomplete profile. Advisory banners only.
 
 ## 6. Unsaved State Tracking
