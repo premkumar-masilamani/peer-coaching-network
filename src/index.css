@@ -175,7 +175,7 @@ body {
 /* Structural Containers */
 .structural-panel {
   background: var(--structural-bg);
-    -webkit-  border: 1px solid var(--structural-border);
+  border: 1px solid var(--structural-border);
   box-shadow: var(--structural-shadow);
   border-radius: 2px;
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
@@ -568,7 +568,7 @@ p {
 
 .left-sidebar {
   background: var(--structural-bg);
-    -webkit-  border: 1px solid var(--structural-border);
+  border: 1px solid var(--structural-border);
   box-shadow: var(--structural-shadow);
   display: flex;
   flex-direction: column;
