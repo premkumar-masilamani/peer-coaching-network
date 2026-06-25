@@ -25,7 +25,7 @@ import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
 import { type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, BOOKING_STATUS, EVENT_TYPE, COLLECTIONS, ICF_DIRECTORY_URL } from '../config';
-import { getPrimaryCredential, mapIcfLevelToQualification } from '../utils/credentialHelpers';
+import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
 import { verifyIcfCredential } from '../services/icfService';
 import { updateVerifiedCredentials } from '../services/firebaseService';
 
@@ -400,16 +400,18 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
               </h4>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {(() => {
-                  const validCred = getPrimaryCredential(coach.icfCredentials);
-                  if (validCred) {
-                    const qual = mapIcfLevelToQualification(validCred.level) || validCred.level;
-                    return (
-                      <span className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                        {getShortCredential(qual as Qualification)}
-                      </span>
-                    );
+                  const validCreds = getDisplayCredentials(coach.icfCredentials);
+                  if (validCreds.length > 0) {
+                    return validCreds.map((validCred, idx) => {
+                      const qual = mapIcfLevelToQualification(validCred.level) || validCred.level;
+                      return (
+                        <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
+                          {getShortCredential(qual as Qualification)}
+                        </span>
+                      );
+                    });
                   }
-                  return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>Trainee Coach</span>;
+                  return <span className="badge" style={{ fontSize: '0.75rem', padding: '4px 10px', background: 'var(--panel-bg)', color: 'hsl(var(--text-muted))', border: '1px solid var(--border-light)' }}>Trainee Coach</span>;
                 })()}
               </div>
             </div>
@@ -652,22 +654,24 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                             {(() => {
-                               const validCred = getPrimaryCredential(u.icfCredentials);
-                               if (validCred) {
-                                 const qual = mapIcfLevelToQualification(validCred.level) || validCred.level;
-                                 return (
-                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                     <span className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                                       {getShortCredential(qual as Qualification)}
-                                     </span>
-                                     <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))' }}>
-                                       Expires: {validCred.expiryDate.toDate().toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
-                                     </span>
-                                   </div>
-                                 );
+                               const validCreds = getDisplayCredentials(u.icfCredentials);
+                               if (validCreds.length > 0) {
+                                 return validCreds.map((validCred, idx) => {
+                                   const qual = mapIcfLevelToQualification(validCred.level) || validCred.level;
+                                   return (
+                                     <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                                       <span className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
+                                         {getShortCredential(qual as Qualification)}
+                                       </span>
+                                       <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))' }}>
+                                         Expires: {validCred.expiryDate.toDate().toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                                       </span>
+                                     </div>
+                                   );
+                                 });
                                }
                                return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>Trainee Coach</span>;
-                            })()}
+                             })()}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
                              <button
@@ -676,10 +680,10 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                                  setVerifyingId(u.userId);
                                  setVerifyErrorId(null);
                                  try {
-                                   const cred = await verifyIcfCredential(u.firstName, u.lastName);
-                                   if (cred) {
-                                     const newQual = mapIcfLevelToQualification(cred.level);
-                                     await updateVerifiedCredentials(u.userId, [cred], newQual);
+                                   const creds = await verifyIcfCredential(u.firstName, u.lastName);
+                                   if (creds && creds.length > 0) {
+                                     const newQuals = creds.map(c => mapIcfLevelToQualification(c.level)).filter(Boolean) as Qualification[];
+                                     await updateVerifiedCredentials(u.userId, creds, newQuals);
                                    } else {
                                      setVerifyErrorId(u.userId);
                                    }

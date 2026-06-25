@@ -371,6 +371,12 @@ p {
   border: 1px solid rgba(45, 212, 191, 0.25);
 }
 
+.badge-actc {
+  background: rgba(168, 85, 247, 0.12);
+  color: #a855f7;
+  border: 1px solid rgba(168, 85, 247, 0.25);
+}
+
 .badge-admin {
   background: rgba(167, 139, 250, 0.12);
   color: #c084fc;

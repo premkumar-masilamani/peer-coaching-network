@@ -412,13 +412,13 @@ export const formatDisplayName = (user: { firstName?: string; lastName?: string;
   return (user.displayName || '').replace(/\s*\([^)]*\)/g, '').trim();
 };
 
-export const updateVerifiedCredentials = async (uid: string, credentials: IcfCredential[], newQualification?: Qualification): Promise<void> => {
+export const updateVerifiedCredentials = async (uid: string, credentials: IcfCredential[], newQualifications?: Qualification[]): Promise<void> => {
   const userDocRef = doc(db, COLLECTIONS.USERS, uid);
   const updates: Partial<UserProfile> = {
     icfCredentials: credentials
   };
-  if (newQualification) {
-    updates.qualifications = [newQualification];
+  if (newQualifications && newQualifications.length > 0) {
+    updates.qualifications = newQualifications;
   }
   await updateDoc(userDocRef, updates);
 };

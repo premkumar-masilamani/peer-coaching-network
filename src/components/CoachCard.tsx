@@ -4,7 +4,7 @@ import { formatDisplayName } from '../services/firebaseService';
 import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
 import { sanitizeImageUrl } from '../utils/url';
 import { MapPin, Calendar, Award } from 'lucide-react';
-import { getPrimaryCredential, mapIcfLevelToQualification } from '../utils/credentialHelpers';
+import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
 import type { Qualification } from '../config';
 
 interface CoachCardProps {
@@ -20,11 +20,11 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
     return text.substring(0, limit) + '...';
   };
 
-  const primaryCred = getPrimaryCredential(coach.icfCredentials);
-  const primaryQual = primaryCred ? mapIcfLevelToQualification(primaryCred.level) : null;
-  const hasMCC = primaryQual === 'ICF MCC';
-  const hasPCC = primaryQual === 'ICF PCC';
-  const hasACC = primaryQual === 'ICF ACC';
+  const displayCredentials = getDisplayCredentials(coach.icfCredentials);
+  
+  const hasMCC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF MCC');
+  const hasPCC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF PCC');
+  const hasACC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF ACC');
 
   return (
     <div className="glass-panel glass-panel-interactive animate-fade-in" style={{
@@ -98,11 +98,16 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
 
         {/* Qualifications Badges */}
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
-          {primaryQual ? (
-            <span className={`badge ${getCredentialBadgeClass(primaryQual as Qualification)}`} style={{ fontSize: '0.65rem' }}>
-              <Award size={10} style={{ marginRight: '4px' }} />
-              {getShortCredential(primaryQual as Qualification)}
-            </span>
+          {displayCredentials.length > 0 ? (
+            displayCredentials.map((cred, idx) => {
+              const qual = mapIcfLevelToQualification(cred.level) || cred.level;
+              return (
+                <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.65rem' }}>
+                  <Award size={10} style={{ marginRight: '4px' }} />
+                  {getShortCredential(qual as Qualification)}
+                </span>
+              );
+            })
           ) : (
             <span style={{ fontSize: '0.7rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
               Trainee Coach

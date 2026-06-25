@@ -14,7 +14,7 @@ import type { DocumentData } from 'firebase/firestore';
 import { ScheduleModal } from './modals/ScheduleModal';
 import { CancelModal } from './modals/CancelModal';
 import { SessionDetailsModal } from './modals/SessionDetailsModal';
-import { getPrimaryCredential, mapIcfLevelToQualification } from '../utils/credentialHelpers';
+import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
 
 import { 
   Filter, 
@@ -970,11 +970,10 @@ export const UpcomingSessions: React.FC = () => {
                             {slotCoaches.map((coach) => {
                               // Border mapping based on highest qualification
                               let borderCol = 'var(--border-light)';
-                              const primaryCred = getPrimaryCredential(coach.icfCredentials);
-                              const primaryQual = primaryCred ? mapIcfLevelToQualification(primaryCred.level) : null;
-                              const hasMCC = primaryQual === 'ICF MCC';
-                              const hasPCC = primaryQual === 'ICF PCC';
-                              const hasACC = primaryQual === 'ICF ACC';
+                              const displayCredentials = getDisplayCredentials(coach.icfCredentials);
+                              const hasMCC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF MCC');
+                              const hasPCC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF PCC');
+                              const hasACC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF ACC');
                               
                               if (hasMCC) borderCol = 'hsl(var(--mcc-platinum))';
                               else if (hasPCC) borderCol = 'hsl(var(--pcc-silver))';
@@ -1004,12 +1003,17 @@ export const UpcomingSessions: React.FC = () => {
                                           {coach.country || 'Remote'}
                                         </div>
                                         <div className="mini-coach-quals">
-                                          {primaryQual ? (
-                                            <span className={`badge ${getCredentialBadgeClass(primaryQual as Qualification)}`} style={{ fontSize: '0.55rem', padding: '2px 6px' }}>
-                                              {getShortCredential(primaryQual as Qualification)}
-                                            </span>
+                                          {displayCredentials.length > 0 ? (
+                                            displayCredentials.map((cred, idx) => {
+                                              const qual = mapIcfLevelToQualification(cred.level) || cred.level;
+                                              return (
+                                                <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
+                                                  {getShortCredential(qual as Qualification)}
+                                                </span>
+                                              );
+                                            })
                                           ) : (
-                                            <span style={{ fontSize: '0.6rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
+                                            <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
                                               Trainee Coach
                                             </span>
                                           )}

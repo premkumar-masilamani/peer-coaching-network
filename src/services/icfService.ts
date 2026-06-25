@@ -11,7 +11,7 @@ import { type IcfCredential, ICF_DIRECTORY_URL } from '../config';
 export const verifyIcfCredential = async (
   firstName: string,
   lastName: string
-): Promise<IcfCredential | null> => {
+): Promise<IcfCredential[] | null> => {
   try {
     const fn = firstName.trim();
     const ln = lastName.trim();
@@ -50,15 +50,13 @@ export const verifyIcfCredential = async (
           if (credCellHtml) {
             // Split by <br> or <br/> to handle multiple credentials
             const credLines = credCellHtml.split(/<br\s*\/?>/i);
-            let bestLevel = '';
-            let bestExpiryDate = new Date(0);
-            let foundValid = false;
+            const credentials: IcfCredential[] = [];
 
             for (const line of credLines) {
               const cleanLine = line.replace(/<[^>]+>/g, '').trim();
               if (!cleanLine) continue;
 
-              const match = cleanLine.match(/^([A-Z]{3})(?:\s+.*-\s+(\d{1,2})\/(\d{4}))?/);
+              const match = cleanLine.match(/^([A-Z]{3,4})(?:\s+.*-\s+(\d{1,2})\/(\d{4}))?/);
               if (match) {
                 const level = match[1];
                 let expiryDate: Date;
@@ -73,22 +71,15 @@ export const verifyIcfCredential = async (
                   expiryDate = new Date(Date.UTC(now.getFullYear() + 1, 11, 31, 23, 59, 59));
                 }
 
-                // Determine hierarchy: MCC > PCC > ACC
-                const levelWeight = (l: string) => l === 'MCC' ? 3 : l === 'PCC' ? 2 : l === 'ACC' ? 1 : 0;
-                
-                if (!foundValid || levelWeight(level) > levelWeight(bestLevel)) {
-                  bestLevel = level;
-                  bestExpiryDate = expiryDate;
-                  foundValid = true;
-                }
+                credentials.push({
+                  level,
+                  expiryDate: Timestamp.fromDate(expiryDate)
+                });
               }
             }
 
-            if (foundValid) {
-              return {
-                level: bestLevel,
-                expiryDate: Timestamp.fromDate(bestExpiryDate)
-              };
+            if (credentials.length > 0) {
+              return credentials;
             }
           }
         }

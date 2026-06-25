@@ -19,7 +19,7 @@ import { formatDisplayName, formatMemberSince, logAnalyticsEvent } from '../serv
 import { sanitizeImageUrl } from '../utils/url';
 import { GENDER_OPTIONS, type Gender, type Qualification, ICF_DIRECTORY_URL } from '../config';
 import { navigateToProfile } from '../utils/url';
-import { getPrimaryCredential, mapIcfLevelToQualification } from '../utils/credentialHelpers';
+import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
 import { verifyIcfCredential } from '../services/icfService';
 import { updateVerifiedCredentials } from '../services/firebaseService';
 
@@ -82,17 +82,17 @@ export const ProfileEdit: React.FC = () => {
   const [verifyMsg, setVerifyMsg] = useState('');
 
   
-  const primaryCredential = getPrimaryCredential(profile?.icfCredentials);
+  const displayCredentials = getDisplayCredentials(profile?.icfCredentials);
 
   const handleVerify = async () => {
     if (!profile) return;
     setVerifying(true);
     setVerifyMsg('');
     try {
-      const cred = await verifyIcfCredential(profile.firstName, profile.lastName);
-      if (cred) {
-        const newQual = mapIcfLevelToQualification(cred.level);
-        await updateVerifiedCredentials(profile.userId, [cred], newQual);
+      const creds = await verifyIcfCredential(profile.firstName, profile.lastName);
+      if (creds && creds.length > 0) {
+        const newQuals = creds.map(c => mapIcfLevelToQualification(c.level)).filter(Boolean) as Qualification[];
+        await updateVerifiedCredentials(profile.userId, creds, newQuals);
         // No success message needed
       } else {
         setVerifyMsg('Could not find active credential in ICF Directory.');
@@ -340,13 +340,15 @@ export const ProfileEdit: React.FC = () => {
               Credentials
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
-              {primaryCredential ? (
-                <div style={{ fontSize: '0.9rem', color: 'hsl(var(--text-primary))', fontWeight: 500 }}>
-                  {getCredentialDescription(mapIcfLevelToQualification(primaryCredential.level) || primaryCredential.level)}
-                  <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', marginLeft: '8px' }}>
-                    (Expires: {primaryCredential.expiryDate.toDate().toLocaleDateString(undefined, { month: 'short', year: 'numeric' })})
-                  </span>
-                </div>
+              {displayCredentials.length > 0 ? (
+                displayCredentials.map((cred, idx) => (
+                  <div key={idx} style={{ fontSize: '0.9rem', color: 'hsl(var(--text-primary))', fontWeight: 500, marginBottom: '4px' }}>
+                    {getCredentialDescription(mapIcfLevelToQualification(cred.level) || cred.level)}
+                    <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', marginLeft: '8px' }}>
+                      (Expires: {cred.expiryDate.toDate().toLocaleDateString(undefined, { month: 'short', year: 'numeric' })})
+                    </span>
+                  </div>
+                ))
               ) : (
                 <div style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>
                   Trainee Coach
