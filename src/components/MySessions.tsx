@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { getUpcomingEvents, cancelBooking } from '../services/googleCalendar';
 import { logAnalyticsEvent } from '../services/firebaseService';
 import type { CalendarEvent } from '../services/googleCalendar';
@@ -28,7 +29,7 @@ export const MySessions: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [currentPage, setCurrentPage] = useState(1);
 
-  const loadSessions = async (silent = false) => {
+  const loadSessions = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
       const list = await getUpcomingEvents();
@@ -40,7 +41,11 @@ export const MySessions: React.FC = () => {
     } finally {
       if (!silent) setLoading(false);
     }
-  };
+  }, []);
+
+  useFocusRefresh(useCallback(() => {
+    loadSessions(true);
+  }, [loadSessions]));
 
   const handleCancel = async (bookingId: string) => {
     setCancellingId(bookingId);
@@ -141,19 +146,6 @@ export const MySessions: React.FC = () => {
           <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-muted))', marginTop: '4px' }}>
             Centralised registry of all your upcoming and past peer coaching sessions.
           </p>
-        </div>
-        
-        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <button 
-            onClick={() => loadSessions(false)} 
-            className="btn btn-secondary" 
-            style={{ padding: '8px 16px', fontSize: '0.85rem', height: '38px', gap: '6px' }}
-            disabled={loading}
-          >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            Refresh List
-          </button>
-
         </div>
       </div>
 
