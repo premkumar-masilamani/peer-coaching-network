@@ -153,23 +153,6 @@ export const ProfileEdit: React.FC = () => {
             Manage your personal information and preferences.
           </p>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {successMsg && (
-            <div style={{ color: '#34d399', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <CheckCircle size={15} />
-              {successMsg}
-            </div>
-          )}
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={requestExplicitSave}
-            disabled={saving}
-            style={{ padding: '8px 24px' }}
-          >
-            {saving ? 'Saving...' : 'Save Profile'}
-          </button>
-        </div>
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
@@ -421,6 +404,25 @@ export const ProfileEdit: React.FC = () => {
               style={{ resize: 'vertical' }}
               required
             />
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '24px' }}>
+            <div>
+              {successMsg && (
+                <div style={{ color: '#34d399', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <CheckCircle size={15} />
+                  {successMsg}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={saving}
+            >
+              {saving ? 'Saving...' : 'Save Profile'}
+            </button>
           </div>
 
         </form>

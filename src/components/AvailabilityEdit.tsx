@@ -530,7 +530,7 @@ export const AvailabilityEdit: React.FC = () => {
         }
       `}</style>
 
-      {/* Global Header & Save Action */}
+      {/* Global Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'hsl(var(--text-primary))' }}>My Availability</h2>
@@ -538,21 +538,6 @@ export const AvailabilityEdit: React.FC = () => {
             Manage your weekly schedule and upcoming blocked dates.
           </p>
         </div>
-        <button
-          onClick={requestExplicitSave}
-          disabled={saving || hasValidationError}
-          className="btn btn-primary"
-          style={{
-            padding: '8px 24px',
-            fontWeight: 700,
-            borderRadius: '8px',
-            minWidth: '100px',
-            opacity: (saving || hasValidationError) ? 0.5 : 1,
-            cursor: (saving || hasValidationError) ? 'not-allowed' : 'pointer'
-          }}
-        >
-          {saving ? 'Saving...' : 'Save Changes'}
-        </button>
       </div>
 
       {/* Notifications */}
@@ -750,6 +735,24 @@ export const AvailabilityEdit: React.FC = () => {
             )}
           </div>
         </div>
+        
+        {/* Save Changes Button placed below Blocked Dates */}
+        <button
+          onClick={requestExplicitSave}
+          disabled={saving || hasValidationError}
+          className="btn btn-primary"
+          style={{
+            padding: '12px 24px',
+            fontWeight: 700,
+            borderRadius: '8px',
+            width: '100%',
+            opacity: (saving || hasValidationError) ? 0.5 : 1,
+            cursor: (saving || hasValidationError) ? 'not-allowed' : 'pointer',
+            marginTop: '8px'
+          }}
+        >
+          {saving ? 'Saving...' : 'Save Changes'}
+        </button>
       </div>
     </div>
     </div>
