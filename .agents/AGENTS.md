@@ -28,6 +28,8 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Concurrency Protection**: Calculations in `recalculateUserBusySlotsCache` must be serialized using a promise chain (`recalcChains`) to prevent interleaving writes from corrupting the busy slots cache.
 - **Scheduling Guarantee**: Always use a Firestore transaction with a deterministic ID (`${coachUid}_${startIso}`) when persisting bookings to prevent double-booking.
 - **Timezones**: Availability templates use local time strings (e.g., `"10:00 AM"`). They are resolved and queried in UTC ISO strings using `getUtcForLocalDateTime` to handle DST fixed-point convergence.
+- **Multiple Concurrent Credentials**: Always store credentials as arrays rather than single strings to support users holding multiple concurrent overlapping badges (e.g., core certifications + specialized advanced certifications).
+- **Dynamic URL Templates**: Construct external URLs by replacing `{placeholder}` strings using `encodeURIComponent` on dynamic data instead of static string concatenation to ensure flexibility and avoid breaking query parameters.
 
 ## 4. React & Rendering Constraints
 - **Avoid Cascading Renders (`react-hooks/set-state-in-effect`)**: Do not call `setState` synchronously within a `useEffect`.
@@ -42,6 +44,8 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Glassmorphism**: Use `className="glass-panel"` for intelligent theme-aware cards and containers.
 - **Modals**: Never use inline JSX overlays. All modals must be standalone components in `src/components/modals/`.
 - **Profile Banners**: Never block access to the dashboard or other tabs over an incomplete profile. Advisory banners only.
+- **Inline Error Feedback**: Avoid intrusive success or error popups (like alerts) for background verification actions. Use subtle inline text directly below or beside action buttons for errors, and quietly revert to a normal state on success for a frictionless experience.
+- **Background Action Buttons**: Always provide visual feedback on action buttons when waiting for async external requests by disabling the button and changing the text (e.g., "Verifying..."). Stack buttons and related links vertically for consistent, clean UI layouts.
 
 ## 6. Unsaved State Tracking
 - **Global Tracking**: Any form that mutates local state without persisting to Firestore must integrate the `useUnsavedChanges` hook to intercept and block accidental cross-tab navigation.
