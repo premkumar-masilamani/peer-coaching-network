@@ -201,7 +201,7 @@ export const UpcomingSessions: React.FC = () => {
   }, [activeDayDate, viewerTimezone]);
 
   // Fetch active peer coaches only (server-side filtered, not the whole users
-  // collection). See BUG-006.
+  // collection).
   useEffect(() => {
     const unsub = subscribeToActiveCoaches((usersList) => {
       const peerCoaches = usersList.filter((u) => u.userId !== currentUser?.uid);
@@ -254,7 +254,6 @@ export const UpcomingSessions: React.FC = () => {
   // Load calendar data when the coach list changes. Runs inside an async IIFE so
   // no setState happens synchronously in the effect body (no setTimeout hack).
   // loadingCalendar already starts true, so we don't re-show the spinner here.
-  // See BUG-007.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -405,7 +404,7 @@ export const UpcomingSessions: React.FC = () => {
   };
 
   // Precompute, once per relevant-input change, the filtered coaches per slot —
-  // instead of calling getCoachesForSlot three times per render. See BUG-006.
+  // instead of calling getCoachesForSlot three times per render.
   const slotView = useMemo(() => {
     const enriched = slots.map(slot => {
       const isPassed = slot.endTime.getTime() < now;
@@ -936,7 +935,7 @@ export const UpcomingSessions: React.FC = () => {
             <div>
               {(() => {
                 // Slots that are not passed and have at least one matching coach,
-                // precomputed in `slotView`. See BUG-006.
+                // precomputed in `slotView`.
                 const displaySlots = slotView.displaySlots;
 
                 if (displaySlots.length > 0) {
@@ -1096,7 +1095,7 @@ export const UpcomingSessions: React.FC = () => {
                 }
 
                 // If displaySlots is empty, check whether any slot has coaches at
-                // all (ignoring filters), precomputed in slotView. See BUG-006.
+                // all (ignoring filters), precomputed in slotView.
                 const hasGeneralSlots = slotView.hasGeneralSlots;
 
                 if (hasGeneralSlots) {

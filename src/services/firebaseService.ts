@@ -112,7 +112,7 @@ const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
 
 // Required config that has no safe default. Against the emulator these are not
 // needed, but a real (cloud) build must supply them — we never silently fall
-// back to dummy credentials. See BUG-013.
+// back to dummy credentials.
 const requiredConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || (useEmulator ? 'peer-coaching-network-dev' : undefined),
@@ -188,7 +188,7 @@ if (useEmulator) {
 }
 
 // Reflects whether real config was supplied (or we're running against the
-// emulator), instead of being hardcoded true. See BUG-013.
+// emulator), instead of being hardcoded true.
 export const isFirebaseConfigured = useEmulator || missingConfig.length === 0;
 
 export { auth };
@@ -318,7 +318,7 @@ export const updateProfile = async (uid: string, updates: Partial<UserProfile>):
 
 // Fields a user may change on their OWN profile. Privileged fields
 // (userRole/userStatus/qualifications) are intentionally excluded — they
-// are admin-controlled and enforced server-side by Firestore rules. See BUG-002.
+// are admin-controlled and enforced server-side by Firestore rules.
 const OWN_EDITABLE_FIELDS: (keyof UserProfile)[] = [
   'displayName', 'photoURL', 'gender', 'country',
   'bio', 'timezone', 'theme'
@@ -374,7 +374,7 @@ export const subscribeToAllUsers = (callback: (users: UserProfile[]) => void): (
 };
 
 // Live subscription to ACTIVE users only (peer coaches), avoiding a full
-// users-collection download for the dashboard (BUG-006). We filter on the
+// users-collection download for the dashboard. We filter on the
 // userStatus field.
 export const subscribeToActiveCoaches = (callback: (users: UserProfile[]) => void): (() => void) => {
   const q = query(collection(db, COLLECTIONS.USERS), where('userStatus', '==', USER_STATUS.ACTIVE));
@@ -386,7 +386,7 @@ export const subscribeToActiveCoaches = (callback: (users: UserProfile[]) => voi
 };
 
 // Live count of pending (inactive) users — transfers only pending documents
-// rather than the whole collection just to derive a badge number (BUG-006).
+// rather than the whole collection just to derive a badge number.
 export const subscribeToPendingUsersCount = (callback: (count: number) => void): (() => void) => {
   const q = query(collection(db, COLLECTIONS.USERS), where('userStatus', '==', USER_STATUS.INACTIVE));
   return onSnapshot(q, (querySnap) => callback(querySnap.size));
@@ -472,7 +472,7 @@ const recalcChains = new Map<string, Promise<void>>();
 
 // Serialize recalculations per-uid so concurrent triggers cannot interleave and
 // clobber each other's writes (lost update). Errors propagate so callers may
-// retry rather than silently dropping them. See BUG-009.
+// retry rather than silently dropping them.
 export const recalculateUserBusySlotsCache = (uid: string): Promise<void> => {
   const prev = recalcChains.get(uid) || Promise.resolve();
   const next = prev.catch(() => {}).then(() => doRecalculateUserBusySlotsCache(uid));
@@ -624,7 +624,7 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
     }
     
     // 2. Process active bookings (skip cancelled and already-finished ones so
-    //    busy slots don't accrete forever). See BUG-016.
+    //    busy slots don't accrete forever).
     const nowMs = Date.now();
     bookings.forEach(b => {
       if (b.status === BOOKING_STATUS.CANCELLED) return;
