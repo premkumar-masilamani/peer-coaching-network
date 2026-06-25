@@ -20,6 +20,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { parseLocalTime } from '../utils/timezoneHelpers';
+import { useUnsavedChanges } from '../context/UnsavedChangesContext';
 
 interface TimeRange {
   start: string;
@@ -91,8 +92,12 @@ export const AvailabilityEdit: React.FC = () => {
   const uid = user?.uid || '';
 
   const [weekly, setWeekly] = useState<AvailableDaysFormState>(DEFAULT_FORM_WEEKLY);
+  const [initialWeekly, setInitialWeekly] = useState<AvailableDaysFormState | null>(null);
   const [blockedDates, setBlockedDates] = useState<string[]>([]);
+  const [initialBlockedDates, setInitialBlockedDates] = useState<string[] | null>(null);
   const [loadingSchedule, setLoadingSchedule] = useState(true);
+
+  const { setPageDirtyState, requestExplicitSave } = useUnsavedChanges();
 
   useEffect(() => {
     let active = true;
@@ -113,7 +118,9 @@ export const AvailabilityEdit: React.FC = () => {
             };
           }
           setWeekly(mappedWeekly);
+          setInitialWeekly(mappedWeekly);
           setBlockedDates(sched.blockedDates);
+          setInitialBlockedDates(sched.blockedDates);
         }
       } catch (e) {
         console.error('Failed to load schedule:', e);
@@ -291,79 +298,112 @@ export const AvailabilityEdit: React.FC = () => {
     }
   };
 
-  // Save changes to Firestore
-  const handleSave = async () => {
-    if (!uid) return;
-    setSaving(true);
-    setSuccessMsg('');
-    setErrorMsg('');
-
-    // Basic slot validation
-    let isValid = true;
-    let timeOrderValid = true;
+  useEffect(() => {
+    if (!initialWeekly || !initialBlockedDates) return;
+    const newChanges: string[] = [];
     DAYS_OF_WEEK.forEach(day => {
-      const dayData = weekly[day.key];
-      if (dayData.enabled) {
-        dayData.slots.forEach(slot => {
-          if (!TIME_OPTIONS.includes(slot.start) || !TIME_OPTIONS.includes(slot.end)) {
-            isValid = false;
-          }
-          const startParsed = parseLocalTime(slot.start);
-          const endParsed = parseLocalTime(slot.end);
-          const startMin = startParsed.hour * 60 + startParsed.minute;
-          const endMin = endParsed.hour * 60 + endParsed.minute;
-          if (endMin <= startMin) {
-            timeOrderValid = false;
-          }
-        });
+      const initialDay = initialWeekly[day.key];
+      const currentDay = weekly[day.key];
+      
+      if (initialDay.enabled !== currentDay.enabled) {
+        newChanges.push(`${day.label}: ${currentDay.enabled ? 'Available' : 'Unavailable'}`);
+      } else if (currentDay.enabled && JSON.stringify(initialDay.slots) !== JSON.stringify(currentDay.slots)) {
+        const slotsStr = currentDay.slots.map(s => `${s.start} - ${s.end}`).join(', ');
+        newChanges.push(`${day.label} slots updated to: ${slotsStr || 'None'}`);
       }
     });
 
-    if (!isValid) {
-      setErrorMsg('Please select valid start and end times for all active slots.');
-      setSaving(false);
-      return;
-    }
+    const addedDates = blockedDates.filter(d => !initialBlockedDates.includes(d));
+    const removedDates = initialBlockedDates.filter(d => !blockedDates.includes(d));
+    
+    addedDates.forEach(d => {
+      newChanges.push(`Added blocked date: ${formatReadableDate(d)}`);
+    });
+    removedDates.forEach(d => {
+      newChanges.push(`Removed blocked date: ${formatReadableDate(d)}`);
+    });
+    
+    const isDirty = newChanges.length > 0;
 
-    if (!timeOrderValid) {
-      setErrorMsg('End times must be later than start times.');
-      setSaving(false);
-      return;
-    }
+    const saveHandler = async (): Promise<boolean> => {
+      if (!uid) return false;
+      setSaving(true);
+      setSuccessMsg('');
+      setErrorMsg('');
 
-    try {
-      const dbAvailableDays = {} as AvailableDays;
-      for (const day of Object.keys(weekly) as (keyof AvailableDaysFormState)[]) {
-        const dayData = weekly[day];
-        dbAvailableDays[day] = {
-          enabled: dayData.enabled,
-          slots: dayData.slots.map(s => ({
-            startTime: timeStringToTimestamp(s.start),
-            endTime: timeStringToTimestamp(s.end)
-          }))
-        };
-      }
-
-      // 1. Update schedule sub-collection
-      await updateSchedule(uid, dbAvailableDays, blockedDates);
-
-      // 2. Recompute and write actual busy intervals to busySlotsCache collection
-      await recalculateUserBusySlotsCache(uid);
-
-      logAnalyticsEvent('save_availability_template', {
-        enabledDays: Object.keys(weekly).filter(day => weekly[day as keyof AvailableDaysFormState].enabled),
-        blockedDatesCount: blockedDates.length,
+      // Basic slot validation
+      let isValid = true;
+      let timeOrderValid = true;
+      DAYS_OF_WEEK.forEach(day => {
+        const dayData = weekly[day.key];
+        if (dayData.enabled) {
+          dayData.slots.forEach(slot => {
+            if (!TIME_OPTIONS.includes(slot.start) || !TIME_OPTIONS.includes(slot.end)) {
+              isValid = false;
+            }
+            const startParsed = parseLocalTime(slot.start);
+            const endParsed = parseLocalTime(slot.end);
+            const startMin = startParsed.hour * 60 + startParsed.minute;
+            const endMin = endParsed.hour * 60 + endParsed.minute;
+            if (endMin <= startMin) {
+              timeOrderValid = false;
+            }
+          });
+        }
       });
 
-      setSuccessMsg('Availability template and schedules saved successfully!');
-      setTimeout(() => setSuccessMsg(''), 4000);
-    } catch (e) {
-      console.error(e);
-      setErrorMsg('Failed to save availability settings. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  };
+      if (!isValid) {
+        setErrorMsg('Please select valid start and end times for all active slots.');
+        setSaving(false);
+        return false;
+      }
+
+      if (!timeOrderValid) {
+        setErrorMsg('End times must be later than start times.');
+        setSaving(false);
+        return false;
+      }
+
+      try {
+        const dbAvailableDays = {} as AvailableDays;
+        for (const day of Object.keys(weekly) as (keyof AvailableDaysFormState)[]) {
+          const dayData = weekly[day];
+          dbAvailableDays[day] = {
+            enabled: dayData.enabled,
+            slots: dayData.slots.map(s => ({
+              startTime: timeStringToTimestamp(s.start),
+              endTime: timeStringToTimestamp(s.end)
+            }))
+          };
+        }
+
+        // 1. Update schedule sub-collection
+        await updateSchedule(uid, dbAvailableDays, blockedDates);
+
+        // 2. Recompute and write actual busy intervals to busySlotsCache collection
+        await recalculateUserBusySlotsCache(uid);
+
+        logAnalyticsEvent('save_availability_template', {
+          enabledDays: Object.keys(weekly).filter(day => weekly[day as keyof AvailableDaysFormState].enabled),
+          blockedDatesCount: blockedDates.length,
+        });
+
+        setSuccessMsg('Availability template and schedules saved successfully!');
+        setTimeout(() => setSuccessMsg(''), 4000);
+        setInitialWeekly(weekly);
+        setInitialBlockedDates(blockedDates);
+        return true;
+      } catch (e) {
+        console.error(e);
+        setErrorMsg('Failed to save availability settings. Please try again.');
+        return false;
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    setPageDirtyState(isDirty, newChanges, saveHandler);
+  }, [uid, weekly, blockedDates, initialWeekly, initialBlockedDates, setPageDirtyState]);
 
   if (loadingSchedule) {
     return (
@@ -375,7 +415,7 @@ export const AvailabilityEdit: React.FC = () => {
   }
 
   return (
-    <div className="animate-fade-in availability-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', width: '100%', alignItems: 'start' }}>
+    <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
       <style>{`
         .availability-layout {
           grid-template-columns: 1fr 340px;
@@ -490,48 +530,42 @@ export const AvailabilityEdit: React.FC = () => {
         }
       `}</style>
 
-      {/* Main Weekly Schedule Panel */}
-      <div className="glass-panel" style={{ padding: '32px', position: 'relative' }}>
-        {/* Header Title with Save */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', borderBottom: '1px solid var(--border-light)', paddingBottom: '16px' }}>
-          <div>
-            <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>Default Availability</h2>
+      {/* Global Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'hsl(var(--text-primary))' }}>My Availability</h2>
+          <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))', marginTop: '4px' }}>
+            Manage your weekly schedule and upcoming blocked dates.
+          </p>
+        </div>
+      </div>
+
+      {/* Notifications */}
+      {successMsg && (
+        <div className="badge badge-approved" style={{ width: '100%', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', gap: '8px' }}>
+          <Check size={16} />
+          <span>{successMsg}</span>
+        </div>
+      )}
+      {(validationError || errorMsg) && (
+        <div className="badge badge-pending" style={{ width: '100%', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', gap: '8px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
+          <AlertTriangle size={16} />
+          <span>{validationError || errorMsg}</span>
+        </div>
+      )}
+
+      <div className="availability-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', width: '100%', alignItems: 'start' }}>
+        {/* Main Weekly Schedule Panel */}
+        <div className="glass-panel" style={{ padding: '32px', position: 'relative' }}>
+          {/* Header Title with Save */}
+          <div style={{ marginBottom: '24px', borderBottom: '1px solid var(--border-light)', paddingBottom: '16px' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Default Availability</h3>
             <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))', marginTop: '4px' }}>
               Define the recurring weekly slots when peer coaches can book sessions with you.
             </p>
           </div>
-          <button
-            onClick={handleSave}
-            disabled={saving || hasValidationError}
-            className="btn btn-primary"
-            style={{
-              padding: '8px 24px',
-              fontWeight: 700,
-              borderRadius: '8px',
-              minWidth: '100px',
-              opacity: (saving || hasValidationError) ? 0.5 : 1,
-              cursor: (saving || hasValidationError) ? 'not-allowed' : 'pointer'
-            }}
-          >
-            {saving ? 'Saving...' : 'Save'}
-          </button>
-        </div>
 
-        {/* Notifications */}
-        {successMsg && (
-          <div className="badge badge-approved" style={{ width: '100%', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '16px', gap: '8px' }}>
-            <Check size={16} />
-            <span>{successMsg}</span>
-          </div>
-        )}
-        {(validationError || errorMsg) && (
-          <div className="badge badge-pending" style={{ width: '100%', padding: '12px', borderRadius: '8px', fontSize: '0.85rem', marginBottom: '16px', gap: '8px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.2)' }}>
-            <AlertTriangle size={16} />
-            <span>{validationError || errorMsg}</span>
-          </div>
-        )}
-
-        {/* Weekly Day List */}
+          {/* Weekly Day List */}
         <div>
           {DAYS_OF_WEEK.map(({ key, label }) => {
             const daySched = weekly[key];
@@ -701,7 +735,26 @@ export const AvailabilityEdit: React.FC = () => {
             )}
           </div>
         </div>
+        
+        {/* Save Changes Button placed below Blocked Dates */}
+        <button
+          onClick={requestExplicitSave}
+          disabled={saving || hasValidationError}
+          className="btn btn-primary"
+          style={{
+            padding: '12px 24px',
+            fontWeight: 700,
+            borderRadius: '8px',
+            width: '100%',
+            opacity: (saving || hasValidationError) ? 0.5 : 1,
+            cursor: (saving || hasValidationError) ? 'not-allowed' : 'pointer',
+            marginTop: '8px'
+          }}
+        >
+          {saving ? 'Saving...' : 'Save Changes'}
+        </button>
       </div>
+    </div>
     </div>
   );
 };
