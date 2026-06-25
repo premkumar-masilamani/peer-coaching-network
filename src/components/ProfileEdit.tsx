@@ -93,14 +93,13 @@ export const ProfileEdit: React.FC = () => {
       if (cred) {
         const newQual = mapIcfLevelToQualification(cred.level);
         await updateVerifiedCredentials(profile.userId, [cred], newQual);
-        setVerifyMsg(`Successfully verified as ${cred.level}!`);
-        // Refresh local profile state by not doing anything (onSnapshot will update profile)
+        // No success message needed
       } else {
         setVerifyMsg('Could not find active credential in ICF Directory.');
       }
     } catch (e) {
       console.error('Error verifying credentials:', e);
-      setVerifyMsg('Error verifying credentials.');
+      setVerifyMsg('Error verifying credentials. Please contact admin.');
     } finally {
       setVerifying(false);
     }
@@ -354,23 +353,16 @@ export const ProfileEdit: React.FC = () => {
                 </div>
               )}
               
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '4px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
                 <button
                   type="button"
                   onClick={handleVerify}
                   disabled={verifying}
                   className="btn btn-secondary"
-                  style={{ fontSize: '0.8rem', padding: '6px 12px' }}
+                  style={{ fontSize: '0.8rem', padding: '6px 12px', alignSelf: 'flex-start' }}
                 >
                   {verifying ? 'Verifying...' : 'Verify with ICF Directory'}
                 </button>
-                {verifyMsg && (
-                  <span style={{ fontSize: '0.8rem', color: verifyMsg.includes('Success') ? 'hsl(var(--success))' : 'hsl(var(--warning))' }}>
-                    {verifyMsg}
-                  </span>
-                )}
-              </div>
-              <div style={{ marginTop: '4px' }}>
                 <a 
                   href={ICF_DIRECTORY_URL.replace('{firstName}', encodeURIComponent(profile?.firstName || '')).replace('{lastName}', encodeURIComponent(profile?.lastName || ''))}
                   target="_blank" 
@@ -379,6 +371,11 @@ export const ProfileEdit: React.FC = () => {
                 >
                   Search ICF Directory for {profile?.firstName} {profile?.lastName} <ExternalLink size={10} style={{ display: 'inline' }} />
                 </a>
+                {verifyMsg && (
+                  <span style={{ fontSize: '0.8rem', color: 'hsl(var(--error))' }}>
+                    {verifyMsg}
+                  </span>
+                )}
               </div>
             </div>
           </div>

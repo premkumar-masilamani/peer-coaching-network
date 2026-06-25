@@ -41,6 +41,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
   const [roleFilter, setRoleFilter] = useState<'all' | UserStatus | UserRole>(initialFilter);
   const [selectedCoachUid, setSelectedCoachUid] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+  const [verifyErrorId, setVerifyErrorId] = useState<string | null>(null);
   const [approvalModalData, setApprovalModalData] = useState<{
     uid: string;
     userName: string;
@@ -667,28 +669,32 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                                return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>Trainee Coach</span>;
                             })()}
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
                              <button
                                onClick={async (e) => {
                                  e.stopPropagation();
+                                 setVerifyingId(u.userId);
+                                 setVerifyErrorId(null);
                                  try {
                                    const cred = await verifyIcfCredential(u.firstName, u.lastName);
                                    if (cred) {
                                      const newQual = mapIcfLevelToQualification(cred.level);
                                      await updateVerifiedCredentials(u.userId, [cred], newQual);
-                                     alert(`Verified ${u.firstName} as ${cred.level}`);
                                    } else {
-                                     alert('Could not verify credentials in ICF Directory.');
+                                     setVerifyErrorId(u.userId);
                                    }
                                  } catch (err) {
                                    console.error('Verification error:', err);
-                                   alert('Error verifying credentials.');
+                                   setVerifyErrorId(u.userId);
+                                 } finally {
+                                   setVerifyingId(null);
                                  }
                                }}
                                className="btn btn-secondary"
-                               style={{ fontSize: '0.7rem', padding: '4px 8px' }}
+                               style={{ fontSize: '0.7rem', padding: '4px 8px', alignSelf: 'flex-start' }}
+                               disabled={verifyingId === u.userId}
                              >
-                               Verify
+                               {verifyingId === u.userId ? 'Verifying...' : 'Verify with ICF Directory'}
                              </button>
                              <a 
                                href={ICF_DIRECTORY_URL.replace('{firstName}', encodeURIComponent(u.firstName || '')).replace('{lastName}', encodeURIComponent(u.lastName || ''))}
@@ -697,8 +703,13 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                                onClick={(e) => e.stopPropagation()}
                                style={{ fontSize: '0.7rem', color: 'hsl(var(--primary))', textDecoration: 'none' }}
                              >
-                               Search <ExternalLink size={10} style={{ display: 'inline' }} />
+                               Search ICF Directory for {u.firstName} {u.lastName} <ExternalLink size={10} style={{ display: 'inline' }} />
                              </a>
+                             {verifyErrorId === u.userId && (
+                               <span style={{ fontSize: '0.7rem', color: 'hsl(var(--error))' }}>
+                                 Error verifying credentials. Please contact admin.
+                               </span>
+                             )}
                           </div>
                         </div>
                       </td>
