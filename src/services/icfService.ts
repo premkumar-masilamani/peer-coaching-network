@@ -1,5 +1,5 @@
 import { Timestamp } from 'firebase/firestore';
-import type { IcfCredential } from '../config';
+import { type IcfCredential, ICF_DIRECTORY_URL } from '../config';
 
 /**
  * Validates a user's credentials against the public ICF Coach Directory.
@@ -18,7 +18,9 @@ export const verifyIcfCredential = async (
     if (!fn && !ln) return null;
 
     // Use the exact URL requested by the user
-    const url = `https://apps.coachingfederation.org/eweb/DynamicPage.aspx?webcode=ICFDirectory&firstname=${encodeURIComponent(fn)}&lastname=${encodeURIComponent(ln)}`;
+    const url = ICF_DIRECTORY_URL
+      .replace('{firstName}', encodeURIComponent(fn))
+      .replace('{lastName}', encodeURIComponent(ln));
     const response = await fetch(url);
 
     if (!response.ok) {
