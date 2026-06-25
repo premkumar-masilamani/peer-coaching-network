@@ -96,7 +96,7 @@ export const VerificationNotice: React.FC = () => {
   return (
     <div className="animate-fade-in" style={{ maxWidth: '700px', margin: '0 auto', width: '100%' }}>
       {/* Pending Banner */}
-      <div className="glass-panel" style={{
+      <div className="structural-panel" style={{
         padding: '32px',
         borderLeft: '4px solid hsl(var(--warning))',
         marginBottom: '24px',
@@ -127,7 +127,7 @@ export const VerificationNotice: React.FC = () => {
       </div>
 
       {/* Editable details card */}
-      <div className="glass-panel" style={{ padding: '32px' }}>
+      <div className="structural-panel" style={{ padding: '32px' }}>
         <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '10px' }}>
           <BookOpen size={18} color="hsl(var(--primary))" />
           Your Coach Profile

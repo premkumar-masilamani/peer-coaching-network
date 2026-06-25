@@ -687,7 +687,7 @@ export const UpcomingSessions: React.FC = () => {
 
       <div className="dashboard-layout">
           {/* Advanced Filter panel */}
-          <div className="glass-panel" style={{ padding: '24px', marginBottom: '24px' }}>
+          <div className="structural-panel" style={{ padding: '24px', marginBottom: '24px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
               <h4 style={{ fontSize: '1rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
                 <Filter size={15} color="hsl(var(--primary))" />
@@ -927,7 +927,7 @@ export const UpcomingSessions: React.FC = () => {
 
           {/* Time Slot Agenda List */}
           {isInitialLoading ? (
-            <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 32px' }}>
+            <div className="structural-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 32px' }}>
               <RefreshCw size={28} className="animate-spin" style={{ color: 'hsl(var(--primary))', marginBottom: '16px' }} />
               <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))' }}>Computing multi-timezone schedules...</p>
             </div>
@@ -1101,7 +1101,7 @@ export const UpcomingSessions: React.FC = () => {
                 if (hasGeneralSlots) {
                   // General slots exist, but filters filtered them all out
                   return (
-                    <div className="glass-panel" style={{ 
+                    <div className="structural-panel" style={{ 
                       display: 'flex', 
                       flexDirection: 'column', 
                       alignItems: 'center', 
@@ -1129,7 +1129,7 @@ export const UpcomingSessions: React.FC = () => {
                 } else {
                   // No timeslots available at all for this day
                   return (
-                    <div className="glass-panel" style={{ 
+                    <div className="structural-panel" style={{ 
                       display: 'flex', 
                       flexDirection: 'column', 
                       alignItems: 'center', 

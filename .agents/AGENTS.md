@@ -65,3 +65,11 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Constraint Focus**: Only append rules that dictate *how* code must be written (e.g., specific hooks to use, UI utility classes, security invariants, strict rendering patterns).
 - **No Narrative**: Do not append narrative descriptions of features, component overviews, or step-by-step explanations of "how things work" under the hood. Let the code speak for itself.
 - **Conciseness**: Keep entries extremely concise and organized by domain. Remove obsolete or deprecated rules immediately.
+
+## 9. UI Guidelines (Architectural Elegance)
+- **Palette Tokens**: Use Obsidian/Indigo/Chartreuse HSL variables defined in `index.css`.
+  - Dark: Base `0 0% 4%`, Surface `0 0% 8%`, Primary `260 100% 47%`, Accent `70 100% 50%`.
+  - Light: Base `0 0% 100%`, Surface `150 14% 96%`, Primary `260 100% 47%`, Accent `260 100% 47%`.
+- **Typography**: `Instrument Serif` for display headings, `Outfit` for body and UI text.
+- **Structural Layouts**: DO NOT USE glassmorphism. Avoid blur effects, translucent backgrounds, or pill shapes. Use `.structural-panel` and `.structural-panel-interactive` (solid backgrounds, 0-2px border-radius, high-contrast borders).
+- **Buttons & Interactive Elements**: Use sharp corners (2px or 0px), strong hover states, and **active voice copy** (e.g., "Save Changes", "Send Request") instead of generic terms like "Submit".

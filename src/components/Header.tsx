@@ -14,6 +14,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter }) => {
   const { user, profile, role } = useAuth();
   const [pendingCount, setPendingCount] = React.useState(0);
+  const [currentTime, setCurrentTime] = React.useState(new Date());
 
   const isActive = isApproved(profile);
   const isActiveAdmin = role === USER_ROLE.ADMIN && isActive;
@@ -28,12 +29,21 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
     }
   }, [role, isActive]);
 
+  React.useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const timeString = currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
   if (!user) return null;
 
   return (
-    <header className="glass-panel" style={{ 
-      borderRadius: '0 0 16px 16px', 
+    <header className="structural-panel" style={{ 
+      borderRadius: '0', 
       borderTop: 'none',
+      borderLeft: 'none',
+      borderRight: 'none',
       flexShrink: 0,
       zIndex: 50,
       marginBottom: '16px'
@@ -67,6 +77,19 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
               Collaborative Calendly for coaches
             </span>
           </div>
+        </div>
+
+        {/* Time & Presence Ticker */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontFamily: 'var(--font-family-display)',
+          color: 'hsl(var(--primary))'
+        }}>
+          <span style={{ fontSize: '1.4rem', fontWeight: 600 }}>{timeString}</span>
+          <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', color: 'hsl(var(--text-muted))', letterSpacing: '0.1em', fontFamily: 'var(--font-family-body)' }}>Local Time</span>
         </div>
 
         {/* User Badge and Menu */}

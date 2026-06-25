@@ -30,7 +30,7 @@ export const ReviewChangesModal: React.FC<ReviewChangesModalProps> = ({
 
   return (
     <div className="modal-overlay" style={{ pointerEvents: 'auto', zIndex: 9999 }} onClick={onClose}>
-      <div className="glass-panel modal-content" style={{ padding: '32px', position: 'relative', border: '1px solid rgba(139, 92, 246, 0.3)' }} onClick={(e) => e.stopPropagation()}>
+      <div className="structural-panel modal-content" style={{ padding: '32px', position: 'relative', border: '1px solid rgba(139, 92, 246, 0.3)' }} onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}
           style={{
@@ -55,11 +55,11 @@ export const ReviewChangesModal: React.FC<ReviewChangesModalProps> = ({
         {!userName && <div style={{ height: '20px' }} />}
 
         {changes.length === 0 ? (
-          <div className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px', textAlign: 'center' }}>
+          <div className="structural-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px', textAlign: 'center' }}>
             <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-muted))' }}>No modifications detected in draft.</p>
           </div>
         ) : (
-          <div className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>
+          <div className="structural-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>
             <ul style={{ paddingLeft: '20px', margin: 0, fontSize: '0.95rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {changes.map((chg, idx) => (
                 <li key={idx} style={{ color: 'hsl(var(--text-secondary))' }}>

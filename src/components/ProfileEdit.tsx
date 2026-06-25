@@ -186,7 +186,7 @@ export const ProfileEdit: React.FC = () => {
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
-        <div className="glass-panel" style={{ padding: '32px', width: '100%' }}>
+        <div className="structural-panel" style={{ padding: '32px', width: '100%' }}>
 
         {/* ── Profile card header ─────────────────────────────────────────── */}
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '28px' }}>

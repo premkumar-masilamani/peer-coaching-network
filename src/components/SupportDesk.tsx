@@ -280,7 +280,7 @@ export const SupportDesk: React.FC = () => {
             filteredRequests.map(req => (
               <div 
                 key={req.id} 
-                className="glass-panel glass-panel-interactive"
+                className="structural-panel structural-panel-interactive"
                 style={{ 
                   padding: '16px',
                   display: 'flex',

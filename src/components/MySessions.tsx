@@ -169,7 +169,7 @@ export const MySessions: React.FC = () => {
       )}
 
       {loading ? (
-        <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 32px' }}>
+        <div className="structural-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 32px' }}>
           <RefreshCw size={28} className="animate-spin" style={{ color: 'hsl(var(--primary))', marginBottom: '16px' }} />
           <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))' }}>Syncing scheduled sessions...</p>
         </div>
@@ -182,7 +182,7 @@ export const MySessions: React.FC = () => {
             </h3>
             
             {paginatedGroups.length === 0 ? (
-              <div className="glass-panel" style={{ textAlign: 'center', padding: '48px 24px', color: 'hsl(var(--text-muted))' }}>
+              <div className="structural-panel" style={{ textAlign: 'center', padding: '48px 24px', color: 'hsl(var(--text-muted))' }}>
                 <Clock size={32} style={{ marginBottom: '12px', opacity: 0.4 }} />
                 <p style={{ fontSize: '0.9rem' }}>
                   {activeTab === 'upcoming' 
@@ -208,7 +208,7 @@ export const MySessions: React.FC = () => {
                         return (
                           <div
                             key={session.id}
-                            className={`glass-panel ${activeTab === 'upcoming' ? 'glass-panel-interactive' : ''}`}
+                            className={`structural-panel ${activeTab === 'upcoming' ? 'structural-panel-interactive' : ''}`}
                             style={{ 
                               padding: '20px', 
                               borderLeft: `4px solid ${activeTab === 'upcoming' ? 'hsl(var(--primary))' : 'hsl(var(--text-muted))'}`,

@@ -127,7 +127,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
   return (
     <div className="modal-overlay" style={{ pointerEvents: 'auto' }}>
-      <div className="glass-panel modal-content" style={{ padding: '32px', position: 'relative', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+      <div className="structural-panel modal-content" style={{ padding: '32px', position: 'relative', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
         
         {/* Close Button */}
         <button 
@@ -167,7 +167,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               We have scheduled the calendar invite and sent it to <strong>{formatDisplayName(coach)}</strong>.
             </p>
 
-            <div className="glass-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', textAlign: 'left', marginBottom: '24px' }}>
+            <div className="structural-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', textAlign: 'left', marginBottom: '24px' }}>
               <p style={{ fontSize: '0.85rem', marginBottom: '6px' }}><strong>Topic:</strong> {topic}</p>
               <p style={{ fontSize: '0.85rem', marginBottom: '12px' }}>
                 <strong>Time:</strong> {dateString} at {timeString}
@@ -218,7 +218,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             )}
 
             {/* Date & Time details read-only block */}
-            <div className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>
+            <div className="structural-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', fontSize: '0.9rem' }}>
                 <Calendar size={15} color="hsl(var(--primary))" />
                 <span><strong>Date:</strong> {dateString}</span>

@@ -139,7 +139,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
   return (
     <div className="modal-overlay" style={{ pointerEvents: 'auto', zIndex: 9999 }} onClick={onClose}>
       <div 
-        className="glass-panel modal-content" 
+        className="structural-panel modal-content" 
         style={{ 
           padding: '24px', 
           position: 'relative', 

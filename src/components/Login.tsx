@@ -103,7 +103,7 @@ export const Login: React.FC = () => {
         width: '100%',
         maxWidth: '900px'
       }}>
-        <div className="glass-panel" style={{ padding: '24px' }}>
+        <div className="structural-panel" style={{ padding: '24px' }}>
           <div style={{
             background: 'hsl(var(--accent) / 0.1)',
             width: '44px',
@@ -123,7 +123,7 @@ export const Login: React.FC = () => {
           </p>
         </div>
 
-        <div className="glass-panel" style={{ padding: '24px' }}>
+        <div className="structural-panel" style={{ padding: '24px' }}>
           <div style={{
             background: 'hsl(var(--primary) / 0.1)',
             width: '44px',
@@ -143,7 +143,7 @@ export const Login: React.FC = () => {
           </p>
         </div>
 
-        <div className="glass-panel" style={{ padding: '24px' }}>
+        <div className="structural-panel" style={{ padding: '24px' }}>
           <div style={{
             background: 'hsl(var(--success) / 0.1)',
             width: '44px',

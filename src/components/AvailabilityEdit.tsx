@@ -407,7 +407,7 @@ export const AvailabilityEdit: React.FC = () => {
 
   if (loadingSchedule) {
     return (
-      <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 32px', width: '100%' }}>
+      <div className="structural-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 32px', width: '100%' }}>
         <RefreshCw size={28} className="animate-spin" style={{ color: 'hsl(var(--primary))', marginBottom: '16px' }} />
         <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))' }}>Syncing schedule...</p>
       </div>
@@ -556,7 +556,7 @@ export const AvailabilityEdit: React.FC = () => {
 
       <div className="availability-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', width: '100%', alignItems: 'start' }}>
         {/* Main Weekly Schedule Panel */}
-        <div className="glass-panel" style={{ padding: '32px', position: 'relative' }}>
+        <div className="structural-panel" style={{ padding: '32px', position: 'relative' }}>
           {/* Header Title with Save */}
           <div style={{ marginBottom: '24px', borderBottom: '1px solid var(--border-light)', paddingBottom: '16px' }}>
             <h3 style={{ fontSize: '1.2rem', fontWeight: 700 }}>Default Availability</h3>
@@ -668,7 +668,7 @@ export const AvailabilityEdit: React.FC = () => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
         {/* Block Dates Card Panel */}
-        <div className="glass-panel" style={{ padding: '24px' }}>
+        <div className="structural-panel" style={{ padding: '24px' }}>
           <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Calendar size={18} style={{ color: 'hsl(var(--primary))' }} />
             Block dates

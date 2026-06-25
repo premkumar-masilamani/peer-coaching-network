@@ -83,7 +83,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
   if (!profile) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', width: '100%', padding: '24px' }}>
-        <div className="glass-panel" style={{ padding: '32px', width: '100%', maxWidth: '640px', textAlign: 'center' }}>
+        <div className="structural-panel" style={{ padding: '32px', width: '100%', maxWidth: '640px', textAlign: 'center' }}>
           <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '12px', color: 'hsl(var(--text-primary))' }}>
             Profile Not Found
           </h3>
@@ -137,7 +137,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
         </div>
 
         {/* Profile Card Header (Glass Panel with radial background highlight) */}
-        <div className="glass-panel" style={{ 
+        <div className="structural-panel" style={{ 
           padding: '32px', 
           position: 'relative', 
           overflow: 'hidden',
@@ -229,7 +229,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
 
         {/* Credentials and Certifications Descriptions */}
         {displayCredentials.length > 0 && (
-          <div className="glass-panel" style={{ padding: '24px' }}>
+          <div className="structural-panel" style={{ padding: '24px' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
               <Award size={16} style={{ color: 'hsl(var(--primary))' }} />
               Verified Credentials
@@ -272,7 +272,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
         )}
 
         {/* Biography Section */}
-        <div className="glass-panel" style={{ padding: '24px' }}>
+        <div className="structural-panel" style={{ padding: '24px' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <FileText size={16} style={{ color: 'hsl(var(--primary))' }} />
             Professional Biography
@@ -288,7 +288,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
         </div>
 
         {/* Geography & Timezone Section */}
-        <div className="glass-panel" style={{ padding: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+        <div className="structural-panel" style={{ padding: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
           {/* CSS responsive breakdown helper */}
           <style>{`
             @media (max-width: 520px) {

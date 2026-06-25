@@ -26,7 +26,7 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({
 
   return (
     <div className="modal-overlay" style={{ pointerEvents: 'auto' }}>
-      <div className="glass-panel modal-content" style={{ padding: '32px', position: 'relative', maxWidth: '440px', width: '100%', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
+      <div className="structural-panel modal-content" style={{ padding: '32px', position: 'relative', maxWidth: '440px', width: '100%', border: '1px solid rgba(139, 92, 246, 0.3)' }}>
         
         {/* Close Button */}
         <button 
@@ -48,7 +48,7 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({
           Session Details
         </h3>
 
-        <div className="glass-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', marginBottom: '24px' }}>
+        <div className="structural-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', marginBottom: '24px' }}>
           <p style={{ fontSize: '0.85rem', marginBottom: '8px' }}>
             <strong>Coach:</strong> {coachName}
           </p>

@@ -366,7 +366,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
           `}</style>
 
           {/* Left Column: Avatar & Quick Info */}
-          <div className="glass-panel" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', alignSelf: 'start' }}>
+          <div className="structural-panel" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', alignSelf: 'start' }}>
             <img
               src={sanitizeImageUrl(coach.photoURL)}
               alt={formatDisplayName(coach) || 'Coach'}
@@ -421,7 +421,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
 
             {/* Biography & Attributes */}
-            <div className="glass-panel" style={{ padding: '32px' }}>
+            <div className="structural-panel" style={{ padding: '32px' }}>
               <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '20px', color: 'hsl(var(--text-primary))' }}>
                 Profile Overview
               </h3>
@@ -458,7 +458,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
             </div>
 
             {/* Scheduled Meetings List */}
-            <div className="glass-panel" style={{ padding: '32px' }}>
+            <div className="structural-panel" style={{ padding: '32px' }}>
               <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '20px', color: 'hsl(var(--text-primary))' }}>
                 Upcoming Scheduled Sessions
               </h3>
@@ -476,7 +476,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                     const safeMeetLink = sanitizeMeetLink(ev.meetLink);
 
                     return (
-                      <div key={ev.id} className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', borderColor: 'var(--border-light)' }}>
+                      <div key={ev.id} className="structural-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', borderColor: 'var(--border-light)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                           <h4 style={{ fontSize: '0.95rem', fontWeight: 700 }}>{ev.summary}</h4>
                           <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>Active Session</span>
@@ -529,14 +529,14 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
 
       {/* Top statistics / information cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-        <div className="glass-panel" style={{ padding: '20px', borderLeft: '4px solid hsl(var(--primary))' }}>
+        <div className="structural-panel" style={{ padding: '20px', borderLeft: '4px solid hsl(var(--primary))' }}>
           <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))', fontWeight: 600, textTransform: 'uppercase' }}>
             Total Registered Users
           </span>
           <h2 style={{ fontSize: '2rem', fontWeight: 800, marginTop: '4px' }}>{users.length}</h2>
         </div>
 
-        <div className="glass-panel" style={{
+        <div className="structural-panel" style={{
           padding: '20px',
           borderLeft: pendingCount > 0 ? '4px solid hsl(var(--warning))' : '4px solid var(--border-light)'
         }}>
@@ -550,7 +550,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
       </div>
 
       {/* Control panel (search and tabs) */}
-      <div className="glass-panel" style={{ padding: '20px', marginBottom: '20px' }}>
+      <div className="structural-panel" style={{ padding: '20px', marginBottom: '20px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', justifyContent: 'space-between', alignItems: 'center' }}>
           {/* Tabs */}
           <div style={{ display: 'flex', gap: '8px' }}>
@@ -601,7 +601,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
       </div>
 
       {/* Main Table */}
-      <div className="glass-panel" style={{ padding: '8px' }}>
+      <div className="structural-panel" style={{ padding: '8px' }}>
         {loading ? (
           <p style={{ padding: '24px', color: 'hsl(var(--text-muted))', textAlign: 'center' }}>Loading user profiles...</p>
         ) : filteredUsers.length === 0 ? (

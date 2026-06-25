@@ -243,7 +243,7 @@ export const SupportFeedback: React.FC = () => {
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
             <button type="submit" className="btn btn-primary" disabled={submitting || !subject.trim() || !message.trim()}>
-              {submitting ? 'Submitting...' : 'Submit Request'}
+              {submitting ? 'Sending...' : 'Send Request'}
             </button>
           </div>
         </form>
@@ -343,7 +343,7 @@ export const SupportFeedback: React.FC = () => {
             filteredTickets.map(ticket => (
               <div 
                 key={ticket.id} 
-                className="glass-panel glass-panel-interactive"
+                className="structural-panel structural-panel-interactive"
                 style={{ 
                   padding: '16px',
                   display: 'flex',

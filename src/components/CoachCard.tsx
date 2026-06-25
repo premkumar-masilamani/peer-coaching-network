@@ -27,7 +27,7 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
   const hasACC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF ACC');
 
   return (
-    <div className="glass-panel glass-panel-interactive animate-fade-in" style={{
+    <div className="structural-panel structural-panel-interactive animate-fade-in" style={{
       padding: '24px',
       display: 'flex',
       flexDirection: 'column',

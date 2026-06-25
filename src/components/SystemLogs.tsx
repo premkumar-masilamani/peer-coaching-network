@@ -306,7 +306,7 @@ export const SystemLogs: React.FC = () => {
       </div>
 
       {/* Main Table Panel */}
-      <div className="glass-panel" style={{ padding: '8px', marginBottom: '20px' }}>
+      <div className="structural-panel" style={{ padding: '8px', marginBottom: '20px' }}>
         {loading && logs.length === 0 ? (
           <p style={{ padding: '48px', color: 'var(--text-muted)', textAlign: 'center' }}>
             Subscribing to system logs...
