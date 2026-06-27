@@ -26,7 +26,7 @@ export default defineConfig(({ mode }) => {
       coverage: {
         provider: 'v8',
         reporter: ['text', 'html', 'lcov'],
-        include: ['src/utils/**', 'src/services/**', 'src/context/**'],
+        include: ['src/utils/**', 'src/services/**', 'src/context/**', 'src/hooks/**', 'src/templates/**'],
       },
     },
   };
