@@ -28,7 +28,7 @@ import {
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus, COLLECTIONS, type IcfCredential } from '../config';
+import { BOOKING_HORIZON_DAYS, USE_FIREBASE_EMULATOR, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus, COLLECTIONS, type IcfCredential } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -103,11 +103,7 @@ export interface UserProfile {
   createdAt: Timestamp;
 }
 
-/**
- * Flag to connect to local Firebase emulators (Auth, Firestore) instead of Cloud.
- * Defaults to false. Set VITE_USE_FIREBASE_EMULATOR=true to enable.
- */
-const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+const useEmulator = USE_FIREBASE_EMULATOR;
 
 // Required config that has no safe default. Against the emulator these are not
 // needed, but a real (cloud) build must supply them — we never silently fall

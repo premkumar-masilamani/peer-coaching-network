@@ -188,10 +188,6 @@ export const scheduleMeeting = async (
   topic: string
 ): Promise<CalendarEvent> => {
   const token = getGoogleToken();
-  const meetId = Math.random().toString(36).substring(2, 5) + '-' +
-                 Math.random().toString(36).substring(2, 6) + '-' +
-                 Math.random().toString(36).substring(2, 5);
-  const meetLink = `https://meet.google.com/${meetId}`;
 
   const currentUser = auth?.currentUser;
   const clientEmail = currentUser?.email || '';
@@ -248,11 +244,16 @@ export const scheduleMeeting = async (
     clientBookingCacheId: `${clientUid}_${startIso}`
   });
 
-  let realMeetLink = meetLink;
-  let googleEventId = `booking-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+  let realMeetLink: string | null = null;
+  let googleEventId: string | null = null;
   let googleEventCreated = false;
 
-  if (ENABLE_GOOGLE_INTEGRATION && token) {
+  if (ENABLE_GOOGLE_INTEGRATION) {
+    if (!token) {
+      const error = new Error('Google Calendar integration is enabled, but no authentication token was found. Please log in with Google.');
+      (error as { code?: string }).code = 'GOOGLE_API_ERROR';
+      throw error;
+    }
     try {
       const response = await fetch(
         'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all',
@@ -282,8 +283,13 @@ export const scheduleMeeting = async (
       }
 
       const data = await response.json();
+      if (!data.id || !data.hangoutLink) {
+        const error = new Error('Google Calendar API response missing required event ID or Meet link.');
+        (error as { code?: string }).code = 'GOOGLE_API_ERROR';
+        throw error;
+      }
       googleEventId = data.id;
-      realMeetLink = data.hangoutLink || meetLink;
+      realMeetLink = data.hangoutLink;
       googleEventCreated = true;
     } catch (e) {
       logger.error('Error during Google Calendar event creation:', e);
@@ -475,7 +481,7 @@ export const scheduleMeeting = async (
     description: eventPayload.description,
     start: { dateTime: startIso },
     end: { dateTime: endIso },
-    meetLink: realMeetLink,
+    meetLink: realMeetLink || undefined,
     type: EVENT_TYPE.PEER_COACHING,
     attendees: [
       { email: coachEmail, displayName: coachName },
