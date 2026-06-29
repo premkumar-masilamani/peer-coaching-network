@@ -330,7 +330,7 @@ export const UpcomingSessions: React.FC = () => {
   };
 
   // Get available and filtered coaches for a specific slot
-  const getCoachesForSlot = (slotStart: Date, slotEnd: Date, ignoreFilters = false) => {
+  const getCoachesForSlot = (slotStart: Date, _slotEnd: Date, ignoreFilters = false) => {
     // 1. First find coaches who are working and not busy
     const available = coaches.filter(coach => {
       return isCoachAvailable(coach.userId, slotStart);
