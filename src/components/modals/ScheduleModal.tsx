@@ -35,9 +35,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   onClose,
   onBookingSuccess
 }) => {
-  const { profile, user } = useAuth();
+  const { profile, user, login } = useAuth();
   const [topic, setTopic] = useState('');
-  const [bookingStatus, setBookingStatus] = useState<'idle' | 'booking' | 'success' | 'error'>('idle');
+  const [bookingStatus, setBookingStatus] = useState<'idle' | 'booking' | 'success' | 'error' | 'token_expired'>('idle');
   const [createdEvent, setCreatedEvent] = useState<CalendarEvent | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -110,6 +110,17 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
           message = 'Sorry, this slot was just scheduled by someone else. Please pick another time.';
         } else if (err.message === BOOKING_ERROR.BOOKED_AS_CLIENT || err.message === BOOKING_ERROR.BOOKED_AS_COACH) {
           message = 'You already have a session scheduled at this time. Please pick another slot.';
+        } else if (errCode === 'GOOGLE_TOKEN_EXPIRED') {
+          message = 'Your Google Calendar connection has expired. Please reconnect your account to schedule sessions.';
+          setBookingStatus('token_expired');
+          setErrorMsg(message);
+          logAnalyticsEvent('booking_failure', {
+            coachUid: coach.userId,
+            startTime: startTime.toISOString(),
+            error: message,
+            code: errCode,
+          });
+          return;
         } else if ((err as { code?: string }).code === 'GOOGLE_API_ERROR') {
           message = err.message;
         }
@@ -257,7 +268,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
 
             {/* Error message (e.g. slot just taken) */}
-            {bookingStatus === 'error' && errorMsg && (
+            {(bookingStatus === 'error' || bookingStatus === 'token_expired') && errorMsg && (
               <div style={{
                 display: 'flex',
                 gap: '8px',
@@ -280,12 +291,21 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 Cancel
               </button>
               <button 
-                type="submit" 
+                type={bookingStatus === 'token_expired' ? 'button' : 'submit'}
+                onClick={bookingStatus === 'token_expired' ? async () => {
+                  try {
+                    await login();
+                    setBookingStatus('idle');
+                    setErrorMsg('');
+                  } catch (e) {
+                    logger.error('Re-login failed', e);
+                  }
+                } : undefined}
                 className="btn btn-primary"
                 disabled={bookingStatus === 'booking'}
                 style={{ flex: 2 }}
               >
-                {bookingStatus === 'booking' ? 'Scheduling...' : 'Confirm Session'}
+                {bookingStatus === 'booking' ? 'Scheduling...' : bookingStatus === 'token_expired' ? 'Reconnect Google' : 'Confirm Session'}
               </button>
             </div>
           </form>
