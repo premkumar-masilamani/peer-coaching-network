@@ -194,7 +194,7 @@ describe('AuthContext', () => {
       );
     });
 
-    vi.mocked(firebaseService.loginWithGoogle).mockResolvedValue({ user: {} as any });
+    vi.mocked(firebaseService.loginWithGoogle).mockResolvedValue(undefined);
 
     let loginPromise: Promise<any>;
     act(() => {

@@ -3,13 +3,14 @@ import { getAnalytics, logEvent } from 'firebase/analytics';
 import type { Analytics } from 'firebase/analytics';
 import { 
   getAuth, 
-  signInWithPopup, 
+  signInWithRedirect, 
+  getRedirectResult,
   GoogleAuthProvider, 
   signOut, 
   onAuthStateChanged,
   connectAuthEmulator
 } from 'firebase/auth';
-import type { User, OAuthCredential } from 'firebase/auth';
+import type { User } from 'firebase/auth';
 import { 
   getFirestore, 
   doc, 
@@ -194,14 +195,22 @@ export const isFirebaseConfigured = useEmulator || missingConfig.length === 0;
 export { auth };
 
 // Standardized Auth Actions
-export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAuthCredential | null }> => {
+export const loginWithGoogle = async (): Promise<void> => {
   const provider = new GoogleAuthProvider();
   // Request Google Calendar access
   provider.addScope('https://www.googleapis.com/auth/calendar');
   provider.addScope('https://www.googleapis.com/auth/calendar.events');
   // Force Google to prompt the user to select an account on login
   provider.setCustomParameters({ prompt: 'select_account' });
-  const result = await signInWithPopup(auth, provider);
+  await signInWithRedirect(auth, provider);
+};
+
+export const handleAuthRedirect = async (): Promise<boolean> => {
+  const result = await getRedirectResult(auth);
+  if (!result) {
+    return false;
+  }
+  
   const credential = GoogleAuthProvider.credentialFromResult(result);
   
   // Hold the access token in memory only (never persisted) for Calendar API calls
@@ -285,7 +294,7 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
      }
   }
   
-  return { user: result.user, credential };
+  return true;
 };
 
 export const logout = async (): Promise<void> => {

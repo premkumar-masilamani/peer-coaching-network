@@ -8,14 +8,14 @@ on:
         required: true
         type: choice
         options:
-          - dev
+          - development
           - production
 
 jobs:
   deploy-dev:
     name: Build & Deploy (Development)
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.environment == 'dev' }}
+    if: ${{ github.event.inputs.environment == 'development' }}
 
     steps:
       - name: Checkout Repo

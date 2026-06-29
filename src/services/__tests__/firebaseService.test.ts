@@ -10,7 +10,7 @@ import {
   updateOwnProfile,
   timeStringToTimestamp,
   timestampToTimeString,
-  loginWithGoogle,
+  handleAuthRedirect,
   logout,
   subscribeToAuth,
   subscribeToProfile,
@@ -231,15 +231,22 @@ describe('firebaseService', () => {
   });
 
   describe('loginWithGoogle', () => {
-    it('logs in an existing user whose photoURL matches', async () => {
-      const { signInWithPopup, GoogleAuthProvider } = await import('firebase/auth');
+    it('returns false if no redirect result', async () => {
+      const { getRedirectResult } = await import('firebase/auth');
+      vi.mocked(getRedirectResult).mockResolvedValue(null);
+      const res = await handleAuthRedirect();
+      expect(res).toBe(false);
+    });
+
+    it('logs in an existing user and does not sync if data matches', async () => {
+      const { getRedirectResult, GoogleAuthProvider } = await import('firebase/auth');
       const mockUser = {
         uid: 'user-123',
         email: 'test@example.com',
         displayName: 'Test User',
         photoURL: 'https://photo.url',
       };
-      vi.mocked(signInWithPopup).mockResolvedValue({ user: mockUser } as any);
+      vi.mocked(getRedirectResult).mockResolvedValue({ user: mockUser } as any);
       vi.spyOn(GoogleAuthProvider, 'credentialFromResult').mockReturnValue({ accessToken: 'test-token' } as any);
 
       mockGetDoc.mockResolvedValue({
@@ -254,20 +261,20 @@ describe('firebaseService', () => {
         }),
       });
 
-      const res = await loginWithGoogle();
-      expect(res.user.uid).toBe('user-123');
+      const res = await handleAuthRedirect();
+      expect(res).toBe(true);
       expect(mockUpdateDoc).not.toHaveBeenCalled();
     });
 
     it('logs in an existing user and syncs photoURL if mismatched', async () => {
-      const { signInWithPopup, GoogleAuthProvider } = await import('firebase/auth');
+      const { getRedirectResult, GoogleAuthProvider } = await import('firebase/auth');
       const mockUser = {
         uid: 'user-123',
         email: 'test@example.com',
         displayName: 'Test User',
         photoURL: 'https://new-photo.url',
       };
-      vi.mocked(signInWithPopup).mockResolvedValue({ user: mockUser } as any);
+      vi.mocked(getRedirectResult).mockResolvedValue({ user: mockUser } as any);
       vi.spyOn(GoogleAuthProvider, 'credentialFromResult').mockReturnValue({ accessToken: 'test-token' } as any);
 
       mockGetDoc.mockResolvedValue({
@@ -282,41 +289,41 @@ describe('firebaseService', () => {
         }),
       });
 
-      const res = await loginWithGoogle();
-      expect(res.user.uid).toBe('user-123');
+      const res = await handleAuthRedirect();
+      expect(res).toBe(true);
       expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { photoURL: 'https://new-photo.url' });
     });
 
     it('creates profile and sub-collections for a new user', async () => {
-      const { signInWithPopup, GoogleAuthProvider } = await import('firebase/auth');
+      const { getRedirectResult, GoogleAuthProvider } = await import('firebase/auth');
       const mockUser = {
         uid: 'user-123',
         email: 'test@example.com',
         displayName: 'Test User',
         photoURL: 'https://photo.url',
       };
-      vi.mocked(signInWithPopup).mockResolvedValue({ user: mockUser } as any);
+      vi.mocked(getRedirectResult).mockResolvedValue({ user: mockUser } as any);
       vi.spyOn(GoogleAuthProvider, 'credentialFromResult').mockReturnValue(null);
 
       mockGetDoc.mockResolvedValue({
         exists: () => false,
       });
 
-      const res = await loginWithGoogle();
-      expect(res.user.uid).toBe('user-123');
+      const res = await handleAuthRedirect();
+      expect(res).toBe(true);
       expect(mockSetDoc).toHaveBeenCalledTimes(3); // profile + availableDays + blockedDates
     });
 
     it('throws error if email or displayName is missing', async () => {
-      const { signInWithPopup } = await import('firebase/auth');
+      const { getRedirectResult } = await import('firebase/auth');
       const mockUser = {
         uid: 'user-123',
         displayName: 'Test User',
       };
-      vi.mocked(signInWithPopup).mockResolvedValue({ user: mockUser } as any);
+      vi.mocked(getRedirectResult).mockResolvedValue({ user: mockUser } as any);
       mockGetDoc.mockResolvedValue({ exists: () => false });
 
-      await expect(loginWithGoogle()).rejects.toThrow('Google Sign-In did not return a valid email or display name.');
+      await expect(handleAuthRedirect()).rejects.toThrow('Google Sign-In did not return a valid email or display name.');
     });
   });
 
