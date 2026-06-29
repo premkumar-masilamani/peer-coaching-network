@@ -1173,7 +1173,6 @@ export const UpcomingSessions: React.FC = () => {
         onConfirm={async () => {
           if (!bookingToCancel) return;
           const idToCancel = bookingToCancel.id;
-          setBookingToCancel(null);
           setCancellingId(idToCancel);
           try {
             await cancelBooking(idToCancel);
@@ -1183,6 +1182,7 @@ export const UpcomingSessions: React.FC = () => {
             alert('Failed to cancel booking. Please try again.');
           } finally {
             setCancellingId(null);
+            setBookingToCancel(null);
           }
         }}
         isCancelling={!!cancellingId}

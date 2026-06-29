@@ -332,8 +332,8 @@ export const MySessions: React.FC = () => {
         onConfirm={async () => {
           if (!bookingToCancel) return;
           const idToCancel = bookingToCancel.id;
-          setBookingToCancel(null);
           await handleCancel(idToCancel);
+          setBookingToCancel(null);
         }}
         isCancelling={!!cancellingId}
         coachName={bookingToCancel ? getParticipantNames(bookingToCancel, user.uid, profile).coachName : ''}
