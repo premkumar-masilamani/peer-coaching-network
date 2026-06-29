@@ -39,14 +39,15 @@ describe('credentialHelpers', () => {
     });
 
     it('returns true for a credential expiring right now (boundary)', () => {
-      const fakeNow = new Date();
-      // Mock Date.now() so "now" and expiryDate are the same millisecond
-      const nowMs = fakeNow.getTime();
-      vi.spyOn(Date, 'now').mockReturnValue(nowMs);
+      const nowMs = 1700000000000;
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(nowMs));
+      
       const cred = makeCredential('PCC', new Date(nowMs));
       // expiryDate >= now is true (same moment)
       expect(isCredentialValid(cred)).toBe(true);
-      vi.restoreAllMocks();
+      
+      vi.useRealTimers();
     });
   });
 

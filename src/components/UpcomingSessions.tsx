@@ -5,8 +5,8 @@ import { subscribeToActiveCoaches, formatDisplayName, subscribeToBookings } from
 import { getShortCredential, getCredentialBadgeClass, getCredentialDescription } from '../utils/credentials';
 import type { UserProfile } from '../services/firebaseService';
 import { 
-  getUpcomingEvents, 
-  getCoachesBusySlots,
+  getUpcomingEvents,
+  getCoachesAvailability,
   cancelBooking
 } from '../services/googleCalendar';
 import type { CalendarEvent } from '../services/googleCalendar';
@@ -61,50 +61,36 @@ export const UpcomingSessions: React.FC = () => {
   // List states
   const [coaches, setCoaches] = useState<UserProfile[]>([]);
   const [loadingCoaches, setLoadingCoaches] = useState(true);
-  const [coachesBaseBusy, setCoachesBaseBusy] = useState<Record<string, CalendarEvent[]>>({});
+  const [coachesBaseAvailable, setCoachesBaseAvailable] = useState<Record<string, string[]>>({});
   const [loadingCalendar, setLoadingCalendar] = useState(true);
   const [userBaseBusyEvents, setUserBaseBusyEvents] = useState<CalendarEvent[]>([]);
   const [liveBookings, setLiveBookings] = useState<DocumentData[]>([]);
   const [now] = useState(() => Date.now());
 
-  // Derive live coachesBusy and userBusyEvents states by combining the baseline data
-  // with the real-time bookings feed in-memory. See Issue 13.
-  const coachesBusy = useMemo(() => {
-    const result: Record<string, CalendarEvent[]> = {};
-    Object.keys(coachesBaseBusy).forEach(uid => {
-      result[uid] = [...coachesBaseBusy[uid]];
+  // Derive live coachesAvailableSlots and userBusyEvents states by combining the baseline data
+  // with the real-time bookings feed in-memory.
+  const coachesAvailableSlots = useMemo(() => {
+    const result: Record<string, Set<string>> = {};
+    Object.keys(coachesBaseAvailable).forEach(uid => {
+      result[uid] = new Set(coachesBaseAvailable[uid]);
     });
     
-    const nowMs = now;
     liveBookings.forEach(b => {
       if (b.status === BOOKING_STATUS.CANCELLED) return;
       const startStr = b.startTime && typeof b.startTime.toDate === 'function' 
         ? b.startTime.toDate().toISOString() 
         : (b.startTime?.dateTime || b.startTime);
-      const endStr = b.endTime && typeof b.endTime.toDate === 'function' 
-        ? b.endTime.toDate().toISOString() 
-        : (b.endTime?.dateTime || b.endTime);
-      if (!startStr || !endStr) return;
-      if (new Date(endStr).getTime() < nowMs) return;
+      if (!startStr) return;
       
-      const overlayForUid = (uid: string) => {
-        if (!(uid in result)) return;
-        const already = result[uid].some(e =>
-          new Date(e.start.dateTime).getTime() === new Date(startStr).getTime()
-        );
-        if (already) return;
-        result[uid].push({
-          id: `booking-${b.bookingId || `${uid}-${startStr}`}`,
-          summary: 'Busy',
-          start: { dateTime: startStr },
-          end: { dateTime: endStr }
-        });
-      };
-      overlayForUid(b.coachUid);
-      overlayForUid(b.clientUid);
+      if (result[b.coachUid]) {
+        result[b.coachUid].delete(startStr);
+      }
+      if (result[b.clientUid]) {
+        result[b.clientUid].delete(startStr);
+      }
     });
     return result;
-  }, [coachesBaseBusy, liveBookings, now]);
+  }, [coachesBaseAvailable, liveBookings]);
 
   const userBusyEvents = useMemo(() => {
     const baseGoogleEvents = userBaseBusyEvents.filter(e => e.type !== EVENT_TYPE.PEER_COACHING);
@@ -137,10 +123,8 @@ export const UpcomingSessions: React.FC = () => {
       });
     });
     
-    const userTemplateBusy = profile ? (coachesBaseBusy[profile.userId] || []) : [];
-    
-    return [...baseGoogleEvents, ...liveUserEvents, ...userTemplateBusy];
-  }, [userBaseBusyEvents, liveBookings, currentUser, profile, coachesBaseBusy]);
+    return [...baseGoogleEvents, ...liveUserEvents];
+  }, [userBaseBusyEvents, liveBookings, currentUser]);
   
   // Tab states
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
@@ -172,7 +156,7 @@ export const UpcomingSessions: React.FC = () => {
     });
   };
   
-  const isInitialLoading = loadingCoaches || (loadingCalendar && Object.keys(coachesBusy).length === 0);
+  const isInitialLoading = loadingCoaches || (loadingCalendar && Object.keys(coachesAvailableSlots).length === 0);
 
   // Generate days starting from tomorrow up to the booking horizon in viewer's local timezone
   const days = useMemo(() => {
@@ -237,8 +221,8 @@ export const UpcomingSessions: React.FC = () => {
       const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
 
       const allProfiles = profile ? [...coaches, profile] : coaches;
-      const availability = await getCoachesBusySlots(allProfiles, timeMin, timeMax);
-      setCoachesBaseBusy(availability);
+      const availability = await getCoachesAvailability(allProfiles, timeMin, timeMax);
+      setCoachesBaseAvailable(availability);
 
       const allEvents = await getUpcomingEvents();
       setUserBaseBusyEvents(allEvents);
@@ -267,9 +251,9 @@ export const UpcomingSessions: React.FC = () => {
         const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
 
         const allProfiles = profile ? [...coaches, profile] : coaches;
-        const availability = await getCoachesBusySlots(allProfiles, timeMin, timeMax);
+        const availability = await getCoachesAvailability(allProfiles, timeMin, timeMax);
         if (cancelled) return;
-        setCoachesBaseBusy(availability);
+        setCoachesBaseAvailable(availability);
 
         const allEvents = await getUpcomingEvents();
         if (cancelled) return;
@@ -285,14 +269,14 @@ export const UpcomingSessions: React.FC = () => {
 
   // Handle booking success with optimistic updates
   const handleBookingSuccess = (newEvent: CalendarEvent) => {
-    if (activeBookingCoach) {
+    if (activeBookingCoach && newEvent.start.dateTime) {
       const coachId = activeBookingCoach.userId;
-      setCoachesBaseBusy(prev => {
+      const startStr = newEvent.start.dateTime;
+      setCoachesBaseAvailable(prev => {
         const existing = prev[coachId] || [];
-        if (existing.some(e => e.id === newEvent.id)) return prev;
         return {
           ...prev,
-          [coachId]: [...existing, newEvent]
+          [coachId]: existing.filter(slot => slot !== startStr)
         };
       });
     }
@@ -307,17 +291,20 @@ export const UpcomingSessions: React.FC = () => {
   };
 
   // Check if coach has overlaps
-  const isCoachBusy = (coachId: string, slotStart: Date, slotEnd: Date) => {
-    const busyEvents = coachesBusy[coachId] || [];
-    return busyEvents.some(e => {
-      const start = new Date(e.start.dateTime);
-      const end = new Date(e.end.dateTime);
-      return slotStart < end && slotEnd > start;
-    });
+  const isCoachAvailable = (coachId: string, slotStart: Date) => {
+    const availableSet = coachesAvailableSlots[coachId];
+    if (!availableSet) return false;
+    return availableSet.has(slotStart.toISOString());
   };
 
   // Check if current user is unavailable (due to template gaps, blocked dates, or google calendar events, excluding active PCN bookings)
   const isUserUnavailable = (slotStart: Date, slotEnd: Date) => {
+    const currentUid = currentUser?.uid;
+    if (currentUid && coachesBaseAvailable[currentUid]) {
+      if (!coachesBaseAvailable[currentUid].includes(slotStart.toISOString())) {
+        return true;
+      }
+    }
     return userBusyEvents.some(e => {
       if (e.type === EVENT_TYPE.PEER_COACHING) return false;
       const start = new Date(e.start.dateTime);
@@ -346,9 +333,7 @@ export const UpcomingSessions: React.FC = () => {
   const getCoachesForSlot = (slotStart: Date, slotEnd: Date, ignoreFilters = false) => {
     // 1. First find coaches who are working and not busy
     const available = coaches.filter(coach => {
-      // Checks if coach has busy slots (which includes template gaps, blocked dates, bookings, and google calendar)
-      const busy = isCoachBusy(coach.userId, slotStart, slotEnd);
-      return !busy;
+      return isCoachAvailable(coach.userId, slotStart);
     });
 
     if (ignoreFilters) {
@@ -441,7 +426,7 @@ export const UpcomingSessions: React.FC = () => {
       hasGeneralSlots: enriched.some(e => e.anyAvailable)
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slots, coaches, coachesBusy, userBusyEvents, now, nameSearch, genderFilter, countryFilter, selectedQuals, currentUser]);
+  }, [slots, coaches, coachesAvailableSlots, userBusyEvents, now, nameSearch, genderFilter, countryFilter, selectedQuals, currentUser]);
 
   return (
     <>
