@@ -8,7 +8,7 @@ export const COLLECTIONS = {
   BLOCKED_DATES: 'blockedDates',
   BOOKINGS: 'bookings',
   CLIENT_BOOKING_CACHE: 'clientBookingCache',
-  BUSY_SLOTS_CACHE: 'busySlotsCache',
+  AVAILABLE_SLOTS_CACHE: 'availableSlotsCache',
   SUPPORT_REQUESTS: 'supportRequests',
   SYSTEM_LOGS: 'systemLogs',
 } as const;

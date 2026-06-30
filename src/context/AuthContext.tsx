@@ -5,6 +5,7 @@ import {
   subscribeToAuth,
   subscribeToProfile,
   loginWithGoogle,
+  handleAuthRedirect,
   logout as fbLogout,
   updateOwnProfile,
   getEffectiveRole,
@@ -33,6 +34,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [role, setRole] = useState<UserRole | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
+  const [isHandlingRedirect, setIsHandlingRedirect] = useState(true);
+
+  // Handle OAuth Redirect Result
+  useEffect(() => {
+    handleAuthRedirect()
+      .catch(e => console.error("OAuth redirect handling error:", e))
+      .finally(() => setIsHandlingRedirect(false));
+  }, []);
 
   // Subscribe to Auth status
   useEffect(() => {
@@ -109,7 +118,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         profile,
         role,
-        loading,
+        loading: loading || isHandlingRedirect,
         isRealFirebase: isFirebaseConfigured,
         login,
         logout,
