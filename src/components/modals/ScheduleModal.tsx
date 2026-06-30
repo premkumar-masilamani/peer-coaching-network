@@ -12,12 +12,13 @@ import {
   Calendar, 
   Clock, 
   Video, 
-  AlertCircle, 
   CheckCircle,
+  AlertCircle,
   ExternalLink,
   BookOpen
 } from 'lucide-react';
-import { BOOKING_ERROR } from '../../config';
+import { BOOKING_ERROR, type BookingError, BOOKING_ERROR_MESSAGES, SCHEDULE_MODAL_STATUS, type ScheduleModalStatus } from '../../config';
+
 interface ScheduleModalProps {
   coach: UserProfile;
   startTime: Date;
@@ -37,7 +38,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 }) => {
   const { profile, user, login } = useAuth();
   const [topic, setTopic] = useState('');
-  const [bookingStatus, setBookingStatus] = useState<'idle' | 'booking' | 'success' | 'error' | 'token_expired'>('idle');
+  const [bookingStatus, setBookingStatus] = useState<ScheduleModalStatus>(SCHEDULE_MODAL_STATUS.IDLE);
   const [createdEvent, setCreatedEvent] = useState<CalendarEvent | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -72,11 +73,11 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     e.preventDefault();
     if (!topic.trim()) {
       setErrorMsg('Please enter a coaching topic to confirm your booking.');
-      setBookingStatus('error');
+      setBookingStatus(SCHEDULE_MODAL_STATUS.ERROR);
       return;
     }
 
-    setBookingStatus('booking');
+    setBookingStatus(SCHEDULE_MODAL_STATUS.BOOKING);
     setErrorMsg('');
 
     try {
@@ -96,23 +97,23 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         topic: topic.trim(),
       });
       setCreatedEvent(event);
-      setBookingStatus('success');
+      setBookingStatus(SCHEDULE_MODAL_STATUS.SUCCESS);
       if (onBookingSuccess) {
         onBookingSuccess(event);
       }
     } catch (err) {
       logger.error('Failed to schedule meeting:', err);
-      let message = 'Something went wrong while scheduling. Please try again.';
-      let errCode = 'UNKNOWN';
+      let message = BOOKING_ERROR_MESSAGES[BOOKING_ERROR.UNKNOWN];
+      let errCode: BookingError = BOOKING_ERROR.UNKNOWN;
       if (err instanceof Error) {
-        errCode = (err as { code?: string }).code || 'UNKNOWN';
+        errCode = ((err as { code?: string }).code || BOOKING_ERROR.UNKNOWN) as keyof typeof BOOKING_ERROR;
         if (err.message === BOOKING_ERROR.SLOT_TAKEN) {
-          message = 'Sorry, this slot was just scheduled by someone else. Please pick another time.';
+          message = BOOKING_ERROR_MESSAGES[BOOKING_ERROR.SLOT_TAKEN];
         } else if (err.message === BOOKING_ERROR.BOOKED_AS_CLIENT || err.message === BOOKING_ERROR.BOOKED_AS_COACH) {
-          message = 'You already have a session scheduled at this time. Please pick another slot.';
-        } else if (errCode === 'GOOGLE_TOKEN_EXPIRED') {
-          message = 'Your Google Calendar connection has expired. Please reconnect your account to schedule sessions.';
-          setBookingStatus('token_expired');
+          message = BOOKING_ERROR_MESSAGES[BOOKING_ERROR.BOOKED_AS_CLIENT];
+        } else if (errCode === BOOKING_ERROR.GOOGLE_TOKEN_EXPIRED) {
+          message = BOOKING_ERROR_MESSAGES[BOOKING_ERROR.GOOGLE_TOKEN_EXPIRED];
+          setBookingStatus(SCHEDULE_MODAL_STATUS.TOKEN_EXPIRED);
           setErrorMsg(message);
           logAnalyticsEvent('booking_failure', {
             coachUid: coach.userId,
@@ -121,7 +122,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             code: errCode,
           });
           return;
-        } else if ((err as { code?: string }).code === 'GOOGLE_API_ERROR') {
+        } else if ((err as { code?: string }).code === BOOKING_ERROR.GOOGLE_API_ERROR) {
           message = err.message;
         }
       }
@@ -132,7 +133,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         code: errCode,
       });
       setErrorMsg(message);
-      setBookingStatus('error');
+      setBookingStatus(SCHEDULE_MODAL_STATUS.ERROR);
     }
   };
 
@@ -157,7 +158,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         </button>
 
         {/* State 1: Booking Success Screen */}
-        {bookingStatus === 'success' && createdEvent && (
+        {bookingStatus === SCHEDULE_MODAL_STATUS.SUCCESS && createdEvent && (
           <div className="animate-fade-in" style={{ textAlign: 'center', padding: '16px 0' }}>
             <div style={{
               background: 'rgba(16, 185, 129, 0.1)',
@@ -217,7 +218,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         )}
 
         {/* State 2: Booking Form */}
-        {bookingStatus !== 'success' && (
+        {bookingStatus !== SCHEDULE_MODAL_STATUS.SUCCESS && (
           <form onSubmit={handleBook}>
             <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: coach.qualifications && coach.qualifications.length > 0 ? '4px' : '20px' }}>
               Book a session with {formatDisplayName(coach)}
@@ -253,8 +254,8 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 value={topic}
                 onChange={(e) => {
                   setTopic(e.target.value);
-                  if (bookingStatus === 'error' && e.target.value.trim()) {
-                    setBookingStatus('idle');
+                  if (bookingStatus === SCHEDULE_MODAL_STATUS.ERROR && e.target.value.trim()) {
+                    setBookingStatus(SCHEDULE_MODAL_STATUS.IDLE);
                     setErrorMsg('');
                   }
                 }}
@@ -268,7 +269,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
 
             {/* Error message (e.g. slot just taken) */}
-            {(bookingStatus === 'error' || bookingStatus === 'token_expired') && errorMsg && (
+            {(bookingStatus === SCHEDULE_MODAL_STATUS.ERROR || bookingStatus === SCHEDULE_MODAL_STATUS.TOKEN_EXPIRED) && errorMsg && (
               <div style={{
                 display: 'flex',
                 gap: '8px',
@@ -291,21 +292,21 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 Cancel
               </button>
               <button 
-                type={bookingStatus === 'token_expired' ? 'button' : 'submit'}
-                onClick={bookingStatus === 'token_expired' ? async () => {
+                type={bookingStatus === SCHEDULE_MODAL_STATUS.TOKEN_EXPIRED ? 'button' : 'submit'}
+                onClick={bookingStatus === SCHEDULE_MODAL_STATUS.TOKEN_EXPIRED ? async () => {
                   try {
                     await login();
-                    setBookingStatus('idle');
+                    setBookingStatus(SCHEDULE_MODAL_STATUS.IDLE);
                     setErrorMsg('');
                   } catch (e) {
                     logger.error('Re-login failed', e);
                   }
                 } : undefined}
                 className="btn btn-primary"
-                disabled={bookingStatus === 'booking'}
+                disabled={bookingStatus === SCHEDULE_MODAL_STATUS.BOOKING}
                 style={{ flex: 2 }}
               >
-                {bookingStatus === 'booking' ? 'Scheduling...' : bookingStatus === 'token_expired' ? 'Reconnect Google' : 'Confirm Session'}
+                {bookingStatus === SCHEDULE_MODAL_STATUS.BOOKING ? 'Scheduling...' : bookingStatus === SCHEDULE_MODAL_STATUS.TOKEN_EXPIRED ? 'Reconnect Google' : 'Confirm Session'}
               </button>
             </div>
           </form>
