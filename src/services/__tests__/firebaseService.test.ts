@@ -52,13 +52,12 @@ vi.mock('../../utils/logger', () => ({
 vi.mock('firebase/auth', () => ({
   getAuth: vi.fn(() => ({})),
   connectAuthEmulator: vi.fn(),
-  signInWithPopup: vi.fn(),
+  signInWithRedirect: vi.fn(),
+  getRedirectResult: vi.fn(),
    GoogleAuthProvider: class {
     addScope = vi.fn();
     setCustomParameters = vi.fn();
-    static credentialFromResult() {
-      return { accessToken: 'mock-access-token' };
-    }
+    static credentialFromResult = vi.fn();
   },
   signOut: vi.fn(),
   onAuthStateChanged: vi.fn(),
