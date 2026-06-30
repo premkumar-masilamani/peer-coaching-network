@@ -3,13 +3,14 @@ import { getAnalytics, logEvent } from 'firebase/analytics';
 import type { Analytics } from 'firebase/analytics';
 import { 
   getAuth, 
-  signInWithPopup, 
+  signInWithRedirect, 
+  getRedirectResult,
   GoogleAuthProvider, 
   signOut, 
   onAuthStateChanged,
   connectAuthEmulator
 } from 'firebase/auth';
-import type { User, OAuthCredential } from 'firebase/auth';
+import type { User } from 'firebase/auth';
 import { 
   getFirestore, 
   doc, 
@@ -26,7 +27,7 @@ import {
   deleteDoc,
   orderBy
 } from 'firebase/firestore';
-import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
+import type { DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
 import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus, COLLECTIONS, type IcfCredential } from '../config';
@@ -194,14 +195,22 @@ export const isFirebaseConfigured = useEmulator || missingConfig.length === 0;
 export { auth };
 
 // Standardized Auth Actions
-export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAuthCredential | null }> => {
+export const loginWithGoogle = async (): Promise<void> => {
   const provider = new GoogleAuthProvider();
   // Request Google Calendar access
   provider.addScope('https://www.googleapis.com/auth/calendar');
   provider.addScope('https://www.googleapis.com/auth/calendar.events');
   // Force Google to prompt the user to select an account on login
   provider.setCustomParameters({ prompt: 'select_account' });
-  const result = await signInWithPopup(auth, provider);
+  await signInWithRedirect(auth, provider);
+};
+
+export const handleAuthRedirect = async (): Promise<boolean> => {
+  const result = await getRedirectResult(auth);
+  if (!result) {
+    return false;
+  }
+  
   const credential = GoogleAuthProvider.credentialFromResult(result);
   
   // Hold the access token in memory only (never persisted) for Calendar API calls
@@ -285,7 +294,7 @@ export const loginWithGoogle = async (): Promise<{ user: User; credential?: OAut
      }
   }
   
-  return { user: result.user, credential };
+  return true;
 };
 
 export const logout = async (): Promise<void> => {
@@ -453,19 +462,12 @@ export const updateSchedule = async (
   ]);
 };
 
-const areBusySlotsEqual = (
-  slotsA: { start: string; end: string }[],
-  slotsB: { start: string; end: string }[]
+const areAvailableSlotsEqual = (
+  slotsA: string[],
+  slotsB: string[]
 ): boolean => {
   if (slotsA.length !== slotsB.length) return false;
-  const sortedA = [...slotsA].sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
-  const sortedB = [...slotsB].sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end));
-  for (let i = 0; i < sortedA.length; i++) {
-    if (sortedA[i].start !== sortedB[i].start || sortedA[i].end !== sortedB[i].end) {
-      return false;
-    }
-  }
-  return true;
+  return slotsA.every((val, index) => val === slotsB[index]);
 };
 
 const recalcChains = new Map<string, Promise<void>>();
@@ -473,9 +475,9 @@ const recalcChains = new Map<string, Promise<void>>();
 // Serialize recalculations per-uid so concurrent triggers cannot interleave and
 // clobber each other's writes (lost update). Errors propagate so callers may
 // retry rather than silently dropping them.
-export const recalculateUserBusySlotsCache = (uid: string): Promise<void> => {
+export const recalculateAvailableSlotsCache = (uid: string): Promise<void> => {
   const prev = recalcChains.get(uid) || Promise.resolve();
-  const next = prev.catch(() => {}).then(() => doRecalculateUserBusySlotsCache(uid));
+  const next = prev.catch(() => {}).then(() => doRecalculateAvailableSlotsCache(uid));
   recalcChains.set(uid, next);
   next.finally(() => {
     if (recalcChains.get(uid) === next) recalcChains.delete(uid);
@@ -483,16 +485,16 @@ export const recalculateUserBusySlotsCache = (uid: string): Promise<void> => {
   return next;
 };
 
-const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
+const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
   if (!db) return;
-  logger.debug(`Starting busy slots cache recalculation for user: ${uid}`);
+  logger.debug(`Starting available slots cache recalculation for user: ${uid}`);
   try {
     const userDocRef = doc(db, COLLECTIONS.USERS, uid);
-    const busySlotsCacheRef = doc(db, COLLECTIONS.BUSY_SLOTS_CACHE, uid);
+    const availableSlotsCacheRef = doc(db, COLLECTIONS.AVAILABLE_SLOTS_CACHE, uid);
 
-    const [userDoc, busySlotsCacheDoc, schedule] = await Promise.all([
+    const [userDoc, availableSlotsCacheDoc, schedule] = await Promise.all([
       getDoc(userDocRef),
-      getDoc(busySlotsCacheRef),
+      getDoc(availableSlotsCacheRef),
       getSchedule(uid)
     ]);
 
@@ -502,33 +504,7 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
     const timezone = profile.timezone || 'UTC';
     const { availableDays, blockedDates } = schedule;
     
-    // Query bookings
-    const bookingsCol = collection(db, COLLECTIONS.BOOKINGS);
-    const q1 = query(bookingsCol, where('coachUid', '==', uid), where('endTime', '>=', Timestamp.now()));
-    const snap1 = await getDocs(q1);
-    
-    const q2 = query(bookingsCol, where('clientUid', '==', uid), where('endTime', '>=', Timestamp.now()));
-    const snap2 = await getDocs(q2);
-    
-    const bookings: DocumentData[] = [];
-    const seen = new Set<string>();
-    const addSnap = (snap: QuerySnapshot<DocumentData>) => {
-      snap.forEach((d) => {
-        const data = d.data();
-        if (data.bookingId && !seen.has(data.bookingId)) {
-          seen.add(data.bookingId);
-          bookings.push(data);
-        }
-      });
-    };
-    addSnap(snap1);
-    addSnap(snap2);
-    
-    // Generate busy intervals for next BOOKING_HORIZON_DAYS days
-    const busySlots: { start: string; end: string }[] = [];
-    
-    // 1. Process weekly template and blocked dates
-    // Get local today in user's timezone
+    const availableSlots: string[] = [];
     const localToday = getLocalDateInTimezone(new Date(), timezone);
     const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     
@@ -540,17 +516,8 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
       const month = currentDate.getMonth() + 1;
       const day = currentDate.getDate();
       
-      // Check if blocked date
-      // Format current local date as YYYY-MM-DD
       const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
       if (blockedDates.includes(dateStr)) {
-        // Block entire day
-        const dayStart = getUtcForLocalDateTime(year, month, day, 0, 0, timezone);
-        const dayEnd = getUtcForLocalDateTime(year, month, day, 24, 0, timezone);
-        busySlots.push({
-          start: dayStart.toISOString(),
-          end: dayEnd.toISOString()
-        });
         continue;
       }
       
@@ -558,112 +525,44 @@ const doRecalculateUserBusySlotsCache = async (uid: string): Promise<void> => {
       const daySched = availableDays[dayName as keyof AvailableDays] || { enabled: false, slots: [] };
       
       if (!daySched.enabled || !daySched.slots || daySched.slots.length === 0) {
-        // Entire day is unavailable
-        const dayStart = getUtcForLocalDateTime(year, month, day, 0, 0, timezone);
-        const dayEnd = getUtcForLocalDateTime(year, month, day, 24, 0, timezone);
-        busySlots.push({
-          start: dayStart.toISOString(),
-          end: dayEnd.toISOString()
-        });
-      } else {
-        // Compute busy intervals (gaps outside the enabled slots)
-        // Sort slots by time
-        const sortedSlots = [...daySched.slots].map(s => {
-          const startTimeString = timestampToTimeString(s.startTime);
-          const endTimeString = timestampToTimeString(s.endTime);
-          
-          const parsedStart = parseLocalTime(startTimeString);
-          const parsedEnd = parseLocalTime(endTimeString);
-          return {
-            startMin: parsedStart.hour * 60 + parsedStart.minute,
-            endMin: parsedEnd.hour * 60 + parsedEnd.minute,
-            startStr: startTimeString,
-            endStr: endTimeString
-          };
-        }).sort((a, b) => a.startMin - b.startMin);
+        continue;
+      }
+      
+      for (const slot of daySched.slots) {
+        const startTimeString = timestampToTimeString(slot.startTime);
+        const endTimeString = timestampToTimeString(slot.endTime);
         
-        // Gap 1: from 00:00 to start of first slot
-        if (sortedSlots[0].startMin > 0) {
-          const startUtc = getUtcForLocalDateTime(year, month, day, 0, 0, timezone);
-          const parsedS = parseLocalTime(sortedSlots[0].startStr);
-          const endUtc = getUtcForLocalDateTime(year, month, day, parsedS.hour, parsedS.minute, timezone);
-          busySlots.push({
-            start: startUtc.toISOString(),
-            end: endUtc.toISOString()
-          });
-        }
+        const parsedStart = parseLocalTime(startTimeString);
+        const parsedEnd = parseLocalTime(endTimeString);
         
-        // Gaps between slots
-        for (let j = 0; j < sortedSlots.length - 1; j++) {
-          const currentSlot = sortedSlots[j];
-          const nextSlot = sortedSlots[j + 1];
-          if (nextSlot.startMin > currentSlot.endMin) {
-            const parsedC = parseLocalTime(currentSlot.endStr);
-            const parsedN = parseLocalTime(nextSlot.startStr);
-            const startUtc = getUtcForLocalDateTime(year, month, day, parsedC.hour, parsedC.minute, timezone);
-            const endUtc = getUtcForLocalDateTime(year, month, day, parsedN.hour, parsedN.minute, timezone);
-            busySlots.push({
-              start: startUtc.toISOString(),
-              end: endUtc.toISOString()
-            });
-          }
-        }
-        
-        // Gap 3: from end of last slot to 24:00
-        const lastSlot = sortedSlots[sortedSlots.length - 1];
-        if (lastSlot.endMin < 24 * 60) {
-          const parsedL = parseLocalTime(lastSlot.endStr);
-          const startUtc = getUtcForLocalDateTime(year, month, day, parsedL.hour, parsedL.minute, timezone);
-          const endUtc = getUtcForLocalDateTime(year, month, day, 24, 0, timezone);
-          busySlots.push({
-            start: startUtc.toISOString(),
-            end: endUtc.toISOString()
-          });
+        for (let hour = parsedStart.hour; hour < parsedEnd.hour; hour++) {
+          const slotStartUtc = getUtcForLocalDateTime(year, month, day, hour, parsedStart.minute, timezone);
+          availableSlots.push(slotStartUtc.toISOString());
         }
       }
     }
-    
-    // 2. Process active bookings (skip cancelled and already-finished ones so
-    //    busy slots don't accrete forever).
-    const nowMs = Date.now();
-    bookings.forEach(b => {
-      if (b.status === BOOKING_STATUS.CANCELLED) return;
-      
-      // Support both Firestore Timestamp and date strings/objects
-      const bStart = b.startTime && typeof b.startTime.toDate === 'function' ? b.startTime.toDate() : new Date(b.startTime?.dateTime || b.startTime);
-      const bEnd = b.endTime && typeof b.endTime.toDate === 'function' ? b.endTime.toDate() : new Date(b.endTime?.dateTime || b.endTime);
-      
-      if (bStart && bEnd && !isNaN(bStart.getTime()) && !isNaN(bEnd.getTime())) {
-        if (bEnd.getTime() < nowMs) return;
-        busySlots.push({
-          start: bStart.toISOString(),
-          end: bEnd.toISOString()
-        });
-      }
-    });
 
-    // Check if the calculated busy slots are identical to the stored ones to avoid redundant write
     let shouldWrite = true;
-    if (busySlotsCacheDoc.exists()) {
-      const existingData = busySlotsCacheDoc.data();
-      const existingSlots = existingData?.busySlots || [];
-      if (areBusySlotsEqual(busySlots, existingSlots)) {
+    if (availableSlotsCacheDoc.exists()) {
+      const existingData = availableSlotsCacheDoc.data();
+      const existingSlots = existingData?.availableSlots || [];
+      if (areAvailableSlotsEqual(availableSlots, existingSlots)) {
         shouldWrite = false;
       }
     }
     
     if (shouldWrite) {
-      await setDoc(busySlotsCacheRef, {
+      await setDoc(availableSlotsCacheRef, {
         userId: uid,
         lastUpdated: new Date().toISOString(),
-        busySlots
+        availableSlots
       });
-      logger.info(`Successfully recalculated and updated busy slots cache for user: ${uid}`);
+      logger.info(`Successfully recalculated and updated available slots cache for user: ${uid}`);
     } else {
-      logger.debug(`Busy slots cache recalculation finished, no changes for user: ${uid}`);
+      logger.debug(`Available slots cache recalculation finished, no changes for user: ${uid}`);
     }
   } catch (err) {
-    logger.error('Error recalculating busy slots cache:', err);
+    logger.error('Error recalculating available slots cache:', err);
     try {
       await logger.telemetry('error', 'recalculation_failure', {
         userId: uid,
