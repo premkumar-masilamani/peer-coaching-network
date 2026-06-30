@@ -97,11 +97,10 @@ service cloud.firestore {
           || resource.data.coachUid == request.auth.uid);
     }
 
-    match /busySlotsCache/{uid} {
-      // Derived busy-slot cache. Readable by any signed-in user, but only the
-      // OWNER may write their own cache — no cross-user writes. Live bookings
-      // are surfaced from the authoritative `bookings` collection
-      // instead.
+    match /availableSlotsCache/{uid} {
+      // Derived available-slot cache. Readable by any signed-in user, but only the
+      // OWNER may write their own cache. Live bookings are read from the 
+      // authoritative `bookings` collection and merged client-side.
       allow read: if isSignedIn();
       allow write: if isOwner(uid);
     }

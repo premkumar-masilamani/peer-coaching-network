@@ -15,6 +15,7 @@ vi.mock('../../services/firebaseService', () => {
     subscribeToAuth: vi.fn(),
     subscribeToProfile: vi.fn(),
     loginWithGoogle: vi.fn(),
+    handleAuthRedirect: vi.fn(),
     logout: vi.fn(),
     updateOwnProfile: vi.fn(),
     getEffectiveRole: vi.fn(),
@@ -49,6 +50,7 @@ describe('AuthContext', () => {
       authCallback = cb;
       return () => {};
     });
+    vi.mocked(firebaseService.handleAuthRedirect).mockResolvedValue(false);
 
     vi.mocked(firebaseService.subscribeToProfile).mockImplementation((_uid, cb) => {
       profileCallback = cb;
@@ -91,7 +93,7 @@ describe('AuthContext', () => {
     expect(latestContextValue.role).toBeUndefined();
   });
 
-  it('updates state when user is not authenticated', () => {
+  it('updates state when user is not authenticated', async () => {
     act(() => {
       root!.render(
         <AuthProvider>
@@ -102,7 +104,7 @@ describe('AuthContext', () => {
 
     expect(authCallback).not.toBeNull();
 
-    act(() => {
+    await act(async () => {
       authCallback!(null);
     });
 
@@ -112,7 +114,7 @@ describe('AuthContext', () => {
     expect(latestContextValue.role).toBeUndefined();
   });
 
-  it('updates state when user is authenticated and active profile is fetched', () => {
+  it('updates state when user is authenticated and active profile is fetched', async () => {
     act(() => {
       root!.render(
         <AuthProvider>
@@ -123,7 +125,7 @@ describe('AuthContext', () => {
 
     const mockUser = { uid: 'user123', email: 'test@example.com' };
 
-    act(() => {
+    await act(async () => {
       authCallback!(mockUser);
     });
 
@@ -131,7 +133,7 @@ describe('AuthContext', () => {
     expect(latestContextValue.loading).toBe(true);
 
     const mockProfile = { uid: 'user123', status: 'active', role: 'admin' };
-    act(() => {
+    await act(async () => {
       profileCallback!(mockProfile);
     });
 
@@ -194,7 +196,7 @@ describe('AuthContext', () => {
       );
     });
 
-    vi.mocked(firebaseService.loginWithGoogle).mockResolvedValue({ user: {} as any });
+    vi.mocked(firebaseService.loginWithGoogle).mockResolvedValue(undefined);
 
     let loginPromise: Promise<any>;
     act(() => {

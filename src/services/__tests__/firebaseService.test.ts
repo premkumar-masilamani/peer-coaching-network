@@ -8,10 +8,9 @@ import {
   getEffectiveRole,
   isApproved,
   updateOwnProfile,
-  recalculateUserBusySlotsCache,
   timeStringToTimestamp,
   timestampToTimeString,
-  loginWithGoogle,
+  handleAuthRedirect,
   logout,
   subscribeToAuth,
   subscribeToProfile,
@@ -27,7 +26,6 @@ import {
 import { logEvent } from 'firebase/analytics';
 import { Timestamp } from 'firebase/firestore';
 import { logger } from '../../utils/logger';
-import { BOOKING_STATUS } from '../../config';
 
 // Mock all Firebase modules before importing
 vi.mock('firebase/app', () => ({
@@ -54,13 +52,12 @@ vi.mock('../../utils/logger', () => ({
 vi.mock('firebase/auth', () => ({
   getAuth: vi.fn(() => ({})),
   connectAuthEmulator: vi.fn(),
-  signInWithPopup: vi.fn(),
+  signInWithRedirect: vi.fn(),
+  getRedirectResult: vi.fn(),
    GoogleAuthProvider: class {
     addScope = vi.fn();
     setCustomParameters = vi.fn();
-    static credentialFromResult() {
-      return { accessToken: 'mock-access-token' };
-    }
+    static credentialFromResult = vi.fn();
   },
   signOut: vi.fn(),
   onAuthStateChanged: vi.fn(),
@@ -232,246 +229,23 @@ describe('firebaseService', () => {
     });
   });
 
-  describe('recalculateUserBusySlotsCache', () => {
-    it('computes slot availability and caches list in busySlotsCache', async () => {
-      // Mock user document
-      mockGetDoc.mockImplementation(async (ref: any) => {
-        if (ref.path === 'users/user-123') {
-          return {
-            exists: () => true,
-            data: () => ({
-              userId: 'user-123',
-              displayName: 'John Coach',
-              timezone: 'America/New_York',
-            }),
-          };
-        }
-        if (ref.path === 'users/user-123/schedule/availableDays') {
-          return {
-            exists: () => true,
-            data: () => ({
-              monday: {
-                enabled: true,
-                slots: [
-                  { startTime: { toDate: () => new Date(Date.UTC(1970, 0, 1, 9, 0)) }, endTime: { toDate: () => new Date(Date.UTC(1970, 0, 1, 10, 0)) } },
-                  { startTime: { toDate: () => new Date(Date.UTC(1970, 0, 1, 11, 0)) }, endTime: { toDate: () => new Date(Date.UTC(1970, 0, 1, 12, 0)) } }
-                ]
-              },
-            }),
-          };
-        }
-        if (ref.path === 'users/user-123/schedule/blockedDates') {
-          return {
-            exists: () => true,
-            data: () => ({ blockedDates: ['2026-06-22'] }), // Assume this Monday is blocked
-          };
-        }
-        // Cache exists checks
-        if (ref.path === 'busySlotsCache/user-123') {
-          return {
-            exists: () => false,
-          };
-        }
-        return { exists: () => false };
-      });
-
-      mockGetDocs.mockResolvedValue({
-        forEach: (cb: any) => {
-          // 1. Confirmed active booking
-          cb({
-            data: () => ({
-              bookingId: 'booking-active-1',
-              status: BOOKING_STATUS.CONFIRMED,
-              startTime: '2026-06-25T14:00:00Z',
-              endTime: '2026-06-25T15:00:00Z',
-            })
-          });
-          // 2. Cancelled booking
-          cb({
-            data: () => ({
-              bookingId: 'booking-cancelled-1',
-              status: BOOKING_STATUS.CANCELLED,
-              startTime: '2026-06-25T16:00:00Z',
-              endTime: '2026-06-25T17:00:00Z',
-            })
-          });
-          // 3. Finished booking
-          cb({
-            data: () => ({
-              bookingId: 'booking-finished-1',
-              status: BOOKING_STATUS.CONFIRMED,
-              startTime: '2026-06-10T10:00:00Z',
-              endTime: '2026-06-10T11:00:00Z',
-            })
-          });
-        },
-      });
-
-      mockSetDoc.mockResolvedValue(undefined);
-
-      await recalculateUserBusySlotsCache('user-123');
-
-      // The busySlotsCache document setDoc should have been called
-      expect(mockSetDoc).toHaveBeenCalled();
-      const cachedData = mockSetDoc.mock.calls[0][1];
-      expect(cachedData.userId).toBe('user-123');
-      expect(Array.isArray(cachedData.busySlots)).toBe(true);
-    });
-
-    it('handles recalculation when user does not exist by returning early', async () => {
-      mockGetDoc.mockResolvedValue({ exists: () => false });
-      await recalculateUserBusySlotsCache('non-existent');
-      expect(mockSetDoc).not.toHaveBeenCalled();
-    });
-
-    it('skips writing if existing cache is identical', async () => {
-      let calculatedSlots: any[] = [];
-      mockSetDoc.mockImplementationOnce((_ref: any, data: any) => {
-        calculatedSlots = data.busySlots;
-        return Promise.resolve();
-      });
-
-      mockGetDoc.mockImplementation(async (ref: any) => {
-        if (ref.path === 'users/user-123') {
-          return {
-            exists: () => true,
-            data: () => ({ userId: 'user-123', timezone: 'America/New_York' }),
-          };
-        }
-        if (ref.path === 'users/user-123/schedule/availableDays') {
-          return { exists: () => true, data: () => ({ monday: { enabled: false } }) };
-        }
-        if (ref.path === 'users/user-123/schedule/blockedDates') {
-          return { exists: () => true, data: () => ({ blockedDates: [] }) };
-        }
-        if (ref.path === 'busySlotsCache/user-123') {
-          return {
-            exists: () => false,
-          };
-        }
-        return { exists: () => false };
-      });
-
-      mockGetDocs.mockResolvedValue({ forEach: () => {} });
-
-      await recalculateUserBusySlotsCache('user-123');
-      expect(mockSetDoc).toHaveBeenCalledTimes(1);
-      mockSetDoc.mockClear();
-
-      mockGetDoc.mockImplementation(async (ref: any) => {
-        if (ref.path === 'users/user-123') {
-          return {
-            exists: () => true,
-            data: () => ({ userId: 'user-123', timezone: 'America/New_York' }),
-          };
-        }
-        if (ref.path === 'users/user-123/schedule/availableDays') {
-          return { exists: () => true, data: () => ({ monday: { enabled: false } }) };
-        }
-        if (ref.path === 'users/user-123/schedule/blockedDates') {
-          return { exists: () => true, data: () => ({ blockedDates: [] }) };
-        }
-        if (ref.path === 'busySlotsCache/user-123') {
-          return {
-            exists: () => true,
-            data: () => ({ busySlots: calculatedSlots }),
-          };
-        }
-        return { exists: () => false };
-      });
-
-      await recalculateUserBusySlotsCache('user-123');
-      expect(mockSetDoc).not.toHaveBeenCalled();
-    });
-
-    it('writes cache if existing cache has same length but different slots', async () => {
-      let calculatedSlots: any[] = [];
-      mockSetDoc.mockImplementationOnce((_ref: any, data: any) => {
-        calculatedSlots = data.busySlots;
-        return Promise.resolve();
-      });
-
-      mockGetDoc.mockImplementation(async (ref: any) => {
-        if (ref.path === 'users/user-123') {
-          return {
-            exists: () => true,
-            data: () => ({ userId: 'user-123', timezone: 'America/New_York' }),
-          };
-        }
-        if (ref.path === 'users/user-123/schedule/availableDays') {
-          return { exists: () => true, data: () => ({ monday: { enabled: false } }) };
-        }
-        if (ref.path === 'users/user-123/schedule/blockedDates') {
-          return { exists: () => true, data: () => ({ blockedDates: [] }) };
-        }
-        if (ref.path === 'busySlotsCache/user-123') {
-          return {
-            exists: () => false,
-          };
-        }
-        return { exists: () => false };
-      });
-
-      mockGetDocs.mockResolvedValue({ forEach: () => {} });
-
-      await recalculateUserBusySlotsCache('user-123');
-      expect(mockSetDoc).toHaveBeenCalledTimes(1);
-      mockSetDoc.mockClear();
-
-      const modifiedSlots = [...calculatedSlots];
-      if (modifiedSlots.length > 0) {
-        modifiedSlots[0] = { ...modifiedSlots[0], end: '2026-12-31T23:59:59Z' };
-      }
-
-      mockGetDoc.mockImplementation(async (ref: any) => {
-        if (ref.path === 'users/user-123') {
-          return {
-            exists: () => true,
-            data: () => ({ userId: 'user-123', timezone: 'America/New_York' }),
-          };
-        }
-        if (ref.path === 'users/user-123/schedule/availableDays') {
-          return { exists: () => true, data: () => ({ monday: { enabled: false } }) };
-        }
-        if (ref.path === 'users/user-123/schedule/blockedDates') {
-          return { exists: () => true, data: () => ({ blockedDates: [] }) };
-        }
-        if (ref.path === 'busySlotsCache/user-123') {
-          return {
-            exists: () => true,
-            data: () => ({ busySlots: modifiedSlots }),
-          };
-        }
-        return { exists: () => false };
-      });
-
-      await recalculateUserBusySlotsCache('user-123');
-      expect(mockSetDoc).toHaveBeenCalledTimes(1);
-    });
-
-    it('throws and logs error on recalculation failure', async () => {
-      mockGetDoc.mockRejectedValue(new Error('DB connection lost'));
-      await expect(recalculateUserBusySlotsCache('user-123')).rejects.toThrow('DB connection lost');
-      expect(logger.error).toHaveBeenCalled();
-      expect(logger.telemetry).toHaveBeenCalledWith('error', 'recalculation_failure', {
-        userId: 'user-123',
-        errorCode: 'RECALCULATION_FAILURE',
-        errorMessage: 'Failed to recalculate user busy slots cache.',
-        error: 'DB connection lost'
-      });
-    });
-  });
-
   describe('loginWithGoogle', () => {
-    it('logs in an existing user whose photoURL matches', async () => {
-      const { signInWithPopup, GoogleAuthProvider } = await import('firebase/auth');
+    it('returns false if no redirect result', async () => {
+      const { getRedirectResult } = await import('firebase/auth');
+      vi.mocked(getRedirectResult).mockResolvedValue(null);
+      const res = await handleAuthRedirect();
+      expect(res).toBe(false);
+    });
+
+    it('logs in an existing user and does not sync if data matches', async () => {
+      const { getRedirectResult, GoogleAuthProvider } = await import('firebase/auth');
       const mockUser = {
         uid: 'user-123',
         email: 'test@example.com',
         displayName: 'Test User',
         photoURL: 'https://photo.url',
       };
-      vi.mocked(signInWithPopup).mockResolvedValue({ user: mockUser } as any);
+      vi.mocked(getRedirectResult).mockResolvedValue({ user: mockUser } as any);
       vi.spyOn(GoogleAuthProvider, 'credentialFromResult').mockReturnValue({ accessToken: 'test-token' } as any);
 
       mockGetDoc.mockResolvedValue({
@@ -486,20 +260,20 @@ describe('firebaseService', () => {
         }),
       });
 
-      const res = await loginWithGoogle();
-      expect(res.user.uid).toBe('user-123');
+      const res = await handleAuthRedirect();
+      expect(res).toBe(true);
       expect(mockUpdateDoc).not.toHaveBeenCalled();
     });
 
     it('logs in an existing user and syncs photoURL if mismatched', async () => {
-      const { signInWithPopup, GoogleAuthProvider } = await import('firebase/auth');
+      const { getRedirectResult, GoogleAuthProvider } = await import('firebase/auth');
       const mockUser = {
         uid: 'user-123',
         email: 'test@example.com',
         displayName: 'Test User',
         photoURL: 'https://new-photo.url',
       };
-      vi.mocked(signInWithPopup).mockResolvedValue({ user: mockUser } as any);
+      vi.mocked(getRedirectResult).mockResolvedValue({ user: mockUser } as any);
       vi.spyOn(GoogleAuthProvider, 'credentialFromResult').mockReturnValue({ accessToken: 'test-token' } as any);
 
       mockGetDoc.mockResolvedValue({
@@ -514,41 +288,41 @@ describe('firebaseService', () => {
         }),
       });
 
-      const res = await loginWithGoogle();
-      expect(res.user.uid).toBe('user-123');
+      const res = await handleAuthRedirect();
+      expect(res).toBe(true);
       expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { photoURL: 'https://new-photo.url' });
     });
 
     it('creates profile and sub-collections for a new user', async () => {
-      const { signInWithPopup, GoogleAuthProvider } = await import('firebase/auth');
+      const { getRedirectResult, GoogleAuthProvider } = await import('firebase/auth');
       const mockUser = {
         uid: 'user-123',
         email: 'test@example.com',
         displayName: 'Test User',
         photoURL: 'https://photo.url',
       };
-      vi.mocked(signInWithPopup).mockResolvedValue({ user: mockUser } as any);
+      vi.mocked(getRedirectResult).mockResolvedValue({ user: mockUser } as any);
       vi.spyOn(GoogleAuthProvider, 'credentialFromResult').mockReturnValue(null);
 
       mockGetDoc.mockResolvedValue({
         exists: () => false,
       });
 
-      const res = await loginWithGoogle();
-      expect(res.user.uid).toBe('user-123');
+      const res = await handleAuthRedirect();
+      expect(res).toBe(true);
       expect(mockSetDoc).toHaveBeenCalledTimes(3); // profile + availableDays + blockedDates
     });
 
     it('throws error if email or displayName is missing', async () => {
-      const { signInWithPopup } = await import('firebase/auth');
+      const { getRedirectResult } = await import('firebase/auth');
       const mockUser = {
         uid: 'user-123',
         displayName: 'Test User',
       };
-      vi.mocked(signInWithPopup).mockResolvedValue({ user: mockUser } as any);
+      vi.mocked(getRedirectResult).mockResolvedValue({ user: mockUser } as any);
       mockGetDoc.mockResolvedValue({ exists: () => false });
 
-      await expect(loginWithGoogle()).rejects.toThrow('Google Sign-In did not return a valid email or display name.');
+      await expect(handleAuthRedirect()).rejects.toThrow('Google Sign-In did not return a valid email or display name.');
     });
   });
 

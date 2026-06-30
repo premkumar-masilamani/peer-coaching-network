@@ -1,4 +1,4 @@
-.PHONY: install build build-dev build-prod dev lint test coverage emulator local erd
+.PHONY: install build build-dev build-prod dev lint test coverage emulator local erd deploy-dev deploy-prod
 
 install:
 	npm install
@@ -32,3 +32,9 @@ local:
 
 erd:
 	node scripts/generate-erd.js
+
+deploy-dev: build-dev
+	. ./.env.development && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
+
+deploy-prod: build-prod
+	. ./.env.production && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
