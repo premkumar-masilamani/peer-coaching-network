@@ -9,7 +9,7 @@ import {
   type SupportRequest 
 } from '../services/firebaseService';
 import { formatDisplayName } from '../services/firebaseService';
-import { SUPPORT_CATEGORIES, type SupportCategory, INPUT_LIMITS } from '../config';
+import { SUPPORT_CATEGORIES, type SupportCategory, INPUT_LIMITS, SUPPORT_STATUS, type SupportStatus } from '../config';
 import { MessageSquare, Plus, Send, ChevronLeft, LifeBuoy, Tag, Type, AlignLeft, CheckCircle, Circle } from 'lucide-react';
 
 export const SupportFeedback: React.FC = () => {
@@ -17,7 +17,7 @@ export const SupportFeedback: React.FC = () => {
   const [tickets, setTickets] = useState<SupportRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'open' | 'closed'>('open');
+  const [filter, setFilter] = useState<'all' | SupportStatus>(SUPPORT_STATUS.OPEN);
   
   const [view, setView] = useState<'list' | 'detail' | 'new'>('list');
   const [selectedTicket, setSelectedTicket] = useState<SupportRequest | null>(null);
@@ -96,7 +96,7 @@ export const SupportFeedback: React.FC = () => {
     if (!selectedTicket) return;
     setSubmitting(true);
     try {
-      const newStatus = selectedTicket.status === 'open' ? 'closed' : 'open';
+      const newStatus = selectedTicket.status === SUPPORT_STATUS.OPEN ? SUPPORT_STATUS.CLOSED : SUPPORT_STATUS.OPEN;
       await updateSupportRequestStatus(selectedTicket.id, newStatus);
       setSelectedTicket(prev => prev ? { ...prev, status: newStatus } : null);
       await loadTickets();
@@ -154,7 +154,7 @@ export const SupportFeedback: React.FC = () => {
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
           {view === 'list' && (
             <div style={{ display: 'flex', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden', marginRight: '8px' }}>
-              {(['all', 'open', 'closed'] as const).map(f => (
+              {(['all', SUPPORT_STATUS.OPEN, SUPPORT_STATUS.CLOSED] as const).map(f => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
@@ -265,8 +265,8 @@ export const SupportFeedback: React.FC = () => {
               className="btn btn-secondary"
               style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
             >
-              {selectedTicket.status === 'open' ? <CheckCircle size={16} color="var(--success, #166534)" /> : <Circle size={16} />}
-              {selectedTicket.status === 'open' ? 'Mark as Closed' : 'Reopen Request'}
+              {selectedTicket.status === SUPPORT_STATUS.OPEN ? <CheckCircle size={16} color="var(--success, #166534)" /> : <Circle size={16} />}
+              {selectedTicket.status === SUPPORT_STATUS.OPEN ? 'Mark as Closed' : 'Reopen Request'}
             </button>
           </div>
           
@@ -274,7 +274,7 @@ export const SupportFeedback: React.FC = () => {
           <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '16px' }}>
             <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
               <strong>Category:</strong> {selectedTicket.category} &nbsp;|&nbsp; 
-              <strong>Status:</strong> {selectedTicket.status === 'open' ? 'Open' : 'Closed'} &nbsp;|&nbsp; 
+              <strong>Status:</strong> {selectedTicket.status === SUPPORT_STATUS.OPEN ? 'Open' : 'Closed'} &nbsp;|&nbsp; 
               <strong>Created:</strong> {new Date(selectedTicket.createdAt).toLocaleDateString()}
             </div>
           </div>
@@ -310,7 +310,7 @@ export const SupportFeedback: React.FC = () => {
 
           {/* Reply Box */}
           <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {selectedTicket.status === 'closed' && (
+            {selectedTicket.status === SUPPORT_STATUS.CLOSED && (
               <div style={{ fontSize: '0.875rem', color: 'var(--warning)', fontWeight: 600, marginBottom: '4px' }}>
                 This ticket is marked as Closed. Sending a reply will automatically reopen it.
               </div>
@@ -364,7 +364,7 @@ export const SupportFeedback: React.FC = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <span className={`badge badge-${ticket.status}`} style={{ padding: '2px 6px', fontSize: '0.7rem' }}>
-                      {ticket.status === 'open' ? 'Open' : 'Closed'}
+                      {ticket.status === SUPPORT_STATUS.OPEN ? 'Open' : 'Closed'}
                     </span>
                     <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1rem' }}>{ticket.subject}</h4>
                   </div>

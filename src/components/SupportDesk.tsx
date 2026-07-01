@@ -10,16 +10,16 @@ import {
 } from '../services/firebaseService';
 import { formatDisplayName } from '../services/firebaseService';
 import { MessageSquare, Send, ChevronLeft, Trash2, CheckCircle, Circle } from 'lucide-react';
-import { INPUT_LIMITS } from '../config';
+import { INPUT_LIMITS, SUPPORT_STATUS, type SupportStatus } from '../config';
 
-type FilterType = 'all' | 'open' | 'closed';
+type FilterType = 'all' | SupportStatus;
 
 export const SupportDesk: React.FC = () => {
   const { profile } = useAuth();
   const [requests, setRequests] = useState<SupportRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [filter, setFilter] = useState<FilterType>('open');
+  const [filter, setFilter] = useState<FilterType>(SUPPORT_STATUS.OPEN);
   
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [selectedRequest, setSelectedRequest] = useState<SupportRequest | null>(null);
@@ -99,7 +99,7 @@ export const SupportDesk: React.FC = () => {
   const handleToggleStatus = async () => {
     if (!selectedRequest) return;
     setSubmitting(true);
-    const newStatus = selectedRequest.status === 'open' ? 'closed' : 'open';
+    const newStatus = selectedRequest.status === SUPPORT_STATUS.OPEN ? SUPPORT_STATUS.CLOSED : SUPPORT_STATUS.OPEN;
     try {
       await updateSupportRequestStatus(selectedRequest.id, newStatus);
       await loadRequests();
@@ -148,7 +148,7 @@ export const SupportDesk: React.FC = () => {
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
           {view === 'list' && (
             <div style={{ display: 'flex', background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-              {(['all', 'open', 'closed'] as const).map(f => (
+              {(['all', SUPPORT_STATUS.OPEN, SUPPORT_STATUS.CLOSED] as const).map(f => (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
@@ -193,8 +193,8 @@ export const SupportDesk: React.FC = () => {
               className="btn btn-secondary"
               style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
             >
-              {selectedRequest.status === 'open' ? <CheckCircle size={16} color="var(--success, #166534)" /> : <Circle size={16} />}
-              {selectedRequest.status === 'open' ? 'Mark as Closed' : 'Reopen Request'}
+              {selectedRequest.status === SUPPORT_STATUS.OPEN ? <CheckCircle size={16} color="var(--success, #166534)" /> : <Circle size={16} />}
+              {selectedRequest.status === SUPPORT_STATUS.OPEN ? 'Mark as Closed' : 'Reopen Request'}
             </button>
             <button 
               className="btn"
@@ -210,7 +210,7 @@ export const SupportDesk: React.FC = () => {
           <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '16px' }}>
             <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
               <strong>Category:</strong> {selectedRequest.category} &nbsp;|&nbsp; 
-              <strong>Status:</strong> {selectedRequest.status === 'open' ? 'Open' : 'Closed'} &nbsp;|&nbsp; 
+              <strong>Status:</strong> {selectedRequest.status === SUPPORT_STATUS.OPEN ? 'Open' : 'Closed'} &nbsp;|&nbsp; 
               <strong>Created:</strong> {new Date(selectedRequest.createdAt).toLocaleDateString()}
             </div>
           </div>
@@ -258,7 +258,7 @@ export const SupportDesk: React.FC = () => {
                 <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
                   {replyText.length} / {INPUT_LIMITS.SUPPORT_MESSAGE} characters
                 </span>
-                {selectedRequest.status === 'closed' && (
+                {selectedRequest.status === SUPPORT_STATUS.CLOSED && (
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                     Replying will automatically reopen this ticket.
                   </div>
@@ -301,7 +301,7 @@ export const SupportDesk: React.FC = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <span className={`badge badge-${req.status}`} style={{ padding: '2px 6px', fontSize: '0.7rem' }}>
-                      {req.status === 'open' ? 'Open' : 'Closed'}
+                      {req.status === SUPPORT_STATUS.OPEN ? 'Open' : 'Closed'}
                     </span>
                     <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1rem' }}>{req.subject}</h4>
                   </div>
