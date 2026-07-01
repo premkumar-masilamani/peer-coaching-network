@@ -8,12 +8,12 @@ import {
 describe('credentials helpers', () => {
   describe('getShortCredential', () => {
     it('correctly maps standard credentials', () => {
-      expect(getShortCredential('MCC')).toBe('MCC');
-      expect(getShortCredential('ICF MCC')).toBe('MCC');
-      expect(getShortCredential('PCC')).toBe('PCC');
-      expect(getShortCredential('ICF PCC')).toBe('PCC');
-      expect(getShortCredential('ACC')).toBe('ACC');
-      expect(getShortCredential('ICF ACC')).toBe('ACC');
+      expect(getShortCredential('MCC')).toBe('ICF MCC');
+      expect(getShortCredential('ICF MCC')).toBe('ICF MCC');
+      expect(getShortCredential('PCC')).toBe('ICF PCC');
+      expect(getShortCredential('ICF PCC')).toBe('ICF PCC');
+      expect(getShortCredential('ACC')).toBe('ICF ACC');
+      expect(getShortCredential('ICF ACC')).toBe('ICF ACC');
     });
 
     it('returns original string if no mapping matches', () => {
