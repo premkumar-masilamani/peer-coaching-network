@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
-import { subscribeToActiveCoaches, formatDisplayName, subscribeToBookings } from '../services/firebaseService';
+import { formatDisplayName, queryAvailableCoachesForDay, subscribeToUserBookings, getUserAvailableSlots, getProfiles } from '../services/firebaseService';
 import { getShortCredential, getCredentialBadgeClass, getCredentialDescription } from '../utils/credentials';
-import type { UserProfile } from '../services/firebaseService';
+import type { UserProfile, DiscoveryFilters } from '../services/firebaseService';
 import { 
   getUpcomingEvents,
-  getCoachesAvailability,
   cancelBooking
 } from '../services/googleCalendar';
 import type { CalendarEvent } from '../services/googleCalendar';
@@ -18,7 +17,6 @@ import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/cred
 
 import { 
   Filter, 
-  Search, 
   MapPin, 
   Award, 
   User as UserIcon, 
@@ -59,38 +57,23 @@ export const UpcomingSessions: React.FC = () => {
   };
   
   // List states
-  const [coaches, setCoaches] = useState<UserProfile[]>([]);
-  const [loadingCoaches, setLoadingCoaches] = useState(true);
-  const [coachesBaseAvailable, setCoachesBaseAvailable] = useState<Record<string, string[]>>({});
+  // List states
+  const [dayAvailability, setDayAvailability] = useState<Record<string, UserProfile[]>>({});
+  const [currentUserBaseAvailable, setCurrentUserBaseAvailable] = useState<string[]>([]);
   const [loadingCalendar, setLoadingCalendar] = useState(true);
+  const [isFetchingDay, setIsFetchingDay] = useState(false);
   const [userBaseBusyEvents, setUserBaseBusyEvents] = useState<CalendarEvent[]>([]);
-  const [liveBookings, setLiveBookings] = useState<DocumentData[]>([]);
+  const [userLiveBookings, setUserLiveBookings] = useState<DocumentData[]>([]);
   const [now] = useState(() => Date.now());
 
-  // Derive live coachesAvailableSlots and userBusyEvents states by combining the baseline data
-  // with the real-time bookings feed in-memory.
-  const coachesAvailableSlots = useMemo(() => {
-    const result: Record<string, Set<string>> = {};
-    Object.keys(coachesBaseAvailable).forEach(uid => {
-      result[uid] = new Set(coachesBaseAvailable[uid]);
-    });
-    
-    liveBookings.forEach(b => {
-      if (b.status === BOOKING_STATUS.CANCELLED) return;
-      const startStr = b.startTime && typeof b.startTime.toDate === 'function' 
-        ? b.startTime.toDate().toISOString() 
-        : (b.startTime?.dateTime || b.startTime);
-      if (!startStr) return;
-      
-      if (result[b.coachUid]) {
-        result[b.coachUid].delete(startStr);
-      }
-      if (result[b.clientUid]) {
-        result[b.clientUid].delete(startStr);
-      }
-    });
-    return result;
-  }, [coachesBaseAvailable, liveBookings]);
+  const [sessionSeed] = useState(() => {
+    let seed = sessionStorage.getItem('coach_discovery_seed');
+    if (!seed) {
+      seed = Math.random().toString(36).substring(2, 9);
+      sessionStorage.setItem('coach_discovery_seed', seed);
+    }
+    return seed;
+  });
 
   const userBusyEvents = useMemo(() => {
     const baseGoogleEvents = userBaseBusyEvents.filter(e => e.type !== EVENT_TYPE.PEER_COACHING);
@@ -98,7 +81,7 @@ export const UpcomingSessions: React.FC = () => {
     if (!currentUid) return baseGoogleEvents;
     
     const liveUserEvents: CalendarEvent[] = [];
-    liveBookings.forEach(b => {
+    userLiveBookings.forEach(b => {
       if (b.status === BOOKING_STATUS.CANCELLED) return;
       if (b.coachUid !== currentUid && b.clientUid !== currentUid) return;
       
@@ -124,15 +107,15 @@ export const UpcomingSessions: React.FC = () => {
     });
     
     return [...baseGoogleEvents, ...liveUserEvents];
-  }, [userBaseBusyEvents, liveBookings, currentUser]);
+  }, [userBaseBusyEvents, userLiveBookings, currentUser]);
   
   // Tab states
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const localToday = useMemo(() => getLocalDateInTimezone(new Date(), viewerTimezone), [viewerTimezone]);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  const [fetchedDayIndex, setFetchedDayIndex] = useState(0);
   
   // Filter states
-  const [nameSearch, setNameSearch] = useState('');
   const [genderFilter, setGenderFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
   const [selectedQuals, setSelectedQuals] = useState<Qualification[]>([]);
@@ -147,16 +130,45 @@ export const UpcomingSessions: React.FC = () => {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [bookingToCancel, setBookingToCancel] = useState<CalendarEvent | null>(null);
 
-  const getBookingForSlot = (slotStart: Date, slotEnd: Date) => {
+  const getBookingForSlot = useCallback((slotStart: Date, slotEnd: Date) => {
     return userBusyEvents.find(e => {
       if (e.type !== EVENT_TYPE.PEER_COACHING) return false;
       const start = new Date(e.start.dateTime);
       const end = new Date(e.end.dateTime);
       return slotStart < end && slotEnd > start;
     });
-  };
+  }, [userBusyEvents]);
   
-  const isInitialLoading = loadingCoaches || (loadingCalendar && Object.keys(coachesAvailableSlots).length === 0);
+  const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
+
+  useEffect(() => {
+    if (!currentUser?.uid) return;
+    const uidsToFetch = userLiveBookings
+      .map(b => b.coachUid === currentUser?.uid ? b.clientUid : b.coachUid)
+      .filter((uid): uid is string => !!uid && !profileCache[uid]);
+
+    if (uidsToFetch.length === 0) return;
+
+    const uniqueUids = Array.from(new Set(uidsToFetch));
+    getProfiles(uniqueUids).then((fetched) => {
+      if (fetched.length === 0) return;
+      setProfileCache(prev => {
+        const next = { ...prev };
+        let changed = false;
+        fetched.forEach(p => {
+          if (!next[p.userId]) {
+            next[p.userId] = p;
+            changed = true;
+          }
+        });
+        return changed ? next : prev;
+      });
+    }).catch(err => {
+      console.error('Error fetching booked participant profiles:', err);
+    });
+  }, [userLiveBookings, currentUser, profileCache]);
+
+  const isInitialLoading = loadingCalendar;
 
   // Generate days starting from tomorrow up to the booking horizon in viewer's local timezone
   const days = useMemo(() => {
@@ -170,11 +182,12 @@ export const UpcomingSessions: React.FC = () => {
   }, [localToday]);
 
   const activeDayDate = days[selectedDayIndex] || localToday;
+  const fetchedDayDate = days[fetchedDayIndex] || localToday;
 
-  // Generate slots for the active day
-  const slots = useMemo(() => {
+  // Generate slots for the active day (used for querying)
+  const querySlots = useMemo(() => {
     const arr: { hour: number; startTime: Date; endTime: Date }[] = [];
-    for (let hour = 8; hour < 20; hour++) {
+    for (let hour = 0; hour < 24; hour++) {
       arr.push({
         hour,
         startTime: getUtcForSlot(activeDayDate, hour, viewerTimezone),
@@ -184,99 +197,113 @@ export const UpcomingSessions: React.FC = () => {
     return arr;
   }, [activeDayDate, viewerTimezone]);
 
+  // Generate slots for the fetched day (used for UI rendering)
+  const uiSlots = useMemo(() => {
+    const arr: { hour: number; startTime: Date; endTime: Date }[] = [];
+    for (let hour = 0; hour < 24; hour++) {
+      arr.push({
+        hour,
+        startTime: getUtcForSlot(fetchedDayDate, hour, viewerTimezone),
+        endTime: getUtcForSlot(fetchedDayDate, hour + 1, viewerTimezone)
+      });
+    }
+    return arr;
+  }, [fetchedDayDate, viewerTimezone]);
+
   // Fetch active peer coaches only (server-side filtered, not the whole users
   // collection).
   useEffect(() => {
-    const unsub = subscribeToActiveCoaches((usersList) => {
-      const peerCoaches = usersList.filter((u) => u.userId !== currentUser?.uid);
-      setCoaches(peerCoaches);
-      setLoadingCoaches(false);
+    if (!currentUser?.uid) return;
+    const unsub = subscribeToUserBookings(currentUser.uid, (bookingsList) => {
+      setUserLiveBookings(bookingsList);
     });
-
     return () => unsub();
   }, [currentUser]);
 
-  // Real-time bookings subscription to dynamically update coach availability and prevent race conditions. See Issue 13.
-  useEffect(() => {
-    const unsub = subscribeToBookings((bookingsList) => {
-      setLiveBookings(bookingsList);
-    });
-    return () => unsub();
-  }, []);
-
-  // Load calendar availability for coaches + user upcoming sessions
-  const loadCalendarData = useCallback(async () => {
-    if (coaches.length === 0) {
-      setLoadingCalendar(false);
-      return;
-    }
-    setLoadingCalendar(true);
+  const loadCurrentUserAvailableSlots = useCallback(async () => {
+    if (!currentUser?.uid) return;
     try {
-      const today = getLocalDateInTimezone(new Date(), viewerTimezone);
-      const startDay = new Date(today);
-      startDay.setDate(today.getDate() + BOOKING_START_OFFSET_DAYS);
-      const timeMin = getUtcForSlot(startDay, 0, viewerTimezone).toISOString();
-      const endDay = new Date(today);
-      endDay.setDate(today.getDate() + BOOKING_HORIZON_DAYS);
-      const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
+      const slotsList = await getUserAvailableSlots(currentUser.uid);
+      setCurrentUserBaseAvailable(slotsList);
+    } catch (err) {
+      console.error('Error loading current user available slots:', err);
+    }
+  }, [currentUser]);
 
-      const allProfiles = profile ? [...coaches, profile] : coaches;
-      const availability = await getCoachesAvailability(allProfiles, timeMin, timeMax);
-      setCoachesBaseAvailable(availability);
-
+  const loadGoogleCalendarEvents = useCallback(async () => {
+    try {
       const allEvents = await getUpcomingEvents();
       setUserBaseBusyEvents(allEvents);
     } catch (e) {
-      console.error('Error fetching dashboard calendar details:', e);
+      console.error('Error loading Google Calendar events:', e);
+    }
+  }, []);
+
+  const loadDayAvailability = useCallback(async () => {
+    await Promise.resolve();
+    setIsFetchingDay(true);
+    try {
+      const localDayStart = new Date(activeDayDate);
+      localDayStart.setHours(0, 0, 0, 0);
+      const localDayEnd = new Date(activeDayDate);
+      localDayEnd.setHours(23, 59, 59, 999);
+
+      const filters: DiscoveryFilters = {
+        gender: genderFilter || undefined,
+        country: countryFilter || undefined,
+        icf_acc: selectedQuals.includes('ICF ACC') ? true : undefined,
+        icf_pcc: selectedQuals.includes('ICF PCC') ? true : undefined,
+        icf_mcc: selectedQuals.includes('ICF MCC') ? true : undefined,
+        icf_actc: selectedQuals.includes('ICF ACTC') ? true : undefined,
+      };
+
+      const availability = await queryAvailableCoachesForDay(
+        localDayStart,
+        localDayEnd,
+        querySlots,
+        filters,
+        sessionSeed,
+        currentUser?.uid
+      );
+      setDayAvailability(availability);
+      setFetchedDayIndex(selectedDayIndex);
+    } catch (e) {
+      console.error('Error querying day availability:', e);
     } finally {
+      setIsFetchingDay(false);
       setLoadingCalendar(false);
     }
-  }, [coaches, viewerTimezone, profile]);
+  }, [activeDayDate, querySlots, genderFilter, countryFilter, selectedQuals, sessionSeed, currentUser, selectedDayIndex]);
 
-  useFocusRefresh(loadCalendarData);
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([
+      loadCurrentUserAvailableSlots(),
+      loadGoogleCalendarEvents(),
+      loadDayAvailability()
+    ]);
+  }, [loadCurrentUserAvailableSlots, loadGoogleCalendarEvents, loadDayAvailability]);
 
-  // Load calendar data when the coach list changes. Runs inside an async IIFE so
-  // no setState happens synchronously in the effect body (no setTimeout hack).
-  // loadingCalendar already starts true, so we don't re-show the spinner here.
+  useFocusRefresh(handleRefresh);
+
   useEffect(() => {
-    let cancelled = false;
+    let active = true;
     (async () => {
-      try {
-        const today = getLocalDateInTimezone(new Date(), viewerTimezone);
-        const startDay = new Date(today);
-        startDay.setDate(today.getDate() + BOOKING_START_OFFSET_DAYS);
-        const timeMin = getUtcForSlot(startDay, 0, viewerTimezone).toISOString();
-        const endDay = new Date(today);
-        endDay.setDate(today.getDate() + BOOKING_HORIZON_DAYS);
-        const timeMax = getUtcForSlot(endDay, 24, viewerTimezone).toISOString();
-
-        const allProfiles = profile ? [...coaches, profile] : coaches;
-        const availability = await getCoachesAvailability(allProfiles, timeMin, timeMax);
-        if (cancelled) return;
-        setCoachesBaseAvailable(availability);
-
-        const allEvents = await getUpcomingEvents();
-        if (cancelled) return;
-        setUserBaseBusyEvents(allEvents);
-      } catch (e) {
-        console.error('Error fetching dashboard calendar details:', e);
-      } finally {
-        if (!cancelled) setLoadingCalendar(false);
-      }
+      if (!active) return;
+      await handleRefresh();
     })();
-    return () => { cancelled = true; };
-  }, [coaches, viewerTimezone, profile]);
+    return () => { active = false; };
+  }, [activeDayDate, genderFilter, countryFilter, selectedQuals, currentUser, handleRefresh]);
 
   // Handle booking success with optimistic updates
   const handleBookingSuccess = (newEvent: CalendarEvent) => {
     if (activeBookingCoach && newEvent.start.dateTime) {
       const coachId = activeBookingCoach.userId;
       const startStr = newEvent.start.dateTime;
-      setCoachesBaseAvailable(prev => {
-        const existing = prev[coachId] || [];
+      setDayAvailability(prev => {
+        const existing = prev[startStr] || [];
         return {
           ...prev,
-          [coachId]: existing.filter(slot => slot !== startStr)
+          [startStr]: existing.filter(c => c.userId !== coachId)
         };
       });
     }
@@ -286,22 +313,14 @@ export const UpcomingSessions: React.FC = () => {
       return [...prev, newEvent];
     });
 
-    // Trigger full background sync
-    loadCalendarData();
-  };
-
-  // Check if coach has overlaps
-  const isCoachAvailable = (coachId: string, slotStart: Date) => {
-    const availableSet = coachesAvailableSlots[coachId];
-    if (!availableSet) return false;
-    return availableSet.has(slotStart.toISOString());
+    handleRefresh();
   };
 
   // Check if current user is unavailable (due to template gaps, blocked dates, or google calendar events, excluding active PCN bookings)
-  const isUserUnavailable = (slotStart: Date, slotEnd: Date) => {
+  const isUserUnavailable = useCallback((slotStart: Date, slotEnd: Date) => {
     const currentUid = currentUser?.uid;
-    if (currentUid && coachesBaseAvailable[currentUid]) {
-      if (!coachesBaseAvailable[currentUid].includes(slotStart.toISOString())) {
+    if (currentUid && currentUserBaseAvailable.length > 0) {
+      if (!currentUserBaseAvailable.includes(slotStart.toISOString())) {
         return true;
       }
     }
@@ -311,7 +330,7 @@ export const UpcomingSessions: React.FC = () => {
       const end = new Date(e.end.dateTime);
       return slotStart < end && slotEnd > start;
     });
-  };
+  }, [currentUser, currentUserBaseAvailable, userBusyEvents]);
 
   // Handle qualification filter toggle
   const toggleQualFilter = (qual: Qualification) => {
@@ -323,38 +342,9 @@ export const UpcomingSessions: React.FC = () => {
   };
 
   const clearFilters = () => {
-    setNameSearch('');
     setGenderFilter('');
     setCountryFilter('');
     setSelectedQuals([]);
-  };
-
-  // Get available and filtered coaches for a specific slot
-  const getCoachesForSlot = (slotStart: Date, _slotEnd: Date, ignoreFilters = false) => {
-    // 1. First find coaches who are working and not busy
-    const available = coaches.filter(coach => {
-      return isCoachAvailable(coach.userId, slotStart);
-    });
-
-    if (ignoreFilters) {
-      return available;
-    }
-
-    // 2. Apply filters
-    return available.filter(coach => {
-      const matchesSearch = nameSearch === '' ? true :
-        (coach.displayName?.toLowerCase() || '').includes(nameSearch.toLowerCase());
-
-      const matchesGender = genderFilter === '' ? true : coach.gender === genderFilter;
-
-      const matchesCountry = countryFilter === '' ? true : coach.country === countryFilter;
-
-      const matchesQuals = selectedQuals.length === 0 ? true : (
-        selectedQuals.some(q => coach.qualifications?.includes(q))
-      );
-
-      return matchesSearch && matchesGender && matchesCountry && matchesQuals;
-    });
   };
 
   // Formatting helpers
@@ -391,7 +381,7 @@ export const UpcomingSessions: React.FC = () => {
   // Precompute, once per relevant-input change, the filtered coaches per slot —
   // instead of calling getCoachesForSlot three times per render.
   const slotView = useMemo(() => {
-    const enriched = slots.map(slot => {
+    const enriched = uiSlots.map(slot => {
       const isPassed = slot.endTime.getTime() < now;
       
       // Check if there is an active booking for this slot
@@ -404,17 +394,16 @@ export const UpcomingSessions: React.FC = () => {
         return { slot, isPassed: true, coaches: [], anyAvailable: false, booking: null };
       }
       
-      // Always get all available coaches for this slot
-      let coachesForSlot = isPassed ? [] : getCoachesForSlot(slot.startTime, slot.endTime, false);
-      let anyAvailable = isPassed ? false : getCoachesForSlot(slot.startTime, slot.endTime, true).length > 0;
+      const slotIso = slot.startTime.toISOString();
+      let coachesForSlot = isPassed ? [] : (dayAvailability[slotIso] || []);
+      let anyAvailable = isPassed ? false : coachesForSlot.length > 0;
       
       if (booking) {
-        // Find the other participant in this booking (could be coach or client)
         const otherParticipantId = booking.coachUid === currentUser?.uid ? booking.clientUid : booking.coachUid;
-        const bookedUser = coaches.find(c => c.userId === otherParticipantId);
+        const bookedUser = otherParticipantId ? profileCache[otherParticipantId] : null;
         if (bookedUser) {
           coachesForSlot = coachesForSlot.filter(c => c.userId !== bookedUser.userId);
-          coachesForSlot.unshift(bookedUser);
+          coachesForSlot = [bookedUser, ...coachesForSlot];
         }
         anyAvailable = true;
       }
@@ -425,8 +414,7 @@ export const UpcomingSessions: React.FC = () => {
       displaySlots: enriched.filter(e => !e.isPassed && (e.coaches.length > 0 || e.booking)),
       hasGeneralSlots: enriched.some(e => e.anyAvailable)
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slots, coaches, coachesAvailableSlots, userBusyEvents, now, nameSearch, genderFilter, countryFilter, selectedQuals, currentUser]);
+  }, [uiSlots, dayAvailability, profileCache, now, currentUser, getBookingForSlot, isUserUnavailable]);
 
   return (
     <>
@@ -822,25 +810,6 @@ export const UpcomingSessions: React.FC = () => {
               </div>
             </div>
 
-            <hr style={{ border: 'none', borderTop: '1px solid var(--border-light)', margin: '20px 0 16px 0' }} />
-
-            {/* Search by Name (Free Text) */}
-            <div className="form-group" style={{ maxWidth: '400px', marginBottom: 0 }}>
-              <label className="form-label" htmlFor="name-search-input">Search by Name</label>
-              <div style={{ position: 'relative' }}>
-                <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))' }} />
-                <input
-                  id="name-search-input"
-                  type="text"
-                  className="input-field"
-                  placeholder="Enter coach name..."
-                  value={nameSearch}
-                  onChange={(e) => setNameSearch(e.target.value)}
-                  style={{ paddingLeft: '34px', fontSize: '0.85rem' }}
-                />
-              </div>
-            </div>
-
             {/* Actions / Reset button */}
             <div style={{
               display: 'flex',
@@ -851,7 +820,7 @@ export const UpcomingSessions: React.FC = () => {
               marginTop: '16px'
             }}>
               {/* Clear Filters action */}
-              {(nameSearch || genderFilter || countryFilter || selectedQuals.length > 0) && (
+              {(genderFilter || countryFilter || selectedQuals.length > 0) && (
                 <button
                   onClick={clearFilters}
                   className="btn btn-secondary"
@@ -917,7 +886,11 @@ export const UpcomingSessions: React.FC = () => {
               <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))' }}>Computing multi-timezone schedules...</p>
             </div>
           ) : (
-            <div>
+            <div style={{ 
+              opacity: isFetchingDay ? 0.5 : 1, 
+              transition: 'opacity 0.2s ease', 
+              pointerEvents: isFetchingDay ? 'none' : 'auto' 
+            }}>
               {(() => {
                 // Slots that are not passed and have at least one matching coach,
                 // precomputed in `slotView`.
@@ -955,9 +928,9 @@ export const UpcomingSessions: React.FC = () => {
                               // Border mapping based on highest qualification
                               let borderCol = 'var(--border-light)';
                               const displayCredentials = getDisplayCredentials(coach.icfCredentials);
-                              const hasMCC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF MCC');
-                              const hasPCC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF PCC');
-                              const hasACC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF ACC');
+                              const hasMCC = !!coach.icf_mcc;
+                              const hasPCC = !!coach.icf_pcc;
+                              const hasACC = !!coach.icf_acc;
                               
                               if (hasMCC) borderCol = 'hsl(var(--mcc-platinum))';
                               else if (hasPCC) borderCol = 'hsl(var(--pcc-silver))';
@@ -1158,8 +1131,8 @@ export const UpcomingSessions: React.FC = () => {
       <SessionDetailsModal
         isOpen={!!selectedBookingForView}
         onClose={() => setSelectedBookingForView(null)}
-        coachName={selectedBookingForView ? getParticipantNames(selectedBookingForView, currentUser?.uid, profile, coaches).coachName : ''}
-        clientName={selectedBookingForView ? getParticipantNames(selectedBookingForView, currentUser?.uid, profile, coaches).clientName : ''}
+        coachName={selectedBookingForView ? getParticipantNames(selectedBookingForView, currentUser?.uid, profile, Object.values(profileCache)).coachName : ''}
+        clientName={selectedBookingForView ? getParticipantNames(selectedBookingForView, currentUser?.uid, profile, Object.values(profileCache)).clientName : ''}
         topic={selectedBookingForView ? getBookingTopic(selectedBookingForView) : ''}
         date={selectedBookingForView ? getFormattedDateTime(selectedBookingForView.start.dateTime).date : ''}
         time={selectedBookingForView ? getFormattedDateTime(selectedBookingForView.start.dateTime).time : ''}
@@ -1176,7 +1149,7 @@ export const UpcomingSessions: React.FC = () => {
           setCancellingId(idToCancel);
           try {
             await cancelBooking(idToCancel);
-            await loadCalendarData();
+            await handleRefresh();
           } catch (err) {
             console.error('Failed to cancel booking:', err);
             alert('Failed to cancel booking. Please try again.');
@@ -1186,8 +1159,8 @@ export const UpcomingSessions: React.FC = () => {
           }
         }}
         isCancelling={!!cancellingId}
-        coachName={bookingToCancel ? getParticipantNames(bookingToCancel, currentUser?.uid, profile, coaches).coachName : ''}
-        clientName={bookingToCancel ? getParticipantNames(bookingToCancel, currentUser?.uid, profile, coaches).clientName : ''}
+        coachName={bookingToCancel ? getParticipantNames(bookingToCancel, currentUser?.uid, profile, Object.values(profileCache)).coachName : ''}
+        clientName={bookingToCancel ? getParticipantNames(bookingToCancel, currentUser?.uid, profile, Object.values(profileCache)).clientName : ''}
         topic={bookingToCancel ? getBookingTopic(bookingToCancel) : ''}
         date={bookingToCancel ? getFormattedDateTime(bookingToCancel.start.dateTime).date : ''}
         time={bookingToCancel ? getFormattedDateTime(bookingToCancel.start.dateTime).time : ''}
