@@ -23,6 +23,12 @@ import { parseLocalTime } from '../utils/timezoneHelpers';
 import { useUnsavedChanges } from '../context/UnsavedChangesContext';
 import { CalendarModal } from './modals/CalendarModal';
 
+export interface AvailabilityEditProps {
+  onboardingMode?: boolean;
+  onSaveSuccess?: () => void;
+  onBackClick?: () => void;
+}
+
 interface TimeRange {
   start: string;
   end: string;
@@ -88,7 +94,7 @@ const getTodayDateString = (): string => {
   return `${year}-${month}-${day}`;
 };
 
-export const AvailabilityEdit: React.FC = () => {
+export const AvailabilityEdit: React.FC<AvailabilityEditProps> = ({ onboardingMode, onSaveSuccess, onBackClick }) => {
   const { user } = useAuth();
   const uid = user?.uid || '';
 
@@ -298,6 +304,88 @@ export const AvailabilityEdit: React.FC = () => {
     }
   };
 
+  const handleDirectSave = React.useCallback(async (): Promise<boolean> => {
+    if (!uid) return false;
+    setSaving(true);
+    setSuccessMsg('');
+    setErrorMsg('');
+
+    // Basic slot validation
+    let isValid = true;
+    let timeOrderValid = true;
+    DAYS_OF_WEEK.forEach(day => {
+      const dayData = weekly[day.key];
+      if (dayData.enabled) {
+        dayData.slots.forEach(slot => {
+          if (!TIME_OPTIONS.includes(slot.start) || !TIME_OPTIONS.includes(slot.end)) {
+            isValid = false;
+          }
+          const startParsed = parseLocalTime(slot.start);
+          const endParsed = parseLocalTime(slot.end);
+          if (startParsed && endParsed) {
+            const startMin = startParsed.hour * 60 + startParsed.minute;
+            const endMin = endParsed.hour * 60 + endParsed.minute;
+            if (endMin <= startMin) {
+              timeOrderValid = false;
+            }
+          } else {
+            timeOrderValid = false;
+          }
+        });
+      }
+    });
+
+    if (!isValid) {
+      setErrorMsg('Please select valid start and end times for all active slots.');
+      setSaving(false);
+      return false;
+    }
+
+    if (!timeOrderValid) {
+      setErrorMsg('End times must be later than start times.');
+      setSaving(false);
+      return false;
+    }
+
+    try {
+      const dbAvailableDays = {} as AvailableDays;
+      for (const day of Object.keys(weekly) as (keyof AvailableDaysFormState)[]) {
+        const dayData = weekly[day];
+        dbAvailableDays[day] = {
+          enabled: dayData.enabled,
+          slots: dayData.slots.map(s => ({
+            startTime: timeStringToTimestamp(s.start),
+            endTime: timeStringToTimestamp(s.end)
+          }))
+        };
+      }
+
+      // 1. Update schedule sub-collection
+      await updateSchedule(uid, dbAvailableDays, blockedDates);
+
+      // 2. Recompute and write actual available slots cache based on new availability
+      await recalculateAvailableSlotsCache(uid);
+
+      logAnalyticsEvent('save_availability_template', {
+        enabledDays: Object.keys(weekly).filter(day => weekly[day as keyof AvailableDaysFormState].enabled),
+        blockedDatesCount: blockedDates.length,
+      });
+
+      setSuccessMsg('Availability template and schedules saved successfully!');
+      if (onSaveSuccess) onSaveSuccess();
+      setTimeout(() => setSuccessMsg(''), 4000);
+      setInitialWeekly(weekly);
+      setInitialBlockedDates(blockedDates);
+      return true;
+    } catch (e) {
+      console.error(e);
+      setErrorMsg('Failed to save availability settings. Please try again.');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [uid, weekly, blockedDates, onSaveSuccess]);
+
   useEffect(() => {
     if (!initialWeekly || !initialBlockedDates) return;
     const newChanges: string[] = [];
@@ -325,85 +413,8 @@ export const AvailabilityEdit: React.FC = () => {
     
     const isDirty = newChanges.length > 0;
 
-    const saveHandler = async (): Promise<boolean> => {
-      if (!uid) return false;
-      setSaving(true);
-      setSuccessMsg('');
-      setErrorMsg('');
-
-      // Basic slot validation
-      let isValid = true;
-      let timeOrderValid = true;
-      DAYS_OF_WEEK.forEach(day => {
-        const dayData = weekly[day.key];
-        if (dayData.enabled) {
-          dayData.slots.forEach(slot => {
-            if (!TIME_OPTIONS.includes(slot.start) || !TIME_OPTIONS.includes(slot.end)) {
-              isValid = false;
-            }
-            const startParsed = parseLocalTime(slot.start);
-            const endParsed = parseLocalTime(slot.end);
-            const startMin = startParsed.hour * 60 + startParsed.minute;
-            const endMin = endParsed.hour * 60 + endParsed.minute;
-            if (endMin <= startMin) {
-              timeOrderValid = false;
-            }
-          });
-        }
-      });
-
-      if (!isValid) {
-        setErrorMsg('Please select valid start and end times for all active slots.');
-        setSaving(false);
-        return false;
-      }
-
-      if (!timeOrderValid) {
-        setErrorMsg('End times must be later than start times.');
-        setSaving(false);
-        return false;
-      }
-
-      try {
-        const dbAvailableDays = {} as AvailableDays;
-        for (const day of Object.keys(weekly) as (keyof AvailableDaysFormState)[]) {
-          const dayData = weekly[day];
-          dbAvailableDays[day] = {
-            enabled: dayData.enabled,
-            slots: dayData.slots.map(s => ({
-              startTime: timeStringToTimestamp(s.start),
-              endTime: timeStringToTimestamp(s.end)
-            }))
-          };
-        }
-
-        // 1. Update schedule sub-collection
-        await updateSchedule(uid, dbAvailableDays, blockedDates);
-
-        // 2. Recompute and write actual available slots cache based on new availability
-        await recalculateAvailableSlotsCache(uid);
-
-        logAnalyticsEvent('save_availability_template', {
-          enabledDays: Object.keys(weekly).filter(day => weekly[day as keyof AvailableDaysFormState].enabled),
-          blockedDatesCount: blockedDates.length,
-        });
-
-        setSuccessMsg('Availability template and schedules saved successfully!');
-        setTimeout(() => setSuccessMsg(''), 4000);
-        setInitialWeekly(weekly);
-        setInitialBlockedDates(blockedDates);
-        return true;
-      } catch (e) {
-        console.error(e);
-        setErrorMsg('Failed to save availability settings. Please try again.');
-        return false;
-      } finally {
-        setSaving(false);
-      }
-    };
-
-    setPageDirtyState(isDirty, newChanges, saveHandler);
-  }, [uid, weekly, blockedDates, initialWeekly, initialBlockedDates, setPageDirtyState]);
+    setPageDirtyState(isDirty, newChanges, handleDirectSave);
+  }, [uid, weekly, blockedDates, initialWeekly, initialBlockedDates, setPageDirtyState, onSaveSuccess, handleDirectSave]);
 
   if (loadingSchedule) {
     return (
@@ -418,7 +429,7 @@ export const AvailabilityEdit: React.FC = () => {
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
       <style>{`
         .availability-layout {
-          grid-template-columns: 1fr 340px;
+          grid-template-columns: ${onboardingMode ? '1fr' : '1fr 340px'};
         }
         @media (max-width: 950px) {
           .availability-layout {
@@ -531,14 +542,16 @@ export const AvailabilityEdit: React.FC = () => {
       `}</style>
 
       {/* Global Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'hsl(var(--text-primary))' }}>My Availability</h2>
-          <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))', marginTop: '4px' }}>
-            Manage your weekly schedule and upcoming blocked dates.
-          </p>
+      {!onboardingMode && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h2 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'hsl(var(--text-primary))' }}>My Availability</h2>
+            <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))', marginTop: '4px' }}>
+              Manage your weekly schedule and upcoming blocked dates.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Notifications */}
       {successMsg && (
@@ -554,7 +567,7 @@ export const AvailabilityEdit: React.FC = () => {
         </div>
       )}
 
-      <div className="availability-layout" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '24px', width: '100%', alignItems: 'start' }}>
+      <div className="availability-layout" style={{ display: 'grid', gap: '24px', width: '100%', alignItems: 'start' }}>
         {/* Main Weekly Schedule Panel */}
         <div className="glass-panel" style={{ padding: '32px', position: 'relative' }}>
           {/* Header Title with Save */}
@@ -662,13 +675,54 @@ export const AvailabilityEdit: React.FC = () => {
             );
           })}
         </div>
+
+        {/* Save Changes Button (Inside Panel when Onboarding) */}
+        {onboardingMode && (
+          <div style={{ display: 'flex', gap: '16px', marginTop: '32px', paddingTop: '24px', borderTop: '1px solid var(--border-light)', justifyContent: 'space-between' }}>
+            {onBackClick && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={onBackClick}
+                disabled={saving}
+                style={{
+                  padding: '12px 24px',
+                  fontWeight: 700,
+                  borderRadius: '8px'
+                }}
+              >
+                Back
+              </button>
+            )}
+            <button
+              onClick={() => {
+                if (onboardingMode) {
+                  handleDirectSave();
+                } else {
+                  requestExplicitSave();
+                }
+              }}
+              disabled={saving || hasValidationError}
+              className="btn btn-primary"
+              style={{
+                padding: '12px 24px',
+                fontWeight: 700,
+                borderRadius: '8px',
+                opacity: (saving || hasValidationError) ? 0.5 : 1,
+                cursor: (saving || hasValidationError) ? 'not-allowed' : 'pointer'
+              }}
+            >
+              {saving ? 'Finishing...' : 'Finish Setup'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Right Column: Block Dates */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-
-        {/* Block Dates Card Panel */}
-        <div className="glass-panel" style={{ padding: '24px' }}>
+      {!onboardingMode && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Block Dates Card Panel */}
+          <div className="glass-panel" style={{ padding: '24px' }}>
           <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Calendar size={18} style={{ color: 'hsl(var(--primary))' }} />
             Block dates
@@ -734,23 +788,25 @@ export const AvailabilityEdit: React.FC = () => {
         </div>
         
         {/* Save Changes Button placed below Blocked Dates */}
-        <button
-          onClick={requestExplicitSave}
-          disabled={saving || hasValidationError}
-          className="btn btn-primary"
-          style={{
-            padding: '12px 24px',
-            fontWeight: 700,
-            borderRadius: '8px',
-            width: '100%',
-            opacity: (saving || hasValidationError) ? 0.5 : 1,
-            cursor: (saving || hasValidationError) ? 'not-allowed' : 'pointer',
-            marginTop: '8px'
-          }}
-        >
-          {saving ? 'Saving...' : 'Save Changes'}
-        </button>
+        <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
+          <button
+            onClick={requestExplicitSave}
+            disabled={saving || hasValidationError}
+            className="btn btn-primary"
+            style={{
+              padding: '12px 24px',
+              fontWeight: 700,
+              borderRadius: '8px',
+              width: '100%',
+              opacity: (saving || hasValidationError) ? 0.5 : 1,
+              cursor: (saving || hasValidationError) ? 'not-allowed' : 'pointer'
+            }}
+          >
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
       </div>
+      )}
     </div>
     </div>
   );

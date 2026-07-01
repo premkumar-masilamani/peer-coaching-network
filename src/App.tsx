@@ -7,6 +7,7 @@ import { UpcomingSessions } from './components/UpcomingSessions';
 import { ProfileEdit } from './components/ProfileEdit';
 import { AvailabilityEdit } from './components/AvailabilityEdit';
 import { AdminDashboard } from './components/AdminDashboard';
+import { OnboardingWizard } from './components/OnboardingWizard';
 import { LeftNav } from './components/LeftNav';
 import { MySessions } from './components/MySessions';
 import { PublicProfile } from './components/PublicProfile';
@@ -167,6 +168,10 @@ const AppContent: React.FC = () => {
 
   // Authenticated but unapproved (No Role Assigned) or Inactive
   if (!approved) {
+    if (!profile?.onboardingComplete) {
+      return <OnboardingWizard />;
+    }
+
     return (
       <div className="app-container">
         <div className="bg-gradient-radial" />

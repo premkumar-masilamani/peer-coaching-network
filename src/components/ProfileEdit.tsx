@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   User,
@@ -26,6 +26,11 @@ import { updateVerifiedCredentials } from '../services/firebaseService';
 
 import { useUnsavedChanges } from '../context/UnsavedChangesContext';
 
+export interface ProfileEditProps {
+  onboardingMode?: boolean;
+  onSaveSuccess?: () => void;
+}
+
 // ── Profile completion logic ──────────────────────────────────────────────────
 interface CompletionItem {
   label: string;
@@ -36,31 +41,31 @@ interface CompletionItem {
 function getCompletionItems(profile: ReturnType<typeof useAuth>['profile']): CompletionItem[] {
   return [
     {
-      label: 'Country',
-      done: !!profile?.country,
-      icon: <MapPin size={13} />,
-    },
-    {
-      label: 'Professional Bio',
-      done: !!profile?.bio,
-      icon: <FileText size={13} />,
-    },
-    {
       label: 'Gender',
       done: !!profile?.gender,
       icon: <User size={13} />,
+    },
+    {
+      label: 'Country',
+      done: !!profile?.country,
+      icon: <MapPin size={13} />,
     },
     {
       label: 'Timezone',
       done: !!profile?.timezone,
       icon: <Globe size={13} />,
     },
+    {
+      label: 'Professional Bio',
+      done: !!profile?.bio,
+      icon: <FileText size={13} />,
+    },
   ];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const ProfileEdit: React.FC = () => {
+export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSaveSuccess }) => {
   const { user, profile, updateProfileDetails } = useAuth();
   const { setPageDirtyState, requestExplicitSave } = useUnsavedChanges();
   const [copied, setCopied] = useState(false);
@@ -69,7 +74,14 @@ export const ProfileEdit: React.FC = () => {
   const [gender, setGender] = useState<Gender | ''>(profile?.gender || '');
   const [country, setCountry] = useState(profile?.country || '');
 
-  const [qualifications] = useState<Qualification[]>(profile?.qualifications || []);
+  const qualifications = useMemo<Qualification[]>(() => {
+    const list: Qualification[] = [];
+    if (profile?.icf_acc) list.push('ICF ACC');
+    if (profile?.icf_pcc) list.push('ICF PCC');
+    if (profile?.icf_mcc) list.push('ICF MCC');
+    if (profile?.icf_actc) list.push('ICF ACTC');
+    return list;
+  }, [profile]);
   const [bio, setBio] = useState(profile?.bio || '');
   const [timezone, setTimezone] = useState(profile?.timezone || '');
 
@@ -105,6 +117,34 @@ export const ProfileEdit: React.FC = () => {
     }
   };
 
+  const handleDirectSave = React.useCallback(async () => {
+    setSaving(true);
+    setSuccessMsg('');
+    try {
+      await updateProfileDetails({
+        gender: gender === '' ? undefined : gender,
+        country,
+        bio,
+        timezone
+      });
+      logAnalyticsEvent('update_profile', {
+        gender: gender === '' ? undefined : gender,
+        country,
+        timezone,
+        hasBio: !!bio,
+      });
+      setSuccessMsg('Profile changes saved successfully!');
+      if (onSaveSuccess) onSaveSuccess();
+      setTimeout(() => setSuccessMsg(''), 4000);
+      return true;
+    } catch (e) {
+      console.error(e);
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [gender, country, bio, timezone, updateProfileDetails, onSaveSuccess]);
+
   React.useEffect(() => {
     const newChanges: string[] = [];
     if (gender !== (profile?.gender || '')) newChanges.push(`Gender: ${profile?.gender || 'Not set'} -> ${gender || 'Not set'}`);
@@ -114,36 +154,8 @@ export const ProfileEdit: React.FC = () => {
 
     const isDirty = newChanges.length > 0;
     
-    const saveHandler = async () => {
-      setSaving(true);
-      setSuccessMsg('');
-      try {
-        await updateProfileDetails({
-          gender: gender === '' ? undefined : gender,
-          country,
-          qualifications,
-          bio,
-          timezone
-        });
-        logAnalyticsEvent('update_profile', {
-          gender: gender === '' ? undefined : gender,
-          country,
-          timezone,
-          hasBio: !!bio,
-        });
-        setSuccessMsg('Profile changes saved successfully!');
-        setTimeout(() => setSuccessMsg(''), 4000);
-        return true;
-      } catch (e) {
-        console.error(e);
-        return false;
-      } finally {
-        setSaving(false);
-      }
-    };
-    
-    setPageDirtyState(isDirty, newChanges, saveHandler);
-  }, [gender, country, bio, timezone, profile, qualifications, updateProfileDetails, setPageDirtyState]);
+    setPageDirtyState(isDirty, newChanges, handleDirectSave);
+  }, [gender, country, bio, timezone, profile, qualifications, updateProfileDetails, setPageDirtyState, onSaveSuccess, handleDirectSave]);
 
   const handleCountryChange = (selectedCountry: string) => {
     setCountry(selectedCountry);
@@ -176,14 +188,16 @@ export const ProfileEdit: React.FC = () => {
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%', maxWidth: '800px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
-        <div>
-          <h2 style={{ fontSize: '1.75rem', fontWeight: 800 }}>My Profile</h2>
-          <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-muted))', marginTop: '4px' }}>
-            Manage your personal information and preferences.
-          </p>
+      {!onboardingMode && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px' }}>
+          <div>
+            <h2 style={{ fontSize: '1.75rem', fontWeight: 800 }}>My Profile</h2>
+            <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-muted))', marginTop: '4px' }}>
+              Manage your personal information and preferences.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
         <div className="glass-panel" style={{ padding: '32px', width: '100%' }}>
@@ -332,7 +346,14 @@ export const ProfileEdit: React.FC = () => {
         </div>
 
         {/* ── Editable form ───────────────────────────────────────────────── */}
-        <form onSubmit={(e) => { e.preventDefault(); requestExplicitSave(); }}>
+        <form onSubmit={(e) => { 
+          e.preventDefault(); 
+          if (onboardingMode) {
+            handleDirectSave();
+          } else {
+            requestExplicitSave(); 
+          }
+        }}>
           {/* 1. Credentials */}
           <div className="form-group">
             <label className="form-label">
@@ -475,9 +496,10 @@ export const ProfileEdit: React.FC = () => {
             <button
               type="submit"
               className="btn btn-primary"
-              disabled={saving}
+              disabled={saving || (onboardingMode && !isComplete)}
+              title={onboardingMode && !isComplete ? 'Please fill out all required fields' : undefined}
             >
-              {saving ? 'Saving...' : 'Save Profile'}
+              {saving ? (onboardingMode ? 'Continuing...' : 'Saving...') : (onboardingMode ? 'Continue Setup' : 'Save Profile')}
             </button>
           </div>
 
