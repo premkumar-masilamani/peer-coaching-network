@@ -224,6 +224,7 @@ export const SupportFeedback: React.FC = () => {
               value={subject} 
               onChange={e => setSubject(e.target.value)} 
               required
+              maxLength={200}
             />
           </div>
           <div className="form-group">
@@ -238,11 +239,15 @@ export const SupportFeedback: React.FC = () => {
               rows={6}
               value={message} 
               onChange={e => setMessage(e.target.value)} 
+              maxLength={2000}
               required
             />
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
-            <button type="submit" className="btn btn-primary" disabled={submitting || !subject.trim() || !message.trim()}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
+            <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
+              {message.length} / 2000 characters
+            </span>
+            <button type="submit" className="btn btn-primary" disabled={submitting || !subject.trim() || !message.trim() || message.length > 2000}>
               {submitting ? 'Submitting...' : 'Submit Request'}
             </button>
           </div>
@@ -316,12 +321,16 @@ export const SupportFeedback: React.FC = () => {
               rows={4}
               value={replyText}
               onChange={e => setReplyText(e.target.value)}
+              maxLength={2000}
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
+                {replyText.length} / 2000 characters
+              </span>
               <button 
                 className="btn btn-primary" 
                 onClick={handleSendReply}
-                disabled={submitting || !replyText.trim()}
+                disabled={submitting || !replyText.trim() || replyText.length > 2000}
                 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
               >
                 <Send size={16} /> {submitting ? 'Sending...' : 'Send Reply'}

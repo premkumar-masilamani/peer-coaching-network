@@ -262,8 +262,14 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 required
                 autoFocus
                 rows={10}
+                maxLength={1000}
                 style={{ resize: 'vertical', minHeight: '140px' }}
               />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+                <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
+                  {topic.length} / 1000 characters
+                </span>
+              </div>
             </div>
 
 

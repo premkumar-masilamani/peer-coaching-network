@@ -250,15 +250,23 @@ export const SupportDesk: React.FC = () => {
               rows={4}
               value={replyText}
               onChange={e => setReplyText(e.target.value)}
+              maxLength={2000}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                {selectedRequest.status === 'closed' && "Replying will automatically reopen this ticket."}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
+                  {replyText.length} / 2000 characters
+                </span>
+                {selectedRequest.status === 'closed' && (
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    Replying will automatically reopen this ticket.
+                  </div>
+                )}
               </div>
               <button 
                 className="btn btn-primary" 
                 onClick={handleSendReply}
-                disabled={submitting || !replyText.trim()}
+                disabled={submitting || !replyText.trim() || replyText.length > 2000}
                 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
               >
                 <Send size={16} /> {submitting ? 'Sending...' : 'Send Reply'}

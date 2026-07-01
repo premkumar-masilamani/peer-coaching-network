@@ -452,8 +452,14 @@ export const ProfileEdit: React.FC = () => {
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               style={{ resize: 'vertical' }}
+              maxLength={2000}
               required
             />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+              <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
+                {bio.length} / 2000 characters
+              </span>
+            </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '24px' }}>
