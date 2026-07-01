@@ -10,6 +10,7 @@ import {
 } from '../services/firebaseService';
 import { formatDisplayName } from '../services/firebaseService';
 import { MessageSquare, Send, ChevronLeft, Trash2, CheckCircle, Circle } from 'lucide-react';
+import { INPUT_LIMITS } from '../config';
 
 type FilterType = 'all' | 'open' | 'closed';
 
@@ -250,12 +251,12 @@ export const SupportDesk: React.FC = () => {
               rows={4}
               value={replyText}
               onChange={e => setReplyText(e.target.value)}
-              maxLength={2000}
+              maxLength={INPUT_LIMITS.SUPPORT_MESSAGE}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
-                  {replyText.length} / 2000 characters
+                  {replyText.length} / {INPUT_LIMITS.SUPPORT_MESSAGE} characters
                 </span>
                 {selectedRequest.status === 'closed' && (
                   <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -266,7 +267,7 @@ export const SupportDesk: React.FC = () => {
               <button 
                 className="btn btn-primary" 
                 onClick={handleSendReply}
-                disabled={submitting || !replyText.trim() || replyText.length > 2000}
+                disabled={submitting || !replyText.trim() || replyText.length > INPUT_LIMITS.SUPPORT_MESSAGE}
                 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
               >
                 <Send size={16} /> {submitting ? 'Sending...' : 'Send Reply'}

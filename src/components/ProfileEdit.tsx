@@ -17,7 +17,7 @@ import { getTimezonesForCountry } from '../utils/timezones';
 import { getCredentialDescription } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince, logAnalyticsEvent } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
-import { GENDER_OPTIONS, type Gender, type Qualification, ICF_DIRECTORY_URL } from '../config';
+import { GENDER_OPTIONS, type Gender, type Qualification, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
 import { navigateToProfile } from '../utils/url';
 import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
 import { verifyIcfCredential } from '../services/icfService';
@@ -452,12 +452,12 @@ export const ProfileEdit: React.FC = () => {
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               style={{ resize: 'vertical' }}
-              maxLength={2000}
+              maxLength={INPUT_LIMITS.BIO}
               required
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
               <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
-                {bio.length} / 2000 characters
+                {bio.length} / {INPUT_LIMITS.BIO} characters
               </span>
             </div>
           </div>

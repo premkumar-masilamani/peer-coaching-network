@@ -17,7 +17,7 @@ import {
   ExternalLink,
   BookOpen
 } from 'lucide-react';
-import { BOOKING_ERROR, type BookingError, BOOKING_ERROR_MESSAGES, SCHEDULE_MODAL_STATUS, type ScheduleModalStatus } from '../../config';
+import { BOOKING_ERROR, type BookingError, BOOKING_ERROR_MESSAGES, SCHEDULE_MODAL_STATUS, type ScheduleModalStatus, INPUT_LIMITS } from '../../config';
 
 interface ScheduleModalProps {
   coach: UserProfile;
@@ -262,12 +262,12 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 required
                 autoFocus
                 rows={10}
-                maxLength={1000}
+                maxLength={INPUT_LIMITS.COACHING_TOPIC}
                 style={{ resize: 'vertical', minHeight: '140px' }}
               />
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
                 <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
-                  {topic.length} / 1000 characters
+                  {topic.length} / {INPUT_LIMITS.COACHING_TOPIC} characters
                 </span>
               </div>
             </div>

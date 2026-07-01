@@ -9,7 +9,7 @@ import {
   type SupportRequest 
 } from '../services/firebaseService';
 import { formatDisplayName } from '../services/firebaseService';
-import { SUPPORT_CATEGORIES, type SupportCategory } from '../config';
+import { SUPPORT_CATEGORIES, type SupportCategory, INPUT_LIMITS } from '../config';
 import { MessageSquare, Plus, Send, ChevronLeft, LifeBuoy, Tag, Type, AlignLeft, CheckCircle, Circle } from 'lucide-react';
 
 export const SupportFeedback: React.FC = () => {
@@ -224,7 +224,7 @@ export const SupportFeedback: React.FC = () => {
               value={subject} 
               onChange={e => setSubject(e.target.value)} 
               required
-              maxLength={200}
+              maxLength={INPUT_LIMITS.SUPPORT_SUBJECT}
             />
           </div>
           <div className="form-group">
@@ -239,15 +239,15 @@ export const SupportFeedback: React.FC = () => {
               rows={6}
               value={message} 
               onChange={e => setMessage(e.target.value)} 
-              maxLength={2000}
+              maxLength={INPUT_LIMITS.SUPPORT_MESSAGE}
               required
             />
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
             <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
-              {message.length} / 2000 characters
+              {message.length} / {INPUT_LIMITS.SUPPORT_MESSAGE} characters
             </span>
-            <button type="submit" className="btn btn-primary" disabled={submitting || !subject.trim() || !message.trim() || message.length > 2000}>
+            <button type="submit" className="btn btn-primary" disabled={submitting || !subject.trim() || !message.trim() || message.length > INPUT_LIMITS.SUPPORT_MESSAGE}>
               {submitting ? 'Submitting...' : 'Submit Request'}
             </button>
           </div>
@@ -321,16 +321,16 @@ export const SupportFeedback: React.FC = () => {
               rows={4}
               value={replyText}
               onChange={e => setReplyText(e.target.value)}
-              maxLength={2000}
+              maxLength={INPUT_LIMITS.SUPPORT_MESSAGE}
             />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
-                {replyText.length} / 2000 characters
+                {replyText.length} / {INPUT_LIMITS.SUPPORT_MESSAGE} characters
               </span>
               <button 
                 className="btn btn-primary" 
                 onClick={handleSendReply}
-                disabled={submitting || !replyText.trim() || replyText.length > 2000}
+                disabled={submitting || !replyText.trim() || replyText.length > INPUT_LIMITS.SUPPORT_MESSAGE}
                 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
               >
                 <Send size={16} /> {submitting ? 'Sending...' : 'Send Reply'}
