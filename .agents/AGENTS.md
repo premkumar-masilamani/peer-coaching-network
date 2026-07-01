@@ -30,6 +30,8 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Timezones**: Availability templates use local time strings (e.g., `"10:00 AM"`). They are resolved and queried in UTC ISO strings using `getUtcForLocalDateTime` to handle DST fixed-point convergence.
 - **Multiple Concurrent Credentials**: Always store credentials as arrays rather than single strings to support users holding multiple concurrent overlapping badges (e.g., core certifications + specialized advanced certifications).
 - **Dynamic URL Templates**: Construct external URLs by replacing `{placeholder}` strings using `encodeURIComponent` on dynamic data instead of static string concatenation to ensure flexibility and avoid breaking query parameters.
+- **Centralized Input & Character Limits**: Any user input with database-enforced size or character constraints (e.g., biographical text, coaching topics, support ticket contents) must use centralized constants (e.g., `INPUT_LIMITS`) for both the frontend component's `maxLength` attribute and the `firestore.rules` size validation.
+- **Message Spoofing and Role Validation**: In multi-party or collaborative collections (such as support ticket messages, chats, etc.), the `firestore.rules` file must explicitly validate that for non-admin creates and updates, the newly appended message's `senderId` matches `request.auth.uid` and `senderRole` matches the client's actual role (e.g., `'user'`) to prevent identity spoofing or role escalation.
 
 ## 4. React & Rendering Constraints
 - **Avoid Cascading Renders (`react-hooks/set-state-in-effect`)**: Do not call `setState` synchronously within a `useEffect`.
