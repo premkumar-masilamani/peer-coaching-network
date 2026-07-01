@@ -287,7 +287,7 @@ export const scheduleMeeting = async (
     bookingId,
     googleEventId: '',
     googleMeetLink: '',
-    status: BOOKING_STATUS.CONFIRMED,
+    status: BOOKING_STATUS.PENDING,
     startTime: Timestamp.fromDate(new Date(startIso)),
     endTime: Timestamp.fromDate(new Date(endIso)),
     topic,
@@ -421,10 +421,11 @@ export const scheduleMeeting = async (
     }
   }
 
-  // Step 3: Update Firestore with Real IDs
+  // Step 3: Update Firestore with Real IDs and set status to Confirmed
   await updateDoc(bookingRef, {
     googleEventId,
-    googleMeetLink: realMeetLink
+    googleMeetLink: realMeetLink,
+    status: BOOKING_STATUS.CONFIRMED
   });
 
   logger.info(`Successfully booked session. Booking ID: ${bookingId}`);

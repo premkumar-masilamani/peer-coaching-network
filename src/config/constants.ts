@@ -11,3 +11,10 @@ export const DEV_API_URL = 'http://localhost:5000/api';
 export const PROD_API_URL = 'https://app.peercoachingnetwork.com';
 
 export const ICF_DIRECTORY_URL = 'https://apps.coachingfederation.org/eweb/DynamicPage.aspx?webcode=ICFDirectory&firstname={firstName}&lastname={lastName}';
+
+export const INPUT_LIMITS = {
+  BIO: 2000,
+  SUPPORT_SUBJECT: 200,
+  SUPPORT_MESSAGE: 2000,
+  COACHING_TOPIC: 1000,
+} as const;
