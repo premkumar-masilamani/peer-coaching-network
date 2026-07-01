@@ -97,7 +97,8 @@ service cloud.firestore {
     // Validation helper for schedule blocked dates
     function isValidBlockedDates(data) {
       return isMap(data)
-        && isList(data.blockedDates);
+        && isList(data.blockedDates)
+        && data.blockedDates.size() <= 100;
     }
 
     // Validation helper for booking documents
@@ -132,7 +133,8 @@ service cloud.firestore {
       return isMap(data)
         && isValidString(data.userId, 100)
         && isValidString(data.lastUpdated, 100)
-        && isList(data.availableSlots);
+        && isList(data.availableSlots)
+        && data.availableSlots.size() <= 200;
     }
 
     // Validation helper for support message structure
@@ -283,6 +285,8 @@ service cloud.firestore {
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'open'
         && request.resource.data.messages.size() == 1
+        && request.resource.data.messages[0].senderRole == 'user'
+        && request.resource.data.messages[0].senderId == request.auth.uid
         && isValidSupportRequestDoc(request.resource.data);
       
       allow read: if isAdmin()
@@ -303,6 +307,8 @@ service cloud.firestore {
               || (
                 request.resource.data.messages.size() == resource.data.messages.size() + 1
                 && isValidSupportMessage(request.resource.data.messages[resource.data.messages.size() - 1])
+                && request.resource.data.messages[resource.data.messages.size() - 1].senderRole == 'user'
+                && request.resource.data.messages[resource.data.messages.size() - 1].senderId == request.auth.uid
               )
             )
             && isValidSupportRequestDoc(request.resource.data));
