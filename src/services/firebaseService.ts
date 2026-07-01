@@ -30,7 +30,7 @@ import {
   and,
   documentId
 } from 'firebase/firestore';
-import type { DocumentData, QueryConstraint } from 'firebase/firestore';
+import type { DocumentData, QueryFilterConstraint } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
 import { seededShuffle } from '../utils/seededShuffle';
@@ -786,7 +786,7 @@ export const queryAvailableCoachesForDay = async (
   );
   if (uniqueUtcDates.length === 0) return {};
 
-  const constraints: QueryConstraint[] = [
+  const constraints: QueryFilterConstraint[] = [
     where('availableDatesUtc', 'array-contains-any', uniqueUtcDates)
   ];
 
