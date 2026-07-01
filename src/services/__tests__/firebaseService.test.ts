@@ -95,6 +95,8 @@ vi.mock('firebase/firestore', () => {
     collection: vi.fn((_db, col) => ({ id: col, path: col })),
     query: vi.fn((col, ...queries) => ({ id: col.id, path: col.path, queries })),
     where: vi.fn((field, op, val) => ({ field, op, val })),
+    or: vi.fn((...conditions) => ({ type: 'or', conditions })),
+    and: vi.fn((...conditions) => ({ type: 'and', conditions })),
     getDoc: mockGetDoc,
     setDoc: mockSetDoc,
     updateDoc: mockUpdateDoc,
@@ -571,6 +573,84 @@ describe('firebaseService', () => {
         expect.any(Error)
       );
       vi.unstubAllEnvs();
+    });
+  });
+
+  describe('Coach discovery and caching', () => {
+    it('getUserAvailableSlots returns slot list if doc exists', async () => {
+      const { getUserAvailableSlots } = await import('../firebaseService');
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({ availableSlots: ['2026-07-01T10:00:00.000Z'] })
+      });
+      const result = await getUserAvailableSlots('user1');
+      expect(result).toEqual(['2026-07-01T10:00:00.000Z']);
+    });
+
+    it('getProfiles returns matching user documents in chunks', async () => {
+      const { getProfiles } = await import('../firebaseService');
+      mockGetDocs.mockResolvedValueOnce({
+        forEach: (cb: any) => {
+          cb({ data: () => ({ userId: 'coach1', firstName: 'Alice' }) });
+        }
+      });
+      const result = await getProfiles(['coach1']);
+      expect(result.length).toBe(1);
+      expect(result[0].firstName).toBe('Alice');
+    });
+
+    it('queryAvailableCoachesForDay correctly filters and queries matching active coaches', async () => {
+      const { queryAvailableCoachesForDay } = await import('../firebaseService');
+      
+      mockGetDocs.mockResolvedValueOnce({
+        forEach: (cb: any) => {
+          cb({
+            data: () => ({
+              userId: 'coach1',
+              availableSlots: ['2026-07-01T10:00:00.000Z'],
+              userStatus: 'active'
+            })
+          });
+        }
+      });
+
+      mockGetDocs.mockResolvedValueOnce({
+        forEach: () => {}
+      });
+
+      mockGetDocs.mockResolvedValueOnce({
+        forEach: (cb: any) => {
+          cb({
+            data: () => ({
+              userId: 'coach1',
+              userRole: 'user',
+              userStatus: 'active',
+              firstName: 'Alice',
+              lastName: 'Smith'
+            })
+          });
+        }
+      });
+
+      const localDayStart = new Date('2026-07-01T00:00:00Z');
+      const localDayEnd = new Date('2026-07-01T23:59:59Z');
+      const slots = [{
+        startTime: new Date('2026-07-01T10:00:00.000Z'),
+        endTime: new Date('2026-07-01T11:00:00.000Z')
+      }];
+
+      const result = await queryAvailableCoachesForDay(
+        localDayStart,
+        localDayEnd,
+        slots,
+        {},
+        'seed',
+        'client1'
+      );
+
+      expect(result['2026-07-01T10:00:00.000Z']).toBeDefined();
+      expect(result['2026-07-01T10:00:00.000Z'].length).toBe(1);
+      expect(result['2026-07-01T10:00:00.000Z'][0].userId).toBe('coach1');
     });
   });
 });
