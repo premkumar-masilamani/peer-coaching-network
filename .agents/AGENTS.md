@@ -25,6 +25,8 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 ## 3. Data & Storage Patterns
 - **No Magic Strings**: Never use string literals directly in the codebase (e.g., `'users'`, `'admin'`) if the value is used in more than one place. All repeating string literals must be extracted to a centralized, strictly-typed constant object (e.g., `COLLECTIONS`, `USER_ROLE`) inside the `src/config/` module and used globally to ensure type safety.
 - **Email Normalization**: To prevent Firestore query mismatches, emails must always be converted to and stored in lowercase.
+- **Cache Recalculation Bypass (Data Syncing)**: Optimizing cache writes based strictly on structural equality (e.g., `areAvailableSlotsEqual`) is dangerous because it ignores critical profile metadata updates (like `userStatus`). When a user's status changes from 'inactive' to 'active', the availability cache MUST be rewritten to propagate that status change to the discovery engine, even if calendar slots didn't change.
+- **Strict Typing with Firebase Compound Filters**: When programmatically constructing compound queries in Firestore v9 (e.g., using `or(...)` with dynamic arrays), you must explicitly type the constraints array as `QueryConstraint[]` to prevent TypeScript mismatch errors.
 - **Concurrency Protection**: Calculations in `recalculateUserBusySlotsCache` must be serialized using a promise chain (`recalcChains`) to prevent interleaving writes from corrupting the busy slots cache.
 - **Scheduling Guarantee**: Always use a Firestore transaction with a deterministic ID (`${coachUid}_${startIso}`) when persisting bookings to prevent double-booking.
 - **Timezones**: Availability templates use local time strings (e.g., `"10:00 AM"`). They are resolved and queried in UTC ISO strings using `getUtcForLocalDateTime` to handle DST fixed-point convergence.
@@ -36,6 +38,7 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 ## 4. React & Rendering Constraints
 - **Avoid Cascading Renders (`react-hooks/set-state-in-effect`)**: Do not call `setState` synchronously within a `useEffect`.
 - **Context Hooks Dependencies**: Always wrap extracted handlers (like `handleSave`) in `useCallback` when passing them into context state setters (like `setPageDirtyState`) to prevent infinite cascading render loops.
+- **Decoupling State for Layout Flashes**: To prevent UI flickering on tab switches or date selection, decouple the "UI render state" from the "Query state" (`fetchedDayIndex` vs `selectedDayIndex`). Hold previous data on screen with a soft CSS transition until new data arrives rather than unmounting components for a spinner.
 - **Carousel Centering**: Use `activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })` inside a `useEffect` to automatically center selected carousel items.
 
 ## 5. UI & Styling Guidelines
@@ -62,6 +65,8 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Constant & Type Naming**:
   - **No Hardcoded Options**: Fixed option values (roles, user statuses, themes, genders, qualifications, navigation tabs, and log severities) must never be hardcoded. They should reference centralized object constants in `src/config/` (e.g., `USER_ROLE`, `USER_STATUS`, `THEME`, `GENDER`, `QUALIFICATION`, `LOG_SEVERITY`, and `TABS`).
   - **Suffix Consistency**: Union types derived from config option arrays must not use the "Value" suffix (e.g. use `Gender`, `Theme`, `Qualification`, `UserRole`, `UserStatus`, and `LogSeverity` consistently).
+- **Reusable Prop-Driven Forms**: Complex user-editable interfaces (`AvailabilityEdit`, `ProfileEdit`) must be built as singular, reusable components that accept behavioral props (e.g., `onboardingMode={true}`). The Onboarding Wizard and main Dashboard must use the exact same underlying logic, tweaked only by props.
+- **Credential Presentation Normalization**: Credential badges must strictly enforce the short-form `"ICF "` prefix (e.g., `ICF ACC`) globally. Centralize this transformation in a utility file rather than handling it individually by components.
 
 ## 8. Updating This Document (Future Changes)
 - **Constraint Focus**: Only append rules that dictate *how* code must be written (e.g., specific hooks to use, UI utility classes, security invariants, strict rendering patterns).

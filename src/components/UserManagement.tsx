@@ -23,7 +23,7 @@ import {
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
-import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
+import { getCredentialBadgeClass } from '../utils/credentials';
 import { type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, BOOKING_STATUS, EVENT_TYPE, COLLECTIONS, ICF_DIRECTORY_URL } from '../config';
 import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
 import { verifyIcfCredential } from '../services/icfService';
@@ -382,7 +382,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                       const qual = mapIcfLevelToQualification(validCred.level) || validCred.level;
                       return (
                         <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                          {getShortCredential(qual as Qualification)}
+                          {qual as string}
                         </span>
                       );
                     });
@@ -637,7 +637,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                                    return (
                                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                        <span className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                                         {getShortCredential(qual as Qualification)}
+                                         {qual as string}
                                        </span>
                                        <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))' }}>
                                          Expires: {validCred.expiryDate.toDate().toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { formatDisplayName, queryAvailableCoachesForDay, subscribeToUserBookings, getUserAvailableSlots, getProfiles } from '../services/firebaseService';
-import { getShortCredential, getCredentialBadgeClass, getCredentialDescription } from '../utils/credentials';
+import { getCredentialBadgeClass, getCredentialDescription } from '../utils/credentials';
 import type { UserProfile, DiscoveryFilters } from '../services/firebaseService';
 import { 
   getUpcomingEvents,
@@ -741,7 +741,7 @@ export const UpcomingSessions: React.FC = () => {
                                 onChange={() => toggleQualFilter(q)}
                                 style={{ accentColor: 'hsl(var(--primary))' }}
                               />
-                              {getShortCredential(q)}
+                              {q as string}
                             </label>
                           );
                         })}
@@ -965,7 +965,7 @@ export const UpcomingSessions: React.FC = () => {
                                               const qual = mapIcfLevelToQualification(cred.level) || cred.level;
                                               return (
                                                 <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
-                                                  {getShortCredential(qual as Qualification)}
+                                                  {qual as string}
                                                 </span>
                                               );
                                             })
