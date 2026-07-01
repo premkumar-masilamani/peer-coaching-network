@@ -18,7 +18,6 @@ import {
   subscribeToProfile 
 } from '../services/firebaseService';
 import { 
-  getShortCredential, 
   getCredentialBadgeClass, 
   getCredentialDescription 
 } from '../utils/credentials';
@@ -202,7 +201,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
                 return (
                   <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
                     <Award size={12} style={{ marginRight: '4px' }} />
-                    {getShortCredential(qual as Qualification)}
+                    {qual as string}
                   </span>
                 );
               })
@@ -255,7 +254,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
                         {getCredentialDescription(qual as Qualification)}
                       </span>
                       <span className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.7rem' }}>
-                        {getShortCredential(qual as Qualification)}
+                        {qual as string}
                       </span>
                     </div>
                     <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>

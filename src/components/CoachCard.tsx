@@ -1,7 +1,7 @@
 import React from 'react';
 import type { UserProfile } from '../services/firebaseService';
 import { formatDisplayName } from '../services/firebaseService';
-import { getShortCredential, getCredentialBadgeClass } from '../utils/credentials';
+import { getCredentialBadgeClass } from '../utils/credentials';
 import { sanitizeImageUrl } from '../utils/url';
 import { MapPin, Calendar, Award } from 'lucide-react';
 import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
@@ -104,7 +104,7 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
               return (
                 <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.65rem' }}>
                   <Award size={10} style={{ marginRight: '4px' }} />
-                  {getShortCredential(qual as Qualification)}
+                  {qual as string}
                 </span>
               );
             })
