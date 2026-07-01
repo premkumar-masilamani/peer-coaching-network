@@ -14,7 +14,7 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
 import { formatDisplayName, updateVerifiedCredentials } from '../services/firebaseService';
-import { GENDER_OPTIONS, type Gender, type Qualification, ICF_DIRECTORY_URL } from '../config';
+import { GENDER_OPTIONS, type Gender, type Qualification, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
 import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
 import { verifyIcfCredential } from '../services/icfService';
 import { getCredentialDescription } from '../utils/credentials';
@@ -296,8 +296,14 @@ export const VerificationNotice: React.FC = () => {
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               style={{ resize: 'vertical' }}
+              maxLength={INPUT_LIMITS.BIO}
               required
             />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+              <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
+                {bio.length} / {INPUT_LIMITS.BIO} characters
+              </span>
+            </div>
           </div>
 
           {/* Actions */}
