@@ -25,12 +25,16 @@ import {
   getDocs,
   Timestamp,
   deleteDoc,
-  orderBy
+  orderBy,
+  or,
+  and,
+  documentId
 } from 'firebase/firestore';
-import type { DocumentData } from 'firebase/firestore';
+import type { DocumentData, QueryConstraint } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus, COLLECTIONS, type IcfCredential } from '../config';
+import { seededShuffle } from '../utils/seededShuffle';
+import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus, COLLECTIONS, type IcfCredential, COACH_DISCOVERY_LIMIT } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -95,13 +99,17 @@ export interface UserProfile {
   photoURL: string | null;
   gender: Gender;
   country: string;
-  qualifications?: Qualification[];
+  icf_acc?: boolean;
+  icf_pcc?: boolean;
+  icf_mcc?: boolean;
+  icf_actc?: boolean;
   icfCredentials?: IcfCredential[];
   bio: string;
   timezone: string;
   userRole: UserRole;
   userStatus: UserStatus;
   theme: Theme;
+  onboardingComplete?: boolean;
   createdAt: Timestamp;
 }
 
@@ -176,12 +184,14 @@ export const logAnalyticsEvent = (eventName: string, params?: Record<string, unk
 
 // Connect to Emulators during development/testing if configured
 if (useEmulator) {
-  if (!window._firebase_emulators_connected) {
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  if (isLocal && !window._firebase_emulators_connected) {
     window._firebase_emulators_connected = true;
     try {
-      connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
-      connectFirestoreEmulator(db, '127.0.0.1', 8080);
-      logger.info('Connected to Auth and Firestore Emulators');
+      const host = window.location.hostname;
+      connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
+      connectFirestoreEmulator(db, host, 8080);
+      logger.info(`Connected to Auth and Firestore Emulators on ${host}`);
     } catch (e) {
       logger.error('Failed to connect to emulators:', e);
     }
@@ -195,36 +205,21 @@ export const isFirebaseConfigured = useEmulator || missingConfig.length === 0;
 export { auth };
 
 // Standardized Auth Actions
-export const loginWithGoogle = async (): Promise<void> => {
-  const provider = new GoogleAuthProvider();
-  // Request Google Calendar access
-  provider.addScope('https://www.googleapis.com/auth/calendar');
-  provider.addScope('https://www.googleapis.com/auth/calendar.events');
-  // Force Google to prompt the user to select an account on login
-  provider.setCustomParameters({ prompt: 'select_account' });
-  await signInWithRedirect(auth, provider);
-};
+const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: string): Promise<void> => {
+  if (!db) return;
 
-export const handleAuthRedirect = async (): Promise<boolean> => {
-  const result = await getRedirectResult(auth);
-  if (!result) {
-    return false;
-  }
-  
-  const credential = GoogleAuthProvider.credentialFromResult(result);
-  
   // Hold the access token in memory only (never persisted) for Calendar API calls
-  if (credential?.accessToken) {
-    setGoogleToken(credential.accessToken);
+  if (credentialAccessToken) {
+    setGoogleToken(credentialAccessToken);
   }
-  
+
   // Check/create user document in firestore
-  const userDocRef = doc(db, COLLECTIONS.USERS, result.user.uid);
+  const userDocRef = doc(db, COLLECTIONS.USERS, user.uid);
   const userDoc = await getDoc(userDocRef);
-  
+
   if (!userDoc.exists()) {
-    const email = result.user.email;
-    const displayName = result.user.displayName;
+    const email = user.email;
+    const displayName = user.displayName;
     if (!email || !displayName) {
       throw new Error('Google Sign-In did not return a valid email or display name.');
     }
@@ -238,62 +233,85 @@ export const handleAuthRedirect = async (): Promise<boolean> => {
     const assignedRole: UserRole = USER_ROLE.USER;
     const initialStatus: UserStatus = USER_STATUS.INACTIVE;
 
-     // Create new user profile
-     const newProfile: UserProfile = {
-       userId: result.user.uid,
-       email: cleanEmail,
-       firstName,
-       lastName,
-       displayName,
-       photoURL: result.user.photoURL,
-       userRole: assignedRole,
-       userStatus: initialStatus,
-       qualifications: [] as Qualification[],
-       icfCredentials: [],
-       gender: '' as unknown as Gender,
-       country: '',
-       bio: '',
-       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-       createdAt: Timestamp.now(),
-       theme: THEME.LIGHT
-     };
-     await setDoc(userDocRef, newProfile);
- 
-     // Initialize schedule sub-collection documents
-     const availableDaysRef = doc(db, COLLECTIONS.USERS, result.user.uid, COLLECTIONS.SCHEDULE, COLLECTIONS.AVAILABLE_DAYS);
-     const blockedDatesRef = doc(db, COLLECTIONS.USERS, result.user.uid, COLLECTIONS.SCHEDULE, COLLECTIONS.BLOCKED_DATES);
-     await setDoc(availableDaysRef, DEFAULT_AVAILABLE_DAYS);
-     await setDoc(blockedDatesRef, { blockedDates: [] });
-   } else {
-     // Sync Google Profile data in database during login (Google takes priority)
-     const existingProfile = userDoc.data() as UserProfile;
-     const updates: Partial<UserProfile> = {};
-     if (result.user.displayName) {
-       const parts = result.user.displayName.trim().split(' ');
-       const inFirst = parts[0] || '';
-       const inLast = parts.slice(1).join(' ') || '';
-       
-       if (existingProfile.firstName !== inFirst || existingProfile.lastName !== inLast) {
-         updates.firstName = inFirst;
-         updates.lastName = inLast;
-       }
-       if (existingProfile.displayName !== result.user.displayName) {
-         updates.displayName = result.user.displayName;
-       }
-     }
-     const incomingEmail = result.user.email ? result.user.email.toLowerCase() : null;
-     if (incomingEmail && existingProfile.email !== incomingEmail) {
-       updates.email = incomingEmail;
-     }
-     if (result.user.photoURL && existingProfile.photoURL !== result.user.photoURL) {
-       updates.photoURL = result.user.photoURL;
-     }
-     
-     if (Object.keys(updates).length > 0) {
-       await updateDoc(userDocRef, updates);
-     }
+    // Create new user profile
+    const newProfile: UserProfile = {
+      userId: user.uid,
+      email: cleanEmail,
+      firstName,
+      lastName,
+      displayName,
+      photoURL: user.photoURL,
+      userRole: assignedRole,
+      userStatus: initialStatus,
+      icfCredentials: [],
+      gender: '' as unknown as Gender,
+      country: '',
+      bio: '',
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      createdAt: Timestamp.now(),
+      theme: THEME.LIGHT,
+      icf_acc: false,
+      icf_pcc: false,
+      icf_mcc: false,
+      icf_actc: false
+    };
+    await setDoc(userDocRef, newProfile as DocumentData);
+
+    // Initialize schedule sub-collection documents
+    const availableDaysRef = doc(db, COLLECTIONS.USERS, user.uid, COLLECTIONS.SCHEDULE, COLLECTIONS.AVAILABLE_DAYS);
+    const blockedDatesRef = doc(db, COLLECTIONS.USERS, user.uid, COLLECTIONS.SCHEDULE, COLLECTIONS.BLOCKED_DATES);
+    await setDoc(availableDaysRef, DEFAULT_AVAILABLE_DAYS);
+    await setDoc(blockedDatesRef, { blockedDates: [] });
+  } else {
+    // Sync Google Profile data in database during login (Google takes priority)
+    const existingProfile = userDoc.data() as UserProfile;
+    const updates: Partial<UserProfile> = {};
+    if (user.displayName) {
+      const parts = user.displayName.trim().split(' ');
+      const inFirst = parts[0] || '';
+      const inLast = parts.slice(1).join(' ') || '';
+      
+      if (existingProfile.firstName !== inFirst || existingProfile.lastName !== inLast) {
+        updates.firstName = inFirst;
+        updates.lastName = inLast;
+      }
+      if (existingProfile.displayName !== user.displayName) {
+        updates.displayName = user.displayName;
+      }
+    }
+    const incomingEmail = user.email ? user.email.toLowerCase() : null;
+    if (incomingEmail && existingProfile.email !== incomingEmail) {
+      updates.email = incomingEmail;
+    }
+    if (user.photoURL && existingProfile.photoURL !== user.photoURL) {
+      updates.photoURL = user.photoURL;
+    }
+    
+    if (Object.keys(updates).length > 0) {
+      await updateDoc(userDocRef, updates);
+    }
+  }
+};
+
+export const loginWithGoogle = async (): Promise<void> => {
+  const provider = new GoogleAuthProvider();
+  // Request Google Calendar access
+  provider.addScope('https://www.googleapis.com/auth/calendar');
+  provider.addScope('https://www.googleapis.com/auth/calendar.events');
+  // Force Google to prompt the user to select an account on login
+  provider.setCustomParameters({ prompt: 'select_account' });
+
+  await signInWithRedirect(auth, provider);
+};
+
+export const handleAuthRedirect = async (): Promise<boolean> => {
+  const result = await getRedirectResult(auth);
+  if (!result) {
+    return false;
   }
   
+  const credential = GoogleAuthProvider.credentialFromResult(result);
+  await registerOrSyncGoogleUser(result.user, credential?.accessToken || undefined);
   return true;
 };
 
@@ -323,6 +341,8 @@ export const subscribeToProfile = (uid: string, callback: (profile: UserProfile 
 export const updateProfile = async (uid: string, updates: Partial<UserProfile>): Promise<void> => {
   const docRef = doc(db, COLLECTIONS.USERS, uid);
   await updateDoc(docRef, updates);
+  // Cache uses profile fields like status, gender, country, etc.
+  recalculateAvailableSlotsCache(uid).catch(console.error);
 };
 
 // Fields a user may change on their OWN profile. Privileged fields
@@ -330,7 +350,7 @@ export const updateProfile = async (uid: string, updates: Partial<UserProfile>):
 // are admin-controlled and enforced server-side by Firestore rules.
 const OWN_EDITABLE_FIELDS: (keyof UserProfile)[] = [
   'displayName', 'photoURL', 'gender', 'country',
-  'bio', 'timezone', 'theme'
+  'bio', 'timezone', 'theme', 'onboardingComplete'
 ];
 
 export const updateOwnProfile = async (uid: string, updates: Partial<UserProfile>): Promise<void> => {
@@ -343,6 +363,8 @@ export const updateOwnProfile = async (uid: string, updates: Partial<UserProfile
   }
   if (Object.keys(safeUpdates).length === 0) return;
   await updateDoc(doc(db, COLLECTIONS.USERS, uid), safeUpdates);
+  // Cache uses profile fields like status, gender, country, etc.
+  recalculateAvailableSlotsCache(uid).catch(console.error);
 };
 
 // Canonical approval/role helpers — the single source of truth for user status and role.
@@ -424,11 +446,14 @@ export const formatDisplayName = (user: { firstName?: string; lastName?: string;
 
 export const updateVerifiedCredentials = async (uid: string, credentials: IcfCredential[], newQualifications?: Qualification[]): Promise<void> => {
   const userDocRef = doc(db, COLLECTIONS.USERS, uid);
-  const updates: Partial<UserProfile> = {
+  const updates: DocumentData = {
     icfCredentials: credentials
   };
-  if (newQualifications && newQualifications.length > 0) {
-    updates.qualifications = newQualifications;
+  if (newQualifications) {
+    updates.icf_acc = newQualifications.includes('ICF ACC');
+    updates.icf_pcc = newQualifications.includes('ICF PCC');
+    updates.icf_mcc = newQualifications.includes('ICF MCC');
+    updates.icf_actc = newQualifications.includes('ICF ACTC');
   }
   await updateDoc(userDocRef, updates);
 };
@@ -460,15 +485,12 @@ export const updateSchedule = async (
     setDoc(availableDaysRef, availableDays),
     setDoc(blockedDatesRef, { blockedDates })
   ]);
+  
+  // Schedule changed, update the available slots cache
+  recalculateAvailableSlotsCache(userId).catch(console.error);
 };
 
-const areAvailableSlotsEqual = (
-  slotsA: string[],
-  slotsB: string[]
-): boolean => {
-  if (slotsA.length !== slotsB.length) return false;
-  return slotsA.every((val, index) => val === slotsB[index]);
-};
+
 
 const recalcChains = new Map<string, Promise<void>>();
 
@@ -492,9 +514,8 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
     const userDocRef = doc(db, COLLECTIONS.USERS, uid);
     const availableSlotsCacheRef = doc(db, COLLECTIONS.AVAILABLE_SLOTS_CACHE, uid);
 
-    const [userDoc, availableSlotsCacheDoc, schedule] = await Promise.all([
+    const [userDoc, schedule] = await Promise.all([
       getDoc(userDocRef),
-      getDoc(availableSlotsCacheRef),
       getSchedule(uid)
     ]);
 
@@ -542,20 +563,27 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
       }
     }
 
-    let shouldWrite = true;
-    if (availableSlotsCacheDoc.exists()) {
-      const existingData = availableSlotsCacheDoc.data();
-      const existingSlots = existingData?.availableSlots || [];
-      if (areAvailableSlotsEqual(availableSlots, existingSlots)) {
-        shouldWrite = false;
-      }
-    }
+    // We must always write because profile metadata (like userStatus, gender, country) 
+    // might have changed even if the availableSlots are the same.
+    const shouldWrite = true;
     
+    const availableDatesUtc = Array.from(
+      new Set(availableSlots.map(slotStr => slotStr.split('T')[0]))
+    ).sort();
+
     if (shouldWrite) {
       await setDoc(availableSlotsCacheRef, {
         userId: uid,
         lastUpdated: new Date().toISOString(),
-        availableSlots
+        availableSlots,
+        availableDatesUtc,
+        gender: profile.gender || '',
+        country: profile.country || '',
+        icf_acc: !!profile.icf_acc,
+        icf_pcc: !!profile.icf_pcc,
+        icf_mcc: !!profile.icf_mcc,
+        icf_actc: !!profile.icf_actc,
+        userStatus: profile.userStatus || USER_STATUS.INACTIVE
       });
       logger.info(`Successfully recalculated and updated available slots cache for user: ${uid}`);
     } else {
@@ -722,4 +750,188 @@ export const deleteSupportRequest = async (requestId: string): Promise<void> => 
   if (!db) throw new Error('Firestore not initialized');
   const docRef = doc(db, COLLECTIONS.SUPPORT_REQUESTS, requestId);
   await deleteDoc(docRef);
+};
+
+export interface DiscoveryFilters {
+  gender?: string;
+  country?: string;
+  icf_acc?: boolean;
+  icf_pcc?: boolean;
+  icf_mcc?: boolean;
+  icf_actc?: boolean;
+}
+
+const chunkArray = <T>(arr: T[], size: number): T[][] => {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+};
+
+export const queryAvailableCoachesForDay = async (
+  localDayStart: Date,
+  localDayEnd: Date,
+  slots: { startTime: Date; endTime: Date }[],
+  filters: DiscoveryFilters,
+  sessionSeed: string,
+  currentUserUid?: string
+): Promise<Record<string, UserProfile[]>> => {
+  if (!db) return {};
+
+  const uniqueUtcDates = Array.from(
+    new Set(
+      slots.map(s => s.startTime.toISOString().split('T')[0])
+    )
+  );
+  if (uniqueUtcDates.length === 0) return {};
+
+  const constraints: QueryConstraint[] = [
+    where('availableDatesUtc', 'array-contains-any', uniqueUtcDates)
+  ];
+
+  if (filters.gender) {
+    constraints.push(where('gender', '==', filters.gender));
+  }
+  if (filters.country) {
+    constraints.push(where('country', '==', filters.country));
+  }
+
+  const qualConditions = [];
+  if (filters.icf_acc) qualConditions.push(where('icf_acc', '==', true));
+  if (filters.icf_pcc) qualConditions.push(where('icf_pcc', '==', true));
+  if (filters.icf_mcc) qualConditions.push(where('icf_mcc', '==', true));
+  if (filters.icf_actc) qualConditions.push(where('icf_actc', '==', true));
+
+  if (qualConditions.length > 0) {
+    constraints.push(or(...qualConditions));
+  }
+
+  const q = query(
+    collection(db, COLLECTIONS.AVAILABLE_SLOTS_CACHE),
+    and(...constraints)
+  );
+
+  const cacheSnap = await getDocs(q);
+  const cacheMap = new Map<string, string[]>();
+  const candidateUids: string[] = [];
+
+  cacheSnap.forEach((doc) => {
+    const data = doc.data();
+    const uid = data.userId;
+    if (uid === currentUserUid) return;
+    if (data.userStatus === USER_STATUS.ACTIVE) {
+      cacheMap.set(uid, data.availableSlots || []);
+      candidateUids.push(uid);
+    }
+  });
+
+  if (candidateUids.length === 0) return {};
+
+  const bookingsQuery = query(
+    collection(db, COLLECTIONS.BOOKINGS),
+    where('startTime', '>=', Timestamp.fromDate(localDayStart)),
+    where('startTime', '<=', Timestamp.fromDate(localDayEnd)),
+    where('status', '==', BOOKING_STATUS.CONFIRMED)
+  );
+  
+  const bookingsSnap = await getDocs(bookingsQuery);
+  const slotBusyUsers = new Map<string, Set<string>>();
+  
+  bookingsSnap.forEach((doc) => {
+    const b = doc.data();
+    const startStr = b.startTime && typeof b.startTime.toDate === 'function'
+      ? b.startTime.toDate().toISOString()
+      : (b.startTime?.dateTime || b.startTime);
+    if (!startStr) return;
+    
+    if (!slotBusyUsers.has(startStr)) {
+      slotBusyUsers.set(startStr, new Set<string>());
+    }
+    const busySet = slotBusyUsers.get(startStr)!;
+    if (b.coachUid) busySet.add(b.coachUid);
+    if (b.clientUid) busySet.add(b.clientUid);
+  });
+
+  const profileChunks = chunkArray(candidateUids, 30);
+  const coachProfiles: UserProfile[] = [];
+
+  const profileSnaps = await Promise.all(
+    profileChunks.map(chunk =>
+      getDocs(query(collection(db, COLLECTIONS.USERS), where(documentId(), 'in', chunk)))
+    )
+  );
+
+  profileSnaps.forEach((snap) => {
+    snap.forEach((docSnap) => {
+      const profile = docSnap.data() as UserProfile;
+      if (profile.userRole === USER_ROLE.USER && profile.userStatus === USER_STATUS.ACTIVE) {
+        coachProfiles.push(profile);
+      }
+    });
+  });
+
+  const result: Record<string, UserProfile[]> = {};
+
+  slots.forEach((slot) => {
+    const slotIso = slot.startTime.toISOString();
+    const busySet = slotBusyUsers.get(slotIso) || new Set<string>();
+
+    let availableCoaches = coachProfiles.filter((coach) => {
+      const coachSlots = cacheMap.get(coach.userId) || [];
+      if (!coachSlots.includes(slotIso)) return false;
+      if (busySet.has(coach.userId)) return false;
+      return true;
+    });
+
+    availableCoaches = seededShuffle(availableCoaches, sessionSeed + slotIso);
+    result[slotIso] = availableCoaches.slice(0, COACH_DISCOVERY_LIMIT);
+  });
+
+  return result;
+};
+
+export const subscribeToUserBookings = (uid: string, callback: (bookings: DocumentData[]) => void): (() => void) => {
+  if (!db) return () => {};
+  const q = query(
+    collection(db, COLLECTIONS.BOOKINGS),
+    and(
+      where('status', '==', BOOKING_STATUS.CONFIRMED),
+      or(
+        where('clientUid', '==', uid),
+        where('coachUid', '==', uid)
+      )
+    )
+  );
+  return onSnapshot(q, (querySnap) => {
+    const list: DocumentData[] = [];
+    querySnap.forEach((doc) => {
+      list.push(doc.data());
+    });
+    callback(list);
+  }, (err) => {
+    logger.error('Error in subscribeToUserBookings:', err);
+  });
+};
+
+export const getUserAvailableSlots = async (uid: string): Promise<string[]> => {
+  if (!db) return [];
+  const ref = doc(db, COLLECTIONS.AVAILABLE_SLOTS_CACHE, uid);
+  const snap = await getDoc(ref);
+  return snap.exists() ? (snap.data().availableSlots || []) : [];
+};
+
+export const getProfiles = async (uids: string[]): Promise<UserProfile[]> => {
+  if (!db || uids.length === 0) return [];
+  const chunks = chunkArray(uids, 30);
+  const profiles: UserProfile[] = [];
+  const snaps = await Promise.all(
+    chunks.map(c => getDocs(query(collection(db, COLLECTIONS.USERS), where(documentId(), 'in', c))))
+  );
+  snaps.forEach(snap => {
+    snap.forEach(d => {
+      profiles.push(d.data() as UserProfile);
+    });
+  });
+  return profiles;
 };

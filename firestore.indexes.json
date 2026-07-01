@@ -31,6 +31,63 @@
         { "fieldPath": "clientUid", "order": "ASCENDING" },
         { "fieldPath": "endTime", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "availableSlotsCache",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "gender", "order": "ASCENDING" },
+        { "fieldPath": "availableDatesUtc", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "availableSlotsCache",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "country", "order": "ASCENDING" },
+        { "fieldPath": "availableDatesUtc", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "availableSlotsCache",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "gender", "order": "ASCENDING" },
+        { "fieldPath": "country", "order": "ASCENDING" },
+        { "fieldPath": "availableDatesUtc", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "availableSlotsCache",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "icf_acc", "order": "ASCENDING" },
+        { "fieldPath": "availableDatesUtc", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "availableSlotsCache",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "icf_pcc", "order": "ASCENDING" },
+        { "fieldPath": "availableDatesUtc", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "availableSlotsCache",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "icf_mcc", "order": "ASCENDING" },
+        { "fieldPath": "availableDatesUtc", "arrayConfig": "CONTAINS" }
+      ]
+    },
+    {
+      "collectionGroup": "availableSlotsCache",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "icf_actc", "order": "ASCENDING" },
+        { "fieldPath": "availableDatesUtc", "arrayConfig": "CONTAINS" }
+      ]
     }
   ],
   "fieldOverrides": [

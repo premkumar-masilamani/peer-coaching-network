@@ -68,6 +68,10 @@ service cloud.firestore {
         && isValidString(data.country, 100)
         && (data.qualifications == null || isList(data.qualifications))
         && (data.icfCredentials == null || isList(data.icfCredentials))
+        && (data.icf_acc == null || isBool(data.icf_acc))
+        && (data.icf_pcc == null || isBool(data.icf_pcc))
+        && (data.icf_mcc == null || isBool(data.icf_mcc))
+        && (data.icf_actc == null || isBool(data.icf_actc))
         && isValidString(data.bio, 2000)
         && isValidString(data.timezone, 100)
         && (data.userRole == 'user' || data.userRole == 'admin')
@@ -134,7 +138,14 @@ service cloud.firestore {
         && isValidString(data.userId, 100)
         && isValidString(data.lastUpdated, 100)
         && isList(data.availableSlots)
-        && data.availableSlots.size() <= 200;
+        && data.availableSlots.size() <= 200
+        && (data.gender == null || isString(data.gender))
+        && (data.country == null || isValidString(data.country, 100))
+        && (data.icf_acc == null || isBool(data.icf_acc))
+        && (data.icf_pcc == null || isBool(data.icf_pcc))
+        && (data.icf_mcc == null || isBool(data.icf_mcc))
+        && (data.icf_actc == null || isBool(data.icf_actc))
+        && (data.availableDatesUtc == null || isList(data.availableDatesUtc));
     }
 
     // Validation helper for support message structure

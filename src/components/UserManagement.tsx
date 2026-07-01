@@ -49,7 +49,6 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     changes: string[];
     roleToSave: UserRole;
     statusToSave: UserStatus;
-    qualificationsToSave: Qualification[];
   } | null>(null);
   const [coachMeetings, setCoachMeetings] = useState<CalendarEvent[]>([]);
 
@@ -156,9 +155,6 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     {
       userRole?: UserRole;
       userStatus?: UserStatus;
-      gender?: string;
-      country?: string;
-      qualifications?: Qualification[];
     }
   >>({});
 
@@ -188,15 +184,13 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
         userName: formatDisplayName(userToSave),
         changes: [],
         roleToSave: getUserRole(userToSave),
-        statusToSave: getUserStatus(userToSave),
-        qualificationsToSave: userToSave.qualifications || []
+        statusToSave: getUserStatus(userToSave)
       });
       return;
     }
 
     const roleToSave = draft.userRole || getUserRole(userToSave);
     const statusToSave = draft.userStatus || getUserStatus(userToSave);
-    const qualificationsToSave = draft.qualifications !== undefined ? draft.qualifications : (userToSave.qualifications || []);
 
     const changes: string[] = [];
     if (draft.userRole && draft.userRole !== getUserRole(userToSave)) {
@@ -205,41 +199,30 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     if (draft.userStatus && draft.userStatus !== getUserStatus(userToSave)) {
       changes.push(`Status: "${getUserStatus(userToSave)}" → "${draft.userStatus}"`);
     }
-    if (draft.qualifications) {
-      const oldQuals = (userToSave.qualifications || []).map(getShortCredential).join(', ') || 'None';
-      const newQuals = draft.qualifications.map(getShortCredential).join(', ') || 'None';
-      if (oldQuals !== newQuals) {
-        changes.push(`Credentials: "${oldQuals}" → "${newQuals}"`);
-      }
-    }
 
     setApprovalModalData({
       uid,
       userName: formatDisplayName(userToSave),
       changes,
       roleToSave,
-      statusToSave,
-      qualificationsToSave
+      statusToSave
     });
   };
 
   const executeApproval = useCallback(async (
     uid: string,
     roleToSave: UserRole,
-    statusToSave: UserStatus,
-    qualificationsToSave: Qualification[]
+    statusToSave: UserStatus
   ) => {
     setSavingId(uid);
     try {
       const userToSave = users.find(u => u.userId === uid);
       const originalStatus = userToSave ? getUserStatus(userToSave) : undefined;
       const originalRole = userToSave ? getUserRole(userToSave) : undefined;
-      const originalQuals = userToSave?.qualifications || [];
 
       await updateProfile(uid, {
         userRole: roleToSave,
-        userStatus: statusToSave,
-        qualifications: qualificationsToSave
+        userStatus: statusToSave
       });
 
       // Log analytics events for changes
@@ -252,12 +235,6 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
       }
       if (originalRole && originalRole !== roleToSave) {
         logAnalyticsEvent('admin_update_role', { targetUid: uid, role: roleToSave });
-      }
-      const qualsChanged = originalQuals.length !== qualificationsToSave.length ||
-        !originalQuals.every(q => qualificationsToSave.includes(q)) ||
-        !qualificationsToSave.every(q => originalQuals.includes(q));
-      if (qualsChanged) {
-        logAnalyticsEvent('admin_update_qualifications', { targetUid: uid, qualifications: qualificationsToSave });
       }
 
       setDrafts(prev => {
@@ -295,9 +272,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
           const draft = drafts[uid];
           const roleToSave = draft.userRole || getUserRole(userToSave);
           const statusToSave = draft.userStatus || getUserStatus(userToSave);
-          const qualificationsToSave = draft.qualifications !== undefined ? draft.qualifications : (userToSave.qualifications || []);
           
-          await executeApproval(uid, roleToSave, statusToSave, qualificationsToSave);
+          await executeApproval(uid, roleToSave, statusToSave);
         }
         return true;
       } catch (e) {
@@ -819,9 +795,9 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
         onClose={() => setApprovalModalData(null)}
         onConfirm={async () => {
           if (!approvalModalData) return;
-          const { uid, roleToSave, statusToSave, qualificationsToSave } = approvalModalData;
+          const { uid, roleToSave, statusToSave } = approvalModalData;
           setApprovalModalData(null);
-          await executeApproval(uid, roleToSave, statusToSave, qualificationsToSave);
+          await executeApproval(uid, roleToSave, statusToSave);
         }}
       />
     </div>

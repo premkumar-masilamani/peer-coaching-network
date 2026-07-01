@@ -42,6 +42,12 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   const [createdEvent, setCreatedEvent] = useState<CalendarEvent | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
+  const qualifications: string[] = [];
+  if (coach.icf_acc) qualifications.push('ICF ACC');
+  if (coach.icf_pcc) qualifications.push('ICF PCC');
+  if (coach.icf_mcc) qualifications.push('ICF MCC');
+  if (coach.icf_actc) qualifications.push('ICF ACTC');
+
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
   useEffect(() => {
@@ -220,12 +226,12 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         {/* State 2: Booking Form */}
         {bookingStatus !== SCHEDULE_MODAL_STATUS.SUCCESS && (
           <form onSubmit={handleBook}>
-            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: coach.qualifications && coach.qualifications.length > 0 ? '4px' : '20px' }}>
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: qualifications.length > 0 ? '4px' : '20px' }}>
               Book a session with {formatDisplayName(coach)}
             </h3>
-            {coach.qualifications && coach.qualifications.length > 0 && (
+            {qualifications.length > 0 && (
               <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', marginBottom: '20px' }}>
-                {coach.qualifications.join(', ')}
+                {qualifications.join(', ')}
               </p>
             )}
 
