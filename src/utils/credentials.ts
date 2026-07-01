@@ -1,8 +1,4 @@
 export const getShortCredential = (q: string): string => {
-  if (q.includes('MCC') || q === 'MCC') return 'ICF MCC';
-  if (q.includes('PCC') || q === 'PCC') return 'ICF PCC';
-  if (q.includes('ACC') || q === 'ACC') return 'ICF ACC';
-  if (q.includes('ACTC') || q === 'ACTC') return 'ICF ACTC';
   return q;
 };
 

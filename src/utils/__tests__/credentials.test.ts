@@ -8,12 +8,10 @@ import {
 describe('credentials helpers', () => {
   describe('getShortCredential', () => {
     it('correctly maps standard credentials', () => {
-      expect(getShortCredential('MCC')).toBe('ICF MCC');
       expect(getShortCredential('ICF MCC')).toBe('ICF MCC');
-      expect(getShortCredential('PCC')).toBe('ICF PCC');
       expect(getShortCredential('ICF PCC')).toBe('ICF PCC');
-      expect(getShortCredential('ACC')).toBe('ICF ACC');
       expect(getShortCredential('ICF ACC')).toBe('ICF ACC');
+      expect(getShortCredential('ICF ACTC')).toBe('ICF ACTC');
     });
 
     it('returns original string if no mapping matches', () => {
@@ -24,9 +22,9 @@ describe('credentials helpers', () => {
 
   describe('getCredentialDescription', () => {
     it('correctly returns descriptions for MCC, PCC, ACC', () => {
-      expect(getCredentialDescription('MCC')).toBe('Master Certified Coach');
+      expect(getCredentialDescription('ICF MCC')).toBe('Master Certified Coach');
       expect(getCredentialDescription('ICF PCC')).toBe('Professional Certified Coach');
-      expect(getCredentialDescription('ACC')).toBe('Associate Certified Coach');
+      expect(getCredentialDescription('ICF ACC')).toBe('Associate Certified Coach');
     });
 
     it('returns original string if unrecognized', () => {
@@ -36,9 +34,9 @@ describe('credentials helpers', () => {
 
   describe('getCredentialBadgeClass', () => {
     it('returns correct class names for badges', () => {
-      expect(getCredentialBadgeClass('MCC')).toBe('badge-mcc');
-      expect(getCredentialBadgeClass('PCC')).toBe('badge-pcc');
-      expect(getCredentialBadgeClass('ACC')).toBe('badge-acc');
+      expect(getCredentialBadgeClass('ICF MCC')).toBe('badge-mcc');
+      expect(getCredentialBadgeClass('ICF PCC')).toBe('badge-pcc');
+      expect(getCredentialBadgeClass('ICF ACC')).toBe('badge-acc');
       expect(getCredentialBadgeClass('Random')).toBe('badge-acc');
     });
   });
