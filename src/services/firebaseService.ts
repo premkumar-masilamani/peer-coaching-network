@@ -790,23 +790,6 @@ export const queryAvailableCoachesForDay = async (
     where('availableDatesUtc', 'array-contains-any', uniqueUtcDates)
   ];
 
-  if (filters.gender) {
-    constraints.push(where('gender', '==', filters.gender));
-  }
-  if (filters.country) {
-    constraints.push(where('country', '==', filters.country));
-  }
-
-  const qualConditions = [];
-  if (filters.icf_acc) qualConditions.push(where('icf_acc', '==', true));
-  if (filters.icf_pcc) qualConditions.push(where('icf_pcc', '==', true));
-  if (filters.icf_mcc) qualConditions.push(where('icf_mcc', '==', true));
-  if (filters.icf_actc) qualConditions.push(where('icf_actc', '==', true));
-
-  if (qualConditions.length > 0) {
-    constraints.push(or(...qualConditions));
-  }
-
   const q = query(
     collection(db, COLLECTIONS.AVAILABLE_SLOTS_CACHE),
     and(...constraints)
@@ -820,6 +803,21 @@ export const queryAvailableCoachesForDay = async (
     const data = doc.data();
     const uid = data.userId;
     if (uid === currentUserUid) return;
+    
+    // In-memory faceted filtering to avoid Firestore combinatorial index explosion
+    if (filters.gender && data.gender !== filters.gender) return;
+    if (filters.country && data.country !== filters.country) return;
+    
+    const hasAnyRequestedCredential = 
+      (filters.icf_acc && data.icf_acc) ||
+      (filters.icf_pcc && data.icf_pcc) ||
+      (filters.icf_mcc && data.icf_mcc) ||
+      (filters.icf_actc && data.icf_actc);
+
+    // If any credential filter is selected, the user must have at least one of them
+    const isCredentialFilterActive = filters.icf_acc || filters.icf_pcc || filters.icf_mcc || filters.icf_actc;
+    if (isCredentialFilterActive && !hasAnyRequestedCredential) return;
+
     if (data.userStatus === USER_STATUS.ACTIVE) {
       cacheMap.set(uid, data.availableSlots || []);
       candidateUids.push(uid);

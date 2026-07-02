@@ -62,16 +62,16 @@ service cloud.firestore {
         && isValidString(data.email, 150)
         && isValidString(data.firstName, 100)
         && isValidString(data.lastName, 100)
-        && (data.displayName == null || isValidString(data.displayName, 200))
-        && (data.photoURL == null || isValidString(data.photoURL, 1000))
+        && (data.get('displayName', null) == null || isValidString(data.displayName, 200))
+        && (data.get('photoURL', null) == null || isValidString(data.photoURL, 1000))
         && isString(data.gender)
         && isValidString(data.country, 100)
-        && (data.qualifications == null || isList(data.qualifications))
-        && (data.icfCredentials == null || isList(data.icfCredentials))
-        && (data.icf_acc == null || isBool(data.icf_acc))
-        && (data.icf_pcc == null || isBool(data.icf_pcc))
-        && (data.icf_mcc == null || isBool(data.icf_mcc))
-        && (data.icf_actc == null || isBool(data.icf_actc))
+        && (data.get('qualifications', null) == null || isList(data.qualifications))
+        && (data.get('icfCredentials', null) == null || isList(data.icfCredentials))
+        && (data.get('icf_acc', null) == null || isBool(data.icf_acc))
+        && (data.get('icf_pcc', null) == null || isBool(data.icf_pcc))
+        && (data.get('icf_mcc', null) == null || isBool(data.icf_mcc))
+        && (data.get('icf_actc', null) == null || isBool(data.icf_actc))
         && isValidString(data.bio, 2000)
         && isValidString(data.timezone, 100)
         && (data.userRole == 'user' || data.userRole == 'admin')
@@ -118,7 +118,7 @@ service cloud.firestore {
         && isValidString(data.coachUid, 100)
         && isValidString(data.clientUid, 100)
         && isTimestamp(data.createdAt)
-        && (data.cancelledAt == null || isTimestamp(data.cancelledAt));
+        && (data.get('cancelledAt', null) == null || isTimestamp(data.cancelledAt));
     }
 
     // Validation helper for client booking cache
@@ -139,13 +139,13 @@ service cloud.firestore {
         && isValidString(data.lastUpdated, 100)
         && isList(data.availableSlots)
         && data.availableSlots.size() <= 200
-        && (data.gender == null || isString(data.gender))
-        && (data.country == null || isValidString(data.country, 100))
-        && (data.icf_acc == null || isBool(data.icf_acc))
-        && (data.icf_pcc == null || isBool(data.icf_pcc))
-        && (data.icf_mcc == null || isBool(data.icf_mcc))
-        && (data.icf_actc == null || isBool(data.icf_actc))
-        && (data.availableDatesUtc == null || isList(data.availableDatesUtc));
+        && (data.get('gender', null) == null || isString(data.gender))
+        && (data.get('country', null) == null || isValidString(data.country, 100))
+        && (data.get('icf_acc', null) == null || isBool(data.icf_acc))
+        && (data.get('icf_pcc', null) == null || isBool(data.icf_pcc))
+        && (data.get('icf_mcc', null) == null || isBool(data.icf_mcc))
+        && (data.get('icf_actc', null) == null || isBool(data.icf_actc))
+        && (data.get('availableDatesUtc', null) == null || isList(data.availableDatesUtc));
     }
 
     // Validation helper for support message structure
@@ -284,7 +284,7 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && (request.resource.data.type == 'info' || request.resource.data.type == 'warn' || request.resource.data.type == 'error')
         && isValidString(request.resource.data.event, 200)
-        && (request.resource.data.userId == null || request.resource.data.userId == request.auth.uid)
+        && (request.resource.data.get('userId', null) == null || request.resource.data.userId == request.auth.uid)
         && request.resource.data.details is map
         && isTimestamp(request.resource.data.timestamp)
         && isTimestamp(request.resource.data.expireAt);
