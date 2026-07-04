@@ -277,7 +277,7 @@ service cloud.firestore {
       // authoritative `bookings` collection and merged client-side.
       allow read: if isSignedIn();
       // Owners may write their own cache; admins can also write any cache.
-      allow write: if (isOwner(uid) && isValidAvailableSlotsCache(request.resource.data)) || (isAdmin() && isValidAvailableSlotsCache(request.resource.data));
+      allow write: if (isSignedIn() && isValidAvailableSlotsCache(request.resource.data)) || (isOwner(uid) && isValidAvailableSlotsCache(request.resource.data)) || (isAdmin() && isValidAvailableSlotsCache(request.resource.data));
     }
 
     match /systemLogs/{logId} {
