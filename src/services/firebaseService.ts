@@ -818,10 +818,8 @@ export const queryAvailableCoachesForDay = async (
     const isCredentialFilterActive = filters.icf_acc || filters.icf_pcc || filters.icf_mcc || filters.icf_actc;
     if (isCredentialFilterActive && !hasAnyRequestedCredential) return;
 
-    if (data.userStatus === USER_STATUS.ACTIVE) {
-      cacheMap.set(uid, data.availableSlots || []);
-      candidateUids.push(uid);
-    }
+    cacheMap.set(uid, data.availableSlots || []);
+    candidateUids.push(uid);
   });
 
   if (candidateUids.length === 0) return {};
@@ -863,9 +861,9 @@ export const queryAvailableCoachesForDay = async (
   profileSnaps.forEach((snap) => {
     snap.forEach((docSnap) => {
       const profile = docSnap.data() as UserProfile;
-      if (profile.userRole === USER_ROLE.USER && profile.userStatus === USER_STATUS.ACTIVE) {
-        coachProfiles.push(profile);
-      }
+       if (profile.userRole === USER_ROLE.USER) {
+         coachProfiles.push(profile);
+       }
     });
   });
 
