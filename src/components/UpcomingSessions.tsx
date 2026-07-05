@@ -173,7 +173,7 @@ export const UpcomingSessions: React.FC = () => {
   // Generate days starting from tomorrow up to the booking horizon in viewer's local timezone
   const days = useMemo(() => {
     const arr: Date[] = [];
-    for (let i = BOOKING_START_OFFSET_DAYS; i < BOOKING_HORIZON_DAYS; i++) {
+    for (let i = BOOKING_START_OFFSET_DAYS; i <= BOOKING_HORIZON_DAYS; i++) {
       const d = new Date(localToday);
       d.setDate(localToday.getDate() + i);
       arr.push(d);
