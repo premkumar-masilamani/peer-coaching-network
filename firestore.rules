@@ -209,12 +209,12 @@ service cloud.firestore {
 
       match /schedule/availableDays {
         allow read: if isSignedIn();
-        allow write: if isOwner(uid) && isValidScheduleDays(request.resource.data);
+        allow write: if (isOwner(uid) && isValidScheduleDays(request.resource.data)) || (isAdmin() && isValidScheduleDays(request.resource.data));
       }
 
       match /schedule/blockedDates {
         allow read: if isSignedIn();
-        allow write: if isOwner(uid) && isValidBlockedDates(request.resource.data);
+        allow write: if (isOwner(uid) && isValidBlockedDates(request.resource.data)) || (isAdmin() && isValidBlockedDates(request.resource.data));
       }
     }
 
