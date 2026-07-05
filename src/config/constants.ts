@@ -2,7 +2,7 @@
  * General application-wide constants.
  */
 export const BOOKING_START_OFFSET_DAYS = 1;
-export const BOOKING_HORIZON_DAYS = 14;
+export const BOOKING_HORIZON_DAYS = 30;
 export const COACH_DISCOVERY_LIMIT = 10;
 
 const isEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
