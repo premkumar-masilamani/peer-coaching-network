@@ -1071,9 +1071,9 @@ export const UpcomingSessions: React.FC = () => {
                       borderRadius: '16px'
                     }}>
                       <Info size={28} style={{ color: 'hsl(var(--accent))', marginBottom: '12px', opacity: 0.8 }} />
-                      <h5 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '6px' }}>No matching coaches</h5>
+                      <h5 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '6px' }}>No coaches available</h5>
                       <p style={{ fontSize: '0.825rem', color: 'hsl(var(--text-secondary))', maxWidth: '380px' }}>
-                        No coaches matching your filter criteria are available on this day. Try clearing or relaxing your search filters.
+                        No coaches are available for this time slot. Try adjusting your filters or selecting a different time.
                       </p>
                       <button 
                         onClick={clearFilters} 
