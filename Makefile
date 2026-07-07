@@ -25,7 +25,7 @@ coverage:
 	npm run coverage
 
 emulator:
-	firebase emulators:start
+	npx firebase emulators:start
 
 local:
 	npm run local
@@ -34,7 +34,7 @@ erd:
 	node scripts/generate-erd.js
 
 deploy-dev: build-dev
-	. ./.env.development && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
+	. ./.env.development && npx firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
 
 deploy-prod: build-prod
-	. ./.env.production && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
+	. ./.env.production && npx firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
