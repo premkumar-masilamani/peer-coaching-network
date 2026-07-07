@@ -15,8 +15,7 @@
     "coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "firebase": "^12.13.0",
-    "firebase-tools": "^15.22.4",
+    "firebase": "^12.15.0",
     "lucide-react": "^1.16.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
