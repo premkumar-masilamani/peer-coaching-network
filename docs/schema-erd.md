@@ -14,58 +14,7 @@ erDiagram
     users ||--|| busySlotsCache : "defines"
     users ||--o{ clientBookingCache : "holds"
 
-    users {
-        string userId FK
-        string email
-        string displayName
-        string photoURL
-        Gender gender
-        string country
-        string_array qualifications
-        string bio
-        string timezone
-        UserRole userRole
-        UserStatus userStatus
-        Theme theme
-        Timestamp createdAt
-        DayAvailability monday
-        DayAvailability tuesday
-        DayAvailability wednesday
-        DayAvailability thursday
-        DayAvailability friday
-        DayAvailability saturday
-        DayAvailability sunday
-        string_array blockedDates
-    }
 
-    busySlotsCache {
-        string userId FK
-        string lastUpdated
-        string_array busySlots
-    }
-
-    bookings {
-        string bookingId FK
-        string googleEventId FK
-        string googleMeetLink
-        string status
-        Timestamp startTime
-        Timestamp endTime
-        string topic
-        string coachUid FK
-        string clientUid FK
-        Timestamp createdAt
-        Timestamp cancelledAt
-    }
-
-    clientBookingCache {
-        string clientUid FK
-        string coachUid FK
-        string bookingId FK
-        string startIso
-        Timestamp createdAt
-        Timestamp expireAt
-    }
 ```
 
 ## Collection Descriptions
