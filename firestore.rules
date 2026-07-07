@@ -133,7 +133,7 @@ service cloud.firestore {
     }
 
     // Validation helper for available slots cache
-    function isValidAvailableSlotsCache(data) {
+    function isValidPersonalAvailabilityCache(data) {
       return isMap(data)
         && isValidString(data.userId, 100)
         && isValidString(data.lastUpdated, 100)
@@ -149,7 +149,7 @@ service cloud.firestore {
     }
 
     // Validation helper for per-coach, per-day availability shards.
-    function isValidCoachDayAvailability(data) {
+    function isValidCoachAvailabilityByDate(data) {
       return isMap(data)
         && isValidString(data.coachUid, 100)
         && isValidString(data.dateISO, 10)
@@ -287,16 +287,16 @@ service cloud.firestore {
           || resource.data.coachUid == request.auth.uid);
     }
 
-    match /availableSlotsCache/{uid} {
+    match /personalAvailabilityCache/{uid} {
       // Derived available-slot cache. Readable by any signed-in user, but only the
       // OWNER may write their own cache. Live bookings are read from the 
       // authoritative `bookings` collection and merged client-side.
       allow read: if isSignedIn();
       // Owners may write their own cache; admins can also write any cache.
-      allow write: if (isSignedIn() && isValidAvailableSlotsCache(request.resource.data)) || (isOwner(uid) && isValidAvailableSlotsCache(request.resource.data)) || (isAdmin() && isValidAvailableSlotsCache(request.resource.data));
+      allow write: if (isSignedIn() && isValidPersonalAvailabilityCache(request.resource.data)) || (isOwner(uid) && isValidPersonalAvailabilityCache(request.resource.data)) || (isAdmin() && isValidPersonalAvailabilityCache(request.resource.data));
     }
 
-    match /coachDayAvailability/{docId} {
+    match /coachAvailabilityByDate/{docId} {
       // Per-coach, per-day availability shards for O(day)-scoped discovery.
       // Readable by any signed-in user. A coach may only write shards they own
       // (document ID must be "{ownUid}_{dateISO}" and coachUid must match), so no
@@ -305,7 +305,7 @@ service cloud.firestore {
       // recalculation of the affected coach's shards from the admin's session.
       allow read: if isSignedIn();
       allow create, update: if isSignedIn()
-        && isValidCoachDayAvailability(request.resource.data)
+        && isValidCoachAvailabilityByDate(request.resource.data)
         && (
           (request.resource.data.coachUid == request.auth.uid
             && docId == request.auth.uid + '_' + request.resource.data.dateISO)

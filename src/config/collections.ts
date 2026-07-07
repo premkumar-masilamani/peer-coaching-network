@@ -8,8 +8,8 @@ export const COLLECTIONS = {
   BLOCKED_DATES: 'blockedDates',
   BOOKINGS: 'bookings',
   CLIENT_BOOKING_CACHE: 'clientBookingCache',
-  AVAILABLE_SLOTS_CACHE: 'availableSlotsCache',
-  COACH_DAY_AVAILABILITY: 'coachDayAvailability',
+  PERSONAL_AVAILABILITY_CACHE: 'personalAvailabilityCache',
+  COACH_AVAILABILITY_BY_DATE: 'coachAvailabilityByDate',
   SUPPORT_REQUESTS: 'supportRequests',
   SYSTEM_LOGS: 'systemLogs',
 } as const;

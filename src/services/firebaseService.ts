@@ -572,7 +572,7 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
   logger.debug(`Starting available slots cache recalculation for user: ${uid}`);
   try {
     const userDocRef = doc(db, COLLECTIONS.USERS, uid);
-    const availableSlotsCacheRef = doc(db, COLLECTIONS.AVAILABLE_SLOTS_CACHE, uid);
+    const personalAvailabilityCacheRef = doc(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE, uid);
 
     const [userDoc, schedule] = await Promise.all([
       getDoc(userDocRef),
@@ -654,7 +654,7 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
     // Aggregate cache: retained for the coach's own "My Sessions" / personal
     // availability view (a single-document read). We always write because
     // profile metadata may have changed even when the slots are unchanged.
-    await setDoc(availableSlotsCacheRef, {
+    await setDoc(personalAvailabilityCacheRef, {
       userId: uid,
       lastUpdated,
       availableSlots: freeSlots,
@@ -675,12 +675,12 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
 
     // Read existing shards so dates that lost all availability can be deleted.
     const existingShardsSnap = await getDocs(
-      query(collection(db, COLLECTIONS.COACH_DAY_AVAILABILITY), where('coachUid', '==', uid))
+      query(collection(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE), where('coachUid', '==', uid))
     );
 
     const batch = writeBatch(db);
     for (const [dateISO, slots] of slotsByDate) {
-      const shardRef = doc(db, COLLECTIONS.COACH_DAY_AVAILABILITY, `${uid}_${dateISO}`);
+      const shardRef = doc(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE, `${uid}_${dateISO}`);
       batch.set(shardRef, {
         coachUid: uid,
         dateISO,
@@ -898,7 +898,7 @@ export const queryAvailableCoachesForDay = async (
   // `in` limit of 30). Each shard is a small, coach-owned document, so no two
   // coaches share a document and we never read the whole booking horizon.
   const q = query(
-    collection(db, COLLECTIONS.COACH_DAY_AVAILABILITY),
+    collection(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE),
     where('dateISO', 'in', uniqueUtcDates)
   );
 
@@ -1030,7 +1030,7 @@ export const subscribeToUserBookings = (uid: string, callback: (bookings: Docume
 
 export const getUserAvailableSlots = async (uid: string): Promise<string[]> => {
   if (!db) return [];
-  const ref = doc(db, COLLECTIONS.AVAILABLE_SLOTS_CACHE, uid);
+  const ref = doc(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE, uid);
   const snap = await getDoc(ref);
   return snap.exists() ? (snap.data().availableSlots || []) : [];
 };

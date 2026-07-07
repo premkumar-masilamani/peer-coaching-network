@@ -615,7 +615,7 @@ describe('firebaseService', () => {
       forEach: (cb: any) => docs.forEach((d) => cb({ data: () => d, ref: { id: `${d.coachUid}_${d.dateISO}` } })),
     });
 
-    it('queryAvailableCoachesForDay reads coachDayAvailability shards by day and returns active coaches', async () => {
+    it('queryAvailableCoachesForDay reads coachAvailabilityByDate shards by day and returns active coaches', async () => {
       const { queryAvailableCoachesForDay } = await import('../firebaseService');
 
       // 1) day shards, 2) bookings, 3) profiles
@@ -643,7 +643,7 @@ describe('firebaseService', () => {
 
       // Asserts the discovery source is the shard collection queried by dateISO.
       const firstQueryCall = (mockGetDocs.mock.calls[0][0]) as any;
-      expect(firstQueryCall.path).toBe('coachDayAvailability');
+      expect(firstQueryCall.path).toBe('coachAvailabilityByDate');
       expect(firstQueryCall.queries?.[0]).toEqual({ field: 'dateISO', op: 'in', val: ['2026-07-01'] });
 
       expect(result['2026-07-01T10:00:00.000Z']).toBeDefined();
@@ -891,7 +891,7 @@ describe('firebaseService', () => {
       await recalculateAvailableSlotsCache('coach-recalc');
 
       // Aggregate cache written with denormalized filter fields.
-      const aggCall = mockSetDoc.mock.calls.find((c) => (c[0] as any).path?.startsWith('availableSlotsCache'));
+      const aggCall = mockSetDoc.mock.calls.find((c) => (c[0] as any).path?.startsWith('personalAvailabilityCache'));
       expect(aggCall).toBeDefined();
       expect((aggCall![1] as any).gender).toBe('female');
       expect(Array.isArray((aggCall![1] as any).availableSlots)).toBe(true);
