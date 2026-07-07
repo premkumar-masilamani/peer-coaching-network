@@ -9,6 +9,7 @@ export const COLLECTIONS = {
   BOOKINGS: 'bookings',
   CLIENT_BOOKING_CACHE: 'clientBookingCache',
   AVAILABLE_SLOTS_CACHE: 'availableSlotsCache',
+  COACH_DAY_AVAILABILITY: 'coachDayAvailability',
   SUPPORT_REQUESTS: 'supportRequests',
   SYSTEM_LOGS: 'systemLogs',
 } as const;
