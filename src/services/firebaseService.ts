@@ -35,7 +35,7 @@ import type { DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken, getGoogleToken } from './googleToken';
 import { seededShuffle } from '../utils/seededShuffle';
-import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus, COLLECTIONS, type IcfCredential, COACH_DISCOVERY_LIMIT, ENABLE_GOOGLE_INTEGRATION } from '../config';
+import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus, COLLECTIONS, type IcfCredential, COACH_DISCOVERY_LIMIT, ENABLE_GOOGLE_INTEGRATION, SLOT_DURATION_MS, GOOGLE_FREE_BUSY_URL } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -496,8 +496,6 @@ export const updateSchedule = async (
 
 
 
-const SLOT_DURATION_MS = 60 * 60 * 1000;
-
 // Remove any 1-hr slot (identified by its ISO start) that overlaps a busy
 // interval. Exported for testing. A slot [start, start+1h) is busy if any
 // interval overlaps it (b.start < slotEnd && b.end > slotStart).
@@ -529,7 +527,7 @@ export const getGoogleBusyIntervals = async (
   const token = getGoogleToken();
   if (!token) return [];
   try {
-    const response = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
+    const response = await fetch(GOOGLE_FREE_BUSY_URL, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`,
