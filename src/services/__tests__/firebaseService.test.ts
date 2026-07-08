@@ -53,7 +53,7 @@ vi.mock('../../utils/logger', () => ({
 }));
 
 vi.mock('firebase/auth', () => ({
-  getAuth: vi.fn(() => ({})),
+  getAuth: vi.fn(() => authState),
   connectAuthEmulator: vi.fn(),
   signInWithRedirect: vi.fn(),
   getRedirectResult: vi.fn(),
@@ -65,10 +65,12 @@ vi.mock('firebase/auth', () => ({
   signOut: vi.fn(),
   onAuthStateChanged: vi.fn(),
 }));
-const { mockGetDoc, mockSetDoc, mockUpdateDoc, mockGetDocs, mockOnSnapshot, mockDeleteDoc, mockBatchSet, mockBatchDelete, mockBatchCommit } = vi.hoisted(() => {
+const { mockGetDoc, mockSetDoc, mockUpdateDoc, mockGetDocs, mockOnSnapshot, mockDeleteDoc, mockBatchSet, mockBatchDelete, mockBatchCommit, authState } = vi.hoisted(() => {
   (import.meta.env as any).VITE_USE_FIREBASE_EMULATOR = 'true';
   (import.meta.env as any).VITE_FIRESTORE_DATABASE_ID = 'pcn-dev';
   return {
+    // Mutable signed-in user; recalc only rebuilds day shards on the coach's own session.
+    authState: { currentUser: null as null | { uid: string } },
     mockGetDoc: vi.fn(),
     mockSetDoc: vi.fn(),
     mockUpdateDoc: vi.fn(),
@@ -122,6 +124,7 @@ vi.mock('firebase/firestore', () => {
 describe('firebaseService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    authState.currentUser = null;
   });
 
   describe('isFirebaseConfigured', () => {
@@ -878,6 +881,7 @@ describe('firebaseService', () => {
     };
 
     it('writes the aggregate cache and per-day shards, and deletes stale shards', async () => {
+      authState.currentUser = { uid: 'coach-recalc' }; // own session → shards rebuilt
       // getDoc order: user profile, availableDays, blockedDates
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ timezone: 'UTC', gender: 'female', country: 'IN', userStatus: 'active', icf_acc: true }) });
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => allDaysEnabled });
@@ -906,6 +910,59 @@ describe('firebaseService', () => {
       // The stale shard was deleted and the batch committed.
       expect(mockBatchDelete).toHaveBeenCalledTimes(1);
       expect(mockBatchCommit).toHaveBeenCalledTimes(1);
+    });
+
+    it('skips the day-shard rebuild when recalc runs on another user\'s session (admin)', async () => {
+      authState.currentUser = { uid: 'admin-1' }; // NOT the coach → shard writes must be skipped
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ timezone: 'UTC', gender: 'female', country: 'IN', userStatus: 'active' }) });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => allDaysEnabled });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ blockedDates: [] }) });
+      mockSetDoc.mockResolvedValue(undefined);
+
+      await recalculateAvailableSlotsCache('coach-x');
+
+      // Aggregate cache still refreshed...
+      const aggCall = mockSetDoc.mock.calls.find((c) => (c[0] as any).path?.startsWith('personalAvailabilityCache'));
+      expect(aggCall).toBeDefined();
+      // ...but no shard reads/writes (rules are owner-only; a batch of ~30 admin
+      // writes would also exceed Firestore's 20 get()-per-batch budget).
+      expect(mockGetDocs).not.toHaveBeenCalled();
+      expect(mockBatchSet).not.toHaveBeenCalled();
+      expect(mockBatchCommit).not.toHaveBeenCalled();
+    });
+
+    it('deduplicates hourly slots produced by overlapping template ranges', async () => {
+      authState.currentUser = { uid: 'coach-dupe' };
+      // 9AM-12PM and 11AM-2PM overlap at 11AM → the 11:00 slot must appear once.
+      const overlappingDay = {
+        enabled: true,
+        slots: [
+          { startTime: timeStringToTimestamp('9:00 AM'), endTime: timeStringToTimestamp('12:00 PM') },
+          { startTime: timeStringToTimestamp('11:00 AM'), endTime: timeStringToTimestamp('2:00 PM') },
+        ],
+      };
+      const everyDayOverlapping = {
+        sunday: overlappingDay, monday: overlappingDay, tuesday: overlappingDay, wednesday: overlappingDay,
+        thursday: overlappingDay, friday: overlappingDay, saturday: overlappingDay,
+      };
+
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ timezone: 'UTC', userStatus: 'active' }) });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => everyDayOverlapping });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ blockedDates: [] }) });
+      mockGetDocs.mockResolvedValueOnce({ forEach: () => {} });
+      mockSetDoc.mockResolvedValue(undefined);
+
+      await recalculateAvailableSlotsCache('coach-dupe');
+
+      const aggCall = mockSetDoc.mock.calls.find((c) => (c[0] as any).path?.startsWith('personalAvailabilityCache'));
+      const slots: string[] = (aggCall![1] as any).availableSlots;
+      expect(new Set(slots).size).toBe(slots.length); // no duplicates
+      // 9,10,11,12,13 = 5 unique hours/day; each day's shard must stay within the 24-slot cap.
+      for (const call of mockBatchSet.mock.calls) {
+        const freeSlots: string[] = (call[1] as any).freeSlots;
+        expect(freeSlots.length).toBe(5);
+        expect(freeSlots.length).toBeLessThanOrEqual(24);
+      }
     });
 
     it('does not throw and skips writes when the user document is missing', async () => {
