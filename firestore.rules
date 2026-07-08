@@ -133,7 +133,7 @@ service cloud.firestore {
     }
 
     // Validation helper for available slots cache
-    function isValidAvailableSlotsCache(data) {
+    function isValidPersonalAvailabilityCache(data) {
       return isMap(data)
         && isValidString(data.userId, 100)
         && isValidString(data.lastUpdated, 100)
@@ -146,6 +146,22 @@ service cloud.firestore {
         && (data.get('icf_mcc', null) == null || isBool(data.icf_mcc))
         && (data.get('icf_actc', null) == null || isBool(data.icf_actc))
         && (data.get('availableDatesUtc', null) == null || isList(data.availableDatesUtc));
+    }
+
+    // Validation helper for per-coach, per-day availability shards.
+    function isValidCoachAvailabilityByDate(data) {
+      return isMap(data)
+        && isValidString(data.coachUid, 100)
+        && isValidString(data.dateISO, 10)
+        && isList(data.freeSlots)
+        && data.freeSlots.size() <= 24
+        && isValidString(data.lastUpdated, 100)
+        && (data.get('gender', null) == null || isString(data.gender))
+        && (data.get('country', null) == null || isValidString(data.country, 100))
+        && (data.get('icf_acc', null) == null || isBool(data.icf_acc))
+        && (data.get('icf_pcc', null) == null || isBool(data.icf_pcc))
+        && (data.get('icf_mcc', null) == null || isBool(data.icf_mcc))
+        && (data.get('icf_actc', null) == null || isBool(data.icf_actc));
     }
 
     // Validation helper for support message structure
@@ -271,13 +287,32 @@ service cloud.firestore {
           || resource.data.coachUid == request.auth.uid);
     }
 
-    match /availableSlotsCache/{uid} {
+    match /personalAvailabilityCache/{uid} {
       // Derived available-slot cache. Readable by any signed-in user, but only the
       // OWNER may write their own cache. Live bookings are read from the 
       // authoritative `bookings` collection and merged client-side.
       allow read: if isSignedIn();
       // Owners may write their own cache; admins can also write any cache.
-      allow write: if (isSignedIn() && isValidAvailableSlotsCache(request.resource.data)) || (isOwner(uid) && isValidAvailableSlotsCache(request.resource.data)) || (isAdmin() && isValidAvailableSlotsCache(request.resource.data));
+      allow write: if (isSignedIn() && isValidPersonalAvailabilityCache(request.resource.data)) || (isOwner(uid) && isValidPersonalAvailabilityCache(request.resource.data)) || (isAdmin() && isValidPersonalAvailabilityCache(request.resource.data));
+    }
+
+    match /coachAvailabilityByDate/{docId} {
+      // Per-coach, per-day availability shards for O(day)-scoped discovery.
+      // Readable by any signed-in user. A coach may only write shards they own
+      // (document ID must be "{ownUid}_{dateISO}" and coachUid must match), so no
+      // coach can modify another coach's availability. Admins may also write any
+      // shard because admin actions (approval, role/status changes) trigger a
+      // recalculation of the affected coach's shards from the admin's session.
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && isValidCoachAvailabilityByDate(request.resource.data)
+        && (
+          (request.resource.data.coachUid == request.auth.uid
+            && docId == request.auth.uid + '_' + request.resource.data.dateISO)
+          || isAdmin()
+        );
+      allow delete: if isSignedIn()
+        && (resource.data.coachUid == request.auth.uid || isAdmin());
     }
 
     match /systemLogs/{logId} {
