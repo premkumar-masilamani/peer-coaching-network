@@ -22,17 +22,23 @@ Collection names come from [`src/config/collections.ts`](../src/config/collectio
 | `users/{uid}` | Firebase Auth `uid` | Profile: name, email, gender, country, ICF credentials, bio, timezone, `userRole` (`user`/`admin`), `userStatus` (`active`/`inactive`) | Owner (non-privileged fields) / Admin (role + status) |
 | `users/{uid}/schedule/availableDays` | fixed name `availableDays` | Weekly recurring template: 7 days, each `{ enabled, slots[] }` | Owner only |
 | `users/{uid}/schedule/blockedDates` | fixed name `blockedDates` | Array of blackout date strings (max 100) | Owner only |
-| `availableSlotsCache/{uid}` | `= uid` | **Derived** flat list of bookable UTC slot ISO strings + denormalized `gender` / `country` / `icf_*` / `userStatus` for querying | Owner only (recomputed client-side) |
+| `personalAvailabilityCache/{uid}` | `= uid` | **Derived** aggregate: flat list of the coach's own bookable UTC slot ISO strings across the whole horizon (+ denormalized `gender` / `country` / `icf_*` / `userStatus`). Read for the coach's **own** "My Sessions" / personal view — a single-document read | Owner (recomputed client-side) / Admin |
+| `coachAvailabilityByDate/{uid}_{dateISO}` | `uid` + `_` + `YYYY-MM-DD` | **Derived** per-coach, per-day discovery shard: `coachUid`, `dateISO`, `freeSlots[]` for that date, + denormalized `gender` / `country` / `icf_*`. Powers day-scoped discovery (one small owned doc per coach per day) | Owner (doc-ID prefix must match `uid`) / Admin |
 | `bookings/{coachUid}_{startIso}` | `coachUid` + start ISO | Authoritative booking: `coachUid`, `clientUid`, `startTime`, `endTime`, `topic`, `status`, `googleEventId`, `googleMeetLink` | Either participant |
 | `clientBookingCache/{clientUid}_{startIso}` | `clientUid` + start ISO | Per-mentee slot lock (TTL `expireAt`) to stop double-booking yourself across coaches | The client |
 | `supportRequests/{id}` | auto | Support tickets + message thread | Owner + admin |
 | `systemLogs/{id}` | auto | Telemetry (TTL `expireAt`) | Anyone creates, admin reads |
 
-**Key design idea:** `availableDays` / `blockedDates` is the **source template**,
-and `availableSlotsCache` is a **flattened, denormalized index** built from it so
-discovery can run as a single Firestore query. Live bookings are always read from
-the authoritative `bookings` collection and subtracted client-side — the cache is
-never trusted for "is this slot free right now."
+**Key design idea:** `availableDays` / `blockedDates` is the **source template**.
+From it (minus the coach's Google Calendar busy time) two derived views are built:
+`personalAvailabilityCache` — a single aggregate doc the coach reads for their own
+view — and `coachAvailabilityByDate` — per-coach, per-day shards that discovery
+reads one day at a time. Splitting discovery into per-coach-per-day documents means
+no two coaches ever write the same document (no hot-doc write contention at scale)
+and a discovery read never pulls the whole booking horizon. Live bookings are always
+read from the authoritative `bookings` collection and subtracted client-side, and
+discovery re-checks the **live** `users/` profile status — the derived docs are never
+trusted for "is this slot free right now" or "is this coach still active."
 
 ---
 
@@ -93,22 +99,25 @@ sequenceDiagram
 
 **Approval step:** an admin in `UserManagement` calls `setUserRoleAndStatus` →
 `updateProfile`, which writes `userStatus: 'active'` (allowed because `isAdmin()`)
-and immediately triggers `recalculateAvailableSlotsCache` so the newly-active coach
-appears in discovery.
+and immediately triggers `recalculateAvailableSlotsCache` so the newly-active coach's
+availability shards are (re)built. Discovery gates on the live profile status, so the
+coach becomes discoverable as soon as their status is `active` and shards exist.
 
 ---
 
 ## 4. How availability is calculated & updated per coach
 
 A coach edits their weekly template in `AvailabilityEdit`. Saving writes the two
-`schedule/*` docs, then flattens them into `availableSlotsCache/{uid}` via
-`doRecalculateAvailableSlotsCache`.
+`schedule/*` docs, then `doRecalculateAvailableSlotsCache` rebuilds both derived
+views — the aggregate `personalAvailabilityCache/{uid}` and the per-day
+`coachAvailabilityByDate/{uid}_{dateISO}` shards.
 
 ```mermaid
 sequenceDiagram
     actor C as Coach (owner)
     participant AE as AvailabilityEdit.tsx
     participant FS as Firestore
+    participant G as Google Calendar API
     participant Recalc as recalculateAvailableSlotsCache
 
     C->>AE: Edit weekly slots / block dates, Save
@@ -122,7 +131,14 @@ sequenceDiagram
         Recalc->>Recalc: skip blocked / disabled days
         Recalc->>Recalc: expand each slot into hourly UTC ISO strings
     end
-    Recalc->>FS: setDoc availableSlotsCache/{uid} {availableSlots[], availableDatesUtc[], gender, country, icf_*, userStatus}
+    opt coach's own session (has Google token)
+        Recalc->>G: POST /freeBusy (timeMin..timeMax)
+        G-->>Recalc: busy intervals
+        Recalc->>Recalc: subtract busy hours → freeSlots
+    end
+    Recalc->>FS: setDoc personalAvailabilityCache/{uid} {availableSlots(free), availableDatesUtc, gender, country, icf_*, userStatus}
+    Recalc->>FS: getDocs coachAvailabilityByDate where coachUid==uid (existing shards)
+    Recalc->>FS: writeBatch — set coachAvailabilityByDate/{uid}_{date} per active day; delete emptied days
 ```
 
 Key points:
@@ -130,21 +146,31 @@ Key points:
 - **Timezone-aware:** the template stores wall-clock times; recalc converts them to
   absolute UTC using the coach's `timezone`, so a "9 AM" slot lands correctly for
   viewers in other zones.
-- **The cache is intentionally denormalized** — it copies `gender` / `country` /
-  `icf_*` / `userStatus` so discovery can filter coaches with one query without
-  joining `users`.
+- **Google Calendar is subtracted at recalc time.** `freeSlots = template −
+  blockedDates − Google Calendar busy`. The busy lookup (`freeBusy`) is only possible
+  on the coach's **own** authenticated session (their OAuth token); an admin-triggered
+  recalc for another coach falls back to template-only availability.
+- **Two derived writes, both owned by the coach.** The aggregate
+  `personalAvailabilityCache` backs the coach's own single-doc "My Sessions" read; the
+  `coachAvailabilityByDate` shards (one per active UTC date) back discovery. Shards for
+  days that lost all availability are deleted so they stop matching discovery queries.
+- **Denormalized filter fields** (`gender` / `country` / `icf_*`) are copied onto the
+  shards so discovery can facet in-memory without joining `users`. `userStatus` is
+  **deliberately not** on the shards — discovery gates on the live `users/` profile
+  instead (see §5), so a stale/spoofed shard can never make a coach discoverable.
 - **Serialized per-uid:** `recalcChains` chains concurrent recalcs so overlapping
   triggers (schedule save + profile edit) can't clobber each other.
-- **Re-triggered on any relevant change:** `updateSchedule`, `updateOwnProfile`, and
-  admin `updateProfile` all call it — because a status / country / gender change
-  alters what discovery should return.
+- **Re-triggered on any relevant change:** `updateSchedule`, `updateOwnProfile`,
+  admin `updateProfile`, and `updateVerifiedCredentials` all call it — because a
+  status / country / gender / credential change alters what discovery should return.
 
 ---
 
 ## 5. Coach discovery (reading availability)
 
-A mentee browses in `UpcomingSessions`, which calls `queryAvailableCoachesForDay`.
-This is where the cache pays off, and where live bookings are subtracted.
+A mentee browses in `UpcomingSessions`, which calls `queryAvailableCoachesForDay`
+for the selected day. Discovery reads only that day's shards, subtracts live
+bookings, and gates on the live profile.
 
 ```mermaid
 sequenceDiagram
@@ -153,25 +179,33 @@ sequenceDiagram
     participant FS as Firestore
 
     M->>UI: Pick a day + filters (gender/country/ICF)
-    UI->>FS: query availableSlotsCache where availableDatesUtc array-contains-any [dates] + filters
-    FS-->>UI: candidate coaches (their cached slot lists)
-    UI->>UI: drop self, keep userStatus==active
+    UI->>FS: query coachAvailabilityByDate where dateISO in [1-2 UTC dates]
+    FS-->>UI: candidate day-shards (coachUid + freeSlots + denormalized filters)
+    UI->>UI: drop self; facet gender/country/icf_* in-memory; union a coach's two shards
     UI->>FS: query bookings where startTime in [dayStart,dayEnd] AND status==confirmed
     FS-->>UI: confirmed bookings that day
     UI->>UI: build busy-set per slot (coachUid + clientUid busy)
     UI->>FS: getDocs users where documentId in candidateUids (chunks of 30)
     FS-->>UI: coach profiles
+    UI->>UI: keep only live userRole==user AND isApproved (status active)
     loop each time slot
-        UI->>UI: coach available if slot in cache AND not in busy-set
+        UI->>UI: coach available if slot in freeSlots AND not in busy-set
         UI->>UI: seededShuffle + slice to COACH_DISCOVERY_LIMIT
     end
     UI-->>M: available coaches per slot
 ```
 
-So **availability shown = (cached template slots) − (confirmed bookings for that
-coach/mentee at that time)**. The cache gives the candidate pool cheaply; the
-authoritative `bookings` collection removes anything actually taken. `seededShuffle`
-fairly rotates which coaches appear first.
+So **availability shown = (that day's shard `freeSlots`) − (confirmed bookings for
+that coach/mentee at that time)**, restricted to coaches who are **still active per
+their live profile**. Reading by exact `dateISO` keeps the query off the whole
+horizon; the authoritative `bookings` collection removes anything actually taken; and
+the live-profile gate ensures an inactive/pending coach with a stale shard can never
+surface. `seededShuffle` (seeded by the session) fairly rotates which coaches appear
+first and keeps the random set stable within a session.
+
+> **Scaling note:** discovery currently fetches the profile of every candidate free
+> that day before sampling to `COACH_DISCOVERY_LIMIT`. Bounding that fetch is tracked
+> as a follow-up (issue #111).
 
 ---
 
@@ -270,8 +304,10 @@ change status, never rewrite who/when.
 
 ## The mental model in one line
 
-`schedule/*` (template, owner-written) → flattened into `availableSlotsCache`
-(denormalized index) → filtered against live `bookings` (authoritative,
-transaction-guarded) at discovery time; `clientBookingCache` is the per-mentee lock
-that makes the booking transaction safe; and every write boundary is enforced by
+`schedule/*` (template, owner-written) minus Google Calendar busy → derived into
+`personalAvailabilityCache` (the coach's own aggregate view) and per-day
+`coachAvailabilityByDate` shards (day-scoped discovery) → filtered against live
+`bookings` (authoritative, transaction-guarded) and the live `users/` profile status
+at discovery time; `clientBookingCache` is the per-mentee lock that makes the booking
+transaction safe; and every write boundary is enforced by
 [`firestore.rules`](../firestore.rules) since there is no server.

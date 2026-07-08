@@ -28,13 +28,14 @@ import {
   orderBy,
   or,
   and,
-  documentId
+  documentId,
+  writeBatch
 } from 'firebase/firestore';
-import type { DocumentData, QueryFilterConstraint } from 'firebase/firestore';
+import type { DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
-import { setGoogleToken, clearGoogleToken } from './googleToken';
+import { setGoogleToken, clearGoogleToken, getGoogleToken } from './googleToken';
 import { seededShuffle } from '../utils/seededShuffle';
-import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus, COLLECTIONS, type IcfCredential, COACH_DISCOVERY_LIMIT } from '../config';
+import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus, COLLECTIONS, type IcfCredential, COACH_DISCOVERY_LIMIT, ENABLE_GOOGLE_INTEGRATION, SLOT_DURATION_MS, GOOGLE_FREE_BUSY_URL } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -456,6 +457,9 @@ export const updateVerifiedCredentials = async (uid: string, credentials: IcfCre
     updates.icf_actc = newQualifications.includes('ICF ACTC');
   }
   await updateDoc(userDocRef, updates);
+  // Credential/qualification changes alter the denormalized filter fields in the
+  // availability cache and day shards, so refresh them.
+  recalculateAvailableSlotsCache(uid).catch(console.error);
 };
 
 export const getSchedule = async (userId: string): Promise<{ availableDays: AvailableDays; blockedDates: string[] }> => {
@@ -492,6 +496,62 @@ export const updateSchedule = async (
 
 
 
+// Remove any 1-hr slot (identified by its ISO start) that overlaps a busy
+// interval. Exported for testing. A slot [start, start+1h) is busy if any
+// interval overlaps it (b.start < slotEnd && b.end > slotStart).
+export const subtractBusyIntervals = (
+  slots: string[],
+  busy: { start: number; end: number }[]
+): string[] => {
+  if (busy.length === 0) return slots;
+  return slots.filter((iso) => {
+    const start = new Date(iso).getTime();
+    const end = start + SLOT_DURATION_MS;
+    return !busy.some((b) => b.start < end && b.end > start);
+  });
+};
+
+// Fetch the coach's Google Calendar busy intervals so genuinely-busy hours can be
+// subtracted from their template availability. This is only possible on the
+// coach's OWN authenticated session (their OAuth token). When recalc is triggered
+// for a different user (e.g. an admin editing someone else's profile) we return
+// an empty list and fall back to template-only availability. Exported for testing.
+export const getGoogleBusyIntervals = async (
+  uid: string,
+  timeMin: Date,
+  timeMax: Date
+): Promise<{ start: number; end: number }[]> => {
+  if (!ENABLE_GOOGLE_INTEGRATION || auth?.currentUser?.uid !== uid) {
+    return [];
+  }
+  const token = getGoogleToken();
+  if (!token) return [];
+  try {
+    const response = await fetch(GOOGLE_FREE_BUSY_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        timeMin: timeMin.toISOString(),
+        timeMax: timeMax.toISOString(),
+        items: [{ id: 'primary' }],
+      }),
+    });
+    if (!response.ok) return [];
+    const data = await response.json();
+    const busy: { start: string; end: string }[] = data?.calendars?.primary?.busy || [];
+    return busy.map((b) => ({
+      start: new Date(b.start).getTime(),
+      end: new Date(b.end).getTime(),
+    }));
+  } catch (e) {
+    logger.error('Error fetching Google Calendar busy intervals:', e);
+    return [];
+  }
+};
+
 const recalcChains = new Map<string, Promise<void>>();
 
 // Serialize recalculations per-uid so concurrent triggers cannot interleave and
@@ -512,7 +572,7 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
   logger.debug(`Starting available slots cache recalculation for user: ${uid}`);
   try {
     const userDocRef = doc(db, COLLECTIONS.USERS, uid);
-    const availableSlotsCacheRef = doc(db, COLLECTIONS.AVAILABLE_SLOTS_CACHE, uid);
+    const personalAvailabilityCacheRef = doc(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE, uid);
 
     const [userDoc, schedule] = await Promise.all([
       getDoc(userDocRef),
@@ -563,32 +623,80 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
       }
     }
 
-    // We must always write because profile metadata (like userStatus, gender, country) 
-    // might have changed even if the availableSlots are the same.
-    const shouldWrite = true;
-    
+    // Subtract Google Calendar busy hours so the cache reflects genuinely
+    // bookable time. Only possible on the coach's own authenticated session;
+    // admin-triggered recalcs fall back to template-only availability.
+    const horizonStart = new Date();
+    const horizonEnd = new Date(horizonStart);
+    horizonEnd.setDate(horizonEnd.getDate() + BOOKING_HORIZON_DAYS + 1);
+    const busyIntervals = await getGoogleBusyIntervals(uid, horizonStart, horizonEnd);
+    const freeSlots = subtractBusyIntervals(availableSlots, busyIntervals);
+
     const availableDatesUtc = Array.from(
-      new Set(availableSlots.map(slotStr => slotStr.split('T')[0]))
+      new Set(freeSlots.map(slotStr => slotStr.split('T')[0]))
     ).sort();
 
-    if (shouldWrite) {
-      await setDoc(availableSlotsCacheRef, {
-        userId: uid,
-        lastUpdated: new Date().toISOString(),
-        availableSlots,
-        availableDatesUtc,
-        gender: profile.gender || '',
-        country: profile.country || '',
-        icf_acc: !!profile.icf_acc,
-        icf_pcc: !!profile.icf_pcc,
-        icf_mcc: !!profile.icf_mcc,
-        icf_actc: !!profile.icf_actc,
-        userStatus: profile.userStatus || USER_STATUS.INACTIVE
-      });
-      logger.info(`Successfully recalculated and updated available slots cache for user: ${uid}`);
-    } else {
-      logger.debug(`Available slots cache recalculation finished, no changes for user: ${uid}`);
+    // Denormalized filter fields, shared by the aggregate cache and the per-day
+    // discovery shards so discovery can facet in-memory without joining users/.
+    // userStatus is intentionally NOT denormalized onto shards: discovery gates
+    // on the live, authoritative users/ profile status (see isApproved below),
+    // so a stale or spoofed shard status can never make a coach discoverable.
+    const filterFields = {
+      gender: profile.gender || '',
+      country: profile.country || '',
+      icf_acc: !!profile.icf_acc,
+      icf_pcc: !!profile.icf_pcc,
+      icf_mcc: !!profile.icf_mcc,
+      icf_actc: !!profile.icf_actc,
+    };
+    const lastUpdated = new Date().toISOString();
+
+    // Aggregate cache: retained for the coach's own "My Sessions" / personal
+    // availability view (a single-document read). We always write because
+    // profile metadata may have changed even when the slots are unchanged.
+    await setDoc(personalAvailabilityCacheRef, {
+      userId: uid,
+      lastUpdated,
+      availableSlots: freeSlots,
+      availableDatesUtc,
+      ...filterFields,
+      userStatus: profile.userStatus || USER_STATUS.INACTIVE,
+    });
+
+    // Per-day discovery shards: one owned document per coach per UTC date, so
+    // discovery reads only the selected day and no two coaches share a document.
+    const slotsByDate = new Map<string, string[]>();
+    for (const iso of freeSlots) {
+      const dateISO = iso.split('T')[0];
+      const list = slotsByDate.get(dateISO) || [];
+      list.push(iso);
+      slotsByDate.set(dateISO, list);
     }
+
+    // Read existing shards so dates that lost all availability can be deleted.
+    const existingShardsSnap = await getDocs(
+      query(collection(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE), where('coachUid', '==', uid))
+    );
+
+    const batch = writeBatch(db);
+    for (const [dateISO, slots] of slotsByDate) {
+      const shardRef = doc(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE, `${uid}_${dateISO}`);
+      batch.set(shardRef, {
+        coachUid: uid,
+        dateISO,
+        freeSlots: slots,
+        lastUpdated,
+        ...filterFields,
+      });
+    }
+    existingShardsSnap.forEach((shardDoc) => {
+      if (!slotsByDate.has(shardDoc.data().dateISO)) {
+        batch.delete(shardDoc.ref);
+      }
+    });
+    await batch.commit();
+
+    logger.info(`Successfully recalculated available slots cache and day shards for user: ${uid}`);
   } catch (err) {
     logger.error('Error recalculating available slots cache:', err);
     try {
@@ -786,29 +894,36 @@ export const queryAvailableCoachesForDay = async (
   );
   if (uniqueUtcDates.length === 0) return {};
 
-  const constraints: QueryFilterConstraint[] = [
-    where('availableDatesUtc', 'array-contains-any', uniqueUtcDates)
-  ];
-
+  // Read only the selected day's per-coach shards (1-2 UTC dates → within the
+  // `in` limit of 30). Each shard is a small, coach-owned document, so no two
+  // coaches share a document and we never read the whole booking horizon.
   const q = query(
-    collection(db, COLLECTIONS.AVAILABLE_SLOTS_CACHE),
-    and(...constraints)
+    collection(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE),
+    where('dateISO', 'in', uniqueUtcDates)
   );
 
   const cacheSnap = await getDocs(q);
   const cacheMap = new Map<string, string[]>();
-  const candidateUids: string[] = [];
+  const rejected = new Set<string>();
 
-  cacheSnap.forEach((doc) => {
-    const data = doc.data();
-    const uid = data.userId;
-    if (uid === currentUserUid) return;
-    
+  cacheSnap.forEach((docSnap) => {
+    const data = docSnap.data();
+    const uid = data.coachUid;
+    if (uid === currentUserUid || rejected.has(uid)) return;
+
+    // A coach can have up to two shards (local day spanning two UTC dates);
+    // union their freeSlots and run the faceted filter once per coach.
+    const existing = cacheMap.get(uid);
+    if (existing) {
+      existing.push(...(data.freeSlots || []));
+      return;
+    }
+
     // In-memory faceted filtering to avoid Firestore combinatorial index explosion
-    if (filters.gender && data.gender !== filters.gender) return;
-    if (filters.country && data.country !== filters.country) return;
-    
-    const hasAnyRequestedCredential = 
+    if (filters.gender && data.gender !== filters.gender) { rejected.add(uid); return; }
+    if (filters.country && data.country !== filters.country) { rejected.add(uid); return; }
+
+    const hasAnyRequestedCredential =
       (filters.icf_acc && data.icf_acc) ||
       (filters.icf_pcc && data.icf_pcc) ||
       (filters.icf_mcc && data.icf_mcc) ||
@@ -816,12 +931,12 @@ export const queryAvailableCoachesForDay = async (
 
     // If any credential filter is selected, the user must have at least one of them
     const isCredentialFilterActive = filters.icf_acc || filters.icf_pcc || filters.icf_mcc || filters.icf_actc;
-    if (isCredentialFilterActive && !hasAnyRequestedCredential) return;
+    if (isCredentialFilterActive && !hasAnyRequestedCredential) { rejected.add(uid); return; }
 
-    cacheMap.set(uid, data.availableSlots || []);
-    candidateUids.push(uid);
+    cacheMap.set(uid, [...(data.freeSlots || [])]);
   });
 
+  const candidateUids = Array.from(cacheMap.keys());
   if (candidateUids.length === 0) return {};
 
   const bookingsQuery = query(
@@ -861,7 +976,10 @@ export const queryAvailableCoachesForDay = async (
   profileSnaps.forEach((snap) => {
     snap.forEach((docSnap) => {
       const profile = docSnap.data() as UserProfile;
-       if (profile.userRole === USER_ROLE.USER) {
+       // Gate on the live, authoritative profile: only active coaches (role USER,
+       // status active) are discoverable. Inactive/pending coaches with a stale
+       // availability shard must never surface for booking.
+       if (profile.userRole === USER_ROLE.USER && isApproved(profile)) {
          coachProfiles.push(profile);
        }
     });
@@ -912,7 +1030,7 @@ export const subscribeToUserBookings = (uid: string, callback: (bookings: Docume
 
 export const getUserAvailableSlots = async (uid: string): Promise<string[]> => {
   if (!db) return [];
-  const ref = doc(db, COLLECTIONS.AVAILABLE_SLOTS_CACHE, uid);
+  const ref = doc(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE, uid);
   const snap = await getDoc(ref);
   return snap.exists() ? (snap.data().availableSlots || []) : [];
 };
