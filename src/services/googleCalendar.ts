@@ -580,13 +580,13 @@ export const getCoachesAvailability = async (
     const uidChunks = chunkArray(uids, 30);
 
     const foundUids = new Set<string>();
-    const availableSlotsCacheResults = await Promise.allSettled(
+    const personalAvailabilityCacheResults = await Promise.allSettled(
       uidChunks.map(c =>
-        getDocs(query(collection(activeDb, COLLECTIONS.AVAILABLE_SLOTS_CACHE), where(documentId(), 'in', c)))
+        getDocs(query(collection(activeDb, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE), where(documentId(), 'in', c)))
       )
     );
     
-    availableSlotsCacheResults.forEach((res, index) => {
+    personalAvailabilityCacheResults.forEach((res, index) => {
       if (res.status !== 'fulfilled') {
         logger.error('Error fetching available slots cache chunk:', res.reason);
         logger.telemetry(LOG_SEVERITY.ERROR, 'cache_query_failure', {

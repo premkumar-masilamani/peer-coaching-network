@@ -21,7 +21,10 @@ import {
   setUserRoleAndStatus,
   getSchedule,
   updateSchedule,
-  subscribeToBookings
+  subscribeToBookings,
+  subtractBusyIntervals,
+  recalculateAvailableSlotsCache,
+  updateVerifiedCredentials
 } from '../firebaseService';
 import { logEvent } from 'firebase/analytics';
 import { Timestamp } from 'firebase/firestore';
@@ -62,7 +65,7 @@ vi.mock('firebase/auth', () => ({
   signOut: vi.fn(),
   onAuthStateChanged: vi.fn(),
 }));
-const { mockGetDoc, mockSetDoc, mockUpdateDoc, mockGetDocs, mockOnSnapshot, mockDeleteDoc } = vi.hoisted(() => {
+const { mockGetDoc, mockSetDoc, mockUpdateDoc, mockGetDocs, mockOnSnapshot, mockDeleteDoc, mockBatchSet, mockBatchDelete, mockBatchCommit } = vi.hoisted(() => {
   (import.meta.env as any).VITE_USE_FIREBASE_EMULATOR = 'true';
   (import.meta.env as any).VITE_FIRESTORE_DATABASE_ID = 'pcn-dev';
   return {
@@ -72,6 +75,9 @@ const { mockGetDoc, mockSetDoc, mockUpdateDoc, mockGetDocs, mockOnSnapshot, mock
     mockGetDocs: vi.fn(),
     mockOnSnapshot: vi.fn(),
     mockDeleteDoc: vi.fn(),
+    mockBatchSet: vi.fn(),
+    mockBatchDelete: vi.fn(),
+    mockBatchCommit: vi.fn(() => Promise.resolve()),
   };
 });
 vi.mock('firebase/firestore', () => {
@@ -104,6 +110,11 @@ vi.mock('firebase/firestore', () => {
     getDocs: mockGetDocs,
     onSnapshot: mockOnSnapshot,
     documentId: vi.fn(() => 'documentId'),
+    writeBatch: vi.fn(() => ({
+      set: mockBatchSet,
+      delete: mockBatchDelete,
+      commit: mockBatchCommit,
+    })),
     Timestamp: MockTimestamp,
   };
 });
@@ -599,58 +610,324 @@ describe('firebaseService', () => {
       expect(result[0].firstName).toBe('Alice');
     });
 
-    it('queryAvailableCoachesForDay correctly filters and queries matching active coaches', async () => {
+    // Snapshot helper mirroring Firestore's forEach(doc => doc.data()) shape.
+    const snap = (docs: any[]) => ({
+      forEach: (cb: any) => docs.forEach((d) => cb({ data: () => d, ref: { id: `${d.coachUid}_${d.dateISO}` } })),
+    });
+
+    it('queryAvailableCoachesForDay reads coachAvailabilityByDate shards by day and returns active coaches', async () => {
       const { queryAvailableCoachesForDay } = await import('../firebaseService');
-      
-      mockGetDocs.mockResolvedValueOnce({
-        forEach: (cb: any) => {
-          cb({
-            data: () => ({
-              userId: 'coach1',
-              availableSlots: ['2026-07-01T10:00:00.000Z'],
-              userStatus: 'active'
-            })
-          });
-        }
-      });
 
-      mockGetDocs.mockResolvedValueOnce({
-        forEach: () => {}
-      });
+      // 1) day shards, 2) bookings, 3) profiles
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { coachUid: 'coach1', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], userStatus: 'active' },
+      ]));
+      mockGetDocs.mockResolvedValueOnce(snap([]));
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { userId: 'coach1', userRole: 'user', userStatus: 'active', firstName: 'Alice', lastName: 'Smith' },
+      ]));
 
-      mockGetDocs.mockResolvedValueOnce({
-        forEach: (cb: any) => {
-          cb({
-            data: () => ({
-              userId: 'coach1',
-              userRole: 'user',
-              userStatus: 'active',
-              firstName: 'Alice',
-              lastName: 'Smith'
-            })
-          });
-        }
-      });
-
-      const localDayStart = new Date('2026-07-01T00:00:00Z');
-      const localDayEnd = new Date('2026-07-01T23:59:59Z');
       const slots = [{
         startTime: new Date('2026-07-01T10:00:00.000Z'),
-        endTime: new Date('2026-07-01T11:00:00.000Z')
+        endTime: new Date('2026-07-01T11:00:00.000Z'),
       }];
 
       const result = await queryAvailableCoachesForDay(
-        localDayStart,
-        localDayEnd,
+        new Date('2026-07-01T00:00:00Z'),
+        new Date('2026-07-01T23:59:59Z'),
         slots,
         {},
         'seed',
         'client1'
       );
 
+      // Asserts the discovery source is the shard collection queried by dateISO.
+      const firstQueryCall = (mockGetDocs.mock.calls[0][0]) as any;
+      expect(firstQueryCall.path).toBe('coachAvailabilityByDate');
+      expect(firstQueryCall.queries?.[0]).toEqual({ field: 'dateISO', op: 'in', val: ['2026-07-01'] });
+
       expect(result['2026-07-01T10:00:00.000Z']).toBeDefined();
       expect(result['2026-07-01T10:00:00.000Z'].length).toBe(1);
       expect(result['2026-07-01T10:00:00.000Z'][0].userId).toBe('coach1');
+    });
+
+    it('queryAvailableCoachesForDay excludes non-active coaches even with an availability shard', async () => {
+      const { queryAvailableCoachesForDay } = await import('../firebaseService');
+
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { coachUid: 'activeCoach', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'] },
+        { coachUid: 'pendingCoach', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'] },
+      ]));
+      mockGetDocs.mockResolvedValueOnce(snap([])); // bookings
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { userId: 'activeCoach', userRole: 'user', userStatus: 'active', firstName: 'Ada' },
+        { userId: 'pendingCoach', userRole: 'user', userStatus: 'inactive', firstName: 'Peter' },
+      ]));
+
+      const slots = [{
+        startTime: new Date('2026-07-01T10:00:00.000Z'),
+        endTime: new Date('2026-07-01T11:00:00.000Z'),
+      }];
+
+      const result = await queryAvailableCoachesForDay(
+        new Date('2026-07-01T00:00:00Z'),
+        new Date('2026-07-01T23:59:59Z'),
+        slots,
+        {},
+        'seed',
+        'client1'
+      );
+
+      // Only the active coach surfaces; the inactive/pending one is filtered out
+      // despite having a valid shard.
+      expect(result['2026-07-01T10:00:00.000Z'].map((c) => c.userId)).toEqual(['activeCoach']);
+    });
+
+    it('queryAvailableCoachesForDay excludes the current user and applies faceted filters in-memory', async () => {
+      const { queryAvailableCoachesForDay } = await import('../firebaseService');
+
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { coachUid: 'client1', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], gender: 'female' },
+        { coachUid: 'coachM', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], gender: 'male' },
+        { coachUid: 'coachF', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], gender: 'female' },
+      ]));
+      mockGetDocs.mockResolvedValueOnce(snap([])); // bookings
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { userId: 'coachF', userRole: 'user', userStatus: 'active', firstName: 'Fiona' },
+      ]));
+
+      const slots = [{
+        startTime: new Date('2026-07-01T10:00:00.000Z'),
+        endTime: new Date('2026-07-01T11:00:00.000Z'),
+      }];
+
+      const result = await queryAvailableCoachesForDay(
+        new Date('2026-07-01T00:00:00Z'),
+        new Date('2026-07-01T23:59:59Z'),
+        slots,
+        { gender: 'female' },
+        'seed',
+        'client1' // self, must be excluded even though female
+      );
+
+      // Only the profile fetch for the surviving candidate (coachF) should run.
+      const profileQueryCall = (mockGetDocs.mock.calls[2][0]) as any;
+      expect(profileQueryCall.queries?.[0]).toEqual({ field: 'documentId', op: 'in', val: ['coachF'] });
+      expect(result['2026-07-01T10:00:00.000Z'].map((c) => c.userId)).toEqual(['coachF']);
+    });
+
+    it('queryAvailableCoachesForDay unions freeSlots across a coach\'s two UTC-date shards', async () => {
+      const { queryAvailableCoachesForDay } = await import('../firebaseService');
+
+      // Local day spans two UTC dates → coach has two shards.
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { coachUid: 'coach1', dateISO: '2026-07-01', freeSlots: ['2026-07-01T23:00:00.000Z'] },
+        { coachUid: 'coach1', dateISO: '2026-07-02', freeSlots: ['2026-07-02T00:00:00.000Z'] },
+      ]));
+      mockGetDocs.mockResolvedValueOnce(snap([])); // bookings
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { userId: 'coach1', userRole: 'user', userStatus: 'active', firstName: 'Alice' },
+      ]));
+
+      const slots = [
+        { startTime: new Date('2026-07-01T23:00:00.000Z'), endTime: new Date('2026-07-02T00:00:00.000Z') },
+        { startTime: new Date('2026-07-02T00:00:00.000Z'), endTime: new Date('2026-07-02T01:00:00.000Z') },
+      ];
+
+      const result = await queryAvailableCoachesForDay(
+        new Date('2026-07-01T00:00:00Z'),
+        new Date('2026-07-02T23:59:59Z'),
+        slots,
+        {},
+        'seed',
+        'client1'
+      );
+
+      expect(result['2026-07-01T23:00:00.000Z'][0].userId).toBe('coach1');
+      expect(result['2026-07-02T00:00:00.000Z'][0].userId).toBe('coach1');
+    });
+
+    it('queryAvailableCoachesForDay rejects coaches by country and by credential filters', async () => {
+      const { queryAvailableCoachesForDay } = await import('../firebaseService');
+
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { coachUid: 'wrongCountry', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], country: 'US', icf_pcc: true },
+        { coachUid: 'wrongCred', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], country: 'IN', icf_acc: true },
+        { coachUid: 'match', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], country: 'IN', icf_pcc: true },
+      ]));
+      mockGetDocs.mockResolvedValueOnce(snap([])); // bookings
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { userId: 'match', userRole: 'user', userStatus: 'active', firstName: 'Match' },
+      ]));
+
+      const slots = [{
+        startTime: new Date('2026-07-01T10:00:00.000Z'),
+        endTime: new Date('2026-07-01T11:00:00.000Z'),
+      }];
+
+      const result = await queryAvailableCoachesForDay(
+        new Date('2026-07-01T00:00:00Z'),
+        new Date('2026-07-01T23:59:59Z'),
+        slots,
+        { country: 'IN', icf_pcc: true },
+        'seed',
+        'client1'
+      );
+
+      const profileQueryCall = (mockGetDocs.mock.calls[2][0]) as any;
+      expect(profileQueryCall.queries?.[0].val).toEqual(['match']);
+      expect(result['2026-07-01T10:00:00.000Z'].map((c) => c.userId)).toEqual(['match']);
+    });
+
+    it('queryAvailableCoachesForDay returns {} when no slots are requested', async () => {
+      const { queryAvailableCoachesForDay } = await import('../firebaseService');
+      const result = await queryAvailableCoachesForDay(
+        new Date('2026-07-01T00:00:00Z'),
+        new Date('2026-07-01T23:59:59Z'),
+        [],
+        {},
+        'seed',
+        'client1'
+      );
+      expect(result).toEqual({});
+      expect(mockGetDocs).not.toHaveBeenCalled();
+    });
+
+    it('queryAvailableCoachesForDay returns {} when every candidate is filtered out', async () => {
+      const { queryAvailableCoachesForDay } = await import('../firebaseService');
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { coachUid: 'coachM', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], gender: 'male' },
+      ]));
+      const slots = [{
+        startTime: new Date('2026-07-01T10:00:00.000Z'),
+        endTime: new Date('2026-07-01T11:00:00.000Z'),
+      }];
+      const result = await queryAvailableCoachesForDay(
+        new Date('2026-07-01T00:00:00Z'),
+        new Date('2026-07-01T23:59:59Z'),
+        slots,
+        { gender: 'female' },
+        'seed',
+        'client1'
+      );
+      expect(result).toEqual({});
+      // Short-circuits before the bookings/profile queries.
+      expect(mockGetDocs).toHaveBeenCalledTimes(1);
+    });
+
+    it('queryAvailableCoachesForDay drops a coach who has a confirmed booking at the slot', async () => {
+      const { queryAvailableCoachesForDay } = await import('../firebaseService');
+      const slotIso = '2026-07-01T10:00:00.000Z';
+
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { coachUid: 'coach1', dateISO: '2026-07-01', freeSlots: [slotIso] },
+      ]));
+      // A confirmed booking for coach1 at the slot (dateTime shape).
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { coachUid: 'coach1', clientUid: 'someClient', startTime: { dateTime: slotIso } },
+      ]));
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { userId: 'coach1', userRole: 'user', userStatus: 'active', firstName: 'Alice' },
+      ]));
+
+      const slots = [{ startTime: new Date(slotIso), endTime: new Date('2026-07-01T11:00:00.000Z') }];
+      const result = await queryAvailableCoachesForDay(
+        new Date('2026-07-01T00:00:00Z'),
+        new Date('2026-07-01T23:59:59Z'),
+        slots,
+        {},
+        'seed',
+        'client1'
+      );
+      expect(result[slotIso]).toEqual([]);
+    });
+  });
+
+  describe('subtractBusyIntervals', () => {
+    const HOUR = 60 * 60 * 1000;
+    const slot = '2026-07-01T10:00:00.000Z';
+    const slotStart = new Date(slot).getTime();
+
+    it('returns all slots unchanged when there are no busy intervals', () => {
+      expect(subtractBusyIntervals([slot], [])).toEqual([slot]);
+    });
+
+    it('removes a slot that overlaps a busy interval', () => {
+      const busy = [{ start: slotStart + 15 * 60 * 1000, end: slotStart + 45 * 60 * 1000 }];
+      expect(subtractBusyIntervals([slot], busy)).toEqual([]);
+    });
+
+    it('keeps a slot when a busy interval only abuts it (no overlap)', () => {
+      const busy = [{ start: slotStart + HOUR, end: slotStart + 2 * HOUR }]; // starts exactly at slot end
+      expect(subtractBusyIntervals([slot], busy)).toEqual([slot]);
+    });
+
+    it('removes only the overlapping slots from a set', () => {
+      const slotA = '2026-07-01T10:00:00.000Z';
+      const slotB = '2026-07-01T12:00:00.000Z';
+      const busy = [{ start: new Date(slotB).getTime(), end: new Date(slotB).getTime() + HOUR }];
+      expect(subtractBusyIntervals([slotA, slotB], busy)).toEqual([slotA]);
+    });
+  });
+
+  describe('recalculateAvailableSlotsCache', () => {
+    const enabledDay = { enabled: true, slots: [{ startTime: timeStringToTimestamp('10:00 AM'), endTime: timeStringToTimestamp('11:00 AM') }] };
+    const allDaysEnabled = {
+      sunday: enabledDay, monday: enabledDay, tuesday: enabledDay, wednesday: enabledDay,
+      thursday: enabledDay, friday: enabledDay, saturday: enabledDay,
+    };
+
+    it('writes the aggregate cache and per-day shards, and deletes stale shards', async () => {
+      // getDoc order: user profile, availableDays, blockedDates
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ timezone: 'UTC', gender: 'female', country: 'IN', userStatus: 'active', icf_acc: true }) });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => allDaysEnabled });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ blockedDates: [] }) });
+      // existing shards: one stale date that must be deleted
+      mockGetDocs.mockResolvedValueOnce({
+        forEach: (cb: any) => cb({ data: () => ({ coachUid: 'coach-recalc', dateISO: '2000-01-01' }), ref: { id: 'coach-recalc_2000-01-01' } }),
+      });
+      mockSetDoc.mockResolvedValue(undefined);
+
+      await recalculateAvailableSlotsCache('coach-recalc');
+
+      // Aggregate cache written with denormalized filter fields.
+      const aggCall = mockSetDoc.mock.calls.find((c) => (c[0] as any).path?.startsWith('personalAvailabilityCache'));
+      expect(aggCall).toBeDefined();
+      expect((aggCall![1] as any).gender).toBe('female');
+      expect(Array.isArray((aggCall![1] as any).availableSlots)).toBe(true);
+
+      // One shard per active day was set with a "{uid}_{dateISO}" ref id.
+      expect(mockBatchSet).toHaveBeenCalled();
+      const firstShard = mockBatchSet.mock.calls[0];
+      expect((firstShard[0] as any).id).toMatch(/^coach-recalc_\d{4}-\d{2}-\d{2}$/);
+      expect((firstShard[1] as any).coachUid).toBe('coach-recalc');
+      expect((firstShard[1] as any).gender).toBe('female');
+
+      // The stale shard was deleted and the batch committed.
+      expect(mockBatchDelete).toHaveBeenCalledTimes(1);
+      expect(mockBatchCommit).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not throw and skips writes when the user document is missing', async () => {
+      mockGetDoc.mockResolvedValue({ exists: () => false });
+      await expect(recalculateAvailableSlotsCache('missing-user')).resolves.toBeUndefined();
+      expect(mockBatchCommit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateVerifiedCredentials', () => {
+    it('persists credentials and triggers a cache recalculation', async () => {
+      mockUpdateDoc.mockResolvedValue(undefined);
+      // Make the fire-and-forget recalc a clean no-op (user doc "missing").
+      mockGetDoc.mockResolvedValue({ exists: () => false });
+
+      await updateVerifiedCredentials('coach-cred', [{ level: 'ACC' } as any], ['ICF ACC']);
+
+      expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
+      const updates = mockUpdateDoc.mock.calls[0][1] as any;
+      expect(updates.icfCredentials).toEqual([{ level: 'ACC' }]);
+      expect(updates.icf_acc).toBe(true);
+      expect(updates.icf_pcc).toBe(false);
     });
   });
 });

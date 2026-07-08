@@ -6,162 +6,212 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const ROOT_DIR = path.resolve(__dirname, '..');
-const FIREBASE_SERVICE_PATH = path.join(ROOT_DIR, 'src/services/firebaseService.ts');
-const CALENDAR_SERVICE_PATH = path.join(ROOT_DIR, 'src/services/googleCalendar.ts');
+const SRC_DIR = path.join(ROOT_DIR, 'src');
+const COLLECTIONS_PATH = path.join(ROOT_DIR, 'src/config/collections.ts');
 const OUTPUT_PATH = path.join(ROOT_DIR, 'docs/schema-erd.md');
 
-/**
- * Maps a TypeScript type signature to a simple, Mermaid-friendly primitive type.
- */
-function mapType(tsType) {
-  let type = tsType.trim();
+// ─────────────────────────────────────────────────────────────────────────────
+// Generic source scanning
+//
+// The schema is inferred, not hardcoded, so any future collection or field is
+// picked up automatically:
+//   1. Collections come from the canonical `COLLECTIONS` map in collections.ts.
+//   2. Every non-test file under src/ is scanned for Firestore writes.
+//   3. Write targets are resolved through `COLLECTIONS.*`, reference variables,
+//      and inline `doc()/collection()` calls (last collection segment wins, so
+//      subcollections resolve correctly).
+//   4. Fields come from write payloads (object literals incl. `...spreads`),
+//      typed variables, and interface casts.
+// ─────────────────────────────────────────────────────────────────────────────
 
-  // Sanitization: If the type contains backticks, template variables, or newlines, fallback to string
-  if (type.includes('`') || type.includes('${') || type.includes('.') || type.includes(' ') || type.includes('\n')) {
-    return 'string';
-  }
-
-  // 1. Map arrays (e.g. type[] or (options)[])
-  if (type.endsWith('[]')) {
-    if (type.includes('attendees') || type.includes('email')) {
-      return 'attendee_array';
-    }
-    return 'string_array';
-  }
-
-  // 2. Remove optional union suffixes like ' | null' or ' | undefined'
-  if (type.includes('|')) {
-    const parts = type.split('|').map(p => p.trim());
-    const filtered = parts.filter(p => p !== 'null' && p !== 'undefined');
-    
-    const isLiteralUnion = filtered.every(p => (p.startsWith("'") && p.endsWith("'")) || (p.startsWith('"') && p.endsWith('"')));
-    if (isLiteralUnion) {
-      return 'string';
-    }
-    
-    if (filtered.length === 1) {
-      type = filtered[0];
-    } else {
-      type = filtered[0];
+/** Recursively collect .ts/.tsx source files, skipping tests and declarations. */
+function collectSourceFiles(dir) {
+  const out = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name === '__tests__' || entry.name === 'node_modules') continue;
+      out.push(...collectSourceFiles(full));
+    } else if (/\.tsx?$/.test(entry.name) && !/\.test\.tsx?$/.test(entry.name) && !/\.d\.ts$/.test(entry.name)) {
+      out.push(full);
     }
   }
+  return out;
+}
 
-  // 3. Map inline structures (e.g. { dateTime: string })
-  if (type.startsWith('{') && type.endsWith('}')) {
-    if (type.includes('dateTime')) {
-      return 'string';
-    }
-    return 'object';
+/** Parse the canonical COLLECTIONS constant into a { KEY: 'collectionName' } map. */
+function parseCollectionsConstant(content) {
+  const keyToName = {};
+  const block = content.match(/COLLECTIONS\s*=\s*\{([\s\S]*?)\}/);
+  if (!block) return keyToName;
+  const entryRegex = /(\w+)\s*:\s*['"]([^'"]+)['"]/g;
+  let m;
+  while ((m = entryRegex.exec(block[1])) !== null) {
+    keyToName[m[1]] = m[2];
   }
-
-  // 4. Map single string literals to string
-  if ((type.startsWith("'") && type.endsWith("'")) || (type.startsWith('"') && type.endsWith('"'))) {
-    return 'string';
-  }
-
-  // Standard primitives
-  if (type === 'Timestamp') return 'Timestamp';
-  if (type === 'boolean') return 'boolean';
-  if (type === 'string') return 'string';
-  if (type === 'number') return 'number';
-
-  return type;
+  return keyToName;
 }
 
 /**
- * Searches the files to find the declaration of a variable and attempts to extract its type.
+ * Reads the argument list of a call, given the index of its opening '('.
+ * Returns the top-level args (split on commas outside nested brackets) and the
+ * index just past the closing ')'.
  */
-function findVariableType(filesContent, varName) {
-  // Heuristics based on variable name suffixes (checked first to avoid false matches in strings/comments)
-  const nameLower = varName.toLowerCase();
-  if (nameLower.endsWith('uid') || nameLower.endsWith('id') || nameLower.endsWith('email') || 
-      nameLower.endsWith('name') || nameLower.endsWith('link') || nameLower.endsWith('iso') || 
-      nameLower.endsWith('url') || nameLower.endsWith('topic') || nameLower.endsWith('summary') || 
-      nameLower.endsWith('description') || nameLower.endsWith('timezone') || nameLower.endsWith('country') ||
-      nameLower.endsWith('gender') || nameLower.endsWith('bio') || nameLower.endsWith('theme') ||
-      nameLower.endsWith('role') || nameLower.endsWith('status')) {
+function readArgs(content, openIdx) {
+  let depth = 0;
+  let cur = '';
+  const args = [];
+  let i = openIdx;
+  for (; i < content.length; i++) {
+    const c = content[i];
+    if (c === '(') { depth++; if (depth === 1) continue; cur += c; continue; }
+    if (c === ')') { depth--; if (depth === 0) { if (cur.trim()) args.push(cur.trim()); return { args, end: i + 1 }; } cur += c; continue; }
+    if (c === '{' || c === '[') { depth++; cur += c; continue; }
+    if (c === '}' || c === ']') { depth--; cur += c; continue; }
+    if (c === ',' && depth === 1) { args.push(cur.trim()); cur = ''; continue; }
+    cur += c;
+  }
+  return { args, end: i };
+}
+
+/** Resolve a single call argument to a collection name, if it is one. */
+function resolveCollectionToken(token, keyToName) {
+  const t = token.trim();
+  const constMatch = t.match(/^COLLECTIONS\.(\w+)$/);
+  if (constMatch) return keyToName[constMatch[1]] || null;
+  const litMatch = t.match(/^['"]([^'"]+)['"]$/);
+  if (litMatch) return litMatch[1];
+  return null;
+}
+
+/** The deepest collection referenced by a doc()/collection() arg list. */
+function lastCollectionToken(args, keyToName) {
+  let found = null;
+  for (const a of args) {
+    const resolved = resolveCollectionToken(a, keyToName);
+    if (resolved) found = resolved;
+  }
+  return found;
+}
+
+/** Map a reference variable (const x = doc/collection(...)) to its collection. */
+function findRefVars(content, keyToName) {
+  const map = {};
+  const declRegex = /\b(?:const|let|var)\s+(\w+)\s*=\s*(?:doc|collection)\s*\(/g;
+  let m;
+  while ((m = declRegex.exec(content)) !== null) {
+    const parenIdx = content.indexOf('(', m.index + m[0].length - 1);
+    const { args } = readArgs(content, parenIdx);
+    const col = lastCollectionToken(args, keyToName);
+    if (col) map[m[1]] = col;
+  }
+  return map;
+}
+
+/** Resolve the target (first arg) of a write call to a collection name. */
+function resolveWriteTarget(target, refVarMap, keyToName) {
+  const t = target.trim();
+  if (/^(?:doc|collection)\s*\(/.test(t)) {
+    const { args } = readArgs(t, t.indexOf('('));
+    return lastCollectionToken(args, keyToName);
+  }
+  const ident = t.match(/^([A-Za-z_$][\w$]*)/);
+  if (ident && refVarMap[ident[1]]) return refVarMap[ident[1]];
+  return null;
+}
+
+/** Find every Firestore write (setDoc/updateDoc/addDoc/*.set) as {target, payload}. */
+function findWrites(content) {
+  const writes = [];
+  const verbRegex = /\b(?:setDoc|updateDoc|addDoc|\w+\.set)\s*\(/g;
+  let m;
+  while ((m = verbRegex.exec(content)) !== null) {
+    const parenIdx = content.indexOf('(', m.index);
+    const { args, end } = readArgs(content, parenIdx);
+    verbRegex.lastIndex = end;
+    if (args.length >= 1) writes.push({ target: args[0], payload: args[1] || null });
+  }
+  return writes;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Field & type inference
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Maps a TypeScript type signature to a simple, Mermaid-friendly primitive type. */
+function mapType(tsType) {
+  let type = (tsType || '').trim();
+  if (!type) return 'string';
+
+  if (type.includes('`') || type.includes('${') || type.includes('.') || type.includes(' ') || type.includes('\n')) {
     return 'string';
   }
-  if (nameLower.endsWith('synced') || nameLower.endsWith('enabled')) {
-    return 'boolean';
+  if (type.endsWith('[]')) {
+    if (type.includes('attendees') || type.includes('email')) return 'object_array';
+    const inner = type.slice(0, -2);
+    if (inner.startsWith('{')) return 'object_array';
+    return `${mapType(inner)}_array`;
   }
-  if (nameLower.endsWith('slots') || nameLower.endsWith('dates') || nameLower.endsWith('qualifications')) {
-    return 'string_array';
+  if (type.includes('|')) {
+    const filtered = type.split('|').map(p => p.trim()).filter(p => p !== 'null' && p !== 'undefined');
+    const isLiteralUnion = filtered.every(p => /^['"].*['"]$/.test(p));
+    if (isLiteralUnion) return 'string';
+    type = filtered[0] || 'string';
   }
-  if (nameLower.endsWith('createdat') || nameLower.endsWith('cancelledat') || nameLower.endsWith('start') || nameLower.endsWith('end')) {
-    return 'Timestamp';
-  }
+  if (type.startsWith('{') && type.endsWith('}')) return 'object';
+  if (/^['"].*['"]$/.test(type)) return 'string';
+  if (type === 'Timestamp') return 'Timestamp';
+  if (type === 'boolean' || type === 'string' || type === 'number') return type;
+  return type;
+}
 
-  // Try to find declaration with character-by-character parsing to support complex types with semicolons (e.g. inline objects)
-  const regex = new RegExp(`\\b${varName}\\??\\s*:\\s*`, 'g');
+/** Best-effort type from a variable/field name and its declaration. */
+function findVariableType(filesContent, varName) {
+  const nameLower = varName.toLowerCase();
+  if (/(uid|id|email|name|link|iso|url|topic|summary|description|timezone|country|gender|bio|theme|role|status|category|subject|content)$/.test(nameLower)) return 'string';
+  if (/(synced|enabled|complete|acc|pcc|mcc|actc)$/.test(nameLower)) return 'boolean';
+  if (/(slots|dates|qualifications|credentials|messages|ids)$/.test(nameLower)) return 'string_array';
+  if (/(createdat|updatedat|cancelledat|expireat|lastupdated|start|end)$/.test(nameLower)) return 'Timestamp';
+
+  const regex = new RegExp(`\\b${varName.replace(/[^\w$]/g, '')}\\??\\s*:\\s*`, 'g');
   for (const content of filesContent) {
     let match;
     while ((match = regex.exec(content)) !== null) {
       let index = match.index + match[0].length;
-      let braceCount = 0;
-      let bracketCount = 0;
-      let parenCount = 0;
-      let typeStr = '';
-      
+      let brace = 0, bracket = 0, paren = 0, typeStr = '';
       while (index < content.length) {
         const char = content[index];
-        if (char === '{') braceCount++;
-        else if (char === '}') braceCount--;
-        else if (char === '[') bracketCount++;
-        else if (char === ']') bracketCount--;
-        else if (char === '(') parenCount++;
-        else if (char === ')') parenCount--;
-        
-        // If we exit the nesting level we started in, stop immediately
-        if (braceCount < 0 || bracketCount < 0 || parenCount < 0) {
-          break;
-        }
-        
-        // Stop on semicolon, comma, equals, or newline, but only at top level (balance === 0)
-        if (braceCount === 0 && bracketCount === 0 && parenCount === 0) {
-          if (char === ';' || char === '=' || char === ',' || char === '\n') {
-            break;
-          }
-        }
-        
+        if (char === '{') brace++;
+        else if (char === '}') brace--;
+        else if (char === '[') bracket++;
+        else if (char === ']') bracket--;
+        else if (char === '(') paren++;
+        else if (char === ')') paren--;
+        if (brace < 0 || bracket < 0 || paren < 0) break;
+        if (brace === 0 && bracket === 0 && paren === 0 && (char === ';' || char === '=' || char === ',' || char === '\n')) break;
         typeStr += char;
         index++;
       }
-      
       const cleaned = typeStr.trim();
-      if (cleaned) {
-        return cleaned;
-      }
+      if (cleaned) return cleaned;
     }
   }
-
-  return 'string'; // Default fallback
+  return 'string';
 }
 
-/**
- * Parses a TS interface block from the files.
- */
+/** Parse the body of an `export interface X { ... }` block into fields. */
 function parseInterfaceFromFiles(filesContent, interfaceName) {
-  // Sanitize interfaceName to prevent Regex errors and ensure it's a valid identifier
-  const safeName = interfaceName.replace(/[^a-zA-Z0-9_]/g, '').trim();
+  const safeName = (interfaceName || '').replace(/[^a-zA-Z0-9_]/g, '').trim();
   if (!safeName) return null;
-
-  const regex = new RegExp(`export\\s+interface\\s+${safeName}\\s*\\{([^}]*)\\}`, 's');
+  const regex = new RegExp(`(?:export\\s+)?interface\\s+${safeName}\\s*\\{([^}]*)\\}`, 's');
   for (const content of filesContent) {
     const match = content.match(regex);
     if (match) {
-      const body = match[1];
       const fields = [];
-      const lines = body.split('\n');
       const propRegex = /^\s*(\w+)(\??)\s*:\s*([^;]+);?/;
-      for (const line of lines) {
+      for (const line of match[1].split('\n')) {
         const m = line.match(propRegex);
-        if (m) {
-          fields.push({
-            name: m[1],
-            type: mapType(m[3])
-          });
-        }
+        if (m) fields.push({ name: m[1], type: mapType(m[3]) });
       }
       return fields;
     }
@@ -169,339 +219,229 @@ function parseInterfaceFromFiles(filesContent, interfaceName) {
   return null;
 }
 
-/**
- * Splits an object literal string by commas at the top nesting level.
- */
+/** Split an object-literal body by commas at the top nesting level. */
 function splitByTopLevelCommas(str) {
   const parts = [];
-  let current = '';
-  let braceDepth = 0;
-  let bracketDepth = 0;
-  let parenDepth = 0;
-  
-  for (let i = 0; i < str.length; i++) {
-    const char = str[i];
-    if (char === '{') braceDepth++;
-    else if (char === '}') braceDepth--;
-    else if (char === '[') bracketDepth++;
-    else if (char === ']') bracketDepth--;
-    else if (char === '(') parenDepth++;
-    else if (char === ')') parenDepth--;
-    
-    const depth = braceDepth + bracketDepth + parenDepth;
-    
-    if (char === ',' && depth === 0) {
-      parts.push(current.trim());
-      current = '';
-    } else {
-      current += char;
-    }
+  let current = '', depth = 0;
+  for (const char of str) {
+    if (char === '{' || char === '[' || char === '(') depth++;
+    else if (char === '}' || char === ']' || char === ')') depth--;
+    if (char === ',' && depth === 0) { parts.push(current.trim()); current = ''; }
+    else current += char;
   }
-  if (current.trim()) {
-    parts.push(current.trim());
-  }
+  if (current.trim()) parts.push(current.trim());
   return parts;
 }
 
-/**
- * Parses fields from an object literal block.
- */
-function parseObjectLiteral(filesContent, objectBody) {
+/** Infer a field type from the value expression on the right of `name:`. */
+function typeFromValueExpr(valExpr, filesContent) {
+  const v = valExpr.trim();
+  if (v.startsWith('{')) return 'object';
+  if (v.startsWith('[')) return 'object_array';
+  if (v.startsWith('!!') || v === 'true' || v === 'false') return 'boolean';
+  if (v.includes('Timestamp')) return 'Timestamp';
+  if (v.includes('toISOString()') || /Iso\b/.test(v)) return 'string';
+  if (/^['"]/.test(v)) return 'string';
+  if (/^\[/.test(v)) return 'object_array';
+  if (!isNaN(Number(v))) return 'number';
+  return mapType(findVariableType(filesContent, v));
+}
+
+/** Parse fields from an object-literal body, resolving `...spread` references. */
+function parseObjectLiteral(filesContent, combinedContent, objectBody) {
   const fields = [];
-  const parts = splitByTopLevelCommas(objectBody);
-  
-  // Matches name: value or just name
   const propRegex = /^\s*(\w+)\s*(?::\s*([\s\S]*))?$/;
-  
-  for (const part of parts) {
-    const m = part.match(propRegex);
-    if (m) {
-      const name = m[1];
-      const valExpr = m[2] ? m[2].trim() : null;
-      let type = 'string';
 
-      if (valExpr) {
-        if (valExpr.includes('Timestamp')) {
-          type = 'Timestamp';
-        } else if (valExpr.includes('Date().toISOString()') || valExpr.includes('startIso') || valExpr.includes('endIso')) {
-          type = 'string';
-        } else if (valExpr.startsWith("'") || valExpr.startsWith('"')) {
-          type = 'string';
-        } else if (valExpr === 'true' || valExpr === 'false') {
-          type = 'boolean';
-        } else if (!isNaN(Number(valExpr))) {
-          type = 'number';
-        } else {
-          type = mapType(findVariableType(filesContent, valExpr));
-        }
-      } else {
-        type = mapType(findVariableType(filesContent, name));
+  for (const part of splitByTopLevelCommas(objectBody)) {
+    if (part.startsWith('...')) {
+      const id = part.slice(3).trim().match(/^[\w$]+/);
+      if (id) {
+        const decl = combinedContent.match(new RegExp(`\\b${id[0]}\\s*=\\s*\\{([\\s\\S]*?)\\}\\s*;`));
+        if (decl) fields.push(...parseObjectLiteral(filesContent, combinedContent, decl[1]));
       }
-
-      fields.push({ name, type });
+      continue;
     }
+    const m = part.match(propRegex);
+    if (!m) continue;
+    const name = m[1];
+    const valExpr = m[2] ? m[2].trim() : null;
+    fields.push({ name, type: valExpr ? typeFromValueExpr(valExpr, filesContent) : mapType(findVariableType(filesContent, name)) });
   }
   return fields;
 }
 
-/**
- * Extracts the second argument of database write calls robustly (tracking brace and parenthesis depth).
- */
-function extractWritePayload(content, writeRegex) {
-  let match;
-  const payloads = [];
-
-  while ((match = writeRegex.exec(content)) !== null) {
-    let index = match.index + match[0].length;
-    
-    // Skip whitespace
-    while (index < content.length && /\s/.test(content[index])) {
-      index++;
-    }
-
-    if (index >= content.length) continue;
-
-    if (content[index] === '{') {
-      // Object literal: parse matching braces
-      let braceCount = 0;
-      let startIdx = index;
-      while (index < content.length) {
-        const char = content[index];
-        if (char === '{') braceCount++;
-        else if (char === '}') {
-          braceCount--;
-          if (braceCount === 0) {
-            payloads.push(content.substring(startIdx, index + 1));
-            break;
-          }
-        }
-        index++;
-      }
-    } else {
-      // Variable or expression: parse until top-level comma or closing parenthesis of the call
-      let parenCount = 0;
-      let startIdx = index;
-      while (index < content.length) {
-        const char = content[index];
-        if (char === '(') parenCount++;
-        else if (char === ')') {
-          if (parenCount === 0) {
-            payloads.push(content.substring(startIdx, index).trim());
-            break;
-          }
-          parenCount--;
-        } else if (char === ',' && parenCount === 0) {
-          payloads.push(content.substring(startIdx, index).trim());
-          break;
-        }
-        index++;
-      }
+/** Infer the fields written by a single payload expression. */
+function fieldsFromPayload(payload, filesContent, combinedContent) {
+  if (!payload) return [];
+  const p = payload.trim();
+  if (p.startsWith('{') && p.endsWith('}')) {
+    return parseObjectLiteral(filesContent, combinedContent, p.slice(1, -1));
+  }
+  const fields = [];
+  const varName = (p.match(/^([A-Za-z_$][\w$]*)/) || [])[1];
+  if (varName) {
+    const decl = combinedContent.match(new RegExp(`\\b${varName}\\s*(?::[^=;]+)?=\\s*\\{([\\s\\S]*?)\\}\\s*;`));
+    if (decl) fields.push(...parseObjectLiteral(filesContent, combinedContent, decl[1]));
+    const type = findVariableType(filesContent, varName);
+    if (type && /^[A-Z]/.test(type)) {
+      const intf = parseInterfaceFromFiles(filesContent, type.replace(/Partial<|>|;/g, '').trim());
+      if (intf) fields.push(...intf);
     }
   }
-
-  return payloads;
+  const castMatch = p.match(/\bas\s+([A-Za-z_$][\w$]*)/);
+  if (castMatch && !['DocumentData', 'Partial', 'any', 'unknown'].includes(castMatch[1])) {
+    const intf = parseInterfaceFromFiles(filesContent, castMatch[1]);
+    if (intf) fields.push(...intf);
+  }
+  return fields;
 }
 
-/**
- * Merges field definitions by name, cleaning types and prioritizing more specific types.
- */
+/** Merge fields by name, preferring more specific (non-string) types. */
 function mergeFields(fieldList) {
   const map = new Map();
   for (const f of fieldList) {
     const name = f.name;
-    let type = f.type ? f.type.replace(/;$/, '').trim() : 'string';
-    if (!type) type = 'string';
-
-    if (map.has(name)) {
-      const existingType = map.get(name);
-      if (existingType === 'string' && type !== 'string') {
-        map.set(name, type);
-      }
-    } else {
+    let type = (f.type || 'string').replace(/;$/, '').trim() || 'string';
+    if (!map.has(name) || (map.get(name) === 'string' && type !== 'string')) {
       map.set(name, type);
     }
   }
   return Array.from(map.entries()).map(([name, type]) => ({ name, type }));
 }
 
-function main() {
-  console.log('Starting dynamic collection & schema inference...');
+// ─────────────────────────────────────────────────────────────────────────────
+// Relationship inference
+// ─────────────────────────────────────────────────────────────────────────────
 
-  const files = [FIREBASE_SERVICE_PATH, CALENDAR_SERVICE_PATH];
-  const filesContent = files.map(f => fs.readFileSync(f, 'utf8'));
+/** Guess the collection a foreign-key-looking field points at. */
+function foreignKeyTarget(fieldName, collectionNames) {
+  const lower = fieldName.toLowerCase();
+  if (lower === 'uid' || lower === 'id') return null; // primary key, not a relation
+  if (lower === 'userid' || lower.endsWith('uid')) {
+    return collectionNames.includes('users') ? 'users' : null;
+  }
+  if (lower.endsWith('id')) {
+    const base = fieldName.slice(0, -2); // strip "Id"
+    const candidates = [base, `${base}s`, base.toLowerCase(), `${base.toLowerCase()}s`];
+    return collectionNames.find(c => candidates.includes(c)) || null;
+  }
+  return null;
+}
+
+/** A mermaid-safe attribute type token (single word). */
+function sanitizeType(type) {
+  const t = (type || 'string').replace(/[^A-Za-z0-9_]/g, '_').replace(/^_+|_+$/g, '');
+  return t || 'string';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main
+// ─────────────────────────────────────────────────────────────────────────────
+
+function main() {
+  console.log('Inferring Firestore schema from source...');
+
+  const collectionsSrc = fs.readFileSync(COLLECTIONS_PATH, 'utf8');
+  const keyToName = parseCollectionsConstant(collectionsSrc);
+  console.log(`Canonical collections: ${Object.values(keyToName).join(', ') || '(none)'}`);
+
+  const sourceFiles = collectSourceFiles(SRC_DIR);
+  const filesContent = sourceFiles.map(f => fs.readFileSync(f, 'utf8'));
   const combinedContent = filesContent.join('\n');
 
-  // 1. Discover all collections from code
-  const collectionSet = new Set();
-  const collectionRegex = /(?:collection|doc)\(\s*(?:db|activeDb)\s*,\s*['"]([^'"]+)['"]/g;
-  let match;
-  while ((match = collectionRegex.exec(combinedContent)) !== null) {
-    collectionSet.add(match[1]);
-  }
-
-  const collections = Array.from(collectionSet);
-  console.log(`Discovered collections: ${collections.join(', ')}`);
-
-  const inferredSchemas = {};
-
-  for (const col of collections) {
-    console.log(`Inferring schema for collection: ${col}...`);
-    let fields = [];
-
-    // Find reference variables representing the collection
-    const refRegex = new RegExp(`const\\s+(\\w+)\\s*=\\s*(?:doc|collection)\\(\\s*(?:db|activeDb)\\s*,\\s*'${col}'`, 'g');
-    const refVars = [];
-    let refMatch;
-    while ((refMatch = refRegex.exec(combinedContent)) !== null) {
-      refVars.push(refMatch[1]);
+  // Accumulate raw fields per collection from every write in every file.
+  const rawSchemas = {};
+  sourceFiles.forEach((file, i) => {
+    const content = filesContent[i];
+    const refVarMap = findRefVars(content, keyToName);
+    for (const write of findWrites(content)) {
+      const col = resolveWriteTarget(write.target, refVarMap, keyToName);
+      if (!col) continue;
+      (rawSchemas[col] ||= []).push(...fieldsFromPayload(write.payload, filesContent, combinedContent));
     }
+  });
 
-    // Attempt to locate writes referencing this collection or its variables
-    let resolved = false;
-    let payloads = [];
-
-    // Search for writes referencing the variables
-    for (const refVar of refVars) {
-      const writeRegex = new RegExp(`(?:setDoc|tx\\.set|updateDoc|addDoc)\\(\\s*${refVar}\\s*,`, 'g');
-      payloads = payloads.concat(extractWritePayload(combinedContent, writeRegex));
-    }
-
-    // Direct inline write check
-    const inlineWriteRegex = new RegExp(`(?:setDoc|tx\\.set|updateDoc|addDoc)\\(\\s*(?:doc|collection)\\(\\s*(?:db|activeDb)\\s*,\\s*'${col}'[^\\)]*\\)\\s*,`, 'g');
-    payloads = payloads.concat(extractWritePayload(combinedContent, inlineWriteRegex));
-
-    const allFields = [];
-
-    // Process extracted payloads
-    for (const payload of payloads) {
-      if (payload.startsWith('{') && payload.endsWith('}')) {
-        const body = payload.slice(1, -1);
-        const parsed = parseObjectLiteral(filesContent, body);
-        allFields.push(...parsed);
-      } else {
-        const varDeclRegex = new RegExp(`const\\s+${payload}\\s*=\\s*\\{([\\s\\S]*?)\\}\\;`);
-        const declMatch = combinedContent.match(varDeclRegex);
-        if (declMatch) {
-          const parsed = parseObjectLiteral(filesContent, declMatch[1]);
-          allFields.push(...parsed);
-        }
-
-        const castRegex = new RegExp(`\\b${payload}\\s+as\\s+(\\w+)`);
-        const castMatch = combinedContent.match(castRegex);
-        if (castMatch) {
-          const interfaceFields = parseInterfaceFromFiles(filesContent, castMatch[1]);
-          if (interfaceFields) {
-            allFields.push(...interfaceFields);
-          }
-        }
-
-        const type = findVariableType(filesContent, payload);
-        if (type && type !== 'string') {
-          const cleanType = type.replace('Partial<', '').replace('>', '').replace(';', '').trim();
-          const interfaceFields = parseInterfaceFromFiles(filesContent, cleanType);
-          if (interfaceFields) {
-            allFields.push(...interfaceFields);
-          }
-        }
-      }
-    }
-
-    // Check possible interfaces as a supplement
-    const singularCol = col.endsWith('s') ? col.slice(0, -1) : col;
-    const possibleInterfaces = [
-      col.charAt(0).toUpperCase() + col.slice(1),
-      singularCol.charAt(0).toUpperCase() + singularCol.slice(1) + 'Profile',
-      singularCol.charAt(0).toUpperCase() + singularCol.slice(1),
-    ];
-
-    for (const intf of possibleInterfaces) {
-      const interfaceFields = parseInterfaceFromFiles(filesContent, intf);
-      if (interfaceFields) {
-        allFields.push(...interfaceFields);
-      }
-    }
-
-    if (allFields.length > 0) {
-      fields = mergeFields(allFields);
-      resolved = true;
-    }
-
-    if (resolved && fields.length > 0) {
-      inferredSchemas[col] = fields;
-      console.log(`Inferred fields for ${col}:`, fields);
-    } else {
-      console.warn(`Could not infer fields for collection: ${col}. Using empty schema.`);
-      inferredSchemas[col] = [];
+  // Supplement each collection with a matching interface, if one exists. Only
+  // persistence interfaces (defined in .ts service/config files) are considered —
+  // .tsx components define UI view-models (e.g. rows holding a snapshot) that are
+  // not the stored document shape.
+  const persistenceContent = filesContent.filter((_, i) => !sourceFiles[i].endsWith('.tsx'));
+  for (const col of Object.keys(rawSchemas)) {
+    const singular = col.endsWith('s') ? col.slice(0, -1) : col;
+    const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+    for (const intf of [cap(col), `${cap(singular)}Profile`, cap(singular)]) {
+      const fields = parseInterfaceFromFiles(persistenceContent, intf);
+      if (fields) rawSchemas[col].push(...fields);
     }
   }
 
-  // Generate Mermaid entities blocks dynamically
-  let mermaidBlocks = '';
-  for (const [col, fields] of Object.entries(inferredSchemas)) {
-    mermaidBlocks += `    ${col} {\n`;
-    for (const f of fields) {
+  // Finalize: merge fields and drop collections that are only path segments.
+  const schemas = {};
+  for (const [col, fields] of Object.entries(rawSchemas)) {
+    const merged = mergeFields(fields);
+    if (merged.length > 0) schemas[col] = merged;
+  }
+  const collectionNames = Object.keys(schemas).sort();
+  console.log(`Collections with inferred fields: ${collectionNames.join(', ')}`);
+
+  // Entity blocks.
+  let entityBlocks = '';
+  for (const col of collectionNames) {
+    entityBlocks += `    ${col} {\n`;
+    for (const f of schemas[col]) {
+      const lower = f.name.toLowerCase();
       const isPK = f.name === 'uid' || f.name === 'id';
-      const isFK = f.name.toLowerCase().endsWith('uid') || f.name.toLowerCase().endsWith('id');
-      const suffix = isPK ? 'PK' : (isFK ? 'FK' : '');
-      
-      let cleanType = f.type;
-      
-      // Ensure start and end in bookings are outputted as Timestamp in the ERD
-      if (col === 'bookings' && (f.name === 'start' || f.name === 'end')) {
-        cleanType = 'Timestamp';
-      }
-
-      mermaidBlocks += `        ${cleanType} ${f.name}${suffix ? ' ' + suffix : ''}\n`;
+      const isFK = !isPK && (lower.endsWith('uid') || lower.endsWith('id'));
+      const suffix = isPK ? ' PK' : (isFK ? ' FK' : '');
+      entityBlocks += `        ${sanitizeType(f.type)} ${f.name}${suffix}\n`;
     }
-    mermaidBlocks += `    }\n\n`;
+    entityBlocks += `    }\n\n`;
   }
+
+  // Relationships inferred from foreign-key-looking fields.
+  const relSet = new Set();
+  for (const col of collectionNames) {
+    for (const f of schemas[col]) {
+      const target = foreignKeyTarget(f.name, collectionNames);
+      if (target && target !== col) relSet.add(`    ${target} ||--o{ ${col} : "${f.name}"`);
+    }
+  }
+  const relationships = Array.from(relSet).sort().join('\n');
+
+  // Collection descriptions (generated, not hand-maintained).
+  let descriptions = '';
+  collectionNames.forEach((col, idx) => {
+    const pk = schemas[col].find(f => f.name === 'uid' || f.name === 'id');
+    const fks = schemas[col]
+      .map(f => ({ f, target: foreignKeyTarget(f.name, collectionNames) }))
+      .filter(x => x.target && x.target !== col);
+    descriptions += `### ${idx + 1}. \`${col}\`\n`;
+    descriptions += `* **Fields**: ${schemas[col].length} (\`${schemas[col].map(f => f.name).join('`, `')}\`)\n`;
+    descriptions += `* **Primary key**: ${pk ? `\`${pk.name}\`` : '_(document-scoped / composite id)_'}\n`;
+    if (fks.length) {
+      descriptions += `* **References**: ${fks.map(x => `\`${x.f.name}\` → \`${x.target}\``).join(', ')}\n`;
+    }
+    descriptions += '\n';
+  });
 
   const markdownContent = `# Database Schema ERD
 
 This document contains the Entity-Relationship Diagram (ERD) for the Peer Coaching Network database schema.
 
 > [!NOTE]
-> This file is auto-generated by running \`make erd\`. Do not edit this file directly.
+> This file is auto-generated by running \`make erd\` (\`scripts/generate-erd.js\`). Do not edit it directly.
+> Collections come from \`src/config/collections.ts\`; fields are inferred from Firestore writes and TypeScript interfaces across \`src/\`.
 
 ## Entity-Relationship Diagram
 
 \`\`\`mermaid
 erDiagram
-    users ||--o{ bookings : "hosts"
-    users ||--o{ bookings : "attends"
-    users ||--|| busySlotsCache : "defines"
-    users ||--o{ clientBookingCache : "holds"
-
-${mermaidBlocks.trimEnd()}
+${relationships ? relationships + '\n\n' : ''}${entityBlocks.trimEnd()}
 \`\`\`
 
 ## Collection Descriptions
 
-### 1. \`users\`
-Stores the profiles and preferences of the ICF-credentialed coaches.
-* **Primary Key**: \`uid\` (matches the Firebase Authentication User ID).
-* **Availability Template**: Defines the weekly default availability (e.g. 9:00 AM - 5:00 PM on weekdays) and any blocked dates.
-
-### 2. \`bookings\`
-Contains the confirmed peer coaching sessions scheduled between coaches.
-* **Primary Key**: \`id\` (formatted as \`\${coachUid}_\${startIso}\` to prevent double-booking of a coach at the same slot).
-* **Foreign Keys**: 
-  - \`coachUid\` references \`users.uid\` (the host).
-  - \`menteeUid\` references \`users.uid\` (the client).
-* **Google Integration**: Stores \`googleEventId\` and \`meetLink\` for synced calendar events.
-
-### 3. \`clientBookingCache\`
-Temporary holdings created during scheduling to prevent a mentee from double-booking themselves.
-* **Primary Key**: \`\${menteeUid}_\${startIso}\`.
-* **Foreign Keys**:
-  - \`menteeUid\` references \`users.uid\`.
-  - \`coachUid\` references \`users.uid\`.
-  - \`bookingId\` references \`bookings.id\`.
-
-### 4. \`busySlotsCache\`
-Cached busy slot records for each coach, derived dynamically to avoid expensive runtime calculations on every query.
-* **Primary Key**: \`uid\` (references \`users.uid\`).
-* **Busy Slots**: Aggregated array of busy time windows representing all active host and client bookings for the coach.
+${descriptions.trimEnd()}
 `;
 
   fs.writeFileSync(OUTPUT_PATH, markdownContent, 'utf8');
