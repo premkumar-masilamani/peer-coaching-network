@@ -630,7 +630,10 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
     const horizonEnd = new Date(horizonStart);
     horizonEnd.setDate(horizonEnd.getDate() + BOOKING_HORIZON_DAYS + 1);
     const busyIntervals = await getGoogleBusyIntervals(uid, horizonStart, horizonEnd);
-    const freeSlots = subtractBusyIntervals(availableSlots, busyIntervals);
+    // Deduplicate: overlapping template ranges on the same day (e.g. 9-12 and
+    // 11-14) would otherwise emit the same hourly slot twice, inflating the
+    // aggregate and pushing a day's shard past its 24-slot limit.
+    const freeSlots = Array.from(new Set(subtractBusyIntervals(availableSlots, busyIntervals))).sort();
 
     const availableDatesUtc = Array.from(
       new Set(freeSlots.map(slotStr => slotStr.split('T')[0]))
@@ -665,6 +668,20 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
 
     // Per-day discovery shards: one owned document per coach per UTC date, so
     // discovery reads only the selected day and no two coaches share a document.
+    //
+    // Shards are owner-written only — Firestore rules pin the document ID to
+    // "{ownUid}_{dateISO}" with no admin fallback, because an isAdmin() branch
+    // would spend get() calls per document and exceed the 20-document-access
+    // budget of a batched write. When an admin triggers a recalc for another
+    // coach (profile/credential edits), we refresh the aggregate cache only; the
+    // coach's shards are rebuilt on their next own recalc. Discovery gates on the
+    // live users/ profile, so admin status changes apply without any shard write.
+    if (auth?.currentUser?.uid !== uid) {
+      logger.debug(`Skipping day-shard rebuild for ${uid}: not the coach's own session.`);
+      logger.info(`Successfully recalculated aggregate availability cache for user: ${uid}`);
+      return;
+    }
+
     const slotsByDate = new Map<string, string[]>();
     for (const iso of freeSlots) {
       const dateISO = iso.split('T')[0];
