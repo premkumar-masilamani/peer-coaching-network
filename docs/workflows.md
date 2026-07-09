@@ -150,10 +150,18 @@ Key points:
   blockedDates − Google Calendar busy`. The busy lookup (`freeBusy`) is only possible
   on the coach's **own** authenticated session (their OAuth token); an admin-triggered
   recalc for another coach falls back to template-only availability.
-- **Two derived writes, both owned by the coach.** The aggregate
-  `personalAvailabilityCache` backs the coach's own single-doc "My Sessions" read; the
-  `coachAvailabilityByDate` shards (one per active UTC date) back discovery. Shards for
-  days that lost all availability are deleted so they stop matching discovery queries.
+- **Two derived writes.** The aggregate `personalAvailabilityCache` backs the coach's own
+  single-doc "My Sessions" read; the `coachAvailabilityByDate` shards (one per active UTC
+  date) back discovery. Shards for days that lost all availability are deleted so they
+  stop matching discovery queries. Hourly slots are **deduplicated**, so overlapping
+  template ranges (e.g. 9–12 and 11–14) can't double-count an hour.
+- **Shards are rebuilt only on the coach's own session.** Firestore rules pin each shard's
+  document ID to `{ownUid}_{dateISO}` with no admin fallback — a batched write of ~30
+  shards would otherwise spend `isAdmin()` `get()` calls per document and exceed
+  Firestore's 20-document-access budget. An admin-triggered recalc (profile/credential
+  edits) refreshes the aggregate cache only; the coach's shards rebuild on their next own
+  recalc. Because discovery gates on the live `users/` profile, an admin status change
+  takes effect immediately without any shard write.
 - **Denormalized filter fields** (`gender` / `country` / `icf_*`) are copied onto the
   shards so discovery can facet in-memory without joining `users`. `userStatus` is
   **deliberately not** on the shards — discovery gates on the live `users/` profile
