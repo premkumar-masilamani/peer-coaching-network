@@ -229,4 +229,29 @@ describe('UnsavedChangesContext', () => {
     expect(navigate).toHaveBeenCalledOnce();
     expect(q('[data-testid="mock-modal"]')).toBeNull();
   });
+
+  // ---------------------------------------------------------------------------
+  // beforeunload event handler
+  // ---------------------------------------------------------------------------
+
+  it('adds and removes beforeunload event listener based on isDirty state', () => {
+    renderProvider();
+    const addListenerSpy = vi.spyOn(window, 'addEventListener');
+    const removeListenerSpy = vi.spyOn(window, 'removeEventListener');
+
+    const onSave = vi.fn().mockResolvedValue(true);
+    act(() => { latestCtx!.setPageDirtyState(true, ['Changed field D'], onSave); });
+
+    expect(addListenerSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
+
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+
+    act(() => { latestCtx!.setPageDirtyState(false, [], onSave); });
+    expect(removeListenerSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
+
+    addListenerSpy.mockRestore();
+    removeListenerSpy.mockRestore();
+  });
 });
