@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useUnsavedChanges } from '../context/UnsavedChangesContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { formatDisplayName, queryAvailableCoachesForDay, subscribeToUserBookings, getUserAvailableSlots, getProfiles } from '../services/firebaseService';
 import { getCredentialBadgeClass, getCredentialDescription } from '../utils/credentials';
@@ -30,7 +31,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
-import { getLocalDateInTimezone, getUtcForSlot, getTimezoneCode } from '../utils/timezoneHelpers';
+import { getLocalDateInTimezone, getUtcForSlot, getTimezoneCode, isCoachAvailableForSlot } from '../utils/timezoneHelpers';
 import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
 import { sanitizeImageUrl, navigateToProfile } from '../utils/url';
 import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE } from '../config';
@@ -38,6 +39,7 @@ import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER
 
 export const UpcomingSessions: React.FC = () => {
   const { user: currentUser, profile } = useAuth();
+  const { navigateWithConfirmation } = useUnsavedChanges();
   
   // Ref for date carousel scrolling
   const carouselRef = React.useRef<HTMLDivElement>(null);
@@ -53,6 +55,26 @@ export const UpcomingSessions: React.FC = () => {
     if (carouselRef.current) {
       const containerWidth = carouselRef.current.clientWidth;
       carouselRef.current.scrollBy({ left: containerWidth + 12, behavior: 'smooth' });
+    }
+  };
+
+  const handleTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      const nextIndex = (index + 1) % days.length;
+      setSelectedDayIndex(nextIndex);
+      setTimeout(() => {
+        const buttons = carouselRef.current?.querySelectorAll<HTMLButtonElement>('button[role="tab"]');
+        buttons?.[nextIndex]?.focus();
+      }, 0);
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      const prevIndex = (index - 1 + days.length) % days.length;
+      setSelectedDayIndex(prevIndex);
+      setTimeout(() => {
+        const buttons = carouselRef.current?.querySelectorAll<HTMLButtonElement>('button[role="tab"]');
+        buttons?.[prevIndex]?.focus();
+      }, 0);
     }
   };
   
@@ -320,7 +342,7 @@ export const UpcomingSessions: React.FC = () => {
   const isUserUnavailable = useCallback((slotStart: Date, slotEnd: Date) => {
     const currentUid = currentUser?.uid;
     if (currentUid && currentUserBaseAvailable.length > 0) {
-      if (!currentUserBaseAvailable.includes(slotStart.toISOString())) {
+      if (!isCoachAvailableForSlot(currentUserBaseAvailable, slotStart.toISOString())) {
         return true;
       }
     }
@@ -850,14 +872,29 @@ export const UpcomingSessions: React.FC = () => {
               <ChevronLeft size={18} />
             </button>
 
-            <div ref={carouselRef} className="date-tabs-container">
+            <div ref={carouselRef} className="date-tabs-container" role="tablist" aria-label="Available dates">
               {days.map((day, index) => {
                 const isActive = index === selectedDayIndex;
                 return (
-                  <div 
+                  <button 
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    tabIndex={isActive ? 0 : -1}
                     key={day.toISOString()}
                     onClick={() => setSelectedDayIndex(index)}
+                    onKeyDown={(e) => handleTabKeyDown(e, index)}
                     className={`date-tab ${isActive ? 'active' : ''}`}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      color: 'inherit'
+                    }}
                   >
                     <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: isActive ? 0.9 : 0.6 }}>
                       {formatTabDayName(day)}
@@ -865,7 +902,7 @@ export const UpcomingSessions: React.FC = () => {
                     <span style={{ fontSize: '1rem', fontWeight: 800, marginTop: '2px' }}>
                       {formatTabDate(day)}
                     </span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -940,21 +977,39 @@ export const UpcomingSessions: React.FC = () => {
                                 <div key={coach.userId} className="mini-coach-card">
                                   <div>
                                     <div className="mini-coach-info">
-                                      <img
-                                        src={sanitizeImageUrl(coach.photoURL)}
-                                        alt={formatDisplayName(coach) || 'Coach'}
-                                        className="mini-coach-avatar"
-                                        style={{ border: `1.5px solid ${borderCol}`, cursor: 'pointer' }}
-                                        onClick={() => navigateToProfile(coach.userId)}
-                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => navigateWithConfirmation('profile', () => navigateToProfile(coach.userId))}
+                                        aria-label={`View ${formatDisplayName(coach)}'s profile`}
+                                        style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer' }}
+                                      >
+                                        <img
+                                          src={sanitizeImageUrl(coach.photoURL)}
+                                          alt=""
+                                          className="mini-coach-avatar"
+                                          style={{ border: `1.5px solid ${borderCol}` }}
+                                        />
+                                      </button>
                                       <div className="mini-coach-details">
-                                        <div 
+                                        <button
+                                          type="button"
+                                          onClick={() => navigateWithConfirmation('profile', () => navigateToProfile(coach.userId))}
                                           className="mini-coach-name"
-                                          style={{ cursor: 'pointer' }}
-                                          onClick={() => navigateToProfile(coach.userId)}
+                                          style={{
+                                            background: 'transparent',
+                                            border: 'none',
+                                            padding: 0,
+                                            margin: 0,
+                                            cursor: 'pointer',
+                                            textAlign: 'left',
+                                            fontFamily: 'inherit',
+                                            fontSize: 'inherit',
+                                            fontWeight: 'inherit',
+                                            color: 'inherit'
+                                          }}
                                         >
                                           {formatDisplayName(coach)}
-                                        </div>
+                                        </button>
                                         <div className="mini-coach-location">
                                           <MapPin size={10} color="hsl(var(--primary))" />
                                           {coach.country || 'Remote'}

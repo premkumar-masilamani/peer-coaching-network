@@ -46,7 +46,24 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
         margin: '0 auto'
       }}>
         {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => (role === USER_ROLE.USER || role === USER_ROLE.ADMIN) && setCurrentTab(TABS.DASHBOARD)}>
+        <button
+          type="button"
+          aria-label="Go to Dashboard"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            cursor: 'pointer',
+            background: 'transparent',
+            border: 'none',
+            padding: 0,
+            margin: 0,
+            textAlign: 'left',
+            fontFamily: 'inherit',
+            color: 'inherit'
+          }}
+          onClick={() => (role === USER_ROLE.USER || role === USER_ROLE.ADMIN) && setCurrentTab(TABS.DASHBOARD)}
+        >
           <div style={{
             background: 'hsl(var(--primary))',
             width: '40px',
@@ -67,7 +84,7 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
               Collaborative Calendly for coaches
             </span>
           </div>
-        </div>
+        </button>
 
         {/* User Badge and Menu */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

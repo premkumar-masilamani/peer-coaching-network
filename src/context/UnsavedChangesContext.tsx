@@ -26,6 +26,19 @@ export const UnsavedChangesProvider: React.FC<{ children: ReactNode }> = ({ chil
     mode: 'save'
   });
 
+  React.useEffect(() => {
+    if (!isDirty) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isDirty]);
+
   const setPageDirtyState = useCallback((dirty: boolean, newChanges: string[], saveFn: SaveFunction) => {
     setIsDirty(dirty);
     setChanges(newChanges);
@@ -58,12 +71,11 @@ export const UnsavedChangesProvider: React.FC<{ children: ReactNode }> = ({ chil
       if (success) {
         setIsDirty(false);
         setChanges([]);
-        setModalState(prev => {
-          if (prev.mode === 'navigate' && prev.navigateAction) {
-            prev.navigateAction();
-          }
-          return { ...prev, isOpen: false };
-        });
+        const action = modalState.navigateAction;
+        setModalState(prev => ({ ...prev, isOpen: false }));
+        if (modalState.mode === 'navigate' && action) {
+          action();
+        }
       } else {
         setModalState(prev => ({ ...prev, isOpen: false }));
       }
@@ -73,12 +85,11 @@ export const UnsavedChangesProvider: React.FC<{ children: ReactNode }> = ({ chil
   const handleDiscard = () => {
     setIsDirty(false);
     setChanges([]);
-    setModalState(prev => {
-      if (prev.mode === 'navigate' && prev.navigateAction) {
-        prev.navigateAction();
-      }
-      return { ...prev, isOpen: false };
-    });
+    const action = modalState.navigateAction;
+    setModalState(prev => ({ ...prev, isOpen: false }));
+    if (modalState.mode === 'navigate' && action) {
+      action();
+    }
   };
 
   return (

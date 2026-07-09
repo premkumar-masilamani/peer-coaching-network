@@ -678,4 +678,49 @@ describe('googleCalendar service', () => {
       expect(result['coach-1']).toBeDefined();
     });
   });
+
+  describe('remediation fixes for atomic booking and deterministic request IDs', () => {
+    it('sets the 10-minute expireAt property when writing pending booking and lock documents', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: 'gcal-event-id-123', hangoutLink: 'https://meet.google.com/foo-bar-baz' })
+      });
+
+      const mockTx = {
+        get: vi.fn().mockImplementation(async () => ({ exists: () => false })),
+        set: vi.fn(),
+      };
+      mockRunTransaction.mockImplementationOnce(async (db, callback) => {
+        await callback(mockTx);
+        return undefined;
+      });
+
+      await scheduleMeeting(
+        'coach-123',
+        'coach@example.com',
+        'John Coach',
+        'client-123',
+        'Mock Client',
+        '2026-06-18T10:00:00Z',
+        '2026-06-18T11:00:00Z',
+        'Career Development'
+      );
+
+      expect(mockTx.set).toHaveBeenCalledTimes(2);
+      const pendingBookingData = mockTx.set.mock.calls[0][1];
+      expect(pendingBookingData.expireAt).toBeDefined();
+      expect(pendingBookingData.expireAt).toBeInstanceOf(Timestamp);
+
+      const clientBookingCacheData = mockTx.set.mock.calls[1][1];
+      expect(clientBookingCacheData.expireAt).toBeDefined();
+      expect(clientBookingCacheData.expireAt).toBeInstanceOf(Timestamp);
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      const reqId = fetchBody.conferenceData.createRequest.requestId;
+      expect(reqId).toBeDefined();
+      expect(reqId.startsWith('req-')).toBe(true);
+    });
+  });
 });

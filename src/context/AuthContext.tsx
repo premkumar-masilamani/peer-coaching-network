@@ -10,10 +10,13 @@ import {
   updateOwnProfile,
   getEffectiveRole,
   getEffectiveStatus,
-  isFirebaseConfigured
+  isFirebaseConfigured,
+  db,
+  recalculateAvailableSlotsCache
 } from '../services/firebaseService';
 import type { UserProfile } from '../services/firebaseService';
-import { type UserRole } from '../config';
+import { doc, getDoc } from 'firebase/firestore';
+import { type UserRole, USER_ROLE, USER_STATUS, COLLECTIONS } from '../config';
 
 
 interface AuthContextType {
@@ -67,6 +70,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (prof) {
         setProfile(prof);
         setRole(getEffectiveStatus(prof) === 'active' ? getEffectiveRole(prof) : null);
+        
+        // Stale cache checking & lazy background refresh
+        if (prof.userRole === USER_ROLE.USER && getEffectiveStatus(prof) === USER_STATUS.ACTIVE) {
+          const cacheRef = doc(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE, user.uid);
+          getDoc(cacheRef).then((cacheSnap) => {
+            let shouldRefresh = !cacheSnap.exists();
+            if (cacheSnap.exists()) {
+              const data = cacheSnap.data();
+              const lastUpdated = data?.lastUpdated;
+              if (lastUpdated) {
+                const ageMs = Date.now() - new Date(lastUpdated).getTime();
+                if (ageMs > 24 * 60 * 60 * 1000) {
+                  shouldRefresh = true;
+                }
+              } else {
+                shouldRefresh = true;
+              }
+            }
+            if (shouldRefresh) {
+              recalculateAvailableSlotsCache(user.uid).catch(console.error);
+            }
+          }).catch(console.error);
+        }
       } else {
         setProfile(null);
         setRole(null);

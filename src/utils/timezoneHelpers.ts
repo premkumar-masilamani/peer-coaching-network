@@ -120,3 +120,23 @@ export const getTimezoneCode = (date: Date, timeZone: string): string => {
   }
 };
 
+export const isCoachAvailableForSlot = (coachSlots: string[], clientStartIso: string): boolean => {
+  const clientStart = new Date(clientStartIso).getTime();
+
+  const startCoveringSlot = coachSlots.find(iso => {
+    const s = new Date(iso).getTime();
+    return s <= clientStart && s + 60 * 60 * 1000 > clientStart;
+  });
+
+  if (!startCoveringSlot) return false;
+
+  const startCoveringTime = new Date(startCoveringSlot).getTime();
+  if (startCoveringTime === clientStart) return true;
+
+  const nextSlotTime = startCoveringTime + 60 * 60 * 1000;
+  const nextSlotIso = new Date(nextSlotTime).toISOString();
+
+  return coachSlots.includes(nextSlotIso);
+};
+
+

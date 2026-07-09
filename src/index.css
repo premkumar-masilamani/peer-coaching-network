@@ -706,3 +706,19 @@ p {
 .left-sidebar.collapsed .sidebar-user-info {
   display: none;
 }
+
+/* Native Dialog Styles */
+dialog.modal-dialog-native {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+dialog.modal-dialog-native::backdrop {
+  background: var(--modal-overlay-bg);
+  backdrop-filter: blur(8px);
+}
+
+dialog.modal-dialog-native:not([open]) {
+  display: none;
+}

@@ -5,7 +5,8 @@ import {
   parseLocalTime,
   getUtcForLocalDateTime,
   getUtcForSlot,
-  getTimezoneCode
+  getTimezoneCode,
+  isCoachAvailableForSlot
 } from '../timezoneHelpers';
 
 describe('timezoneHelpers', () => {
@@ -128,6 +129,39 @@ describe('timezoneHelpers', () => {
       } finally {
         Intl.DateTimeFormat.prototype.formatToParts = originalFormatToParts;
       }
+    });
+  });
+
+  describe('isCoachAvailableForSlot', () => {
+    it('returns true if the slot matches exactly', () => {
+      const coachSlots = [
+        '2026-07-09T03:00:00.000Z',
+        '2026-07-09T04:00:00.000Z'
+      ];
+      expect(isCoachAvailableForSlot(coachSlots, '2026-07-09T03:00:00.000Z')).toBe(true);
+    });
+
+    it('handles India timezone (+5:30) slot starting at fractional offset', () => {
+      const coachSlots = [
+        '2026-07-09T05:00:00.000Z',
+        '2026-07-09T06:00:00.000Z'
+      ];
+      expect(isCoachAvailableForSlot(coachSlots, '2026-07-09T05:30:00.000Z')).toBe(true);
+    });
+
+    it('returns false if India timezone (+5:30) slot is not contiguous', () => {
+      const coachSlots = [
+        '2026-07-09T05:00:00.000Z'
+      ];
+      expect(isCoachAvailableForSlot(coachSlots, '2026-07-09T05:30:00.000Z')).toBe(false);
+    });
+
+    it('handles Nepal timezone (+5:45) slot fractional offset', () => {
+      const coachSlots = [
+        '2026-07-09T05:00:00.000Z',
+        '2026-07-09T06:00:00.000Z'
+      ];
+      expect(isCoachAvailableForSlot(coachSlots, '2026-07-09T05:45:00.000Z')).toBe(true);
     });
   });
 });

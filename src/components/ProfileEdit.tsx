@@ -67,7 +67,7 @@ function getCompletionItems(profile: ReturnType<typeof useAuth>['profile']): Com
 
 export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSaveSuccess }) => {
   const { user, profile, updateProfileDetails } = useAuth();
-  const { setPageDirtyState, requestExplicitSave } = useUnsavedChanges();
+  const { setPageDirtyState, requestExplicitSave, navigateWithConfirmation } = useUnsavedChanges();
   const [copied, setCopied] = useState(false);
 
   // State for editable profile details
@@ -221,7 +221,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
               <div style={{ display: 'flex', gap: '10px', marginTop: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <button
                   type="button"
-                  onClick={() => navigateToProfile(user.uid)}
+                  onClick={() => navigateWithConfirmation('profile', () => navigateToProfile(user.uid))}
                   className="btn btn-secondary"
                   style={{ 
                     padding: '4px 10px', 
