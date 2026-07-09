@@ -132,13 +132,16 @@ service cloud.firestore {
         && isTimestamp(data.expireAt);
     }
 
-    // Validation helper for available slots cache
+    // Validation helper for the coach's aggregate availability cache.
+    // Upper bound: BOOKING_HORIZON_DAYS (30) x 24 hourly slots = 720 possible
+    // slots, plus margin. The previous cap of 200 rejected any coach whose
+    // template exceeded ~25 hours/week over the horizon (e.g. all 7 days, 9-5).
     function isValidPersonalAvailabilityCache(data) {
       return isMap(data)
         && isValidString(data.userId, 100)
         && isValidString(data.lastUpdated, 100)
         && isList(data.availableSlots)
-        && data.availableSlots.size() <= 200
+        && data.availableSlots.size() <= 750
         && (data.get('gender', null) == null || isString(data.gender))
         && (data.get('country', null) == null || isValidString(data.country, 100))
         && (data.get('icf_acc', null) == null || isBool(data.icf_acc))
@@ -288,31 +291,34 @@ service cloud.firestore {
     }
 
     match /personalAvailabilityCache/{uid} {
-      // Derived available-slot cache. Readable by any signed-in user, but only the
-      // OWNER may write their own cache. Live bookings are read from the 
-      // authoritative `bookings` collection and merged client-side.
+      // Derived aggregate cache backing the coach's own availability view.
+      // Readable by any signed-in user. Writable only by the OWNER, or by an
+      // admin (admin profile/credential edits trigger a recalc for that coach).
+      // This is a single-document write, so isAdmin()'s get() calls stay well
+      // within the 10-document-access budget.
       allow read: if isSignedIn();
-      // Owners may write their own cache; admins can also write any cache.
-      allow write: if (isSignedIn() && isValidPersonalAvailabilityCache(request.resource.data)) || (isOwner(uid) && isValidPersonalAvailabilityCache(request.resource.data)) || (isAdmin() && isValidPersonalAvailabilityCache(request.resource.data));
+      allow write: if (isOwner(uid) || isAdmin()) && isValidPersonalAvailabilityCache(request.resource.data);
     }
 
     match /coachAvailabilityByDate/{docId} {
       // Per-coach, per-day availability shards for O(day)-scoped discovery.
-      // Readable by any signed-in user. A coach may only write shards they own
-      // (document ID must be "{ownUid}_{dateISO}" and coachUid must match), so no
-      // coach can modify another coach's availability. Admins may also write any
-      // shard because admin actions (approval, role/status changes) trigger a
-      // recalculation of the affected coach's shards from the admin's session.
+      // Readable by any signed-in user. Writable ONLY by the owning coach: the
+      // document ID must be "{ownUid}_{dateISO}" and coachUid must match.
+      //
+      // Deliberately NO isAdmin() fallback. Shards are rebuilt in a writeBatch of
+      // up to ~30 documents, and Firestore allows only 20 document-access (get())
+      // calls per batched write — an isAdmin() branch would evaluate get()s per
+      // document and blow that budget. Admin-triggered recalcs therefore refresh
+      // only the aggregate cache (see doRecalculateAvailableSlotsCache); the
+      // coach's shards are rebuilt on their next own recalc. Discovery gates on
+      // the live users/ profile, so admin status changes take effect immediately
+      // without any shard write.
       allow read: if isSignedIn();
       allow create, update: if isSignedIn()
         && isValidCoachAvailabilityByDate(request.resource.data)
-        && (
-          (request.resource.data.coachUid == request.auth.uid
-            && docId == request.auth.uid + '_' + request.resource.data.dateISO)
-          || isAdmin()
-        );
-      allow delete: if isSignedIn()
-        && (resource.data.coachUid == request.auth.uid || isAdmin());
+        && request.resource.data.coachUid == request.auth.uid
+        && docId == request.auth.uid + '_' + request.resource.data.dateISO;
+      allow delete: if isSignedIn() && resource.data.coachUid == request.auth.uid;
     }
 
     match /systemLogs/{logId} {
