@@ -51,7 +51,7 @@ jobs:
           VITE_LOG_LEVEL: ${{ vars.DEV_VITE_LOG_LEVEL }}
 
       - name: Deploy to Firebase (Development)
-        uses: w9jds/firebase-action@v2.2.0
+        uses: w9jds/firebase-action@v15.22.4
         with:
           args: deploy --only firestore:${{ vars.DEV_VITE_FIRESTORE_DATABASE_ID }},hosting --project ${{ vars.DEV_VITE_FIREBASE_PROJECT_ID }} --debug
         env:
@@ -96,7 +96,7 @@ jobs:
           VITE_LOG_LEVEL: ${{ vars.PROD_VITE_LOG_LEVEL }}
 
       - name: Deploy to Firebase (Production)
-        uses: w9jds/firebase-action@v2.2.0
+        uses: w9jds/firebase-action@v15.22.4
         with:
           args: deploy --only firestore:${{ vars.PROD_VITE_FIRESTORE_DATABASE_ID }},hosting --project ${{ vars.PROD_VITE_FIREBASE_PROJECT_ID }} --debug
         env:
