@@ -68,6 +68,8 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Save Button Layout**: Save buttons inside complex user-editable forms (`ProfileEdit`, `AvailabilityEdit`) must be placed logically close to the fields they govern (e.g., at the bottom of the form or column container), rather than floating loosely in a global page header.
 
 ## 7. Layout & Coding Conventions
+- **Accessibility Linting**: `eslint-plugin-jsx-a11y` runs on `**/*.tsx`. Never blanket-disable its rules. Deliberate exceptions (backdrop click-catchers, `stopPropagation` guards, modal `autoFocus`) require a narrowly-scoped `eslint-disable-next-line` naming each rule, plus a comment saying why keyboard users are unaffected.
+- **jsx-a11y Peer Range**: The plugin caps its `eslint` peer at `^9` but runs correctly on `eslint` 10. `package.json` carries an `overrides` entry pinning it to the root `eslint`; without it, a plain `npm install` fails with `ERESOLVE`. Remove the override once the plugin declares v10 support.
 - **Named Exports**: Expose modules as named exports (e.g. `export const ProfileEdit`) rather than default exports.
 - **Verbatim Module Syntax**: When importing type definitions, prefix them with the `type` keyword (e.g. `import { type UserRole, type UserStatus } from '../config'`) to comply with `verbatimModuleSyntax` and prevent build failures.
 - **Constant & Type Naming**:

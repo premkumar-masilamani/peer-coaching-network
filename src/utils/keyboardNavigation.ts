@@ -1,3 +1,23 @@
+import type { KeyboardEvent } from 'react';
+
+/**
+ * Enter/Space activation for elements that must carry `role="button"` because
+ * their content is flow content and cannot legally live inside a `<button>`
+ * (e.g. a clickable card containing a heading). Prefer a real `<button>`.
+ *
+ * Space is activated on keyup by native buttons, but keydown is the common
+ * approximation; preventDefault stops Space from scrolling the page.
+ */
+export const activateOnEnterOrSpace =
+  <T extends Element>(activate: () => void) =>
+  (e: KeyboardEvent<T>): void => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    // Let inner controls (buttons, links, inputs) handle their own keys.
+    if (e.target !== e.currentTarget) return;
+    e.preventDefault();
+    activate();
+  };
+
 /**
  * Index math for the WAI-ARIA tabs keyboard pattern.
  *

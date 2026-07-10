@@ -266,6 +266,10 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                   }
                 }}
                 required
+                // The rule guards against autofocus on page load. This is a modal
+                // opened by explicit user action, where focus must move into the
+                // dialog; this textarea is its first and primary control.
+                // eslint-disable-next-line jsx-a11y/no-autofocus
                 autoFocus
                 rows={10}
                 maxLength={INPUT_LIMITS.COACHING_TOPIC}
