@@ -11,6 +11,7 @@ import {
 import { formatDisplayName } from '../services/firebaseService';
 import { MessageSquare, Send, ChevronLeft, Trash2, CheckCircle, Circle } from 'lucide-react';
 import { INPUT_LIMITS, SUPPORT_STATUS, type SupportStatus } from '../config';
+import { activateOnEnterOrSpace } from '../utils/keyboardNavigation';
 
 type FilterType = 'all' | SupportStatus;
 
@@ -286,17 +287,24 @@ export const SupportDesk: React.FC = () => {
               <p style={{ margin: 0 }}>No support requests found.</p>
             </div>
           ) : (
-            filteredRequests.map(req => (
-              <div 
-                key={req.id} 
+            filteredRequests.map(req => {
+              const openRequest = () => { setSelectedRequest(req); setView('detail'); };
+              return (
+              // role="button" rather than a real <button>: the card contains an
+              // <h4>, which is not valid inside a button.
+              <div
+                key={req.id}
                 className="glass-panel glass-panel-interactive"
-                style={{ 
+                role="button"
+                tabIndex={0}
+                style={{
                   padding: '16px',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                 }}
-                onClick={() => { setSelectedRequest(req); setView('detail'); }}
+                onClick={openRequest}
+                onKeyDown={activateOnEnterOrSpace(openRequest)}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -311,7 +319,8 @@ export const SupportDesk: React.FC = () => {
                 </div>
                 <ChevronLeft size={20} color="var(--text-muted)" style={{ transform: 'rotate(180deg)' }} />
               </div>
-            ))
+              );
+            })
           )}
         </div>
       )}

@@ -187,9 +187,12 @@ export const UpcomingSessions: React.FC = () => {
   // availability, so activating on every arrow press would fire one Firestore
   // query per keystroke and race the responses against each other.
   const [focusedTabIndex, setFocusedTabIndex] = useState(0);
-  const tabIdPrefix = useId();
-  const datePanelId = `${tabIdPrefix}panel`;
-  const dateTabId = (index: number) => `${tabIdPrefix}tab-${index}`;
+  const idPrefix = useId();
+  const datePanelId = `${idPrefix}panel`;
+  const dateTabId = (index: number) => `${idPrefix}tab-${index}`;
+  const qualsLabelId = `${idPrefix}quals-label`;
+  const qualsButtonId = `${idPrefix}quals-button`;
+  const durationLabelId = `${idPrefix}duration-label`;
 
   // Roving tabindex: exactly one tab is reachable via Tab. Buttons are keyed by
   // date and never remount, so the target is mounted and can be focused now.
@@ -748,13 +751,21 @@ export const UpcomingSessions: React.FC = () => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
               {/* Qualifications Custom Dropdown */}
               <div className="form-group" style={{ marginBottom: 0, position: 'relative', zIndex: qualsDropdownOpen ? 100 : 1 }}>
-                <label className="form-label">Qualifications</label>
+                {/* Not a <label>: it names a custom dropdown button, not a form
+                    control, so it associates via aria-labelledby. */}
+                <span className="form-label" id={qualsLabelId}>Qualifications</span>
                 <div style={{ position: 'relative' }}>
                   <Award size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))', zIndex: 10 }} />
                   <button
                     type="button"
+                    id={qualsButtonId}
                     onClick={() => setQualsDropdownOpen(!qualsDropdownOpen)}
                     className="input-field"
+                    // Names the button "Qualifications, <current selection>". The
+                    // disclosed panel is a checkbox group, not a listbox, so
+                    // aria-expanded alone describes it; no aria-haspopup.
+                    aria-labelledby={`${qualsLabelId} ${qualsButtonId}`}
+                    aria-expanded={qualsDropdownOpen}
                     style={{
                       paddingLeft: '34px',
                       fontSize: '0.85rem',
@@ -775,9 +786,14 @@ export const UpcomingSessions: React.FC = () => {
                   </button>
                   {qualsDropdownOpen && (
                     <>
-                      <div 
-                        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 90 }} 
-                        onClick={() => setQualsDropdownOpen(false)} 
+                      {/* Invisible click-catcher that closes the dropdown on an
+                          outside click. It is not a control and must stay out of
+                          the tab order; keyboard users close the dropdown by
+                          re-activating the button above or tabbing past it. */}
+                      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+                      <div
+                        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 90 }}
+                        onClick={() => setQualsDropdownOpen(false)}
                       />
                       <div style={{
                         position: 'absolute',
@@ -888,10 +904,12 @@ export const UpcomingSessions: React.FC = () => {
 
               {/* Session Duration */}
               <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Session Duration</label>
-                <div className="duration-toggle-container">
+                {/* Not a <label>: it names a group of toggle buttons, not a form control. */}
+                <span className="form-label" id={durationLabelId}>Session Duration</span>
+                <div className="duration-toggle-container" role="group" aria-labelledby={durationLabelId}>
                   <button
                     type="button"
+                    aria-pressed={selectedDuration === 30}
                     onClick={() => setSelectedDuration(30)}
                     className={selectedDuration === 30 ? 'btn btn-primary duration-toggle-btn' : 'btn btn-secondary duration-toggle-btn'}
                   >
@@ -899,6 +917,7 @@ export const UpcomingSessions: React.FC = () => {
                   </button>
                   <button
                     type="button"
+                    aria-pressed={selectedDuration === 60}
                     onClick={() => setSelectedDuration(60)}
                     className={selectedDuration === 60 ? 'btn btn-primary duration-toggle-btn' : 'btn btn-secondary duration-toggle-btn'}
                   >

@@ -626,6 +626,11 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
 
                       {/* Credentials Column */}
                       <td>
+                        {/* Stops the row's onClick from opening the coach detail;
+                            it adds no interaction of its own, so it needs no role
+                            or key handler. The row is mouse-only, so keyboard
+                            users never trigger what this guards against. */}
+                        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                             {(() => {
@@ -721,6 +726,9 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
 
                       {/* Status Column */}
                       <td>
+                        {/* Same guard. Keyboard activation is handled by the
+                            wrapped checkbox, which this label is associated with. */}
+                        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions */}
                         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={(e) => e.stopPropagation()}>
                           <input
                             type="checkbox"

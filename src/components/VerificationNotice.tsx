@@ -145,7 +145,8 @@ export const VerificationNotice: React.FC = () => {
             }
           `}</style>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Full Name</label>
+            {/* Not <label>s: these display read-only account values, not form controls. */}
+            <span className="form-label">Full Name</span>
             <div style={{
               padding: '10px 14px',
               background: 'var(--panel-hover-bg)',
@@ -159,7 +160,7 @@ export const VerificationNotice: React.FC = () => {
             </div>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Email Address</label>
+            <span className="form-label">Email Address</span>
             <div style={{
               padding: '10px 14px',
               background: 'var(--panel-hover-bg)',
@@ -178,10 +179,11 @@ export const VerificationNotice: React.FC = () => {
         <form onSubmit={handleSave}>
           {/* 1. Credentials */}
           <div className="form-group">
-            <label className="form-label">
+            {/* Not a <label>: the credentials below are read-only, not a form control. */}
+            <span className="form-label">
               <Award size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
               Credentials
-            </label>
+            </span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
               {displayCredentials.length > 0 ? (
                 displayCredentials.map((qual, idx) => (

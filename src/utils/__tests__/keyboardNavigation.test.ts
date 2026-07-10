@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { resolveTabNavigationIndex } from '../keyboardNavigation';
+import { describe, it, expect, vi } from 'vitest';
+import type { KeyboardEvent } from 'react';
+import { activateOnEnterOrSpace, resolveTabNavigationIndex } from '../keyboardNavigation';
 
 describe('resolveTabNavigationIndex', () => {
   const COUNT = 7;
@@ -42,5 +43,43 @@ describe('resolveTabNavigationIndex', () => {
     expect(resolveTabNavigationIndex('ArrowRight', 0, 0)).toBeNull();
     expect(resolveTabNavigationIndex('End', 0, 0)).toBeNull();
     expect(resolveTabNavigationIndex('ArrowLeft', 0, -1)).toBeNull();
+  });
+});
+
+describe('activateOnEnterOrSpace', () => {
+  const card = {} as Element;
+
+  // Minimal stand-in for React's synthetic keyboard event.
+  const event = (key: string, target: Element = card) =>
+    ({ key, target, currentTarget: card, preventDefault: vi.fn() }) as unknown as
+      KeyboardEvent<Element> & { preventDefault: ReturnType<typeof vi.fn> };
+
+  it('activates on Enter and Space, suppressing the default', () => {
+    for (const key of ['Enter', ' ']) {
+      const activate = vi.fn();
+      const e = event(key);
+      activateOnEnterOrSpace(activate)(e);
+      expect(activate).toHaveBeenCalledOnce();
+      expect(e.preventDefault).toHaveBeenCalledOnce();
+    }
+  });
+
+  it('ignores every other key and leaves the default intact', () => {
+    for (const key of ['Tab', 'Escape', 'a', 'ArrowDown', 'Spacebar']) {
+      const activate = vi.fn();
+      const e = event(key);
+      activateOnEnterOrSpace(activate)(e);
+      expect(activate).not.toHaveBeenCalled();
+      expect(e.preventDefault).not.toHaveBeenCalled();
+    }
+  });
+
+  it('does not fire when the key came from a nested control', () => {
+    // e.g. Enter on a button inside a clickable card must not also open the card.
+    const activate = vi.fn();
+    const e = event('Enter', {} as Element);
+    activateOnEnterOrSpace(activate)(e);
+    expect(activate).not.toHaveBeenCalled();
+    expect(e.preventDefault).not.toHaveBeenCalled();
   });
 });
