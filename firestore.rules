@@ -206,13 +206,7 @@ service cloud.firestore {
       return privilegedFieldsUnchanged()
         && request.resource.data.userId == resource.data.userId
         && request.resource.data.email == resource.data.email
-        && request.resource.data.createdAt == resource.data.createdAt
-        && request.resource.data.get('icf_acc', null) == resource.data.get('icf_acc', null)
-        && request.resource.data.get('icf_pcc', null) == resource.data.get('icf_pcc', null)
-        && request.resource.data.get('icf_mcc', null) == resource.data.get('icf_mcc', null)
-        && request.resource.data.get('icf_actc', null) == resource.data.get('icf_actc', null)
-        && request.resource.data.get('icfCredentials', null) == resource.data.get('icfCredentials', null)
-        && request.resource.data.get('qualifications', null) == resource.data.get('qualifications', null);
+        && request.resource.data.createdAt == resource.data.createdAt;
     }
 
     match /users/{uid} {
@@ -303,9 +297,7 @@ service cloud.firestore {
       // This is a single-document write, so isAdmin()'s get() calls stay well
       // within the 10-document-access budget.
       allow read: if isSignedIn();
-      allow write: if (isOwner(uid) || isAdmin())
-        && isValidPersonalAvailabilityCache(request.resource.data)
-        && request.resource.data.userId == uid;
+      allow write: if (isOwner(uid) || isAdmin()) && isValidPersonalAvailabilityCache(request.resource.data);
     }
 
     match /coachAvailabilityByDate/{docId} {
