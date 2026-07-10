@@ -10,10 +10,11 @@ import {
   updateOwnProfile,
   getEffectiveRole,
   getEffectiveStatus,
-  isFirebaseConfigured
+  isFirebaseConfigured,
+  lazyRecalculateAvailableSlotsCache
 } from '../services/firebaseService';
 import type { UserProfile } from '../services/firebaseService';
-import { type UserRole } from '../config';
+import { type UserRole, USER_ROLE, USER_STATUS } from '../config';
 
 
 interface AuthContextType {
@@ -66,7 +67,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const unsubProfile = subscribeToProfile(user.uid, (prof) => {
       if (prof) {
         setProfile(prof);
-        setRole(getEffectiveStatus(prof) === 'active' ? getEffectiveRole(prof) : null);
+        const status = getEffectiveStatus(prof);
+        const roleVal = getEffectiveRole(prof);
+        setRole(status === USER_STATUS.ACTIVE ? roleVal : null);
+
+        // If the user is an active coach, trigger lazy available slots cache recalculation
+        if (status === USER_STATUS.ACTIVE && roleVal === USER_ROLE.USER) {
+          lazyRecalculateAvailableSlotsCache(user.uid).catch((err) => {
+            console.error('Failed lazy availability recalculation on login:', err);
+          });
+        }
       } else {
         setProfile(null);
         setRole(null);

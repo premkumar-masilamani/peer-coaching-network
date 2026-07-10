@@ -4,7 +4,7 @@ import { formatDisplayName } from '../services/firebaseService';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { sanitizeImageUrl } from '../utils/url';
 import { MapPin, Calendar, Award } from 'lucide-react';
-import type { Qualification } from '../config';
+import { type Qualification, QUALIFICATION } from '../config';
 
 interface CoachCardProps {
   coach: UserProfile;
