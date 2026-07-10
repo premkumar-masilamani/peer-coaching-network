@@ -1,4 +1,4 @@
-.PHONY: install build build-dev build-prod dev lint test test\:integration test\:perf coverage emulator local erd deploy-dev deploy-prod
+.PHONY: install build build-dev build-prod dev lint test test\:integration test\:perf coverage emulator local seed erd deploy-dev deploy-prod
 
 install:
 	npm install
@@ -34,7 +34,10 @@ emulator:
 	npx firebase emulators:start
 
 local:
-	npm run local
+	node scripts/seed-emulator.cjs && npm run local
+
+seed:
+	node scripts/seed-emulator.cjs
 
 erd:
 	node scripts/generate-erd.js
