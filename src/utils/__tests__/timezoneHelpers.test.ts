@@ -5,7 +5,8 @@ import {
   parseLocalTime,
   getUtcForLocalDateTime,
   getUtcForSlot,
-  getTimezoneCode
+  getTimezoneCode,
+  isSlotAvailable
 } from '../timezoneHelpers';
 
 describe('timezoneHelpers', () => {
@@ -128,6 +129,70 @@ describe('timezoneHelpers', () => {
       } finally {
         Intl.DateTimeFormat.prototype.formatToParts = originalFormatToParts;
       }
+    });
+  });
+
+  describe('isSlotAvailable', () => {
+    it('returns false for empty availability', () => {
+      const start = new Date(Date.UTC(2026, 5, 18, 10, 0));
+      const end = new Date(Date.UTC(2026, 5, 18, 11, 0));
+      expect(isSlotAvailable([], start, end)).toBe(false);
+    });
+
+    it('returns true when exact 30m slot matches', () => {
+      const start = new Date(Date.UTC(2026, 5, 18, 10, 0));
+      const end = new Date(Date.UTC(2026, 5, 18, 10, 30));
+      const slots = [start.toISOString()];
+      expect(isSlotAvailable(slots, start, end)).toBe(true);
+    });
+
+    it('returns true when exact 60m slot matches contiguous available blocks', () => {
+      const start = new Date(Date.UTC(2026, 5, 18, 10, 0));
+      const end = new Date(Date.UTC(2026, 5, 18, 11, 0));
+      const slots = [
+        new Date(Date.UTC(2026, 5, 18, 10, 0)).toISOString(),
+        new Date(Date.UTC(2026, 5, 18, 10, 30)).toISOString()
+      ];
+      expect(isSlotAvailable(slots, start, end)).toBe(true);
+    });
+
+    it('returns false when slot is only partially covered', () => {
+      const start = new Date(Date.UTC(2026, 5, 18, 10, 0));
+      const end = new Date(Date.UTC(2026, 5, 18, 11, 0));
+      const slots = [
+        new Date(Date.UTC(2026, 5, 18, 10, 0)).toISOString() // covers 10:00 to 10:30 only
+      ];
+      expect(isSlotAvailable(slots, start, end)).toBe(false);
+    });
+
+    it('returns false when there is a gap in contiguous availability', () => {
+      const start = new Date(Date.UTC(2026, 5, 18, 10, 0));
+      const end = new Date(Date.UTC(2026, 5, 18, 11, 0));
+      const slots = [
+        new Date(Date.UTC(2026, 5, 18, 10, 0)).toISOString(), // 10:00 - 10:30
+        new Date(Date.UTC(2026, 5, 18, 11, 0)).toISOString()  // 11:00 - 11:30 (gap at 10:30)
+      ];
+      expect(isSlotAvailable(slots, start, end)).toBe(false);
+    });
+
+    it('handles fractional timezones correctly', () => {
+      // Coach is in Asia/Kolkata (+5:30), template availability is 9:00 AM - 10:30 AM local
+      // UTC slots are: 03:30Z (09:00 local), 04:00Z (09:30 local), 04:30Z (10:00 local)
+      const slots = [
+        new Date(Date.UTC(2026, 5, 18, 3, 30)).toISOString(), // 03:30 - 04:00
+        new Date(Date.UTC(2026, 5, 18, 4, 0)).toISOString(),  // 04:00 - 04:30
+        new Date(Date.UTC(2026, 5, 18, 4, 30)).toISOString()  // 04:30 - 05:00
+      ];
+
+      // Student is in UTC, searches for a 1-hour session from 04:00Z to 05:00Z
+      const start = new Date(Date.UTC(2026, 5, 18, 4, 0));
+      const end = new Date(Date.UTC(2026, 5, 18, 5, 0));
+      expect(isSlotAvailable(slots, start, end)).toBe(true);
+
+      // Student searches for 1-hour session from 03:00Z to 04:00Z (uncovered from 03:00 to 03:30)
+      const startUncovered = new Date(Date.UTC(2026, 5, 18, 3, 0));
+      const endUncovered = new Date(Date.UTC(2026, 5, 18, 4, 0));
+      expect(isSlotAvailable(slots, startUncovered, endUncovered)).toBe(false);
     });
   });
 });

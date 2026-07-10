@@ -120,3 +120,38 @@ export const getTimezoneCode = (date: Date, timeZone: string): string => {
   }
 };
 
+/**
+ * Checks if a dynamic query slot [slotStart, slotEnd] is fully covered by the available slots.
+ * Each available slot represents a 30-minute availability window starting at the ISO date/time.
+ */
+export const isSlotAvailable = (availableSlots: string[], slotStart: Date, slotEnd: Date): boolean => {
+  if (availableSlots.length === 0) return false;
+  
+  const slotStartMs = slotStart.getTime();
+  const slotEndMs = slotEnd.getTime();
+  const stepMs = 30 * 60 * 1000; // 30 minutes
+  
+  const intervals = availableSlots
+    .map(s => {
+      const start = new Date(s).getTime();
+      return { start, end: start + stepMs };
+    })
+    .sort((a, b) => a.start - b.start);
+    
+  const merged: { start: number; end: number }[] = [];
+  for (const interval of intervals) {
+    if (merged.length === 0) {
+      merged.push(interval);
+    } else {
+      const last = merged[merged.length - 1];
+      if (interval.start <= last.end) {
+        last.end = Math.max(last.end, interval.end);
+      } else {
+        merged.push(interval);
+      }
+    }
+  }
+  
+  return merged.some(interval => interval.start <= slotStartMs && slotEndMs <= interval.end);
+};
+
