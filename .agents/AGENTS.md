@@ -40,11 +40,19 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Context Hooks Dependencies**: Always wrap extracted handlers (like `handleSave`) in `useCallback` when passing them into context state setters (like `setPageDirtyState`) to prevent infinite cascading render loops.
 - **Decoupling State for Layout Flashes**: To prevent UI flickering on tab switches or date selection, decouple the "UI render state" from the "Query state" (`fetchedDayIndex` vs `selectedDayIndex`). Hold previous data on screen with a soft CSS transition until new data arrives rather than unmounting components for a spinner.
 - **Carousel Centering**: Use `activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })` inside a `useEffect` to automatically center selected carousel items.
+- **No Ref Mutation During Render (`react-hooks/refs`)**: Never write to `ref.current` in the render body. For arrays of element refs, assign in the ref callback and return the React 19 cleanup function (`return () => { refs.current[i] = null; }`).
+- **Scoped DOM IDs**: Generate ids consumed by `aria-controls` / `aria-labelledby` with `useId()`, never module-level constants, so the wiring survives multiple mounts of the same component.
 
 ## 5. UI & Styling Guidelines
 - **CSS Variables & HSL**: Theme colors in `index.css` (e.g., `--primary`) are raw HSL values. You **MUST ALWAYS** wrap them in inline styles: `hsl(var(--primary))`.
 - **Theming**: Supported values are `'light' | 'dark'` only. No `'system'` fallback.
 - **Buttons & Interactive Elements**: Never use inline styles for buttons. Always use utility classes `className="btn btn-primary"` or `className="btn btn-secondary"`.
+- **Semantic Interactivity**: Never attach `onClick` to a `div`, `img`, or `span`. Use `<button type="button">`, which provides Enter/Space activation natively — no `onKeyDown` required.
+- **Button Content Model**: A `<button>` may only contain phrasing content. Use `<span>`, never `div`/`h3`/`p`. When converting a heading, reapply the global `h1–h6` font and color, as a `span` does not inherit them.
+- **Button CSS Resets**: Converting a `div` to a `button` resets inherited styles. Restore `font-family: inherit`, `color: inherit`, and `text-align` in the element's class (not inline).
+- **Conditional Interactivity**: Render an element as a `<button>` only when it can actually act. `role` is `null` for pending users and `undefined` while auth loads; neither may receive a focusable control that does nothing.
+- **Focus Rings**: Never declare `border-radius` inside a bare `:focus-visible` block. It ties `.btn`/`.input-field` on specificity and wins on source order, silently reshaping them for keyboard users only. The outline already follows each element's own radius.
+- **Tabs Use Manual Activation**: When selecting a tab triggers a fetch, arrow keys move focus only (roving `tabIndex` driven by a `focusedTabIndex` separate from the selected index); `Enter`/`Space` commits. Automatic activation fires one query per keystroke and races the responses. Arrow keys must wrap, and `Home`/`End` must jump to the first/last tab. Always pair `role="tablist"` with a real `role="tabpanel"`, or `aria-selected` refers to nothing.
 - **Semantic Text**: Use `hsl(var(--text-primary))`, `hsl(var(--text-secondary))`, and `hsl(var(--text-muted))`. Do not hardcode hex values.
 - **Glassmorphism**: Use `className="glass-panel"` for intelligent theme-aware cards and containers.
 - **Modals**: Never use inline JSX overlays. All modals must be standalone components in `src/components/modals/`.
