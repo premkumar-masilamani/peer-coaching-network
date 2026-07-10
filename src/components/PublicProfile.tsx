@@ -23,7 +23,7 @@ import {
   buildDisplayCredentials
 } from '../utils/credentials';
 import { sanitizeImageUrl } from '../utils/url';
-import type { Qualification } from '../config';
+import { type Qualification, QUALIFICATION } from '../config';
 
 interface PublicProfileProps {
   uid: string;
