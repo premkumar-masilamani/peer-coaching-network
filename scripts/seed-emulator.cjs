@@ -291,7 +291,11 @@ async function seedUser(userData) {
   const displayName    = `${firstName} ${lastName}`;
   const normalizedEmail = email.toLowerCase();
 
-  // ── 1. Create Firebase Auth user (Google provider only) ───────────────────
+  // ── 1. Import Firebase Auth user with Google provider ─────────────────────
+  // auth.createUser() silently ignores providerData — it is not a supported
+  // parameter for that method. importUsers() is the only Admin SDK method that
+  // writes providerData to the Auth store, making the account appear in the
+  // emulator's "Sign in with Google" picker.
   let uid;
   try {
     const existing = await auth.getUserByEmail(normalizedEmail);
@@ -300,24 +304,33 @@ async function seedUser(userData) {
   } catch (err) {
     if (err.code !== 'auth/user-not-found') throw err;
 
-    const created = await auth.createUser({
-      email: normalizedEmail,
-      emailVerified: true,
-      displayName,
-      // Linking google.com as the provider causes the emulator's
-      // "Sign in with Google" flow to surface this account for selection.
-      providerData: [
-        {
-          uid: normalizedEmail,
-          email: normalizedEmail,
-          displayName,
-          photoURL: null,
-          providerId: 'google.com',
-        },
-      ],
-    });
-    uid = created.uid;
-    console.log(`  ↳ Created Auth user (uid: ${uid})`);
+    const { randomUUID } = require('crypto');
+    // Firebase UIDs are 28-char alphanumeric strings; slice to match convention.
+    uid = randomUUID().replace(/-/g, '').slice(0, 28);
+
+    const importResult = await auth.importUsers([
+      {
+        uid,
+        email: normalizedEmail,
+        emailVerified: true,
+        displayName,
+        providerData: [
+          {
+            uid: normalizedEmail,
+            email: normalizedEmail,
+            displayName,
+            providerId: 'google.com',
+          },
+        ],
+      },
+    ]);
+
+    if (importResult.errors && importResult.errors.length > 0) {
+      const msg = importResult.errors.map(e => e.error.message).join('; ');
+      throw new Error(`importUsers failed: ${msg}`);
+    }
+
+    console.log(`  ↳ Imported Auth user with Google provider (uid: ${uid})`);
   }
 
   // ── 2. Write users/{uid} Firestore document ────────────────────────────────
