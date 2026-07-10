@@ -11,8 +11,10 @@
     "build:prod": "tsc -b && vite build --mode production",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run",
-    "coverage": "vitest run --coverage"
+    "test": "vitest run --project=unit",
+    "coverage": "vitest run --project=unit --coverage",
+    "test:integration": "vitest run --project=integration",
+    "test:perf": "TEST_USER_COUNT=100 vitest run --project=integration --reporter=verbose"
   },
   "overrides": {
     "eslint-plugin-jsx-a11y": {
@@ -36,6 +38,8 @@
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
+    "firebase-admin": "^14.1.0",
+    "firebase-tools": "^15.23.0",
     "globals": "^17.6.0",
     "jsdom": "^29.1.1",
     "typescript": "~6.0.2",
