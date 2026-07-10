@@ -29,7 +29,12 @@ export const ReviewChangesModal: React.FC<ReviewChangesModalProps> = ({
   if (!isOpen) return null;
 
   return (
+    // Click-to-dismiss backdrop: a mouse convenience, not a control. Keyboard
+    // users dismiss via the close button below. The inner handler only stops
+    // clicks inside the dialog from reaching the backdrop.
+    /* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */
     <div className="modal-overlay" style={{ pointerEvents: 'auto', zIndex: 9999 }} onClick={onClose}>
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
       <div className="glass-panel modal-content" style={{ padding: '32px', position: 'relative', border: '1px solid rgba(139, 92, 246, 0.3)' }} onClick={(e) => e.stopPropagation()}>
         <button
           onClick={onClose}

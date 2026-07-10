@@ -196,6 +196,7 @@ export const SystemLogs: React.FC = () => {
       borderRadius: '20px',
       fontSize: '0.8rem',
       fontWeight: 600,
+      fontFamily: 'inherit',
       cursor: 'pointer',
       transition: 'all 0.18s ease',
       userSelect: 'none',
@@ -256,7 +257,9 @@ export const SystemLogs: React.FC = () => {
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {/* "All" chip — active when nothing else is selected */}
-            <span
+            <button
+              type="button"
+              aria-pressed={selectedSeverities.length === 0}
               onClick={() => {
                 setSelectedSeverities([]);
                 setPageIndex(0);
@@ -271,6 +274,7 @@ export const SystemLogs: React.FC = () => {
                 borderRadius: '20px',
                 fontSize: '0.8rem',
                 fontWeight: 600,
+                fontFamily: 'inherit',
                 cursor: 'pointer',
                 transition: 'all 0.18s ease',
                 userSelect: 'none',
@@ -286,19 +290,21 @@ export const SystemLogs: React.FC = () => {
               }}
             >
               All
-            </span>
+            </button>
 
             {SEVERITY_OPTIONS.map(({ value, label }) => {
               const active = selectedSeverities.includes(value);
               return (
-                <span
+                <button
                   key={value}
+                  type="button"
+                  aria-pressed={active}
                   onClick={() => handleSeverityToggle(value)}
                   style={getSeverityChipStyle(value, active)}
                 >
                   {severityChipIcons[value]}
                   {label}
-                </span>
+                </button>
               );
             })}
           </div>

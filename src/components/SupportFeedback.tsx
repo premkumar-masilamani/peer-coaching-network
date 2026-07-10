@@ -11,6 +11,7 @@ import {
 import { formatDisplayName } from '../services/firebaseService';
 import { SUPPORT_CATEGORIES, type SupportCategory, INPUT_LIMITS, SUPPORT_STATUS, type SupportStatus } from '../config';
 import { MessageSquare, Plus, Send, ChevronLeft, LifeBuoy, Tag, Type, AlignLeft, CheckCircle, Circle } from 'lucide-react';
+import { activateOnEnterOrSpace } from '../utils/keyboardNavigation';
 
 export const SupportFeedback: React.FC = () => {
   const { profile } = useAuth();
@@ -349,17 +350,24 @@ export const SupportFeedback: React.FC = () => {
               <p style={{ margin: 0 }}>No support requests found.</p>
             </div>
           ) : (
-            filteredTickets.map(ticket => (
-              <div 
-                key={ticket.id} 
+            filteredTickets.map(ticket => {
+              const openTicket = () => { setSelectedTicket(ticket); setView('detail'); };
+              return (
+              // role="button" rather than a real <button>: the card contains an
+              // <h4>, which is not valid inside a button.
+              <div
+                key={ticket.id}
                 className="glass-panel glass-panel-interactive"
-                style={{ 
+                role="button"
+                tabIndex={0}
+                style={{
                   padding: '16px',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
                 }}
-                onClick={() => { setSelectedTicket(ticket); setView('detail'); }}
+                onClick={openTicket}
+                onKeyDown={activateOnEnterOrSpace(openTicket)}
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -374,7 +382,8 @@ export const SupportFeedback: React.FC = () => {
                 </div>
                 <ChevronLeft size={20} color="var(--text-muted)" style={{ transform: 'rotate(180deg)' }} />
               </div>
-            ))
+              );
+            })
           )}
         </div>
       )}

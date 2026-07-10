@@ -137,9 +137,14 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   return (
+    // Click-to-dismiss backdrop: a mouse convenience, not a control. Keyboard
+    // users dismiss via the close button below. The inner handler only stops
+    // clicks inside the dialog from reaching the backdrop.
+    /* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */
     <div className="modal-overlay" style={{ pointerEvents: 'auto', zIndex: 9999 }} onClick={onClose}>
-      <div 
-        className="glass-panel modal-content" 
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+      <div
+        className="glass-panel modal-content"
         style={{ 
           padding: '24px', 
           position: 'relative', 

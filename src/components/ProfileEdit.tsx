@@ -353,10 +353,11 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
         }}>
           {/* 1. Credentials */}
           <div className="form-group">
-            <label className="form-label">
+            {/* Not a <label>: the credentials below are read-only badges, not a form control. */}
+            <span className="form-label">
               <Award size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
               Credentials
-            </label>
+            </span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
               {displayCredentials.length > 0 ? (
                 displayCredentials.map((qual, idx) => {
