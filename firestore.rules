@@ -297,7 +297,7 @@ service cloud.firestore {
       // This is a single-document write, so isAdmin()'s get() calls stay well
       // within the 10-document-access budget.
       allow read: if isSignedIn();
-      allow write: if (isOwner(uid) || isAdmin()) && isValidPersonalAvailabilityCache(request.resource.data);
+      allow write: if (isOwner(uid) || isAdmin()) && isValidPersonalAvailabilityCache(request.resource.data) && request.resource.data.userId == uid;
     }
 
     match /coachAvailabilityByDate/{docId} {
