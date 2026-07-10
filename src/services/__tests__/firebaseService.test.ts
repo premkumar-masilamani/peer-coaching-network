@@ -883,7 +883,7 @@ describe('firebaseService', () => {
     it('writes the aggregate cache and per-day shards, and deletes stale shards', async () => {
       authState.currentUser = { uid: 'coach-recalc' }; // own session → shards rebuilt
       // getDoc order: user profile, availableDays, blockedDates
-      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ timezone: 'UTC', gender: 'female', country: 'IN', userStatus: 'active', icf_acc: true }) });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ timezone: 'UTC', gender: 'female', country: 'IN', userStatus: 'active', userRole: 'user', icf_acc: true }) });
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => allDaysEnabled });
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ blockedDates: [] }) });
       // existing shards: one stale date that must be deleted
