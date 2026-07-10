@@ -4,17 +4,12 @@ import react from '@vitejs/plugin-react'
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
-  let databaseId = env.VITE_FIRESTORE_DATABASE_ID || process.env.VITE_FIRESTORE_DATABASE_ID;
-
-  if (!databaseId && mode === 'production') {
-    const devEnv = loadEnv('development', process.cwd(), '');
-    databaseId = devEnv.VITE_FIRESTORE_DATABASE_ID;
-  }
+  const databaseId = env.VITE_FIRESTORE_DATABASE_ID || process.env.VITE_FIRESTORE_DATABASE_ID;
 
   if (mode !== 'test' && !databaseId) {
     throw new Error(
       'Missing required environment variable: VITE_FIRESTORE_DATABASE_ID. ' +
-      'Please specify the Firestore database name (e.g. pcn-dev) in your environment configuration.'
+      'Please specify the Firestore database name in your environment configuration.'
     );
   }
 
