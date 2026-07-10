@@ -1,6 +1,10 @@
-import type { UserProfile, AvailableDays } from './firebaseService';
-import { db, auth, getSchedule, timestampToTimeString, formatDisplayName } from './firebaseService';
-import { 
+import type { UserProfile, AvailableDays } from './types';
+import { db, auth } from './firebaseApp';
+import { getSchedule } from './scheduleService';
+import { formatDisplayName } from './profileService';
+import { chunkArray } from '../utils/chunkArray';
+import { generateTemplateSlots } from '../utils/slotGeneration';
+import {
   collection,
   query,
   where,
@@ -14,7 +18,6 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import type { DocumentData, QuerySnapshot, DocumentSnapshot } from 'firebase/firestore';
-import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { getGoogleToken } from './googleToken';
 import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION, LOG_SEVERITY, BOOKING_STATUS, EVENT_TYPE, BOOKING_ERROR, COLLECTIONS } from '../config';
 import { logger } from '../utils/logger';
@@ -38,15 +41,6 @@ export interface CalendarEvent {
   clientUid?: string;
   attendees?: { email: string; displayName?: string }[];
 }
-
-// Split an array into chunks of at most `size` (for Firestore `in` queries,
-// which accept up to 30 values).
-const chunkArray = <T>(arr: T[], size: number): T[][] => {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
-};
-
 
 interface GoogleCalendarEvent {
   id: string;
@@ -656,62 +650,27 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
   logger.info(`Successfully cancelled booking. Booking ID: ${bookingId}`);
 };
 
+// Template-only availability used when a coach has no precomputed cache document.
+// Windowed to [timeMin, timeMax); delegates to the single shared slot generator
+// so this path can never drift from the availability-cache recalculation.
 export const generateFallbackAvailableSlots = (
   coach: UserProfile,
   schedule: { availableDays: AvailableDays; blockedDates: string[] },
   timeMinStr: string,
   timeMaxStr: string
 ): string[] => {
-  const timezone = coach.timezone || 'UTC';
-  const { availableDays, blockedDates } = schedule;
-
   const timeMin = new Date(timeMinStr);
   const timeMax = new Date(timeMaxStr);
 
-  const localToday = getLocalDateInTimezone(timeMin, timezone);
-  const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-
-  const availableSlots: string[] = [];
-
-  for (let i = 0; i < BOOKING_HORIZON_DAYS; i++) {
-    const currentDate = new Date(localToday);
-    currentDate.setDate(localToday.getDate() + i);
-    if (currentDate.getTime() > timeMax.getTime()) break;
-
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth() + 1;
-    const day = currentDate.getDate();
-
-    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    if (blockedDates.includes(dateStr)) continue;
-
-    const dayName = daysOfWeek[currentDate.getDay()];
-    const daySched = availableDays[dayName as keyof AvailableDays] || { enabled: false, slots: [] };
-
-    if (!daySched.enabled || !daySched.slots || daySched.slots.length === 0) continue;
-
-    for (const slot of daySched.slots) {
-      const startTimeString = timestampToTimeString(slot.startTime);
-      const endTimeString = timestampToTimeString(slot.endTime);
-      
-      const parsedStart = parseLocalTime(startTimeString);
-      const parsedEnd = parseLocalTime(endTimeString);
-      
-      const startMinutes = parsedStart.hour * 60 + parsedStart.minute;
-      const endMinutes = parsedEnd.hour * 60 + parsedEnd.minute;
-      
-      for (let min = startMinutes; min < endMinutes; min += 30) {
-        const slotHour = Math.floor(min / 60);
-        const slotMin = min % 60;
-        const slotStartUtc = getUtcForLocalDateTime(year, month, day, slotHour, slotMin, timezone);
-        if (slotStartUtc.getTime() >= timeMin.getTime() && slotStartUtc.getTime() < timeMax.getTime()) {
-          availableSlots.push(slotStartUtc.toISOString());
-        }
-      }
-    }
-  }
-
-  return availableSlots;
+  return generateTemplateSlots({
+    availableDays: schedule.availableDays,
+    blockedDates: schedule.blockedDates,
+    timezone: coach.timezone || 'UTC',
+    anchorDate: timeMin,
+    horizonDays: BOOKING_HORIZON_DAYS,
+    rangeStartMs: timeMin.getTime(),
+    rangeEndMs: timeMax.getTime(),
+  });
 };
 
 export const getCoachesAvailability = async (
