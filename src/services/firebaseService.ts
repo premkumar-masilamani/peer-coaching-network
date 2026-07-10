@@ -655,7 +655,7 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
     };
     const lastUpdated = new Date().toISOString();
 
-    const isDiscoverable = profile.userRole === USER_ROLE.USER && isApproved(profile);
+    const isDiscoverable = (profile.userRole === USER_ROLE.USER || profile.userRole === USER_ROLE.ADMIN) && isApproved(profile);
     const finalFreeSlots = isDiscoverable ? freeSlots : [];
     const finalAvailableDatesUtc = isDiscoverable ? availableDatesUtc : [];
 
@@ -1000,10 +1000,10 @@ export const queryAvailableCoachesForDay = async (
   profileSnaps.forEach((snap) => {
     snap.forEach((docSnap) => {
       const profile = docSnap.data() as UserProfile;
-       // Gate on the live, authoritative profile: only active coaches (role USER,
+       // Gate on the live, authoritative profile: only active coaches (role USER or ADMIN,
        // status active) are discoverable. Inactive/pending coaches with a stale
        // availability shard must never surface for booking.
-       if (profile.userRole === USER_ROLE.USER && isApproved(profile)) {
+       if ((profile.userRole === USER_ROLE.USER || profile.userRole === USER_ROLE.ADMIN) && isApproved(profile)) {
          coachProfiles.push(profile);
        }
     });
