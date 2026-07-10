@@ -247,6 +247,7 @@ service cloud.firestore {
       // booking ID must match the coachUid format to prevent slot hijacking.
       // Enforced initial status must be pending.
       allow create: if isSignedIn()
+        && currentUserDoc().userStatus == 'active'
         && request.auth.uid in [
           request.resource.data.coachUid,
           request.resource.data.clientUid
@@ -284,6 +285,7 @@ service cloud.firestore {
     match /clientBookingCache/{cacheId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
+        && currentUserDoc().userStatus == 'active'
         && request.resource.data.clientUid == request.auth.uid
         && cacheId.matches(request.resource.data.clientUid + '_.*')
         && isValidClientBookingCacheDoc(request.resource.data);
