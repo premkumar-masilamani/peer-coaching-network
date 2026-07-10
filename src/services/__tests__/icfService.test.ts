@@ -36,13 +36,8 @@ describe('verifyIcfCredential', () => {
     expect(result).not.toBeNull();
     expect(result?.length).toBe(3);
     
-    expect(result?.[0].level).toBe('PCC');
-    expect(result?.[1].level).toBe('MCC');
-    expect(result?.[2].level).toBe('ACTC');
-    
-    // Month is 4. parseInt('4') -> 4. 
-    // new Date(Date.UTC(2029, 4, 0, 23, 59, 59)) -> month 4 is May. Day 0 of May is April 30.
-    const expectedDateMCC = new Date(Date.UTC(2029, 4, 0, 23, 59, 59));
-    expect(result?.[1].expiryDate.toDate().toISOString()).toBe(expectedDateMCC.toISOString());
+    expect(result?.[0]).toBe('ICF PCC');
+    expect(result?.[1]).toBe('ICF MCC');
+    expect(result?.[2]).toBe('ICF ACTC');
   });
 });
