@@ -29,7 +29,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
-import { getLocalDateInTimezone, getUtcForSlot, getTimezoneCode } from '../utils/timezoneHelpers';
+import { getLocalDateInTimezone, getTimezoneCode, getUtcForLocalDateTime, isSlotAvailable } from '../utils/timezoneHelpers';
 import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
 import { sanitizeImageUrl, navigateToProfile } from '../utils/url';
 import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION, QUALIFICATION_OPTIONS, EVENT_TYPE } from '../config';
@@ -64,6 +64,7 @@ export const UpcomingSessions: React.FC = () => {
   const [userBaseBusyEvents, setUserBaseBusyEvents] = useState<CalendarEvent[]>([]);
   const [userLiveBookings, setUserLiveBookings] = useState<DocumentData[]>([]);
   const [now] = useState(() => Date.now());
+  const [selectedDuration, setSelectedDuration] = useState<30 | 60>(60);
 
   const [sessionSeed] = useState(() => {
     let seed = sessionStorage.getItem('coach_discovery_seed');
@@ -185,29 +186,45 @@ export const UpcomingSessions: React.FC = () => {
 
   // Generate slots for the active day (used for querying)
   const querySlots = useMemo(() => {
-    const arr: { hour: number; startTime: Date; endTime: Date }[] = [];
-    for (let hour = 0; hour < 24; hour++) {
-      arr.push({
-        hour,
-        startTime: getUtcForSlot(activeDayDate, hour, viewerTimezone),
-        endTime: getUtcForSlot(activeDayDate, hour + 1, viewerTimezone)
-      });
+    const arr: { startTime: Date; endTime: Date }[] = [];
+    const slotDurationMs = selectedDuration * 60 * 1000;
+    for (let i = 0; i < 48; i++) {
+      const slotHour = Math.floor(i / 2);
+      const slotMin = (i % 2) * 30;
+      const startTime = getUtcForLocalDateTime(
+        activeDayDate.getFullYear(),
+        activeDayDate.getMonth() + 1,
+        activeDayDate.getDate(),
+        slotHour,
+        slotMin,
+        viewerTimezone
+      );
+      const endTime = new Date(startTime.getTime() + slotDurationMs);
+      arr.push({ startTime, endTime });
     }
     return arr;
-  }, [activeDayDate, viewerTimezone]);
+  }, [activeDayDate, viewerTimezone, selectedDuration]);
 
   // Generate slots for the fetched day (used for UI rendering)
   const uiSlots = useMemo(() => {
-    const arr: { hour: number; startTime: Date; endTime: Date }[] = [];
-    for (let hour = 0; hour < 24; hour++) {
-      arr.push({
-        hour,
-        startTime: getUtcForSlot(fetchedDayDate, hour, viewerTimezone),
-        endTime: getUtcForSlot(fetchedDayDate, hour + 1, viewerTimezone)
-      });
+    const arr: { startTime: Date; endTime: Date }[] = [];
+    const slotDurationMs = selectedDuration * 60 * 1000;
+    for (let i = 0; i < 48; i++) {
+      const slotHour = Math.floor(i / 2);
+      const slotMin = (i % 2) * 30;
+      const startTime = getUtcForLocalDateTime(
+        fetchedDayDate.getFullYear(),
+        fetchedDayDate.getMonth() + 1,
+        fetchedDayDate.getDate(),
+        slotHour,
+        slotMin,
+        viewerTimezone
+      );
+      const endTime = new Date(startTime.getTime() + slotDurationMs);
+      arr.push({ startTime, endTime });
     }
     return arr;
-  }, [fetchedDayDate, viewerTimezone]);
+  }, [fetchedDayDate, viewerTimezone, selectedDuration]);
 
   // Fetch active peer coaches only (server-side filtered, not the whole users
   // collection).
@@ -319,7 +336,7 @@ export const UpcomingSessions: React.FC = () => {
   const isUserUnavailable = useCallback((slotStart: Date, slotEnd: Date) => {
     const currentUid = currentUser?.uid;
     if (currentUid && currentUserBaseAvailable.length > 0) {
-      if (!currentUserBaseAvailable.includes(slotStart.toISOString())) {
+      if (!isSlotAvailable(currentUserBaseAvailable, slotStart, slotEnd)) {
         return true;
       }
     }
@@ -344,6 +361,7 @@ export const UpcomingSessions: React.FC = () => {
     setGenderFilter('');
     setCountryFilter('');
     setSelectedQuals([]);
+    setSelectedDuration(60);
   };
 
   // Formatting helpers
@@ -420,6 +438,17 @@ export const UpcomingSessions: React.FC = () => {
       <div className="animate-fade-in" style={{ width: '100%' }}>
       {/* Dynamic styles */}
       <style>{`
+        .duration-toggle-container {
+          display: flex;
+          gap: 8px;
+          width: 100%;
+        }
+        .duration-toggle-btn {
+          flex: 1;
+          font-size: 0.85rem !important;
+          padding: 8px 12px !important;
+          height: 40px;
+        }
         .dashboard-layout {
           width: 100%;
         }
@@ -807,6 +836,27 @@ export const UpcomingSessions: React.FC = () => {
                   </select>
                 </div>
               </div>
+
+              {/* Session Duration */}
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Session Duration</label>
+                <div className="duration-toggle-container">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDuration(30)}
+                    className={selectedDuration === 30 ? 'btn btn-primary duration-toggle-btn' : 'btn btn-secondary duration-toggle-btn'}
+                  >
+                    30 Min
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDuration(60)}
+                    className={selectedDuration === 60 ? 'btn btn-primary duration-toggle-btn' : 'btn btn-secondary duration-toggle-btn'}
+                  >
+                    1 Hour
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Actions / Reset button */}
@@ -819,7 +869,7 @@ export const UpcomingSessions: React.FC = () => {
               marginTop: '16px'
             }}>
               {/* Clear Filters action */}
-              {(genderFilter || countryFilter || selectedQuals.length > 0) && (
+              {(genderFilter || countryFilter || selectedQuals.length > 0 || selectedDuration !== 60) && (
                 <button
                   onClick={clearFilters}
                   className="btn btn-secondary"
@@ -899,7 +949,7 @@ export const UpcomingSessions: React.FC = () => {
                   return displaySlots.map(({ slot, booking, coaches: slotCoaches }) => {
                     return (
                       <div 
-                        key={slot.hour} 
+                        key={slot.startTime.toISOString()} 
                         className={`slot-row ${booking ? 'has-booking' : ''}`}
                       >
                         <div className="slot-header">

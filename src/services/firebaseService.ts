@@ -651,8 +651,13 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
         const parsedStart = parseLocalTime(startTimeString);
         const parsedEnd = parseLocalTime(endTimeString);
         
-        for (let hour = parsedStart.hour; hour < parsedEnd.hour; hour++) {
-          const slotStartUtc = getUtcForLocalDateTime(year, month, day, hour, parsedStart.minute, timezone);
+        const startMinutes = parsedStart.hour * 60 + parsedStart.minute;
+        const endMinutes = parsedEnd.hour * 60 + parsedEnd.minute;
+        
+        for (let min = startMinutes; min < endMinutes; min += 30) {
+          const slotHour = Math.floor(min / 60);
+          const slotMin = min % 60;
+          const slotStartUtc = getUtcForLocalDateTime(year, month, day, slotHour, slotMin, timezone);
           availableSlots.push(slotStartUtc.toISOString());
         }
       }
@@ -689,7 +694,7 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
     };
     const lastUpdated = new Date().toISOString();
 
-    const isDiscoverable = profile.userRole === USER_ROLE.USER && isApproved(profile);
+    const isDiscoverable = (profile.userRole === USER_ROLE.USER || profile.userRole === USER_ROLE.ADMIN) && isApproved(profile);
     const finalFreeSlots = isDiscoverable ? freeSlots : [];
     const finalAvailableDatesUtc = isDiscoverable ? availableDatesUtc : [];
 
@@ -1034,24 +1039,55 @@ export const queryAvailableCoachesForDay = async (
   profileSnaps.forEach((snap) => {
     snap.forEach((docSnap) => {
       const profile = docSnap.data() as UserProfile;
-       // Gate on the live, authoritative profile: only active coaches (role USER,
+       // Gate on the live, authoritative profile: only active coaches (role USER or ADMIN,
        // status active) are discoverable. Inactive/pending coaches with a stale
        // availability shard must never surface for booking.
-       if (profile.userRole === USER_ROLE.USER && isApproved(profile)) {
+       if ((profile.userRole === USER_ROLE.USER || profile.userRole === USER_ROLE.ADMIN) && isApproved(profile)) {
          coachProfiles.push(profile);
        }
     });
+  });
+
+  const coachMergedIntervals = new Map<string, { start: number; end: number }[]>();
+  cacheMap.forEach((slotsList, uid) => {
+    const slotDurationMs = 30 * 60 * 1000;
+    const intervals = slotsList
+      .map(s => {
+        const start = new Date(s).getTime();
+        return { start, end: start + slotDurationMs };
+      })
+      .sort((a, b) => a.start - b.start);
+
+    const merged: { start: number; end: number }[] = [];
+    for (const interval of intervals) {
+      if (merged.length === 0) {
+        merged.push(interval);
+      } else {
+        const last = merged[merged.length - 1];
+        if (interval.start <= last.end) {
+          last.end = Math.max(last.end, interval.end);
+        } else {
+          merged.push(interval);
+        }
+      }
+    }
+    coachMergedIntervals.set(uid, merged);
   });
 
   const result: Record<string, UserProfile[]> = {};
 
   slots.forEach((slot) => {
     const slotIso = slot.startTime.toISOString();
+    const slotStartMs = slot.startTime.getTime();
+    const slotEndMs = slot.endTime.getTime();
     const busySet = slotBusyUsers.get(slotIso) || new Set<string>();
 
     let availableCoaches = coachProfiles.filter((coach) => {
-      const coachSlots = cacheMap.get(coach.userId) || [];
-      if (!coachSlots.includes(slotIso)) return false;
+      const merged = coachMergedIntervals.get(coach.userId) || [];
+      const isCovered = merged.some(
+        interval => interval.start <= slotStartMs && slotEndMs <= interval.end
+      );
+      if (!isCovered) return false;
       if (busySet.has(coach.userId)) return false;
       return true;
     });
