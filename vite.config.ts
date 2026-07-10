@@ -22,13 +22,38 @@ export default defineConfig(({ mode }) => {
       },
     },
     test: {
-      environment: 'jsdom',
       globals: true,
       coverage: {
         provider: 'v8',
         reporter: ['text', 'html', 'lcov'],
         include: ['src/utils/**', 'src/services/**', 'src/context/**', 'src/hooks/**', 'src/templates/**'],
       },
+      projects: [
+        {
+          extends: true,
+          test: {
+            name: 'unit',
+            include: ['src/**/*.test.ts'],
+            environment: 'jsdom',
+          },
+        },
+        {
+          test: {
+            name: 'integration',
+            include: ['tests/integration/**/*.test.ts'],
+            globalSetup: ['tests/integration/globalSetup.ts'],
+            environment: 'node',
+            testTimeout: 30000,
+            pool: 'forks',
+            env: {
+              VITE_USE_FIREBASE_EMULATOR: 'true',
+              VITE_FIRESTORE_DATABASE_ID: '(default)',
+              VITE_FIREBASE_PROJECT_ID: 'peer-coaching-network-dev',
+              VITE_ENABLE_GOOGLE_INTEGRATION: 'false',
+            },
+          },
+        },
+      ],
     },
   };
 })

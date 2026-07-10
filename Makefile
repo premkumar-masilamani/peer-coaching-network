@@ -1,4 +1,4 @@
-.PHONY: install build build-dev build-prod dev lint test coverage emulator local erd deploy-dev deploy-prod
+.PHONY: install build build-dev build-prod dev lint test test\:integration test\:perf coverage emulator local erd deploy-dev deploy-prod
 
 install:
 	npm install
@@ -20,6 +20,12 @@ lint:
 
 test:
 	npm run test
+
+test\:integration:
+	TEST_USER_COUNT=$(or $(N),3) npm run test:integration
+
+test\:perf:
+	TEST_USER_COUNT=$(or $(N),100) PERF_P95_THRESHOLD_MS=$(or $(P95),3000) npm run test:perf
 
 coverage:
 	npm run coverage

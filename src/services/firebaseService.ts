@@ -182,13 +182,19 @@ export const logAnalyticsEvent = (eventName: string, params?: Record<string, unk
   }
 };
 
-// Connect to Emulators during development/testing if configured
 if (useEmulator) {
-  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  if (isLocal && !window._firebase_emulators_connected) {
-    window._firebase_emulators_connected = true;
+  const host = typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1';
+  const isLocal = host === 'localhost' || host === '127.0.0.1';
+  const alreadyConnected = typeof window !== 'undefined'
+    ? (window as unknown as Record<string, unknown>)._firebase_emulators_connected
+    : (globalThis as unknown as Record<string, unknown>)._firebase_emulators_connected;
+  if (isLocal && !alreadyConnected) {
+    if (typeof window !== 'undefined') {
+      (window as unknown as Record<string, unknown>)._firebase_emulators_connected = true;
+    } else {
+      (globalThis as unknown as Record<string, unknown>)._firebase_emulators_connected = true;
+    }
     try {
-      const host = window.location.hostname;
       connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
       connectFirestoreEmulator(db, host, 8080);
       logger.info(`Connected to Auth and Firestore Emulators on ${host}`);
