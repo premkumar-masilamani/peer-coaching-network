@@ -8,13 +8,13 @@
  * User definitions live in scripts/seed-users.json — edit that file to
  * add, remove, or modify test users without touching this script.
  *
- * Each user is created with Google Sign-In as the only provider, so they
- * can log in via the emulator's "Sign in with Google" flow without a password.
+ * Each user is created via the same API used by the emulator's own
+ * "Sign in with Google.com" button (accounts:signInWithIdp), so they
+ * appear in the emulator's Google account picker immediately.
  *
- * The script is fully idempotent: re-running it while the emulator is already
- * seeded will skip existing users gracefully (Auth + Firestore profile docs).
- * Availability shards are always (re)written using batch.set(), which is itself
- * idempotent, so interrupted runs do not leave partial data.
+ * The script is fully idempotent: signInWithIdp with the same Google sub
+ * always returns the same Firebase UID, and all Firestore writes are
+ * skip-if-exists or use batch.set() (inherently idempotent).
  */
 
 'use strict';
@@ -25,14 +25,16 @@ process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080';
 process.env.FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9099';
 
 const path = require('path');
-const fs = require('fs');
+const fs   = require('fs');
 
 const { initializeApp } = require('firebase-admin/app');
 const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestore');
-const { getAuth } = require('firebase-admin/auth');
 
 // ── Constants (mirrors src/config) ───────────────────────────────────────────
 const PROJECT_ID = 'peer-coaching-network-dev';
+
+/** Auth emulator base URL. */
+const AUTH_EMULATOR_URL = 'http://127.0.0.1:9099';
 
 /** Number of future days for which availability is pre-computed. */
 const BOOKING_HORIZON_DAYS = 30;
@@ -61,10 +63,74 @@ const REQUIRED_USER_FIELDS = [
   'gender', 'country', 'timezone', 'bio',
 ];
 
-// ── Firebase Admin initialisation ─────────────────────────────────────────────
+// ── Firebase Admin initialisation (Firestore only — Auth handled via HTTP) ───
 const app = initializeApp({ projectId: PROJECT_ID });
 const db = getFirestore(app);
-const auth = getAuth(app);
+
+// ── Emulator Google Sign-In helpers ──────────────────────────────────────────
+
+/**
+ * Build a minimal unsigned JWT that the Auth emulator accepts for
+ * accounts:signInWithIdp. The emulator never validates the signature —
+ * it only decodes the payload to extract user info.
+ *
+ * Using `email` as the Google `sub` (provider UID) is intentional:
+ * it gives us a deterministic, human-readable Google user ID so that
+ * re-seeding the same user always resolves to the same Firebase UID.
+ */
+function buildFakeGoogleIdToken(email, displayName) {
+  const b64 = (obj) => Buffer.from(JSON.stringify(obj)).toString('base64url');
+
+  const header  = b64({ alg: 'RS256', kid: 'fake', typ: 'JWT' });
+  const now     = Math.floor(Date.now() / 1000);
+  const payload = b64({
+    iss: 'https://accounts.google.com',
+    aud: PROJECT_ID,
+    sub: email,            // Google user ID — we use email for determinism
+    email,
+    email_verified: true,
+    name: displayName,
+    iat: now,
+    exp: now + 3600,
+  });
+
+  // Signature is ignored by the emulator
+  return `${header}.${payload}.fake-signature`;
+}
+
+/**
+ * Sign in (or create) a user via the Auth emulator's signInWithIdp endpoint —
+ * the exact same API that the emulator's "Sign in with Google.com" button uses.
+ *
+ * The call is idempotent: the same Google `sub` (email) always returns the
+ * same Firebase UID, whether the account already exists or not.
+ *
+ * @returns {Promise<string>} Firebase UID (`localId` in the response)
+ */
+async function signInWithGoogleEmulator(email, displayName) {
+  const idToken = buildFakeGoogleIdToken(email, displayName);
+
+  const url = `${AUTH_EMULATOR_URL}/identitytoolkit.googleapis.com/v1/projects/${PROJECT_ID}/accounts:signInWithIdp?key=fake-api-key`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requestUri: 'http://localhost',
+      postBody: `providerId=google.com&id_token=${idToken}`,
+      returnSecureToken: true,
+      returnIdpCredential: true,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`signInWithIdp failed (${res.status}): ${body}`);
+  }
+
+  const data = await res.json();
+  return data.localId;
+}
 
 // ── Timezone helpers (faithfully ported from src/utils/timezoneHelpers.ts) ────
 
@@ -91,12 +157,8 @@ function getUtcForLocalDateTime(year, month, day, hour, minute, timeZone) {
   for (let i = 0; i < 5; i++) {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone,
-      year: 'numeric',
-      month: 'numeric',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: 'numeric',
-      hourCycle: 'h23',
+      year: 'numeric', month: 'numeric', day: 'numeric',
+      hour: 'numeric', minute: 'numeric', hourCycle: 'h23',
     }).formatToParts(utcGuess);
 
     const tzYear   = parseInt(parts.find(p => p.type === 'year').value, 10);
@@ -127,10 +189,7 @@ function getUtcForLocalDateTime(year, month, day, hour, minute, timeZone) {
  */
 function getLocalDateInTimezone(date, timeZone) {
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    year: 'numeric',
-    month: 'numeric',
-    day: 'numeric',
+    timeZone, year: 'numeric', month: 'numeric', day: 'numeric',
   }).formatToParts(date);
 
   const y = parseInt(parts.find(p => p.type === 'year').value, 10);
@@ -141,8 +200,6 @@ function getLocalDateInTimezone(date, timeZone) {
 }
 
 // ── Default available days (mirrors DEFAULT_AVAILABLE_DAYS in slotsService.ts) ─
-// Timestamps use a 1970-01-01 epoch base date at the given UTC time, identical
-// to timeStringToTimestamp('9:00 AM') / timeStringToTimestamp('5:00 PM').
 function makeTimeTimestamp(utcHour, utcMinute) {
   return Timestamp.fromDate(new Date(Date.UTC(1970, 0, 1, utcHour, utcMinute, 0, 0)));
 }
@@ -169,12 +226,6 @@ function timestampToUtcHourMinute(ts) {
  * Generate available slot ISO strings for a single calendar date.
  * Faithfully mirrors generateSlotsForDate from src/services/slotsService.ts,
  * using 30-minute increments to match SLOT_DURATION_MINUTES.
- *
- * @param {Date}     date         - Local calendar date (midnight local time)
- * @param {object}   availableDays - Shape matches DEFAULT_AVAILABLE_DAYS
- * @param {string[]} blockedDates  - 'YYYY-MM-DD' strings to skip
- * @param {string}   timezone      - IANA timezone string
- * @returns {string[]} Sorted UTC ISO slot strings
  */
 function generateSlotsForDate(date, availableDays, blockedDates, timezone) {
   const year  = date.getFullYear();
@@ -197,23 +248,18 @@ function generateSlotsForDate(date, availableDays, blockedDates, timezone) {
     const startTotalMinutes = startHour * 60 + startMinute;
     const endTotalMinutes   = endHour   * 60 + endMinute;
 
-    // 30-minute increments — matches SLOT_DURATION_MINUTES and production logic
     for (let min = startTotalMinutes; min < endTotalMinutes; min += SLOT_DURATION_MINUTES) {
       const slotHour   = Math.floor(min / 60);
       const slotMinute = min % 60;
-      const utcDate = getUtcForLocalDateTime(year, month, day, slotHour, slotMinute, timezone);
-      slots.push(utcDate.toISOString());
+      slots.push(getUtcForLocalDateTime(year, month, day, slotHour, slotMinute, timezone).toISOString());
     }
   }
   return slots;
 }
 
 /**
- * Compute availability for the booking horizon and return
- * { freeSlots, availableDatesUtc, slotsByDate }.
- *
- * Loop starts at BOOKING_START_OFFSET_DAYS (tomorrow) — matching the booking
- * UI which never shows today as a bookable date.
+ * Compute availability for the booking horizon.
+ * Starts at BOOKING_START_OFFSET_DAYS (tomorrow) — matches the booking UI.
  */
 function computeAvailability(timezone) {
   const localToday = getLocalDateInTimezone(new Date(), timezone);
@@ -222,20 +268,12 @@ function computeAvailability(timezone) {
   for (let i = BOOKING_START_OFFSET_DAYS; i <= BOOKING_HORIZON_DAYS; i++) {
     const currentDate = new Date(localToday);
     currentDate.setDate(localToday.getDate() + i);
-
-    const daySlots = generateSlotsForDate(
-      currentDate,
-      DEFAULT_AVAILABLE_DAYS,
-      [],   // no blocked dates for seed users
-      timezone,
-    );
-    allSlots.push(...daySlots);
+    allSlots.push(...generateSlotsForDate(currentDate, DEFAULT_AVAILABLE_DAYS, [], timezone));
   }
 
   const freeSlots = [...new Set(allSlots)].sort();
   const availableDatesUtc = [...new Set(freeSlots.map(s => s.split('T')[0]))].sort();
 
-  // Group by date for coachAvailabilityByDate shards
   const slotsByDate = new Map();
   for (const iso of freeSlots) {
     const dateISO = iso.split('T')[0];
@@ -265,7 +303,6 @@ function validateUsers(users) {
     if (u.status !== 'active' && u.status !== 'inactive') {
       throw new Error(`User at index ${i} (${u.email}) has invalid status: "${u.status}". Must be "active" or "inactive".`);
     }
-    // Validate timezone is parseable
     try {
       Intl.DateTimeFormat('en-US', { timeZone: u.timezone }).format(new Date());
     } catch {
@@ -280,58 +317,27 @@ async function seedUser(userData) {
   const {
     firstName, lastName, email, role, status, gender,
     country, timezone, bio,
-    // Optional credential fields — can be added to seed-users.json to test
-    // credentialed coaches. e.g. "icf_acc": true, "icf_pcc": true
-    icf_acc = false,
-    icf_pcc = false,
-    icf_mcc = false,
+    // Optional — add to seed-users.json to test credentialed coaches.
+    // e.g. "icf_acc": true, "icf_pcc": true
+    icf_acc  = false,
+    icf_pcc  = false,
+    icf_mcc  = false,
     icf_actc = false,
   } = userData;
 
-  const displayName    = `${firstName} ${lastName}`;
+  const displayName     = `${firstName} ${lastName}`;
   const normalizedEmail = email.toLowerCase();
 
-  // ── 1. Import Firebase Auth user with Google provider ─────────────────────
-  // auth.createUser() silently ignores providerData — it is not a supported
-  // parameter for that method. importUsers() is the only Admin SDK method that
-  // writes providerData to the Auth store, making the account appear in the
-  // emulator's "Sign in with Google" picker.
-  let uid;
-  try {
-    const existing = await auth.getUserByEmail(normalizedEmail);
-    uid = existing.uid;
-    console.log(`  ↳ Auth user already exists (uid: ${uid}), skipping auth creation.`);
-  } catch (err) {
-    if (err.code !== 'auth/user-not-found') throw err;
-
-    const { randomUUID } = require('crypto');
-    // Firebase UIDs are 28-char alphanumeric strings; slice to match convention.
-    uid = randomUUID().replace(/-/g, '').slice(0, 28);
-
-    const importResult = await auth.importUsers([
-      {
-        uid,
-        email: normalizedEmail,
-        emailVerified: true,
-        displayName,
-        providerData: [
-          {
-            uid: normalizedEmail,
-            email: normalizedEmail,
-            displayName,
-            providerId: 'google.com',
-          },
-        ],
-      },
-    ]);
-
-    if (importResult.errors && importResult.errors.length > 0) {
-      const msg = importResult.errors.map(e => e.error.message).join('; ');
-      throw new Error(`importUsers failed: ${msg}`);
-    }
-
-    console.log(`  ↳ Imported Auth user with Google provider (uid: ${uid})`);
-  }
+  // ── 1. Sign in via the emulator's Google provider API ─────────────────────
+  // Uses accounts:signInWithIdp — the same endpoint the emulator's own
+  // "Sign in with Google.com" button calls. This is the only approach that
+  // makes accounts appear in the emulator's Google account picker.
+  //
+  // The call is inherently idempotent: using the same Google `sub` (email)
+  // always resolves to the same Firebase UID regardless of how many times
+  // the script is run.
+  const uid = await signInWithGoogleEmulator(normalizedEmail, displayName);
+  console.log(`  ↳ Google Sign-In via emulator API (uid: ${uid})`);
 
   // ── 2. Write users/{uid} Firestore document ────────────────────────────────
   const userRef  = db.collection(COLLECTIONS.USERS).doc(uid);
@@ -382,7 +388,6 @@ async function seedUser(userData) {
   }
 
   // ── 4. Compute & write availability caches (active coaches only) ───────────
-  // Only role=user AND status=active users appear in the discovery/booking flow.
   if (role !== 'user' || status !== 'active') {
     console.log(`  ↳ Skipping availability cache (role=${role}, status=${status}).`);
     return;
@@ -405,14 +410,12 @@ async function seedUser(userData) {
       availableSlots: freeSlots,
       availableDatesUtc,
       ...filterFields,
-      userStatus: status,   // use the variable, not a hardcoded string
+      userStatus: status,
     });
     console.log(`  ↳ personalAvailabilityCache written (${freeSlots.length} slots across ${availableDatesUtc.length} days).`);
   }
 
-  // coachAvailabilityByDate shards — one document per day with free slots.
-  // Always written via batch.set() which is inherently idempotent: re-running
-  // after an interrupted previous run overwrites any partial state cleanly.
+  // coachAvailabilityByDate shards — always written via batch.set() (idempotent).
   // Firestore hard limit is 500 writes per batch; 490 gives safe headroom.
   const BATCH_LIMIT = 490;
   const entries = [...slotsByDate.entries()];
@@ -423,13 +426,7 @@ async function seedUser(userData) {
     const chunk = entries.slice(i, i + BATCH_LIMIT);
     for (const [dateISO, slots] of chunk) {
       const shardRef = db.collection(COLLECTIONS.COACH_AVAILABILITY_BY_DATE).doc(`${uid}_${dateISO}`);
-      batch.set(shardRef, {
-        coachUid: uid,
-        dateISO,
-        freeSlots: slots,
-        lastUpdated,
-        ...filterFields,
-      });
+      batch.set(shardRef, { coachUid: uid, dateISO, freeSlots: slots, lastUpdated, ...filterFields });
     }
     await batch.commit();
     shardsWritten += chunk.length;
@@ -459,10 +456,10 @@ async function main() {
 
   console.log('\n🌱  PCN — Local Emulator Seed Script');
   console.log(`    Firestore : ${process.env.FIRESTORE_EMULATOR_HOST}`);
-  console.log(`    Auth      : ${process.env.FIREBASE_AUTH_EMULATOR_HOST}`);
+  console.log(`    Auth      : ${AUTH_EMULATOR_URL}`);
   console.log(`    Users     : ${users.length} defined in seed-users.json\n`);
 
-  // Verify the emulator is reachable before iterating users.
+  // Verify the Firestore emulator is reachable before iterating users.
   try {
     const pingRef = db.collection('_seed_check').doc('ping');
     await pingRef.set({ ts: FieldValue.serverTimestamp() });
@@ -483,7 +480,7 @@ async function main() {
     }
   }
 
-  console.log('🎉  All seed users initialised. The app is ready — log in via "Sign in with Google".\n');
+  console.log('🎉  All seed users initialised. Log in via "Sign in with Google" — your accounts will appear in the picker.\n');
   process.exit(0);
 }
 
