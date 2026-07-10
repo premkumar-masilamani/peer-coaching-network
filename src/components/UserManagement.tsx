@@ -25,7 +25,6 @@ import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { getCredentialBadgeClass } from '../utils/credentials';
 import { type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, BOOKING_STATUS, EVENT_TYPE, COLLECTIONS, ICF_DIRECTORY_URL } from '../config';
-import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
 import { verifyIcfCredential } from '../services/icfService';
 import { updateVerifiedCredentials } from '../services/firebaseService';
 
@@ -376,13 +375,17 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
               </h4>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {(() => {
-                  const validCreds = getDisplayCredentials(coach.icfCredentials);
-                  if (validCreds.length > 0) {
-                    return validCreds.map((validCred, idx) => {
-                      const qual = mapIcfLevelToQualification(validCred.level) || validCred.level;
+                  const displayCredentials: string[] = [];
+                  if (coach.icf_mcc) displayCredentials.push('ICF MCC');
+                  else if (coach.icf_pcc) displayCredentials.push('ICF PCC');
+                  else if (coach.icf_acc) displayCredentials.push('ICF ACC');
+                  if (coach.icf_actc) displayCredentials.push('ICF ACTC');
+
+                  if (displayCredentials.length > 0) {
+                    return displayCredentials.map((qual, idx) => {
                       return (
                         <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                          {qual as string}
+                          {qual}
                         </span>
                       );
                     });
@@ -630,17 +633,18 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                             {(() => {
-                               const validCreds = getDisplayCredentials(u.icfCredentials);
-                               if (validCreds.length > 0) {
-                                 return validCreds.map((validCred, idx) => {
-                                   const qual = mapIcfLevelToQualification(validCred.level) || validCred.level;
+                               const displayCredentials: string[] = [];
+                               if (u.icf_mcc) displayCredentials.push('ICF MCC');
+                               else if (u.icf_pcc) displayCredentials.push('ICF PCC');
+                               else if (u.icf_acc) displayCredentials.push('ICF ACC');
+                               if (u.icf_actc) displayCredentials.push('ICF ACTC');
+
+                               if (displayCredentials.length > 0) {
+                                 return displayCredentials.map((qual, idx) => {
                                    return (
                                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                        <span className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                                         {qual as string}
-                                       </span>
-                                       <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))' }}>
-                                         Expires: {validCred.expiryDate.toDate().toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                                         {qual}
                                        </span>
                                      </div>
                                    );
@@ -656,10 +660,9 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                                  setVerifyingId(u.userId);
                                  setVerifyErrorId(null);
                                  try {
-                                   const creds = await verifyIcfCredential(u.firstName, u.lastName);
-                                   if (creds && creds.length > 0) {
-                                     const newQuals = creds.map(c => mapIcfLevelToQualification(c.level)).filter(Boolean) as Qualification[];
-                                     await updateVerifiedCredentials(u.userId, creds, newQuals);
+                                   const newQuals = await verifyIcfCredential(u.firstName, u.lastName);
+                                   if (newQuals && newQuals.length > 0) {
+                                     await updateVerifiedCredentials(u.userId, newQuals);
                                    } else {
                                      setVerifyErrorId(u.userId);
                                    }

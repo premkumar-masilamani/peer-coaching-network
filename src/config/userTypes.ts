@@ -1,9 +1,3 @@
-import type { Timestamp } from 'firebase/firestore';
-
-export interface IcfCredential {
-  level: string; // 'ACC' | 'PCC' | 'MCC'
-  expiryDate: Timestamp;
-}
 
 /**
  * User-related enumerations and types.

@@ -13,7 +13,6 @@ import type { DocumentData } from 'firebase/firestore';
 import { ScheduleModal } from './modals/ScheduleModal';
 import { CancelModal } from './modals/CancelModal';
 import { SessionDetailsModal } from './modals/SessionDetailsModal';
-import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
 
 import { 
   Filter, 
@@ -927,10 +926,15 @@ export const UpcomingSessions: React.FC = () => {
                             {slotCoaches.map((coach) => {
                               // Border mapping based on highest qualification
                               let borderCol = 'var(--border-light)';
-                              const displayCredentials = getDisplayCredentials(coach.icfCredentials);
                               const hasMCC = !!coach.icf_mcc;
                               const hasPCC = !!coach.icf_pcc;
                               const hasACC = !!coach.icf_acc;
+
+                              const displayCredentials: string[] = [];
+                              if (hasMCC) displayCredentials.push('ICF MCC');
+                              else if (hasPCC) displayCredentials.push('ICF PCC');
+                              else if (hasACC) displayCredentials.push('ICF ACC');
+                              if (coach.icf_actc) displayCredentials.push('ICF ACTC');
                               
                               if (hasMCC) borderCol = 'hsl(var(--mcc-platinum))';
                               else if (hasPCC) borderCol = 'hsl(var(--pcc-silver))';
@@ -961,11 +965,10 @@ export const UpcomingSessions: React.FC = () => {
                                         </div>
                                         <div className="mini-coach-quals">
                                           {displayCredentials.length > 0 ? (
-                                            displayCredentials.map((cred, idx) => {
-                                              const qual = mapIcfLevelToQualification(cred.level) || cred.level;
+                                            displayCredentials.map((qual, idx) => {
                                               return (
                                                 <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
-                                                  {qual as string}
+                                                  {qual}
                                                 </span>
                                               );
                                             })

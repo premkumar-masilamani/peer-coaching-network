@@ -66,8 +66,6 @@ service cloud.firestore {
         && (data.get('photoURL', null) == null || isValidString(data.photoURL, 1000))
         && isString(data.gender)
         && isValidString(data.country, 100)
-        && (data.get('qualifications', null) == null || isList(data.qualifications))
-        && (data.get('icfCredentials', null) == null || isList(data.icfCredentials))
         && (data.get('icf_acc', null) == null || isBool(data.icf_acc))
         && (data.get('icf_pcc', null) == null || isBool(data.icf_pcc))
         && (data.get('icf_mcc', null) == null || isBool(data.icf_mcc))
@@ -202,9 +200,7 @@ service cloud.firestore {
         && request.resource.data.get('icf_acc', null) == resource.data.get('icf_acc', null)
         && request.resource.data.get('icf_pcc', null) == resource.data.get('icf_pcc', null)
         && request.resource.data.get('icf_mcc', null) == resource.data.get('icf_mcc', null)
-        && request.resource.data.get('icf_actc', null) == resource.data.get('icf_actc', null)
-        && request.resource.data.get('icfCredentials', null) == resource.data.get('icfCredentials', null)
-        && request.resource.data.get('qualifications', null) == resource.data.get('qualifications', null);
+        && request.resource.data.get('icf_actc', null) == resource.data.get('icf_actc', null);
     }
 
     // Identity fields are immutable on a self-update (defense-in-depth).

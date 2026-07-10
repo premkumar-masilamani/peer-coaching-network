@@ -4,7 +4,6 @@ import { formatDisplayName } from '../services/firebaseService';
 import { getCredentialBadgeClass } from '../utils/credentials';
 import { sanitizeImageUrl } from '../utils/url';
 import { MapPin, Calendar, Award } from 'lucide-react';
-import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
 import type { Qualification } from '../config';
 
 interface CoachCardProps {
@@ -20,11 +19,15 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
     return text.substring(0, limit) + '...';
   };
 
-  const displayCredentials = getDisplayCredentials(coach.icfCredentials);
-  
-  const hasMCC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF MCC');
-  const hasPCC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF PCC');
-  const hasACC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF ACC');
+  const hasMCC = !!coach.icf_mcc;
+  const hasPCC = !!coach.icf_pcc;
+  const hasACC = !!coach.icf_acc;
+
+  const displayCredentials: string[] = [];
+  if (hasMCC) displayCredentials.push('ICF MCC');
+  else if (hasPCC) displayCredentials.push('ICF PCC');
+  else if (hasACC) displayCredentials.push('ICF ACC');
+  if (coach.icf_actc) displayCredentials.push('ICF ACTC');
 
   return (
     <div className="glass-panel glass-panel-interactive animate-fade-in" style={{
@@ -99,12 +102,11 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
         {/* Qualifications Badges */}
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '12px' }}>
           {displayCredentials.length > 0 ? (
-            displayCredentials.map((cred, idx) => {
-              const qual = mapIcfLevelToQualification(cred.level) || cred.level;
+            displayCredentials.map((qual, idx) => {
               return (
                 <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.65rem' }}>
                   <Award size={10} style={{ marginRight: '4px' }} />
-                  {qual as string}
+                  {qual}
                 </span>
               );
             })

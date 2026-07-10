@@ -978,11 +978,10 @@ describe('firebaseService', () => {
       // Make the fire-and-forget recalc a clean no-op (user doc "missing").
       mockGetDoc.mockResolvedValue({ exists: () => false });
 
-      await updateVerifiedCredentials('coach-cred', [{ level: 'ACC' } as any], ['ICF ACC']);
+      await updateVerifiedCredentials('coach-cred', ['ICF ACC']);
 
       expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
       const updates = mockUpdateDoc.mock.calls[0][1] as any;
-      expect(updates.icfCredentials).toEqual([{ level: 'ACC' }]);
       expect(updates.icf_acc).toBe(true);
       expect(updates.icf_pcc).toBe(false);
     });

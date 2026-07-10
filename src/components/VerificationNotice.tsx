@@ -15,7 +15,7 @@ import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
 import { formatDisplayName, updateVerifiedCredentials } from '../services/firebaseService';
 import { GENDER_OPTIONS, type Gender, type Qualification, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
-import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
+
 import { verifyIcfCredential } from '../services/icfService';
 import { getCredentialDescription } from '../utils/credentials';
 
@@ -36,17 +36,24 @@ export const VerificationNotice: React.FC = () => {
   const [verifying, setVerifying] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState('');
 
-  const displayCredentials = getDisplayCredentials(profile?.icfCredentials);
+  const hasMCC = !!profile?.icf_mcc;
+  const hasPCC = !!profile?.icf_pcc;
+  const hasACC = !!profile?.icf_acc;
+
+  const displayCredentials: string[] = [];
+  if (hasMCC) displayCredentials.push('ICF MCC');
+  else if (hasPCC) displayCredentials.push('ICF PCC');
+  else if (hasACC) displayCredentials.push('ICF ACC');
+  if (profile?.icf_actc) displayCredentials.push('ICF ACTC');
 
   const handleVerify = async () => {
     if (!profile) return;
     setVerifying(true);
     setVerifyMsg('');
     try {
-      const creds = await verifyIcfCredential(profile.firstName, profile.lastName);
-      if (creds && creds.length > 0) {
-        const newQuals = creds.map(c => mapIcfLevelToQualification(c.level)).filter(Boolean) as Qualification[];
-        await updateVerifiedCredentials(profile.userId, creds, newQuals);
+      const newQuals = await verifyIcfCredential(profile.firstName, profile.lastName);
+      if (newQuals && newQuals.length > 0) {
+        await updateVerifiedCredentials(profile.userId, newQuals);
         // No success message needed
       } else {
         setVerifyMsg('Could not find active credential in ICF Directory.');
@@ -185,12 +192,9 @@ export const VerificationNotice: React.FC = () => {
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
               {displayCredentials.length > 0 ? (
-                displayCredentials.map((cred, idx) => (
+                displayCredentials.map((qual, idx) => (
                   <div key={idx} style={{ fontSize: '0.9rem', color: 'hsl(var(--text-primary))', fontWeight: 500, marginBottom: '4px' }}>
-                    {getCredentialDescription(mapIcfLevelToQualification(cred.level) || cred.level as Qualification)}
-                    <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', marginLeft: '8px' }}>
-                      (Expires: {cred.expiryDate.toDate().toLocaleDateString(undefined, { month: 'short', year: 'numeric' })})
-                    </span>
+                    {getCredentialDescription(qual as Qualification)}
                   </div>
                 ))
               ) : (
