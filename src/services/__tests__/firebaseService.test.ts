@@ -624,7 +624,7 @@ describe('firebaseService', () => {
 
       // 1) day shards, 2) bookings, 3) profiles
       mockGetDocs.mockResolvedValueOnce(snap([
-        { coachUid: 'coach1', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], userStatus: 'active' },
+        { coachUid: 'coach1', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z', '2026-07-01T10:30:00.000Z'], userStatus: 'active' },
       ]));
       mockGetDocs.mockResolvedValueOnce(snap([]));
       mockGetDocs.mockResolvedValueOnce(snap([
@@ -659,8 +659,8 @@ describe('firebaseService', () => {
       const { queryAvailableCoachesForDay } = await import('../firebaseService');
 
       mockGetDocs.mockResolvedValueOnce(snap([
-        { coachUid: 'activeCoach', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'] },
-        { coachUid: 'pendingCoach', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'] },
+        { coachUid: 'activeCoach', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z', '2026-07-01T10:30:00.000Z'] },
+        { coachUid: 'pendingCoach', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z', '2026-07-01T10:30:00.000Z'] },
       ]));
       mockGetDocs.mockResolvedValueOnce(snap([])); // bookings
       mockGetDocs.mockResolvedValueOnce(snap([
@@ -691,9 +691,9 @@ describe('firebaseService', () => {
       const { queryAvailableCoachesForDay } = await import('../firebaseService');
 
       mockGetDocs.mockResolvedValueOnce(snap([
-        { coachUid: 'client1', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], gender: 'female' },
-        { coachUid: 'coachM', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], gender: 'male' },
-        { coachUid: 'coachF', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], gender: 'female' },
+        { coachUid: 'client1', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z', '2026-07-01T10:30:00.000Z'], gender: 'female' },
+        { coachUid: 'coachM', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z', '2026-07-01T10:30:00.000Z'], gender: 'male' },
+        { coachUid: 'coachF', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z', '2026-07-01T10:30:00.000Z'], gender: 'female' },
       ]));
       mockGetDocs.mockResolvedValueOnce(snap([])); // bookings
       mockGetDocs.mockResolvedValueOnce(snap([
@@ -725,8 +725,8 @@ describe('firebaseService', () => {
 
       // Local day spans two UTC dates → coach has two shards.
       mockGetDocs.mockResolvedValueOnce(snap([
-        { coachUid: 'coach1', dateISO: '2026-07-01', freeSlots: ['2026-07-01T23:00:00.000Z'] },
-        { coachUid: 'coach1', dateISO: '2026-07-02', freeSlots: ['2026-07-02T00:00:00.000Z'] },
+        { coachUid: 'coach1', dateISO: '2026-07-01', freeSlots: ['2026-07-01T23:00:00.000Z', '2026-07-01T23:30:00.000Z'] },
+        { coachUid: 'coach1', dateISO: '2026-07-02', freeSlots: ['2026-07-02T00:00:00.000Z', '2026-07-02T00:30:00.000Z'] },
       ]));
       mockGetDocs.mockResolvedValueOnce(snap([])); // bookings
       mockGetDocs.mockResolvedValueOnce(snap([
@@ -755,9 +755,9 @@ describe('firebaseService', () => {
       const { queryAvailableCoachesForDay } = await import('../firebaseService');
 
       mockGetDocs.mockResolvedValueOnce(snap([
-        { coachUid: 'wrongCountry', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], country: 'US', icf_pcc: true },
-        { coachUid: 'wrongCred', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], country: 'IN', icf_acc: true },
-        { coachUid: 'match', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], country: 'IN', icf_pcc: true },
+        { coachUid: 'wrongCountry', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z', '2026-07-01T10:30:00.000Z'], country: 'US', icf_pcc: true },
+        { coachUid: 'wrongCred', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z', '2026-07-01T10:30:00.000Z'], country: 'IN', icf_acc: true },
+        { coachUid: 'match', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z', '2026-07-01T10:30:00.000Z'], country: 'IN', icf_pcc: true },
       ]));
       mockGetDocs.mockResolvedValueOnce(snap([])); // bookings
       mockGetDocs.mockResolvedValueOnce(snap([
@@ -800,7 +800,7 @@ describe('firebaseService', () => {
     it('queryAvailableCoachesForDay returns {} when every candidate is filtered out', async () => {
       const { queryAvailableCoachesForDay } = await import('../firebaseService');
       mockGetDocs.mockResolvedValueOnce(snap([
-        { coachUid: 'coachM', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z'], gender: 'male' },
+        { coachUid: 'coachM', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z', '2026-07-01T10:30:00.000Z'], gender: 'male' },
       ]));
       const slots = [{
         startTime: new Date('2026-07-01T10:00:00.000Z'),
@@ -824,7 +824,7 @@ describe('firebaseService', () => {
       const slotIso = '2026-07-01T10:00:00.000Z';
 
       mockGetDocs.mockResolvedValueOnce(snap([
-        { coachUid: 'coach1', dateISO: '2026-07-01', freeSlots: [slotIso] },
+        { coachUid: 'coach1', dateISO: '2026-07-01', freeSlots: [slotIso, '2026-07-01T10:30:00.000Z'] },
       ]));
       // A confirmed booking for coach1 at the slot (dateTime shape).
       mockGetDocs.mockResolvedValueOnce(snap([

@@ -130,7 +130,7 @@ describe('googleCalendar service', () => {
           'client-123',
           'Mock Client',
           '2026-06-18T10:00:00Z',
-          '2026-06-18T11:00:00Z',
+          '2026-06-18T10:30:00Z',
           'Career Development'
         )
       ).rejects.toThrow('Google Token Expired');
@@ -155,7 +155,7 @@ describe('googleCalendar service', () => {
         'client-123',
         'Mock Client',
         '2026-06-18T10:00:00Z',
-        '2026-06-18T11:00:00Z',
+        '2026-06-18T10:30:00Z',
         'Career Development'
       );
 
@@ -197,7 +197,7 @@ describe('googleCalendar service', () => {
           'client-123',
           'Mock Client',
           '2026-06-18T10:00:00Z',
-          '2026-06-18T11:00:00Z',
+          '2026-06-18T10:30:00Z',
           'Career Development'
         )
       ).rejects.toThrow('Failed to create Google Calendar event.');
@@ -218,7 +218,7 @@ describe('googleCalendar service', () => {
           'client-123',
           'Mock Client',
           '2026-06-18T10:00:00Z',
-          '2026-06-18T11:00:00Z',
+          '2026-06-18T10:30:00Z',
           'Career Development'
         )
       ).rejects.toThrow('Network error or Google Calendar API is currently unreachable. Please try again.');
@@ -252,7 +252,7 @@ describe('googleCalendar service', () => {
           'client-123',
           'Mock Client',
           '2026-06-18T10:00:00Z',
-          '2026-06-18T11:00:00Z',
+          '2026-06-18T10:30:00Z',
           'Career Development'
         )
       ).rejects.toThrow('SLOT_TAKEN');
@@ -284,7 +284,7 @@ describe('googleCalendar service', () => {
           'client-123',
           'Mock Client',
           '2026-06-18T10:00:00Z',
-          '2026-06-18T11:00:00Z',
+          '2026-06-18T10:30:00Z',
           'Career Development'
         )
       ).rejects.toThrow(BOOKING_ERROR.BOOKED_AS_CLIENT);
@@ -316,7 +316,7 @@ describe('googleCalendar service', () => {
           'client-123',
           'Mock Client',
           '2026-06-18T10:00:00Z',
-          '2026-06-18T11:00:00Z',
+          '2026-06-18T10:30:00Z',
           'Career Development'
         )
       ).rejects.toThrow('SLOT_TAKEN');
@@ -348,7 +348,7 @@ describe('googleCalendar service', () => {
           'client-123',
           'Mock Client',
           '2026-06-18T10:00:00Z',
-          '2026-06-18T11:00:00Z',
+          '2026-06-18T10:30:00Z',
           'Career Development'
         )
       ).rejects.toThrow(BOOKING_ERROR.BOOKED_AS_COACH);
@@ -377,7 +377,7 @@ describe('googleCalendar service', () => {
         'client-123',
         'Mock Client',
         '2026-06-18T10:00:00Z',
-        '2026-06-18T11:00:00Z',
+        '2026-06-18T10:30:00Z',
         'Career Development'
       );
 
@@ -410,7 +410,7 @@ describe('googleCalendar service', () => {
         'client-123',
         'Mock Client',
         '2026-06-18T10:00:00Z',
-        '2026-06-18T11:00:00Z',
+        '2026-06-18T10:30:00Z',
         'Career Development'
       );
 
@@ -627,7 +627,7 @@ describe('googleCalendar service', () => {
         'client-123',
         'Mock Client',
         '2026-06-18T10:00:00Z',
-        '2026-06-18T11:00:00Z',
+        '2026-06-18T10:30:00Z',
         'Career Development'
       );
 
