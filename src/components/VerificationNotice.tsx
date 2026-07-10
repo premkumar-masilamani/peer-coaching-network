@@ -14,10 +14,10 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
 import { formatDisplayName, updateVerifiedCredentials } from '../services/firebaseService';
-import { GENDER_OPTIONS, type Gender, type Qualification, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
-import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
+import { GENDER_OPTIONS, type Gender, type Qualification, QUALIFICATION, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
+
+import { getCredentialDescription, buildDisplayCredentials } from '../utils/credentials';
 import { verifyIcfCredential } from '../services/icfService';
-import { getCredentialDescription } from '../utils/credentials';
 
 export const VerificationNotice: React.FC = () => {
   const { user, profile, updateProfileDetails, logout } = useAuth();
@@ -36,17 +36,16 @@ export const VerificationNotice: React.FC = () => {
   const [verifying, setVerifying] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState('');
 
-  const displayCredentials = getDisplayCredentials(profile?.icfCredentials);
+  const displayCredentials = buildDisplayCredentials(profile || {});
 
   const handleVerify = async () => {
     if (!profile) return;
     setVerifying(true);
     setVerifyMsg('');
     try {
-      const creds = await verifyIcfCredential(profile.firstName, profile.lastName);
-      if (creds && creds.length > 0) {
-        const newQuals = creds.map(c => mapIcfLevelToQualification(c.level)).filter(Boolean) as Qualification[];
-        await updateVerifiedCredentials(profile.userId, creds, newQuals);
+      const newQuals = await verifyIcfCredential(profile.firstName, profile.lastName);
+      if (newQuals && newQuals.length > 0) {
+        await updateVerifiedCredentials(profile.userId, newQuals);
         // No success message needed
       } else {
         setVerifyMsg('Could not find active credential in ICF Directory.');
@@ -185,17 +184,14 @@ export const VerificationNotice: React.FC = () => {
             </label>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
               {displayCredentials.length > 0 ? (
-                displayCredentials.map((cred, idx) => (
+                displayCredentials.map((qual, idx) => (
                   <div key={idx} style={{ fontSize: '0.9rem', color: 'hsl(var(--text-primary))', fontWeight: 500, marginBottom: '4px' }}>
-                    {getCredentialDescription(mapIcfLevelToQualification(cred.level) || cred.level as Qualification)}
-                    <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', marginLeft: '8px' }}>
-                      (Expires: {cred.expiryDate.toDate().toLocaleDateString(undefined, { month: 'short', year: 'numeric' })})
-                    </span>
+                    {getCredentialDescription(qual as Qualification)}
                   </div>
                 ))
               ) : (
                 <div style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>
-                  Trainee Coach
+                  {QUALIFICATION.UNCERTIFIED}
                 </div>
               )}
               

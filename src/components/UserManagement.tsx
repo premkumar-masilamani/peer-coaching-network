@@ -23,9 +23,8 @@ import {
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
-import { getCredentialBadgeClass } from '../utils/credentials';
-import { type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, BOOKING_STATUS, EVENT_TYPE, COLLECTIONS, ICF_DIRECTORY_URL } from '../config';
-import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
+import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
+import { type Qualification, QUALIFICATION, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, BOOKING_STATUS, EVENT_TYPE, COLLECTIONS, ICF_DIRECTORY_URL } from '../config';
 import { verifyIcfCredential } from '../services/icfService';
 import { updateVerifiedCredentials } from '../services/firebaseService';
 
@@ -376,18 +375,18 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
               </h4>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {(() => {
-                  const validCreds = getDisplayCredentials(coach.icfCredentials);
-                  if (validCreds.length > 0) {
-                    return validCreds.map((validCred, idx) => {
-                      const qual = mapIcfLevelToQualification(validCred.level) || validCred.level;
+                  const displayCredentials = buildDisplayCredentials(coach);
+
+                  if (displayCredentials.length > 0) {
+                    return displayCredentials.map((qual, idx) => {
                       return (
                         <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                          {qual as string}
+                          {qual}
                         </span>
                       );
                     });
                   }
-                  return <span className="badge" style={{ fontSize: '0.75rem', padding: '4px 10px', background: 'var(--panel-bg)', color: 'hsl(var(--text-muted))', border: '1px solid var(--border-light)' }}>Trainee Coach</span>;
+                  return <span className="badge" style={{ fontSize: '0.75rem', padding: '4px 10px', background: 'var(--panel-bg)', color: 'hsl(var(--text-muted))', border: '1px solid var(--border-light)' }}>{QUALIFICATION.UNCERTIFIED}</span>;
                 })()}
               </div>
             </div>
@@ -630,23 +629,20 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                             {(() => {
-                               const validCreds = getDisplayCredentials(u.icfCredentials);
-                               if (validCreds.length > 0) {
-                                 return validCreds.map((validCred, idx) => {
-                                   const qual = mapIcfLevelToQualification(validCred.level) || validCred.level;
+                               const displayCredentials = buildDisplayCredentials(u);
+
+                               if (displayCredentials.length > 0) {
+                                 return displayCredentials.map((qual, idx) => {
                                    return (
                                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                                        <span className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                                         {qual as string}
-                                       </span>
-                                       <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))' }}>
-                                         Expires: {validCred.expiryDate.toDate().toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+                                         {qual}
                                        </span>
                                      </div>
                                    );
                                  });
                                }
-                               return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>Trainee Coach</span>;
+                               return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>{QUALIFICATION.UNCERTIFIED}</span>;
                              })()}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
@@ -656,10 +652,9 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                                  setVerifyingId(u.userId);
                                  setVerifyErrorId(null);
                                  try {
-                                   const creds = await verifyIcfCredential(u.firstName, u.lastName);
-                                   if (creds && creds.length > 0) {
-                                     const newQuals = creds.map(c => mapIcfLevelToQualification(c.level)).filter(Boolean) as Qualification[];
-                                     await updateVerifiedCredentials(u.userId, creds, newQuals);
+                                   const newQuals = await verifyIcfCredential(u.firstName, u.lastName);
+                                   if (newQuals && newQuals.length > 0) {
+                                     await updateVerifiedCredentials(u.userId, newQuals);
                                    } else {
                                      setVerifyErrorId(u.userId);
                                    }
