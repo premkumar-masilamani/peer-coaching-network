@@ -16,8 +16,8 @@ import { getTimezonesForCountry } from '../utils/timezones';
 import { formatDisplayName, updateVerifiedCredentials } from '../services/firebaseService';
 import { GENDER_OPTIONS, type Gender, type Qualification, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
 
+import { getCredentialDescription, buildDisplayCredentials } from '../utils/credentials';
 import { verifyIcfCredential } from '../services/icfService';
-import { getCredentialDescription } from '../utils/credentials';
 
 export const VerificationNotice: React.FC = () => {
   const { user, profile, updateProfileDetails, logout } = useAuth();
@@ -36,15 +36,7 @@ export const VerificationNotice: React.FC = () => {
   const [verifying, setVerifying] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState('');
 
-  const hasMCC = !!profile?.icf_mcc;
-  const hasPCC = !!profile?.icf_pcc;
-  const hasACC = !!profile?.icf_acc;
-
-  const displayCredentials: string[] = [];
-  if (hasMCC) displayCredentials.push('ICF MCC');
-  else if (hasPCC) displayCredentials.push('ICF PCC');
-  else if (hasACC) displayCredentials.push('ICF ACC');
-  if (profile?.icf_actc) displayCredentials.push('ICF ACTC');
+  const displayCredentials = buildDisplayCredentials(profile || {});
 
   const handleVerify = async () => {
     if (!profile) return;
@@ -199,7 +191,7 @@ export const VerificationNotice: React.FC = () => {
                 ))
               ) : (
                 <div style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>
-                  Trainee Coach
+                  Uncertified Coach
                 </div>
               )}
               

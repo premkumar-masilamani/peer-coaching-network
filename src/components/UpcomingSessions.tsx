@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { formatDisplayName, queryAvailableCoachesForDay, subscribeToUserBookings, getUserAvailableSlots, getProfiles } from '../services/firebaseService';
-import { getCredentialBadgeClass, getCredentialDescription } from '../utils/credentials';
+import { getCredentialBadgeClass, getCredentialDescription, buildDisplayCredentials } from '../utils/credentials';
 import type { UserProfile, DiscoveryFilters } from '../services/firebaseService';
 import { 
   getUpcomingEvents,
@@ -669,7 +669,7 @@ export const UpcomingSessions: React.FC = () => {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
               {/* Qualifications Custom Dropdown */}
-              <div className="form-group" style={{ marginBottom: 0, position: 'relative' }}>
+              <div className="form-group" style={{ marginBottom: 0, position: 'relative', zIndex: qualsDropdownOpen ? 100 : 1 }}>
                 <label className="form-label">Qualifications</label>
                 <div style={{ position: 'relative' }}>
                   <Award size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))', zIndex: 10 }} />
@@ -929,12 +929,7 @@ export const UpcomingSessions: React.FC = () => {
                               const hasMCC = !!coach.icf_mcc;
                               const hasPCC = !!coach.icf_pcc;
                               const hasACC = !!coach.icf_acc;
-
-                              const displayCredentials: string[] = [];
-                              if (hasMCC) displayCredentials.push('ICF MCC');
-                              else if (hasPCC) displayCredentials.push('ICF PCC');
-                              else if (hasACC) displayCredentials.push('ICF ACC');
-                              if (coach.icf_actc) displayCredentials.push('ICF ACTC');
+                              const displayCredentials = buildDisplayCredentials(coach);
                               
                               if (hasMCC) borderCol = 'hsl(var(--mcc-platinum))';
                               else if (hasPCC) borderCol = 'hsl(var(--pcc-silver))';
@@ -974,7 +969,7 @@ export const UpcomingSessions: React.FC = () => {
                                             })
                                           ) : (
                                             <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
-                                              Trainee Coach
+                                              Uncertified Coach
                                             </span>
                                           )}
                                         </div>

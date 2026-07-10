@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
-import { getCredentialBadgeClass } from '../utils/credentials';
+import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince, logAnalyticsEvent } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
 import { GENDER_OPTIONS, type Gender, type Qualification, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
@@ -93,15 +93,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
   const [verifying, setVerifying] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState('');
 
-  const hasMCC = !!profile?.icf_mcc;
-  const hasPCC = !!profile?.icf_pcc;
-  const hasACC = !!profile?.icf_acc;
-
-  const displayCredentials: string[] = [];
-  if (hasMCC) displayCredentials.push('ICF MCC');
-  else if (hasPCC) displayCredentials.push('ICF PCC');
-  else if (hasACC) displayCredentials.push('ICF ACC');
-  if (profile?.icf_actc) displayCredentials.push('ICF ACTC');
+  const displayCredentials = buildDisplayCredentials(profile || {});
   const handleVerify = async () => {
     if (!profile) return;
     setVerifying(true);
@@ -377,7 +369,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
                 })
               ) : (
                 <div style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>
-                  Trainee Coach
+                  Uncertified Coach
                 </div>
               )}
               

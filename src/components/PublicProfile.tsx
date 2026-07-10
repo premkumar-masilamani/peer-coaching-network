@@ -19,7 +19,8 @@ import {
 } from '../services/firebaseService';
 import { 
   getCredentialBadgeClass, 
-  getCredentialDescription 
+  getCredentialDescription,
+  buildDisplayCredentials
 } from '../utils/credentials';
 import { sanitizeImageUrl } from '../utils/url';
 import type { Qualification } from '../config';
@@ -101,12 +102,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
   const hasMCC = !!profile.icf_mcc;
   const hasPCC = !!profile.icf_pcc;
   const hasACC = !!profile.icf_acc;
-
-  const displayCredentials: string[] = [];
-  if (hasMCC) displayCredentials.push('ICF MCC');
-  else if (hasPCC) displayCredentials.push('ICF PCC');
-  else if (hasACC) displayCredentials.push('ICF ACC');
-  if (profile.icf_actc) displayCredentials.push('ICF ACTC');
+  const displayCredentials = buildDisplayCredentials(profile);
   
   if (hasMCC) borderCol = 'hsl(var(--mcc-platinum))';
   else if (hasPCC) borderCol = 'hsl(var(--pcc-silver))';
@@ -210,7 +206,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
               })
             ) : (
               <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
-                Trainee Coach
+                Uncertified Coach
               </span>
             )}
 

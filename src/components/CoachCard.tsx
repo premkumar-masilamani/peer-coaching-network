@@ -1,7 +1,7 @@
 import React from 'react';
 import type { UserProfile } from '../services/firebaseService';
 import { formatDisplayName } from '../services/firebaseService';
-import { getCredentialBadgeClass } from '../utils/credentials';
+import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { sanitizeImageUrl } from '../utils/url';
 import { MapPin, Calendar, Award } from 'lucide-react';
 import type { Qualification } from '../config';
@@ -22,12 +22,7 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
   const hasMCC = !!coach.icf_mcc;
   const hasPCC = !!coach.icf_pcc;
   const hasACC = !!coach.icf_acc;
-
-  const displayCredentials: string[] = [];
-  if (hasMCC) displayCredentials.push('ICF MCC');
-  else if (hasPCC) displayCredentials.push('ICF PCC');
-  else if (hasACC) displayCredentials.push('ICF ACC');
-  if (coach.icf_actc) displayCredentials.push('ICF ACTC');
+  const displayCredentials = buildDisplayCredentials(coach);
 
   return (
     <div className="glass-panel glass-panel-interactive animate-fade-in" style={{
@@ -112,7 +107,7 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
             })
           ) : (
             <span style={{ fontSize: '0.7rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
-              Trainee Coach
+              Uncertified Coach
             </span>
           )}
           

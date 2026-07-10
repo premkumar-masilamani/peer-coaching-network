@@ -23,7 +23,7 @@ import {
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
-import { getCredentialBadgeClass } from '../utils/credentials';
+import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, BOOKING_STATUS, EVENT_TYPE, COLLECTIONS, ICF_DIRECTORY_URL } from '../config';
 import { verifyIcfCredential } from '../services/icfService';
 import { updateVerifiedCredentials } from '../services/firebaseService';
@@ -375,11 +375,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
               </h4>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {(() => {
-                  const displayCredentials: string[] = [];
-                  if (coach.icf_mcc) displayCredentials.push('ICF MCC');
-                  else if (coach.icf_pcc) displayCredentials.push('ICF PCC');
-                  else if (coach.icf_acc) displayCredentials.push('ICF ACC');
-                  if (coach.icf_actc) displayCredentials.push('ICF ACTC');
+                  const displayCredentials = buildDisplayCredentials(coach);
 
                   if (displayCredentials.length > 0) {
                     return displayCredentials.map((qual, idx) => {
@@ -390,7 +386,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                       );
                     });
                   }
-                  return <span className="badge" style={{ fontSize: '0.75rem', padding: '4px 10px', background: 'var(--panel-bg)', color: 'hsl(var(--text-muted))', border: '1px solid var(--border-light)' }}>Trainee Coach</span>;
+                  return <span className="badge" style={{ fontSize: '0.75rem', padding: '4px 10px', background: 'var(--panel-bg)', color: 'hsl(var(--text-muted))', border: '1px solid var(--border-light)' }}>Uncertified Coach</span>;
                 })()}
               </div>
             </div>
@@ -633,11 +629,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
                           <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                             {(() => {
-                               const displayCredentials: string[] = [];
-                               if (u.icf_mcc) displayCredentials.push('ICF MCC');
-                               else if (u.icf_pcc) displayCredentials.push('ICF PCC');
-                               else if (u.icf_acc) displayCredentials.push('ICF ACC');
-                               if (u.icf_actc) displayCredentials.push('ICF ACTC');
+                               const displayCredentials = buildDisplayCredentials(u);
 
                                if (displayCredentials.length > 0) {
                                  return displayCredentials.map((qual, idx) => {
@@ -650,7 +642,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                                    );
                                  });
                                }
-                               return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>Trainee Coach</span>;
+                               return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>Uncertified Coach</span>;
                              })()}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
