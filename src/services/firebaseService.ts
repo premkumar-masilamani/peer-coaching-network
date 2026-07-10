@@ -650,14 +650,20 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
     };
     const lastUpdated = new Date().toISOString();
 
+    const isDiscoverable = profile.userRole === USER_ROLE.USER && isApproved(profile);
+    const finalFreeSlots = isDiscoverable ? freeSlots : [];
+    const finalAvailableDatesUtc = isDiscoverable ? availableDatesUtc : [];
+
     // Aggregate cache: retained for the coach's own "My Sessions" / personal
     // availability view (a single-document read). We always write because
     // profile metadata may have changed even when the slots are unchanged.
+    // If the coach is deactivated or not a coach, we empty their slots to prevent
+    // cache leakage.
     await setDoc(personalAvailabilityCacheRef, {
       userId: uid,
       lastUpdated,
-      availableSlots: freeSlots,
-      availableDatesUtc,
+      availableSlots: finalFreeSlots,
+      availableDatesUtc: finalAvailableDatesUtc,
       ...filterFields,
       userStatus: profile.userStatus || USER_STATUS.INACTIVE,
     });
@@ -679,7 +685,7 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
     }
 
     const slotsByDate = new Map<string, string[]>();
-    for (const iso of freeSlots) {
+    for (const iso of finalFreeSlots) {
       const dateISO = iso.split('T')[0];
       const list = slotsByDate.get(dateISO) || [];
       list.push(iso);
