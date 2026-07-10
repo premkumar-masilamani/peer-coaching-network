@@ -107,7 +107,7 @@ export const CoachCard: React.FC<CoachCardProps> = ({ coach, onSchedule }) => {
             })
           ) : (
             <span style={{ fontSize: '0.7rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
-              Uncertified Coach
+              {QUALIFICATION.UNCERTIFIED}
             </span>
           )}
           

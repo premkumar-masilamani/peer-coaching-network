@@ -17,7 +17,7 @@ import { getTimezonesForCountry } from '../utils/timezones';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince, logAnalyticsEvent } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
-import { GENDER_OPTIONS, type Gender, type Qualification, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
+import { GENDER_OPTIONS, type Gender, type Qualification, QUALIFICATION, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
 import { navigateToProfile } from '../utils/url';
 
 import { verifyIcfCredential } from '../services/icfService';
@@ -369,7 +369,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
                 })
               ) : (
                 <div style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>
-                  Uncertified Coach
+                  {QUALIFICATION.UNCERTIFIED}
                 </div>
               )}
               

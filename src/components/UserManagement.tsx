@@ -24,7 +24,7 @@ import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firesto
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
-import { type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, BOOKING_STATUS, EVENT_TYPE, COLLECTIONS, ICF_DIRECTORY_URL } from '../config';
+import { type Qualification, QUALIFICATION, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, BOOKING_STATUS, EVENT_TYPE, COLLECTIONS, ICF_DIRECTORY_URL } from '../config';
 import { verifyIcfCredential } from '../services/icfService';
 import { updateVerifiedCredentials } from '../services/firebaseService';
 
@@ -386,7 +386,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                       );
                     });
                   }
-                  return <span className="badge" style={{ fontSize: '0.75rem', padding: '4px 10px', background: 'var(--panel-bg)', color: 'hsl(var(--text-muted))', border: '1px solid var(--border-light)' }}>Uncertified Coach</span>;
+                  return <span className="badge" style={{ fontSize: '0.75rem', padding: '4px 10px', background: 'var(--panel-bg)', color: 'hsl(var(--text-muted))', border: '1px solid var(--border-light)' }}>{QUALIFICATION.UNCERTIFIED}</span>;
                 })()}
               </div>
             </div>
@@ -642,7 +642,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                                    );
                                  });
                                }
-                               return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>Uncertified Coach</span>;
+                               return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>{QUALIFICATION.UNCERTIFIED}</span>;
                              })()}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>

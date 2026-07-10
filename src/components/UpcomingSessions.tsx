@@ -32,7 +32,7 @@ import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getUtcForSlot, getTimezoneCode } from '../utils/timezoneHelpers';
 import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
 import { sanitizeImageUrl, navigateToProfile } from '../utils/url';
-import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE } from '../config';
+import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION, QUALIFICATION_OPTIONS, EVENT_TYPE } from '../config';
 
 
 export const UpcomingSessions: React.FC = () => {
@@ -969,7 +969,7 @@ export const UpcomingSessions: React.FC = () => {
                                             })
                                           ) : (
                                             <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
-                                              Uncertified Coach
+                                              {QUALIFICATION.UNCERTIFIED}
                                             </span>
                                           )}
                                         </div>

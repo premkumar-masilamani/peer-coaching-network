@@ -14,7 +14,7 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
 import { formatDisplayName, updateVerifiedCredentials } from '../services/firebaseService';
-import { GENDER_OPTIONS, type Gender, type Qualification, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
+import { GENDER_OPTIONS, type Gender, type Qualification, QUALIFICATION, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
 
 import { getCredentialDescription, buildDisplayCredentials } from '../utils/credentials';
 import { verifyIcfCredential } from '../services/icfService';
@@ -191,7 +191,7 @@ export const VerificationNotice: React.FC = () => {
                 ))
               ) : (
                 <div style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>
-                  Uncertified Coach
+                  {QUALIFICATION.UNCERTIFIED}
                 </div>
               )}
               

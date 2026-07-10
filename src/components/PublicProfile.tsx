@@ -206,7 +206,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
               })
             ) : (
               <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
-                Uncertified Coach
+                {QUALIFICATION.UNCERTIFIED}
               </span>
             )}
 
