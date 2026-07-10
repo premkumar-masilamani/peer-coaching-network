@@ -2,9 +2,9 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // This suite exercises getGoogleBusyIntervals, whose network path is only
-// reachable when Google integration is ENABLED. The main firebaseService test
-// suite runs with the emulator flag on (integration disabled), so the fetch
-// branch is covered here with the flag forced on before the module loads.
+// reachable when Google integration is ENABLED. The other slotsService tests run
+// with the emulator flag on (integration disabled), so the fetch branch is
+// covered here with the flag forced on before the module loads.
 const { mockGetGoogleToken } = vi.hoisted(() => {
   (import.meta.env as any).VITE_USE_FIREBASE_EMULATOR = 'false';
   (import.meta.env as any).VITE_ENABLE_GOOGLE_INTEGRATION = 'true';
@@ -21,11 +21,7 @@ const { mockGetGoogleToken } = vi.hoisted(() => {
 // Auth mock exposes a mutable currentUser so tests can simulate the coach's session.
 const authState: { currentUser: { uid: string } | null } = { currentUser: null };
 
-vi.mock('firebase/app', () => ({
-  initializeApp: vi.fn(() => ({})),
-  getApps: vi.fn(() => []),
-  getApp: vi.fn(() => ({})),
-}));
+vi.mock('firebase/app', () => ({ initializeApp: vi.fn(() => ({})), getApps: vi.fn(() => []), getApp: vi.fn(() => ({})) }));
 vi.mock('firebase/analytics', () => ({ getAnalytics: vi.fn(() => ({})), logEvent: vi.fn() }));
 vi.mock('firebase/auth', () => ({
   getAuth: vi.fn(() => authState),
@@ -57,7 +53,7 @@ vi.mock('../googleToken', () => ({
 const timeMin = new Date('2026-07-01T00:00:00.000Z');
 const timeMax = new Date('2026-08-01T00:00:00.000Z');
 
-describe('getGoogleBusyIntervals', () => {
+describe('slotsService.getGoogleBusyIntervals', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authState.currentUser = { uid: 'coach1' };
@@ -68,7 +64,7 @@ describe('getGoogleBusyIntervals', () => {
   });
 
   it('maps freeBusy busy periods to millisecond intervals', async () => {
-    const { getGoogleBusyIntervals } = await import('../firebaseService');
+    const { getGoogleBusyIntervals } = await import('../slotsService');
     const fetchMock = vi.fn(async () => ({
       ok: true,
       json: async () => ({ calendars: { primary: { busy: [
@@ -89,19 +85,19 @@ describe('getGoogleBusyIntervals', () => {
   });
 
   it('returns [] when the response is not ok', async () => {
-    const { getGoogleBusyIntervals } = await import('../firebaseService');
+    const { getGoogleBusyIntervals } = await import('../slotsService');
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, json: async () => ({}) })));
     expect(await getGoogleBusyIntervals('coach1', timeMin, timeMax)).toEqual([]);
   });
 
   it('returns [] and swallows network errors', async () => {
-    const { getGoogleBusyIntervals } = await import('../firebaseService');
+    const { getGoogleBusyIntervals } = await import('../slotsService');
     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network down'); }));
     expect(await getGoogleBusyIntervals('coach1', timeMin, timeMax)).toEqual([]);
   });
 
   it('returns [] without fetching when no Google token is present', async () => {
-    const { getGoogleBusyIntervals } = await import('../firebaseService');
+    const { getGoogleBusyIntervals } = await import('../slotsService');
     mockGetGoogleToken.mockReturnValue(null);
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
@@ -110,7 +106,7 @@ describe('getGoogleBusyIntervals', () => {
   });
 
   it('returns [] when recalc is for a different user than the signed-in coach', async () => {
-    const { getGoogleBusyIntervals } = await import('../firebaseService');
+    const { getGoogleBusyIntervals } = await import('../slotsService');
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     expect(await getGoogleBusyIntervals('someone-else', timeMin, timeMax)).toEqual([]);
@@ -118,7 +114,7 @@ describe('getGoogleBusyIntervals', () => {
   });
 
   it('defaults to [] when the payload has no busy array', async () => {
-    const { getGoogleBusyIntervals } = await import('../firebaseService');
+    const { getGoogleBusyIntervals } = await import('../slotsService');
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({}) })));
     expect(await getGoogleBusyIntervals('coach1', timeMin, timeMax)).toEqual([]);
   });
