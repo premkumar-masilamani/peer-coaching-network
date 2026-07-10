@@ -138,6 +138,10 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
         for (const d of snap.docs) {
           const data = d.data();
           if (data.status === BOOKING_STATUS.CANCELLED) continue; // skip cancelled bookings
+          if (data.status === BOOKING_STATUS.PENDING && data.expireAt) {
+            const expireTime = data.expireAt.toDate().getTime();
+            if (expireTime < Date.now()) continue; // skip expired pending bookings
+          }
           
           const existingEvent = events.find(e => e.id === data.bookingId);
           if (existingEvent) {
@@ -197,6 +201,16 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
   return events;
 };
 
+const getDeterministicRequestId = (id: string): string => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    const chr = id.charCodeAt(i);
+    hash = ((hash << 5) - hash) + chr;
+    hash |= 0;
+  }
+  return 'req-' + Math.abs(hash).toString(36) + id.replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
+};
+
 export const scheduleMeeting = async (
   coachUid: string,
   coachEmail: string,
@@ -233,6 +247,8 @@ export const scheduleMeeting = async (
     topic,
   });
 
+  const bookingId = `${coachUid}_${startIso}`;
+
   const eventPayload = {
     summary: resolvedSummary,
     description: resolvedDescription,
@@ -247,15 +263,13 @@ export const scheduleMeeting = async (
     attendees: [{ email: coachEmail }],
     conferenceData: {
       createRequest: {
-        requestId: Math.random().toString(36).substring(2, 12),
+        requestId: getDeterministicRequestId(bookingId),
         conferenceSolutionKey: {
           type: 'hangoutsMeet',
         },
       },
     },
   };
-
-  const bookingId = `${coachUid}_${startIso}`;
   logger.info(`Attempting to book session for client ${clientUid} with coach ${coachUid} at ${startIso}`);
   await logger.telemetry(LOG_SEVERITY.INFO, 'booking_attempt', {
     clientUid,
@@ -302,6 +316,8 @@ export const scheduleMeeting = async (
   const maxAttempts = 3;
   let lastError: Error | null = null;
 
+  const pendingExpireDate = new Date(Date.now() + 10 * 60 * 1000);
+
   const bookingData = {
     bookingId,
     googleEventId: '',
@@ -312,7 +328,8 @@ export const scheduleMeeting = async (
     topic,
     coachUid,
     clientUid,
-    createdAt: Timestamp.now()
+    createdAt: Timestamp.now(),
+    expireAt: Timestamp.fromDate(pendingExpireDate)
   };
 
   while (attempts < maxAttempts && !transactionSuccess) {
@@ -343,63 +360,89 @@ export const scheduleMeeting = async (
           tx.get(coachAsClientAtTPlus30Ref)
         ]);
 
-        const isOneHourBooking = (docSnap: DocumentSnapshot) => {
+        const isBookingActive = (docSnap: DocumentSnapshot) => {
           if (!docSnap.exists()) return false;
-          const data = docSnap.data();
+          const data = typeof docSnap.data === 'function' ? docSnap.data() : undefined;
+          if (!data) return true;
           if (data.status === BOOKING_STATUS.CANCELLED) return false;
+          if (data.status === BOOKING_STATUS.PENDING && data.expireAt) {
+            const expireAt = data.expireAt?.toDate ? data.expireAt.toDate() : new Date(data.expireAt);
+            if (expireAt < new Date()) {
+              return false;
+            }
+          }
+          return true;
+        };
+
+        const isCacheActive = (docSnap: DocumentSnapshot) => {
+          if (!docSnap.exists()) return false;
+          const data = typeof docSnap.data === 'function' ? docSnap.data() : undefined;
+          if (!data) return true;
+          if (data.expireAt) {
+            const expireAt = data.expireAt?.toDate ? data.expireAt.toDate() : new Date(data.expireAt);
+            if (expireAt < new Date()) {
+              return false;
+            }
+          }
+          return true;
+        };
+
+        const isOneHourBooking = (docSnap: DocumentSnapshot) => {
+          if (!isBookingActive(docSnap)) return false;
+          const data = docSnap.data();
+          if (!data) return false;
           const start = data.startTime.toDate().getTime();
           const end = data.endTime.toDate().getTime();
           return (end - start) > 30 * 60 * 1000;
         };
 
         // 1. Coach Availability checks
-        if (coachAtT0.exists() && coachAtT0.data()?.status !== BOOKING_STATUS.CANCELLED) {
+        if (isBookingActive(coachAtT0)) {
           throw new Error(BOOKING_ERROR.SLOT_TAKEN);
         }
         if (isOneHourBooking(coachAtTMinus30)) {
           throw new Error(BOOKING_ERROR.SLOT_TAKEN);
         }
-        if (isOneHour && coachAtTPlus30.exists() && coachAtTPlus30.data()?.status !== BOOKING_STATUS.CANCELLED) {
+        if (isOneHour && isBookingActive(coachAtTPlus30)) {
           throw new Error(BOOKING_ERROR.SLOT_TAKEN);
         }
 
         // 2. Coach as Client checks
-        if (coachAsClientAtT0.exists()) {
+        if (isCacheActive(coachAsClientAtT0)) {
           throw new Error(BOOKING_ERROR.SLOT_TAKEN);
         }
-        if (isOneHour && coachAsClientAtTPlus30.exists()) {
+        if (isOneHour && isCacheActive(coachAsClientAtTPlus30)) {
           throw new Error(BOOKING_ERROR.SLOT_TAKEN);
         }
 
         // 3. Client Availability as Client checks
-        if (clientBookingCacheAtT0.exists()) {
+        if (isCacheActive(clientBookingCacheAtT0)) {
           throw new Error(BOOKING_ERROR.BOOKED_AS_CLIENT);
         }
-        if (isOneHour && clientBookingCacheAtTPlus30.exists()) {
+        if (isOneHour && isCacheActive(clientBookingCacheAtTPlus30)) {
           throw new Error(BOOKING_ERROR.BOOKED_AS_CLIENT);
         }
 
         // 4. Client Availability as Coach checks
-        if (clientAsCoachAtT0.exists() && clientAsCoachAtT0.data()?.status !== BOOKING_STATUS.CANCELLED) {
+        if (isBookingActive(clientAsCoachAtT0)) {
           throw new Error(BOOKING_ERROR.BOOKED_AS_COACH);
         }
         if (isOneHourBooking(clientAsCoachAtTMinus30)) {
           throw new Error(BOOKING_ERROR.BOOKED_AS_COACH);
         }
-        if (isOneHour && clientAsCoachAtTPlus30.exists() && clientAsCoachAtTPlus30.data()?.status !== BOOKING_STATUS.CANCELLED) {
+        if (isOneHour && isBookingActive(clientAsCoachAtTPlus30)) {
           throw new Error(BOOKING_ERROR.BOOKED_AS_COACH);
         }
 
         tx.set(bookingRef, bookingData);
         
-        const expireDate = new Date(startMs + 24 * 60 * 60 * 1000);
         tx.set(clientBookingCacheAtT0Ref, {
           clientUid,
           coachUid,
           bookingId,
           startIso: t0,
           createdAt: Timestamp.now(),
-          expireAt: Timestamp.fromDate(expireDate)
+          expireAt: Timestamp.fromDate(pendingExpireDate)
         });
         if (isOneHour) {
           tx.set(clientBookingCacheAtTPlus30Ref, {
@@ -408,7 +451,7 @@ export const scheduleMeeting = async (
             bookingId,
             startIso: tPlus30,
             createdAt: Timestamp.now(),
-            expireAt: Timestamp.fromDate(expireDate)
+            expireAt: Timestamp.fromDate(pendingExpireDate)
           });
         }
       });
@@ -507,11 +550,24 @@ export const scheduleMeeting = async (
   }
 
   // Step 3: Update Firestore with Real IDs and set status to Confirmed
-  await updateDoc(bookingRef, {
-    googleEventId,
-    googleMeetLink: realMeetLink,
-    status: BOOKING_STATUS.CONFIRMED
-  });
+  const finalExpireDate = new Date(startMs + 24 * 60 * 60 * 1000);
+
+  await Promise.all([
+    updateDoc(bookingRef, {
+      googleEventId,
+      googleMeetLink: realMeetLink,
+      status: BOOKING_STATUS.CONFIRMED,
+      expireAt: null
+    }),
+    updateDoc(clientBookingCacheAtT0Ref, {
+      expireAt: Timestamp.fromDate(finalExpireDate)
+    }),
+    ...(isOneHour ? [
+      updateDoc(clientBookingCacheAtTPlus30Ref, {
+        expireAt: Timestamp.fromDate(finalExpireDate)
+      })
+    ] : [])
+  ]);
 
   logger.info(`Successfully booked session. Booking ID: ${bookingId}`);
 
