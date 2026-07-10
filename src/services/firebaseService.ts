@@ -563,6 +563,45 @@ export const recalculateAvailableSlotsCache = (uid: string): Promise<void> => {
   return next;
 };
 
+export const lazyRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
+  if (!db) return;
+  const isOwner = auth?.currentUser?.uid === uid;
+  if (!isOwner) {
+    return;
+  }
+
+  const personalAvailabilityCacheRef = doc(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE, uid);
+  try {
+    const snap = await getDoc(personalAvailabilityCacheRef);
+    let shouldRecalc = false;
+
+    if (snap.exists()) {
+      const data = snap.data();
+      const lastUpdated = data.lastUpdated;
+      if (lastUpdated) {
+        const lastUpdatedMs = new Date(lastUpdated).getTime();
+        const ageMs = Date.now() - lastUpdatedMs;
+        if (ageMs > 24 * 60 * 60 * 1000) {
+          shouldRecalc = true;
+          logger.info(`lazyRecalculateAvailableSlotsCache: Cache for ${uid} is older than 24 hours (${Math.round(ageMs / 3600000)}h).`);
+        }
+      } else {
+        shouldRecalc = true;
+        logger.info(`lazyRecalculateAvailableSlotsCache: Cache for ${uid} has no lastUpdated timestamp.`);
+      }
+    } else {
+      shouldRecalc = true;
+      logger.info(`lazyRecalculateAvailableSlotsCache: Cache for ${uid} does not exist.`);
+    }
+
+    if (shouldRecalc) {
+      await recalculateAvailableSlotsCache(uid);
+    }
+  } catch (err) {
+    logger.error(`Error in lazyRecalculateAvailableSlotsCache for ${uid}:`, err);
+  }
+};
+
 const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
   if (!db) return;
   logger.debug(`Starting available slots cache recalculation for user: ${uid}`);
@@ -1049,6 +1088,11 @@ export const subscribeToUserBookings = (uid: string, callback: (bookings: Docume
 
 export const getUserAvailableSlots = async (uid: string): Promise<string[]> => {
   if (!db) return [];
+  
+  lazyRecalculateAvailableSlotsCache(uid).catch((err) => {
+    logger.error(`Error triggering lazy check for ${uid}:`, err);
+  });
+
   const ref = doc(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE, uid);
   const snap = await getDoc(ref);
   return snap.exists() ? (snap.data().availableSlots || []) : [];

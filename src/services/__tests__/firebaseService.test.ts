@@ -24,6 +24,7 @@ import {
   subscribeToBookings,
   subtractBusyIntervals,
   recalculateAvailableSlotsCache,
+  lazyRecalculateAvailableSlotsCache,
   updateVerifiedCredentials
 } from '../firebaseService';
 import { logEvent } from 'firebase/analytics';
@@ -984,6 +985,123 @@ describe('firebaseService', () => {
       const updates = mockUpdateDoc.mock.calls[0][1] as any;
       expect(updates.icf_acc).toBe(true);
       expect(updates.icf_pcc).toBe(false);
+    });
+  });
+
+  describe('lazyRecalculateAvailableSlotsCache', () => {
+    beforeEach(() => {
+      mockGetDoc.mockImplementation((ref: any) => {
+        if (ref.path === 'users/coach-lazy/schedule/availableDays') {
+          return Promise.resolve({ exists: () => true, data: () => ({}) });
+        }
+        if (ref.path === 'users/coach-lazy/schedule/blockedDates') {
+          return Promise.resolve({ exists: () => true, data: () => ({ blockedDates: [] }) });
+        }
+        if (ref.path === 'users/coach-lazy') {
+          return Promise.resolve({ exists: () => true, data: () => ({ timezone: 'UTC', userStatus: 'active' }) });
+        }
+        return Promise.resolve({ exists: () => false });
+      });
+      mockGetDocs.mockResolvedValue({ forEach: () => {} });
+      mockSetDoc.mockResolvedValue(undefined);
+    });
+
+    it('does nothing if the caller is not the owner', async () => {
+      authState.currentUser = { uid: 'other-user' };
+      await lazyRecalculateAvailableSlotsCache('coach-lazy');
+      expect(mockGetDoc).not.toHaveBeenCalled();
+    });
+
+    it('triggers recalculation if the cache document does not exist', async () => {
+      authState.currentUser = { uid: 'coach-lazy' };
+      mockGetDoc.mockImplementation(async (ref: any) => {
+        if (ref.path === 'personalAvailabilityCache/coach-lazy') {
+          return { exists: () => false };
+        }
+        if (ref.path === 'users/coach-lazy') {
+          return { exists: () => true, data: () => ({ timezone: 'UTC', userStatus: 'active' }) };
+        }
+        if (ref.path === 'users/coach-lazy/schedule/availableDays') {
+          return { exists: () => true, data: () => ({}) };
+        }
+        if (ref.path === 'users/coach-lazy/schedule/blockedDates') {
+          return { exists: () => true, data: () => ({ blockedDates: [] }) };
+        }
+        return { exists: () => false };
+      });
+
+      await lazyRecalculateAvailableSlotsCache('coach-lazy');
+
+      const cacheReads = mockGetDoc.mock.calls.filter(c => c[0].path === 'personalAvailabilityCache/coach-lazy');
+      expect(cacheReads.length).toBe(1);
+      
+      const cacheWrites = mockSetDoc.mock.calls.filter(c => c[0].path === 'personalAvailabilityCache/coach-lazy');
+      expect(cacheWrites.length).toBe(1);
+    });
+
+    it('triggers recalculation if lastUpdated is missing', async () => {
+      authState.currentUser = { uid: 'coach-lazy' };
+      mockGetDoc.mockImplementation(async (ref: any) => {
+        if (ref.path === 'personalAvailabilityCache/coach-lazy') {
+          return { exists: () => true, data: () => ({ availableSlots: [] }) };
+        }
+        if (ref.path === 'users/coach-lazy') {
+          return { exists: () => true, data: () => ({ timezone: 'UTC', userStatus: 'active' }) };
+        }
+        if (ref.path === 'users/coach-lazy/schedule/availableDays') {
+          return { exists: () => true, data: () => ({}) };
+        }
+        if (ref.path === 'users/coach-lazy/schedule/blockedDates') {
+          return { exists: () => true, data: () => ({ blockedDates: [] }) };
+        }
+        return { exists: () => false };
+      });
+
+      await lazyRecalculateAvailableSlotsCache('coach-lazy');
+
+      const cacheWrites = mockSetDoc.mock.calls.filter(c => c[0].path === 'personalAvailabilityCache/coach-lazy');
+      expect(cacheWrites.length).toBe(1);
+    });
+
+    it('triggers recalculation if lastUpdated is older than 24 hours', async () => {
+      authState.currentUser = { uid: 'coach-lazy' };
+      const oldDate = new Date(Date.now() - 25 * 60 * 60 * 1000).toISOString();
+      mockGetDoc.mockImplementation(async (ref: any) => {
+        if (ref.path === 'personalAvailabilityCache/coach-lazy') {
+          return { exists: () => true, data: () => ({ availableSlots: [], lastUpdated: oldDate }) };
+        }
+        if (ref.path === 'users/coach-lazy') {
+          return { exists: () => true, data: () => ({ timezone: 'UTC', userStatus: 'active' }) };
+        }
+        if (ref.path === 'users/coach-lazy/schedule/availableDays') {
+          return { exists: () => true, data: () => ({}) };
+        }
+        if (ref.path === 'users/coach-lazy/schedule/blockedDates') {
+          return { exists: () => true, data: () => ({ blockedDates: [] }) };
+        }
+        return { exists: () => false };
+      });
+
+      await lazyRecalculateAvailableSlotsCache('coach-lazy');
+
+      const cacheWrites = mockSetDoc.mock.calls.filter(c => c[0].path === 'personalAvailabilityCache/coach-lazy');
+      expect(cacheWrites.length).toBe(1);
+    });
+
+    it('does NOT trigger recalculation if lastUpdated is less than 24 hours old', async () => {
+      authState.currentUser = { uid: 'coach-lazy' };
+      const recentDate = new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString();
+      mockGetDoc.mockImplementation(async (ref: any) => {
+        if (ref.path === 'personalAvailabilityCache/coach-lazy') {
+          return { exists: () => true, data: () => ({ availableSlots: [], lastUpdated: recentDate }) };
+        }
+        return { exists: () => false };
+      });
+
+      await lazyRecalculateAvailableSlotsCache('coach-lazy');
+
+      const cacheWrites = mockSetDoc.mock.calls.filter(c => c[0].path === 'personalAvailabilityCache/coach-lazy');
+      expect(cacheWrites.length).toBe(0);
     });
   });
 });
