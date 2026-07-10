@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useId } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { formatDisplayName, queryAvailableCoachesForDay, subscribeToUserBookings, getUserAvailableSlots, getProfiles } from '../services/firebaseService';
@@ -32,6 +32,7 @@ import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getTimezoneCode, getUtcForLocalDateTime, isSlotAvailable } from '../utils/timezoneHelpers';
 import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
 import { sanitizeImageUrl, navigateToProfile } from '../utils/url';
+import { resolveTabNavigationIndex } from '../utils/keyboardNavigation';
 import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION, QUALIFICATION_OPTIONS, EVENT_TYPE } from '../config';
 
 
@@ -180,6 +181,32 @@ export const UpcomingSessions: React.FC = () => {
     }
     return arr;
   }, [localToday]);
+
+  // ARIA tabs, manual activation: arrow keys move focus only, and Enter/Space
+  // (native button activation) commits the day. Selecting a day fetches
+  // availability, so activating on every arrow press would fire one Firestore
+  // query per keystroke and race the responses against each other.
+  const [focusedTabIndex, setFocusedTabIndex] = useState(0);
+  const tabIdPrefix = useId();
+  const datePanelId = `${tabIdPrefix}panel`;
+  const dateTabId = (index: number) => `${tabIdPrefix}tab-${index}`;
+
+  // Roving tabindex: exactly one tab is reachable via Tab. Buttons are keyed by
+  // date and never remount, so the target is mounted and can be focused now.
+  const tabRefs = React.useRef<(HTMLButtonElement | null)[]>([]);
+
+  const handleTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
+    const nextIndex = resolveTabNavigationIndex(e.key, index, days.length);
+    if (nextIndex === null) return;
+    e.preventDefault();
+    setFocusedTabIndex(nextIndex);
+    tabRefs.current[nextIndex]?.focus();
+  };
+
+  const selectDay = (index: number) => {
+    setSelectedDayIndex(index);
+    setFocusedTabIndex(index);
+  };
 
   const activeDayDate = days[selectedDayIndex] || localToday;
   const fetchedDayDate = days[fetchedDayIndex] || localToday;
@@ -519,6 +546,10 @@ export const UpcomingSessions: React.FC = () => {
           border-radius: 12px;
           transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
           scroll-snap-align: start;
+          /* A button resets these; the div this replaced inherited them. */
+          font-family: inherit;
+          color: inherit;
+          text-align: center;
         }
 
         @media (min-width: 768px) {
@@ -606,17 +637,26 @@ export const UpcomingSessions: React.FC = () => {
           margin-bottom: 10px;
         }
 
+        .mini-coach-avatar-button {
+          display: block;
+          padding: 0;
+          background: none;
+          border: none;
+          border-radius: 50%;
+          flex-shrink: 0;
+          cursor: pointer;
+        }
+
         .mini-coach-avatar {
+          display: block;
           width: 44px;
           height: 44px;
           border-radius: 50%;
           object-fit: cover;
-          flex-shrink: 0;
-          cursor: pointer;
           transition: transform 0.2s ease, opacity 0.2s ease;
         }
 
-        .mini-coach-avatar:hover {
+        .mini-coach-avatar-button:hover .mini-coach-avatar {
           transform: scale(1.05);
           opacity: 0.9;
         }
@@ -626,6 +666,8 @@ export const UpcomingSessions: React.FC = () => {
         }
 
         .mini-coach-name {
+          display: block;
+          max-width: 100%;
           font-size: 0.9rem;
           font-weight: 700;
           white-space: nowrap;
@@ -633,6 +675,13 @@ export const UpcomingSessions: React.FC = () => {
           text-overflow: ellipsis;
           cursor: pointer;
           transition: color 0.15s ease;
+          /* Button reset: this was a div. */
+          padding: 0;
+          background: none;
+          border: none;
+          text-align: left;
+          font-family: inherit;
+          color: inherit;
         }
 
         .mini-coach-name:hover {
@@ -899,13 +948,29 @@ export const UpcomingSessions: React.FC = () => {
               <ChevronLeft size={18} />
             </button>
 
-            <div ref={carouselRef} className="date-tabs-container">
+            <div
+              ref={carouselRef}
+              className="date-tabs-container"
+              role="tablist"
+              aria-label="Available dates"
+            >
               {days.map((day, index) => {
                 const isActive = index === selectedDayIndex;
                 return (
-                  <div 
+                  <button
+                    type="button"
+                    role="tab"
+                    id={dateTabId(index)}
+                    aria-selected={isActive}
+                    aria-controls={datePanelId}
+                    tabIndex={index === focusedTabIndex ? 0 : -1}
+                    ref={(el) => {
+                      tabRefs.current[index] = el;
+                      return () => { tabRefs.current[index] = null; };
+                    }}
                     key={day.toISOString()}
-                    onClick={() => setSelectedDayIndex(index)}
+                    onClick={() => selectDay(index)}
+                    onKeyDown={(e) => handleTabKeyDown(e, index)}
                     className={`date-tab ${isActive ? 'active' : ''}`}
                   >
                     <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: isActive ? 0.9 : 0.6 }}>
@@ -914,7 +979,7 @@ export const UpcomingSessions: React.FC = () => {
                     <span style={{ fontSize: '1rem', fontWeight: 800, marginTop: '2px' }}>
                       {formatTabDate(day)}
                     </span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -928,233 +993,252 @@ export const UpcomingSessions: React.FC = () => {
             </button>
           </div>
 
-          {/* Time Slot Agenda List */}
-          {isInitialLoading ? (
-            <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 32px' }}>
-              <RefreshCw size={28} className="animate-spin" style={{ color: 'hsl(var(--primary))', marginBottom: '16px' }} />
-              <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))' }}>Computing multi-timezone schedules...</p>
-            </div>
-          ) : (
-            <div style={{ 
-              opacity: isFetchingDay ? 0.5 : 1, 
-              transition: 'opacity 0.2s ease', 
-              pointerEvents: isFetchingDay ? 'none' : 'auto' 
-            }}>
-              {(() => {
-                // Slots that are not passed and have at least one matching coach,
-                // precomputed in `slotView`.
-                const displaySlots = slotView.displaySlots;
+          {/* Time Slot Agenda List: the panel the date tabs control. No tabIndex,
+              since the panel already holds focusable controls. */}
+          <div
+            role="tabpanel"
+            id={datePanelId}
+            aria-labelledby={dateTabId(selectedDayIndex)}
+          >
+            {isInitialLoading ? (
+              <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 32px' }}>
+                <RefreshCw size={28} className="animate-spin" style={{ color: 'hsl(var(--primary))', marginBottom: '16px' }} />
+                <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))' }}>Computing multi-timezone schedules...</p>
+              </div>
+            ) : (
+              <div style={{ 
+                opacity: isFetchingDay ? 0.5 : 1, 
+                transition: 'opacity 0.2s ease', 
+                pointerEvents: isFetchingDay ? 'none' : 'auto' 
+              }}>
+                {(() => {
+                  // Slots that are not passed and have at least one matching coach,
+                  // precomputed in `slotView`.
+                  const displaySlots = slotView.displaySlots;
 
-                if (displaySlots.length > 0) {
-                  return displaySlots.map(({ slot, booking, coaches: slotCoaches }) => {
-                    return (
-                      <div 
-                        key={slot.startTime.toISOString()} 
-                        className={`slot-row ${booking ? 'has-booking' : ''}`}
-                      >
-                        <div className="slot-header">
-                          <div className="slot-time">
-                            <Clock size={16} color="hsl(var(--primary))" />
-                            <span>{formatSlotTime(slot.startTime, slot.endTime)}</span>
-                          </div>
+                  if (displaySlots.length > 0) {
+                    return displaySlots.map(({ slot, booking, coaches: slotCoaches }) => {
+                      return (
+                        <div
+                          key={slot.startTime.toISOString()}
+                          className={`slot-row ${booking ? 'has-booking' : ''}`}
+                        >
+                          <div className="slot-header">
+                            <div className="slot-time">
+                              <Clock size={16} color="hsl(var(--primary))" />
+                              <span>{formatSlotTime(slot.startTime, slot.endTime)}</span>
+                            </div>
                           
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            {booking ? (
-                              <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>
-                                Session Already Booked
-                              </span>
-                            ) : (
-                              <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>
-                                {slotCoaches.length} Available
-                              </span>
-                            )}
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              {booking ? (
+                                <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>
+                                  Session Already Booked
+                                </span>
+                              ) : (
+                                <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>
+                                  {slotCoaches.length} Available
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
 
-                        <div className="slot-coaches-list">
-                          <div className="slot-coaches-grid">
-                            {slotCoaches.map((coach) => {
-                              // Border mapping based on highest qualification
-                              let borderCol = 'var(--border-light)';
-                              const hasMCC = !!coach.icf_mcc;
-                              const hasPCC = !!coach.icf_pcc;
-                              const hasACC = !!coach.icf_acc;
-                              const displayCredentials = buildDisplayCredentials(coach);
+                          <div className="slot-coaches-list">
+                            <div className="slot-coaches-grid">
+                              {slotCoaches.map((coach) => {
+                                // Border mapping based on highest qualification
+                                let borderCol = 'var(--border-light)';
+                                const hasMCC = !!coach.icf_mcc;
+                                const hasPCC = !!coach.icf_pcc;
+                                const hasACC = !!coach.icf_acc;
+                                const displayCredentials = buildDisplayCredentials(coach);
                               
-                              if (hasMCC) borderCol = 'hsl(var(--mcc-platinum))';
-                              else if (hasPCC) borderCol = 'hsl(var(--pcc-silver))';
-                              else if (hasACC) borderCol = 'hsl(var(--acc-gold))';
+                                if (hasMCC) borderCol = 'hsl(var(--mcc-platinum))';
+                                else if (hasPCC) borderCol = 'hsl(var(--pcc-silver))';
+                                else if (hasACC) borderCol = 'hsl(var(--acc-gold))';
 
-                              return (
-                                <div key={coach.userId} className="mini-coach-card">
-                                  <div>
-                                    <div className="mini-coach-info">
-                                      <img
-                                        src={sanitizeImageUrl(coach.photoURL)}
-                                        alt={formatDisplayName(coach) || 'Coach'}
-                                        className="mini-coach-avatar"
-                                        style={{ border: `1.5px solid ${borderCol}`, cursor: 'pointer' }}
-                                        onClick={() => navigateToProfile(coach.userId)}
-                                      />
-                                      <div className="mini-coach-details">
-                                        <div 
-                                          className="mini-coach-name"
-                                          style={{ cursor: 'pointer' }}
+                                return (
+                                  <div key={coach.userId} className="mini-coach-card">
+                                    <div>
+                                      <div className="mini-coach-info">
+                                        {/* A mouse affordance only: it duplicates the name
+                                            button below, so keeping it out of the tab order
+                                            avoids two stops to the same destination on every
+                                            coach card. */}
+                                        <button
+                                          type="button"
+                                          className="mini-coach-avatar-button"
+                                          tabIndex={-1}
+                                          aria-hidden="true"
                                           onClick={() => navigateToProfile(coach.userId)}
                                         >
-                                          {formatDisplayName(coach)}
+                                          <img
+                                            src={sanitizeImageUrl(coach.photoURL)}
+                                            alt=""
+                                            className="mini-coach-avatar"
+                                            style={{ border: `1.5px solid ${borderCol}` }}
+                                          />
+                                        </button>
+                                        <div className="mini-coach-details">
+                                          <button
+                                            type="button"
+                                            className="mini-coach-name"
+                                            aria-label={`View ${formatDisplayName(coach) || 'coach'}'s profile`}
+                                            onClick={() => navigateToProfile(coach.userId)}
+                                          >
+                                            {formatDisplayName(coach)}
+                                          </button>
+                                          <div className="mini-coach-location">
+                                            <MapPin size={10} color="hsl(var(--primary))" />
+                                            {coach.country || 'Remote'}
+                                          </div>
+                                          <div className="mini-coach-quals">
+                                            {displayCredentials.length > 0 ? (
+                                              displayCredentials.map((qual, idx) => {
+                                                return (
+                                                  <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
+                                                    {qual}
+                                                  </span>
+                                                );
+                                              })
+                                            ) : (
+                                              <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
+                                                {QUALIFICATION.UNCERTIFIED}
+                                              </span>
+                                            )}
+                                          </div>
                                         </div>
-                                        <div className="mini-coach-location">
-                                          <MapPin size={10} color="hsl(var(--primary))" />
-                                          {coach.country || 'Remote'}
-                                        </div>
-                                        <div className="mini-coach-quals">
-                                          {displayCredentials.length > 0 ? (
-                                            displayCredentials.map((qual, idx) => {
-                                              return (
-                                                <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
-                                                  {qual}
-                                                </span>
-                                              );
-                                            })
-                                          ) : (
-                                            <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
-                                              {QUALIFICATION.UNCERTIFIED}
-                                            </span>
-                                          )}
-                                        </div>
+                                      </div>
+
+                                      <div className="mini-coach-bio">
+                                        {truncateBio(coach.bio)}
                                       </div>
                                     </div>
 
-                                    <div className="mini-coach-bio">
-                                      {truncateBio(coach.bio)}
-                                    </div>
+                                    {(() => {
+                                      const isThisParticipantBooked = booking && (booking.coachUid === coach.userId || booking.clientUid === coach.userId);
+                                      if (isThisParticipantBooked) {
+                                        return (
+                                          <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                                            <button
+                                              onClick={() => setSelectedBookingForView(booking)}
+                                              className="btn btn-secondary"
+                                              style={{
+                                                flex: 1,
+                                                padding: '6px 8px',
+                                                fontSize: '0.85rem',
+                                                borderRadius: '8px',
+                                                height: '36px',
+                                                fontWeight: 700
+                                              }}
+                                            >
+                                              View
+                                            </button>
+                                            <button
+                                              onClick={() => setBookingToCancel(booking)}
+                                              disabled={cancellingId === booking.id}
+                                              className="btn btn-danger"
+                                              style={{
+                                                flex: 1,
+                                                padding: '6px 8px',
+                                                fontSize: '0.85rem',
+                                                borderRadius: '8px',
+                                                height: '36px',
+                                                fontWeight: 700
+                                              }}
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        );
+                                      } else {
+                                        return (
+                                          <button
+                                            onClick={() => {
+                                              setActiveBookingCoach(coach);
+                                              setActiveBookingSlot({ startTime: slot.startTime, endTime: slot.endTime });
+                                            }}
+                                            className="btn btn-primary"
+                                            style={{
+                                              width: '100%',
+                                              padding: '6px 12px',
+                                              fontSize: '0.85rem',
+                                              borderRadius: '8px',
+                                              height: '36px',
+                                              fontWeight: 700,
+                                              cursor: 'pointer'
+                                            }}
+                                          >
+                                            Book Session
+                                          </button>
+                                        );
+                                      }
+                                    })()}
                                   </div>
-
-                                  {(() => {
-                                    const isThisParticipantBooked = booking && (booking.coachUid === coach.userId || booking.clientUid === coach.userId);
-                                    if (isThisParticipantBooked) {
-                                      return (
-                                        <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-                                          <button
-                                            onClick={() => setSelectedBookingForView(booking)}
-                                            className="btn btn-secondary"
-                                            style={{
-                                              flex: 1,
-                                              padding: '6px 8px',
-                                              fontSize: '0.85rem',
-                                              borderRadius: '8px',
-                                              height: '36px',
-                                              fontWeight: 700
-                                            }}
-                                          >
-                                            View
-                                          </button>
-                                          <button
-                                            onClick={() => setBookingToCancel(booking)}
-                                            disabled={cancellingId === booking.id}
-                                            className="btn btn-danger"
-                                            style={{
-                                              flex: 1,
-                                              padding: '6px 8px',
-                                              fontSize: '0.85rem',
-                                              borderRadius: '8px',
-                                              height: '36px',
-                                              fontWeight: 700
-                                            }}
-                                          >
-                                            Cancel
-                                          </button>
-                                        </div>
-                                      );
-                                    } else {
-                                      return (
-                                        <button
-                                          onClick={() => {
-                                            setActiveBookingCoach(coach);
-                                            setActiveBookingSlot({ startTime: slot.startTime, endTime: slot.endTime });
-                                          }}
-                                          className="btn btn-primary"
-                                          style={{
-                                            width: '100%',
-                                            padding: '6px 12px',
-                                            fontSize: '0.85rem',
-                                            borderRadius: '8px',
-                                            height: '36px',
-                                            fontWeight: 700,
-                                            cursor: 'pointer'
-                                          }}
-                                        >
-                                          Book Session
-                                        </button>
-                                      );
-                                    }
-                                  })()}
-                                </div>
-                              );
-                            })}
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
+                      );
+                    });
+                  }
+
+                  // If displaySlots is empty, check whether any slot has coaches at
+                  // all (ignoring filters), precomputed in slotView.
+                  const hasGeneralSlots = slotView.hasGeneralSlots;
+
+                  if (hasGeneralSlots) {
+                    // General slots exist, but filters filtered them all out
+                    return (
+                      <div className="glass-panel" style={{ 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        padding: '48px 24px',
+                        textAlign: 'center',
+                        background: 'rgba(239, 68, 68, 0.02)',
+                        border: '1px dashed rgba(239, 68, 68, 0.15)',
+                        borderRadius: '16px'
+                      }}>
+                        <Info size={28} style={{ color: 'hsl(var(--accent))', marginBottom: '12px', opacity: 0.8 }} />
+                        <h5 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '6px' }}>No coaches available</h5>
+                        <p style={{ fontSize: '0.825rem', color: 'hsl(var(--text-secondary))', maxWidth: '380px' }}>
+                          No coaches are available for this time slot. Try adjusting your filters or selecting a different time.
+                        </p>
+                        <button 
+                          onClick={clearFilters} 
+                          className="btn btn-secondary"
+                          style={{ marginTop: '14px', padding: '6px 14px', fontSize: '0.75rem', height: '30px' }}
+                        >
+                          Reset Filters
+                        </button>
                       </div>
                     );
-                  });
-                }
-
-                // If displaySlots is empty, check whether any slot has coaches at
-                // all (ignoring filters), precomputed in slotView.
-                const hasGeneralSlots = slotView.hasGeneralSlots;
-
-                if (hasGeneralSlots) {
-                  // General slots exist, but filters filtered them all out
-                  return (
-                    <div className="glass-panel" style={{ 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      padding: '48px 24px',
-                      textAlign: 'center',
-                      background: 'rgba(239, 68, 68, 0.02)',
-                      border: '1px dashed rgba(239, 68, 68, 0.15)',
-                      borderRadius: '16px'
-                    }}>
-                      <Info size={28} style={{ color: 'hsl(var(--accent))', marginBottom: '12px', opacity: 0.8 }} />
-                      <h5 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '6px' }}>No coaches available</h5>
-                      <p style={{ fontSize: '0.825rem', color: 'hsl(var(--text-secondary))', maxWidth: '380px' }}>
-                        No coaches are available for this time slot. Try adjusting your filters or selecting a different time.
-                      </p>
-                      <button 
-                        onClick={clearFilters} 
-                        className="btn btn-secondary"
-                        style={{ marginTop: '14px', padding: '6px 14px', fontSize: '0.75rem', height: '30px' }}
-                      >
-                        Reset Filters
-                      </button>
-                    </div>
-                  );
-                } else {
-                  // No timeslots available at all for this day
-                  return (
-                    <div className="glass-panel" style={{ 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      padding: '48px 24px',
-                      textAlign: 'center',
-                      borderRadius: '16px'
-                    }}>
-                      <Calendar size={28} style={{ color: 'hsl(var(--text-muted))', marginBottom: '12px', opacity: 0.5 }} />
-                      <h5 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '6px', color: 'hsl(var(--text-secondary))' }}>No slots available</h5>
-                      <p style={{ fontSize: '0.825rem', color: 'hsl(var(--text-muted))', maxWidth: '380px' }}>
-                        There are no coaching slots available on this day (passed, outside working hours, or fully booked).
-                      </p>
-                    </div>
-                  );
-                }
-              })()}
-            </div>
-          )}
+                  } else {
+                    // No timeslots available at all for this day
+                    return (
+                      <div className="glass-panel" style={{ 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        padding: '48px 24px',
+                        textAlign: 'center',
+                        borderRadius: '16px'
+                      }}>
+                        <Calendar size={28} style={{ color: 'hsl(var(--text-muted))', marginBottom: '12px', opacity: 0.5 }} />
+                        <h5 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '6px', color: 'hsl(var(--text-secondary))' }}>No slots available</h5>
+                        <p style={{ fontSize: '0.825rem', color: 'hsl(var(--text-muted))', maxWidth: '380px' }}>
+                          There are no coaching slots available on this day (passed, outside working hours, or fully booked).
+                        </p>
+                      </div>
+                    );
+                  }
+                })()}
+              </div>
+            )}
+          </div>
       </div>
     </div>
 
