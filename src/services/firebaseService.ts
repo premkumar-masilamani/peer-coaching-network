@@ -35,7 +35,7 @@ import type { DocumentData } from 'firebase/firestore';
 import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
 import { setGoogleToken, clearGoogleToken, getGoogleToken } from './googleToken';
 import { seededShuffle } from '../utils/seededShuffle';
-import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus, COLLECTIONS, type IcfCredential, COACH_DISCOVERY_LIMIT, ENABLE_GOOGLE_INTEGRATION, SLOT_DURATION_MS, GOOGLE_FREE_BUSY_URL } from '../config';
+import { BOOKING_HORIZON_DAYS, type Gender, type Theme, type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, THEME, BOOKING_STATUS, type SupportCategory, type SupportStatus, COLLECTIONS, COACH_DISCOVERY_LIMIT, ENABLE_GOOGLE_INTEGRATION, SLOT_DURATION_MS, GOOGLE_FREE_BUSY_URL } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 
@@ -104,7 +104,6 @@ export interface UserProfile {
   icf_pcc?: boolean;
   icf_mcc?: boolean;
   icf_actc?: boolean;
-  icfCredentials?: IcfCredential[];
   bio: string;
   timezone: string;
   userRole: UserRole;
@@ -244,7 +243,6 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
       photoURL: user.photoURL,
       userRole: assignedRole,
       userStatus: initialStatus,
-      icfCredentials: [],
       gender: '' as unknown as Gender,
       country: '',
       bio: '',
@@ -445,11 +443,9 @@ export const formatDisplayName = (user: { firstName?: string; lastName?: string;
   return (user.displayName || '').replace(/\s*\([^)]*\)/g, '').trim();
 };
 
-export const updateVerifiedCredentials = async (uid: string, credentials: IcfCredential[], newQualifications?: Qualification[]): Promise<void> => {
+export const updateVerifiedCredentials = async (uid: string, newQualifications: Qualification[]): Promise<void> => {
   const userDocRef = doc(db, COLLECTIONS.USERS, uid);
-  const updates: DocumentData = {
-    icfCredentials: credentials
-  };
+  const updates: DocumentData = {};
   if (newQualifications) {
     updates.icf_acc = newQualifications.includes('ICF ACC');
     updates.icf_pcc = newQualifications.includes('ICF PCC');

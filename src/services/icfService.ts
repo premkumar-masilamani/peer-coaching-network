@@ -1,5 +1,4 @@
-import { Timestamp } from 'firebase/firestore';
-import { type IcfCredential, ICF_DIRECTORY_URL } from '../config';
+import { type Qualification, ICF_DIRECTORY_URL } from '../config';
 
 /**
  * Validates a user's credentials against the public ICF Coach Directory.
@@ -11,7 +10,7 @@ import { type IcfCredential, ICF_DIRECTORY_URL } from '../config';
 export const verifyIcfCredential = async (
   firstName: string,
   lastName: string
-): Promise<IcfCredential[] | null> => {
+): Promise<Qualification[] | null> => {
   try {
     const fn = firstName.trim();
     const ln = lastName.trim();
@@ -50,36 +49,29 @@ export const verifyIcfCredential = async (
           if (credCellHtml) {
             // Split by <br> or <br/> to handle multiple credentials
             const credLines = credCellHtml.split(/<br\s*\/?>/i);
-            const credentials: IcfCredential[] = [];
+            const qualifications: Qualification[] = [];
 
             for (const line of credLines) {
               const cleanLine = line.replace(/<[^>]+>/g, '').trim();
               if (!cleanLine) continue;
 
-              const match = cleanLine.match(/^([A-Z]{3,4})(?:\s+.*-\s+(\d{1,2})\/(\d{4}))?/);
+              const match = cleanLine.match(/^([A-Z]{3,4})/);
               if (match) {
-                const level = match[1];
-                let expiryDate: Date;
-                if (match[2] && match[3]) {
-                  const month = parseInt(match[2], 10);
-                  const year = parseInt(match[3], 10);
-                  // day 0 gives the last day of the previous month
-                  expiryDate = new Date(Date.UTC(year, month, 0, 23, 59, 59));
-                } else {
-                  // Fallback if no date is found but credential exists
-                  const now = new Date();
-                  expiryDate = new Date(Date.UTC(now.getFullYear() + 1, 11, 31, 23, 59, 59));
-                }
+                const level = match[1].toUpperCase();
+                let qual: Qualification | undefined;
+                if (level.includes('MCC')) qual = 'ICF MCC';
+                else if (level.includes('PCC')) qual = 'ICF PCC';
+                else if (level.includes('ACC')) qual = 'ICF ACC';
+                else if (level.includes('ACTC')) qual = 'ICF ACTC';
 
-                credentials.push({
-                  level,
-                  expiryDate: Timestamp.fromDate(expiryDate)
-                });
+                if (qual && !qualifications.includes(qual)) {
+                  qualifications.push(qual);
+                }
               }
             }
 
-            if (credentials.length > 0) {
-              return credentials;
+            if (qualifications.length > 0) {
+              return qualifications;
             }
           }
         }

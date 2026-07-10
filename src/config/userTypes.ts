@@ -1,9 +1,3 @@
-import type { Timestamp } from 'firebase/firestore';
-
-export interface IcfCredential {
-  level: string; // 'ACC' | 'PCC' | 'MCC'
-  expiryDate: Timestamp;
-}
 
 /**
  * User-related enumerations and types.
@@ -28,8 +22,9 @@ export const QUALIFICATION = {
   PCC: 'ICF PCC',
   MCC: 'ICF MCC',
   ACTC: 'ICF ACTC',
+  UNCERTIFIED: 'Uncertified Coach',
 } as const;
-export const QUALIFICATION_OPTIONS = [QUALIFICATION.ACC, QUALIFICATION.PCC, QUALIFICATION.MCC, QUALIFICATION.ACTC] as const;
+export const QUALIFICATION_OPTIONS = [QUALIFICATION.ACC, QUALIFICATION.PCC, QUALIFICATION.MCC, QUALIFICATION.ACTC, QUALIFICATION.UNCERTIFIED] as const;
 export type Qualification = (typeof QUALIFICATION_OPTIONS)[number];
 
 export const USER_ROLE = {

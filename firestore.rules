@@ -66,8 +66,6 @@ service cloud.firestore {
         && (data.get('photoURL', null) == null || isValidString(data.photoURL, 1000))
         && isString(data.gender)
         && isValidString(data.country, 100)
-        && (data.get('qualifications', null) == null || isList(data.qualifications))
-        && (data.get('icfCredentials', null) == null || isList(data.icfCredentials))
         && (data.get('icf_acc', null) == null || isBool(data.icf_acc))
         && (data.get('icf_pcc', null) == null || isBool(data.icf_pcc))
         && (data.get('icf_mcc', null) == null || isBool(data.icf_mcc))
@@ -198,7 +196,11 @@ service cloud.firestore {
     // profile must leave these unchanged.
     function privilegedFieldsUnchanged() {
       return request.resource.data.userRole == resource.data.userRole
-        && request.resource.data.userStatus == resource.data.userStatus;
+        && request.resource.data.userStatus == resource.data.userStatus
+        && request.resource.data.get('icf_acc', null) == resource.data.get('icf_acc', null)
+        && request.resource.data.get('icf_pcc', null) == resource.data.get('icf_pcc', null)
+        && request.resource.data.get('icf_mcc', null) == resource.data.get('icf_mcc', null)
+        && request.resource.data.get('icf_actc', null) == resource.data.get('icf_actc', null);
     }
 
     // Identity fields are immutable on a self-update (defense-in-depth).
