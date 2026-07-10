@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { Timestamp } from 'firebase/firestore';
 import {
   scheduleMeeting,
   cancelBooking,
@@ -676,6 +677,144 @@ describe('googleCalendar service', () => {
 
       expect(mockFetch).not.toHaveBeenCalled();
       expect(result['coach-1']).toBeDefined();
+    });
+  });
+
+  describe('remediation fixes for atomic booking and deterministic request IDs', () => {
+    it('sets the 10-minute expireAt property when writing pending booking and lock documents', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: 'gcal-event-id-123', hangoutLink: 'https://meet.google.com/foo-bar-baz' })
+      });
+
+      const mockTx = {
+        get: vi.fn().mockImplementation(async () => ({ exists: () => false })),
+        set: vi.fn(),
+      };
+      mockRunTransaction.mockImplementationOnce(async (_db, callback) => {
+        await callback(mockTx);
+        return undefined;
+      });
+
+      await scheduleMeeting(
+        'coach-123',
+        'coach@example.com',
+        'John Coach',
+        'client-123',
+        'Mock Client',
+        '2026-06-18T10:00:00Z',
+        '2026-06-18T10:30:00Z',
+        'Career Development'
+      );
+
+      expect(mockTx.set).toHaveBeenCalledTimes(2);
+      const pendingBookingData = mockTx.set.mock.calls[0][1];
+      expect(pendingBookingData.expireAt).toBeDefined();
+
+      const clientBookingCacheData = mockTx.set.mock.calls[1][1];
+      expect(clientBookingCacheData.expireAt).toBeDefined();
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const fetchBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      const reqId = fetchBody.conferenceData.createRequest.requestId;
+      expect(reqId).toBeDefined();
+      expect(reqId.startsWith('req-')).toBe(true);
+    });
+
+    it('ignores expired pending bookings and cache locks in overlap checks', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: 'gcal-event-id-123', hangoutLink: 'https://meet.google.com/foo-bar-baz' })
+      });
+
+      mockRunTransaction.mockImplementationOnce(async (_db, callback) => {
+        const mockTx = {
+          get: vi.fn().mockImplementation(async (ref) => {
+            if (ref.path.includes('bookings/coach-123_2026-06-18T10:00:00Z')) {
+              return {
+                exists: () => true,
+                data: () => ({
+                  status: BOOKING_STATUS.PENDING,
+                  expireAt: Timestamp.fromDate(new Date(Date.now() - 10000)) // Expired 10 seconds ago
+                })
+              };
+            }
+            if (ref.path.includes('clientBookingCache/client-123')) {
+              return {
+                exists: () => true,
+                data: () => ({
+                  expireAt: Timestamp.fromDate(new Date(Date.now() - 10000))
+                })
+              };
+            }
+            return { exists: () => false };
+          }),
+          set: vi.fn(),
+        };
+        await callback(mockTx);
+        return undefined;
+      });
+
+      const result = await scheduleMeeting(
+        'coach-123',
+        'coach@example.com',
+        'John Coach',
+        'client-123',
+        'Mock Client',
+        '2026-06-18T10:00:00Z',
+        '2026-06-18T10:30:00Z',
+        'Career Development'
+      );
+
+      expect(result.id).toBe('coach-123_2026-06-18T10:00:00Z');
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('getUpcomingEvents filters out expired pending bookings', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue(null);
+      mockGetDocs.mockResolvedValueOnce({
+        docs: [
+          {
+            data: () => ({
+              bookingId: 'booking-pending-expired',
+              status: BOOKING_STATUS.PENDING,
+              startTime: '2026-06-20T10:00:00Z',
+              endTime: '2026-06-20T11:00:00Z',
+              coachUid: 'coach-123',
+              clientUid: 'client-123',
+              topic: 'Career Development',
+              expireAt: Timestamp.fromDate(new Date(Date.now() - 10000)) // Expired
+            })
+          },
+          {
+            data: () => ({
+              bookingId: 'booking-confirmed-valid',
+              status: BOOKING_STATUS.CONFIRMED,
+              startTime: '2026-06-20T12:00:00Z',
+              endTime: '2026-06-20T13:00:00Z',
+              coachUid: 'coach-123',
+              clientUid: 'client-123',
+              topic: 'Leadership'
+            })
+          }
+        ]
+      });
+      mockGetDocs.mockResolvedValueOnce({ docs: [] });
+      mockGetDoc.mockImplementation(async (ref: any) => {
+        if (ref.path === 'users/coach-123') {
+          return { exists: () => true, data: () => ({ displayName: 'John Coach', email: 'coach@example.com' }) };
+        }
+        if (ref.path === 'users/client-123') {
+          return { exists: () => true, data: () => ({ displayName: 'Jane Client', email: 'client@example.com' }) };
+        }
+        return { exists: () => false };
+      });
+
+      const events = await getUpcomingEvents();
+      expect(events.length).toBe(1);
+      expect(events[0].id).toBe('booking-confirmed-valid');
     });
   });
 });
