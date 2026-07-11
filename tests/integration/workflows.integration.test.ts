@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { adminAuth, adminDb } from './helpers/adminClient';
 import { signInUser, signOutUser } from './helpers/userClient';
 import { setupGoogleCalendarMock } from './helpers/googleMock';
+import { waitFor } from './helpers/waitFor';
 import {
   setUserRoleAndStatus,
   updateOwnProfile,
@@ -135,9 +136,16 @@ describe.runIf(!isPerfRun)('Use Case A - Functional Workflows against Firebase E
     expect(booking.id).toBe(`${activeUser.uid}_${startIso}`);
     expect(booking.meetLink).toContain('meet.google.com');
 
-    const bookingDoc = await getDoc(doc(db, COLLECTIONS.BOOKINGS, booking.id));
-    expect(bookingDoc.exists()).toBe(true);
-    expect(bookingDoc.data()?.status).toBe(BOOKING_STATUS.CONFIRMED);
+    const bookingData = await waitFor(
+      async () => {
+        const snap = await getDoc(doc(db, COLLECTIONS.BOOKINGS, booking.id));
+        return snap.exists() && snap.data()?.status === BOOKING_STATUS.CONFIRMED
+          ? snap.data()
+          : undefined;
+      },
+      { description: 'booking to be persisted as CONFIRMED' }
+    );
+    expect(bookingData?.status).toBe(BOOKING_STATUS.CONFIRMED);
   });
 
   it('6. Booking collision is rejected', async () => {
@@ -210,37 +218,45 @@ describe.runIf(!isPerfRun)('Use Case A - Functional Workflows against Firebase E
 
     await cancelBooking(bookingId);
 
-    const bookingDoc = await getDoc(doc(db, COLLECTIONS.BOOKINGS, bookingId));
-    expect(bookingDoc.data()?.status).toBe(BOOKING_STATUS.CANCELLED);
+    await waitFor(
+      async () => {
+        const snap = await getDoc(doc(db, COLLECTIONS.BOOKINGS, bookingId));
+        return snap.data()?.status === BOOKING_STATUS.CANCELLED;
+      },
+      { description: 'booking status to become CANCELLED' }
+    );
 
-    const cacheDoc = await getDoc(doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${pendingUser.uid}_${startIso}`));
-    expect(cacheDoc.exists()).toBe(false);
+    await waitFor(
+      async () => {
+        const snap = await getDoc(doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${pendingUser.uid}_${startIso}`));
+        return !snap.exists();
+      },
+      { description: 'client booking cache lock to be released' }
+    );
   });
 
   it('9. Admin reads all users', async () => {
     await signInUser(adminUser.uid);
 
-    const usersList: UserProfile[] = await new Promise((resolve) => {
-      let resolved = false;
-      const unsubscribe = subscribeToAllUsers((users) => {
-        if (users.length >= userCount && !resolved) {
-          resolved = true;
-          unsubscribe();
-          resolve(users);
-        }
-      });
-      setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          unsubscribe();
-          resolve([]);
-        }
-      }, 3000);
+    // Keep the latest snapshot the live subscription emits and poll it, rather
+    // than racing a single fixed timeout that silently resolves an empty list.
+    let latestUsers: UserProfile[] = [];
+    const unsubscribe = subscribeToAllUsers((users) => {
+      latestUsers = users;
     });
 
-    expect(usersList.length).toBeGreaterThanOrEqual(userCount);
-    const adminInSnapshot = usersList.find(u => u.userId === adminUser.uid);
-    expect(adminInSnapshot).toBeDefined();
+    try {
+      const usersList = await waitFor(
+        () => (latestUsers.length >= userCount ? latestUsers : undefined),
+        { description: `subscribeToAllUsers to emit >= ${userCount} users` }
+      );
+
+      expect(usersList.length).toBeGreaterThanOrEqual(userCount);
+      const adminInSnapshot = usersList.find(u => u.userId === adminUser.uid);
+      expect(adminInSnapshot).toBeDefined();
+    } finally {
+      unsubscribe();
+    }
   });
 
   it('10. Non-admin cannot read systemLogs', async () => {
