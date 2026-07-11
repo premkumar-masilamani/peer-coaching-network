@@ -17,13 +17,13 @@ set -euo pipefail
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
-echo "▶ pre-commit: lint"
-npm run lint
+echo "▶ pre-commit: typecheck + lint"
+make lint
 
 echo "▶ pre-commit: unit tests"
-npm run test
+make test
 
 echo "▶ pre-commit: integration tests"
-npm run test:integration
+make test:integration
 
 echo "✔ pre-commit checks passed"
