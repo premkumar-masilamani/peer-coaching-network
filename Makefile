@@ -36,9 +36,6 @@ emulator:
 local:
 	node scripts/seed-emulator.cjs && npm run local
 
-seed:
-	node scripts/seed-emulator.cjs
-
 erd:
 	node scripts/generate-erd.js
 
