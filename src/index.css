@@ -270,6 +270,26 @@ p {
   color: hsl(var(--text-muted));
 }
 
+/* Error state for invalid inputs (see story 102 – stylized form validation) */
+.input-field.input-error {
+  border-color: hsl(var(--danger) / 0.7);
+}
+
+.input-field.input-error:focus {
+  border-color: hsl(var(--danger));
+  box-shadow: 0 0 0 3px hsl(var(--danger) / 0.15);
+}
+
+/* Inline validation error message rendered below a form control */
+.form-error-text {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: hsl(var(--danger));
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* Buttons */
 .btn {
   font-family: var(--font-family);
