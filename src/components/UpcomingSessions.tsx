@@ -31,13 +31,15 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getTimezoneCode, getUtcForLocalDateTime, isSlotAvailable } from '../utils/timezoneHelpers';
 import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
-import { sanitizeImageUrl, navigateToProfile } from '../utils/url';
+import { sanitizeImageUrl } from '../utils/url';
+import { useNavigateToProfile } from '../context/UnsavedChangesContext';
 import { resolveTabNavigationIndex } from '../utils/keyboardNavigation';
 import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION, QUALIFICATION_OPTIONS, EVENT_TYPE } from '../config';
 
 
 export const UpcomingSessions: React.FC = () => {
   const { user: currentUser, profile } = useAuth();
+  const navigateToProfile = useNavigateToProfile();
   
   // Ref for date carousel scrolling
   const carouselRef = React.useRef<HTMLDivElement>(null);

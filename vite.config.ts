@@ -33,7 +33,10 @@ export default defineConfig(({ mode }) => {
           extends: true,
           test: {
             name: 'unit',
-            include: ['src/**/*.test.ts'],
+            // Match both .test.ts and .test.tsx — component/context suites that
+            // render JSX must live in .tsx files, and were otherwise silently
+            // skipped by a .ts-only glob.
+            include: ['src/**/*.test.{ts,tsx}'],
             environment: 'jsdom',
           },
         },
