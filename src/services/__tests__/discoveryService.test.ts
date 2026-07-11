@@ -37,7 +37,7 @@ describe('discoveryService', () => {
   describe('queryAvailableCoachesForDay', () => {
     it('reads coachAvailabilityByDate shards by day and returns active coaches', async () => {
       mockGetDocs.mockResolvedValueOnce(snap([
-        { coachUid: 'coach1', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z', '2026-07-01T10:30:00.000Z'], userStatus: 'active' },
+        { coachUid: 'coach1', dateISO: '2026-07-01', freeSlots: ['2026-07-01T10:00:00.000Z', '2026-07-01T10:30:00.000Z', '2026-07-01T12:00:00.000Z'], userStatus: 'active' },
       ]));
       mockGetDocs.mockResolvedValueOnce(snap([]));
       mockGetDocs.mockResolvedValueOnce(snap([{ userId: 'coach1', userRole: 'user', userStatus: 'active', firstName: 'Alice', lastName: 'Smith' }]));

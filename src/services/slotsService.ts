@@ -302,9 +302,7 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
 export const getUserAvailableSlots = async (uid: string): Promise<string[]> => {
   if (!db) return [];
 
-  lazyRecalculateAvailableSlotsCache(uid).catch((err) => {
-    logger.error(`Error triggering lazy check for ${uid}:`, err);
-  });
+  lazyRecalculateAvailableSlotsCache(uid);
 
   const ref = doc(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE, uid);
   const snap = await getDoc(ref);

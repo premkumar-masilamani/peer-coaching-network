@@ -99,5 +99,57 @@ describe('firebaseApp', () => {
       expect(logger.error).toHaveBeenCalled();
       vi.unstubAllEnvs();
     });
+
+    it('throws an error in prod mode when config is missing and emulator is disabled', async () => {
+      vi.resetModules();
+      vi.stubEnv('VITE_USE_FIREBASE_EMULATOR', 'false');
+      vi.stubEnv('VITE_FIRESTORE_DATABASE_ID', 'pcn-dev');
+      vi.stubEnv('VITE_FIREBASE_API_KEY', '');
+      vi.stubEnv('VITE_FIREBASE_PROJECT_ID', '');
+      vi.stubEnv('VITE_FIREBASE_MESSAGING_SENDER_ID', '');
+      vi.stubEnv('VITE_FIREBASE_APP_ID', '');
+      vi.stubEnv('PROD', true as any);
+
+      try {
+        await expect(import('../firebaseApp')).rejects.toThrow('Missing required Firebase configuration');
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    });
+  });
+
+  describe('analytics initialization error', () => {
+    it('logs an error when getAnalytics throws during setup', async () => {
+      vi.resetModules();
+      vi.mocked(logger.error).mockClear();
+      vi.stubEnv('VITE_FIREBASE_MEASUREMENT_ID', 'G-TESTID123');
+      const { getAnalytics } = await import('firebase/analytics');
+      vi.mocked(getAnalytics).mockImplementationOnce(() => { throw new Error('Init error'); });
+
+      await import('../firebaseApp');
+
+      expect(logger.error).toHaveBeenCalledWith('Failed to initialize Firebase Analytics:', expect.any(Error));
+      vi.unstubAllEnvs();
+    });
+  });
+
+  describe('node-only emulator connection', () => {
+    it('sets _firebase_emulators_connected on globalThis when window is undefined', async () => {
+      vi.resetModules();
+      const originalWindow = globalThis.window;
+      // @ts-ignore
+      delete globalThis.window;
+      
+      try {
+        const globalRecord = globalThis as unknown as Record<string, unknown>;
+        globalRecord._firebase_emulators_connected = false;
+
+        await import('../firebaseApp');
+
+        expect(globalRecord._firebase_emulators_connected).toBe(true);
+      } finally {
+        globalThis.window = originalWindow;
+      }
+    });
   });
 });
