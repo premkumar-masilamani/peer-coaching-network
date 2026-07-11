@@ -7,22 +7,21 @@ import { seedDatabase } from './seed';
 let emulatorProcess: ChildProcess | null = null;
 let spawnedEmulator = false;
 
-// Load firestore.rules into the emulator's (default) database — the one the
-// integration client connects to (VITE_FIRESTORE_DATABASE_ID='(default)').
+// Load firestore.rules into the emulator's target database — the one the
+// integration client connects to (VITE_FIRESTORE_DATABASE_ID='pcn-dev').
 //
 // This is REQUIRED even when we spawn our own emulator, and critical when we
 // reuse one: a developer's `make emulator` starts with the default firebase.json,
-// which binds rules to the NAMED databases (pcn-dev/pcn-prod) and leaves
-// (default) with open, allow-all rules. Reusing that instance would silently
-// disable rule enforcement, so security tests (deny cases) would falsely pass or
-// fail depending on which emulator happened to be up. Pushing the rules here
-// makes enforcement deterministic regardless of how the emulator was started.
+// which binds rules to the NAMED databases (pcn-dev/pcn-prod).
+// Pushing the rules here makes enforcement deterministic regardless of how
+// the emulator was started.
 async function loadFirestoreRules() {
   const projectId = process.env.VITE_FIREBASE_PROJECT_ID || 'peer-coaching-network-dev';
+  const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID || 'pcn-dev';
   const rulesPath = fileURLToPath(new URL('../../firestore.rules', import.meta.url));
   const content = readFileSync(rulesPath, 'utf8');
 
-  const url = `http://127.0.0.1:8080/emulator/v1/projects/${projectId}:securityRules`;
+  const url = `http://127.0.0.1:8080/emulator/v1/projects/${projectId}/databases/${databaseId}:securityRules`;
   const res = await fetch(url, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -32,7 +31,7 @@ async function loadFirestoreRules() {
   if (!res.ok) {
     throw new Error(`[GlobalSetup] Failed to load Firestore rules into emulator: ${res.status} ${await res.text()}`);
   }
-  console.log('[GlobalSetup] Loaded firestore.rules into the emulator (default) database.');
+  console.log(`[GlobalSetup] Loaded firestore.rules into the emulator ${databaseId} database.`);
 }
 
 async function isPortOpen(port: number): Promise<boolean> {
@@ -92,7 +91,7 @@ export async function setup() {
     console.log('[GlobalSetup] Firebase Emulators started successfully.');
   }
 
-  // Ensure the (default) database enforces our security rules before any test
+  // Ensure the configured database enforces our security rules before any test
   // runs, regardless of whether we spawned the emulator or reused an existing
   // one started with a different config.
   await loadFirestoreRules();

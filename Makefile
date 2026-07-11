@@ -1,46 +1,47 @@
-.PHONY: install build build-dev build-prod dev lint test test\:integration test\:perf coverage emulator local erd deploy-dev deploy-prod
+.PHONY: install build-dev build-prod dev lint test test-int test-perf emulator local erd deploy-dev deploy-prod
+
+# Default variables for dynamic overrides
+N ?= 3
+P95 ?= 3000
 
 install:
 	npm install
-
-build:
-	npm run build:dev
+	git config core.hooksPath .githooks
 
 build-dev:
-	npm run build:dev
+	npm run tsc && npm run vite -- build --mode development
 
 build-prod:
-	npm run build:prod
+	npm run tsc && npm run vite -- build --mode production
 
 dev:
-	npm run dev
-
-lint:
-	npm run lint
-
-test:
-	npm run test
-
-test\:integration:
-	TEST_USER_COUNT=$(or $(N),3) npm run test:integration
-
-test\:perf:
-	TEST_USER_COUNT=$(or $(N),100) PERF_P95_THRESHOLD_MS=$(or $(P95),3000) npm run test:perf
-
-coverage:
-	npm run coverage
-
-emulator:
-	firebase emulators:start
+	npm run vite -- --mode development
 
 local:
-	node scripts/seed-emulator.cjs && npm run local
+	npm run emulator:seed && npm run vite -- --mode emulator
+
+lint:
+	npm run tsc && npm run eslint
+
+# Tests: Unit & Integration run with coverage by default
+test:
+	npm run vitest -- --project=unit --coverage
+
+test-int:
+	TEST_USER_COUNT=$(N) npm run vitest -- --project=integration --coverage
+
+# Performance: Explicitly runs without coverage
+test-perf:
+	TEST_USER_COUNT=$(or $(N),100) PERF_P95_THRESHOLD_MS=$(P95) npm run vitest -- --project=integration --reporter=verbose
+
+emulator:
+	npx firebase emulators:start
 
 erd:
 	node scripts/generate-erd.js
 
 deploy-dev: build-dev
-	. ./.env.development && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
+	. ./.env.development && npx firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
 
 deploy-prod: build-prod
-	. ./.env.production && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
+	. ./.env.production && npx firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug

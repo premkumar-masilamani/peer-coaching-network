@@ -6,7 +6,7 @@
 #
 # Performance tests are intentionally NOT run here — they spin up 100 concurrent
 # emulator writes and can take minutes. Run them on demand with:
-#   npm run test:perf   (or: make test:perf)
+#   make test-perf
 #
 # To skip this hook for a single commit (use sparingly):
 #   git commit --no-verify
@@ -24,6 +24,6 @@ echo "▶ pre-commit: unit tests"
 make test
 
 echo "▶ pre-commit: integration tests"
-make test:integration
+make test-int
 
 echo "✔ pre-commit checks passed"

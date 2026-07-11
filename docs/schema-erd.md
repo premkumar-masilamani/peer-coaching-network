@@ -45,6 +45,7 @@ erDiagram
         string coachUid FK
         string clientUid FK
         Timestamp createdAt
+        Timestamp expireAt
         Timestamp cancelledAt
     }
 
@@ -115,7 +116,6 @@ erDiagram
         string photoURL
         UserRole userRole
         UserStatus userStatus
-        object_array icfCredentials
         Gender gender
         string country
         string bio
@@ -141,7 +141,7 @@ erDiagram
 * **Primary key**: _(document-scoped / composite id)_
 
 ### 3. `bookings`
-* **Fields**: 11 (`bookingId`, `googleEventId`, `googleMeetLink`, `status`, `startTime`, `endTime`, `topic`, `coachUid`, `clientUid`, `createdAt`, `cancelledAt`)
+* **Fields**: 12 (`bookingId`, `googleEventId`, `googleMeetLink`, `status`, `startTime`, `endTime`, `topic`, `coachUid`, `clientUid`, `createdAt`, `expireAt`, `cancelledAt`)
 * **Primary key**: _(document-scoped / composite id)_
 * **References**: `coachUid` → `users`, `clientUid` → `users`
 
@@ -171,5 +171,5 @@ erDiagram
 * **References**: `userId` → `users`
 
 ### 9. `users`
-* **Fields**: 20 (`userId`, `email`, `firstName`, `lastName`, `displayName`, `photoURL`, `userRole`, `userStatus`, `icfCredentials`, `gender`, `country`, `bio`, `timezone`, `createdAt`, `theme`, `icf_acc`, `icf_pcc`, `icf_mcc`, `icf_actc`, `onboardingComplete`)
+* **Fields**: 19 (`userId`, `email`, `firstName`, `lastName`, `displayName`, `photoURL`, `userRole`, `userStatus`, `gender`, `country`, `bio`, `timezone`, `createdAt`, `theme`, `icf_acc`, `icf_pcc`, `icf_mcc`, `icf_actc`, `onboardingComplete`)
 * **Primary key**: _(document-scoped / composite id)_

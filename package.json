@@ -3,20 +3,15 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=26.5.0"
+  },
   "scripts": {
-    "dev": "vite --mode development",
-    "local": "vite --mode emulator",
-    "build": "tsc -b && vite build --mode development",
-    "build:dev": "tsc -b && vite build --mode development",
-    "build:prod": "tsc -b && vite build --mode production",
-    "lint": "tsc -b && eslint .",
-    "preview": "vite preview",
-    "test": "vitest run --project=unit",
-    "coverage": "vitest run --project=unit --coverage",
-    "seed": "node scripts/seed-emulator.cjs",
-    "test:integration": "vitest run --project=integration",
-    "test:perf": "TEST_USER_COUNT=100 vitest run --project=integration --reporter=verbose",
-    "prepare": "git config core.hooksPath .githooks"
+    "vite": "vite",
+    "tsc": "tsc -b",
+    "eslint": "eslint .",
+    "vitest": "vitest run",
+    "emulator:seed": "node scripts/seed-emulator.cjs"
   },
   "overrides": {
     "eslint-plugin-jsx-a11y": {
@@ -50,6 +45,6 @@
     "vitest": "^4.1.9"
   },
   "lint-staged": {
-    "*.{ts,tsx}": "eslint --max-warnings=0"
+    "*.{ts,tsx}": "npm run eslint -- --max-warnings=0"
   }
 }
