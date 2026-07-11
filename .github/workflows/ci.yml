@@ -3,6 +3,9 @@ name: CI
 on:
   pull_request:
     branches: [main]
+    # Run CI on every push, including while the PR is still a draft, so that
+    # the "CI Passed" check already exists when "Ready for review" is clicked.
+    types: [opened, synchronize, reopened, ready_for_review, converted_to_draft]
   push:
     branches: [main]
 
