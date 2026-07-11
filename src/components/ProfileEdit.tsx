@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Copy,
   Check,
+  AlertCircle,
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
@@ -90,6 +91,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
 
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
   const [formErrors, setFormErrors] = useState<FormErrors>({});
 
   const dismissError = (key: string) => setFormErrors(prev => clearFieldError(prev, key));
@@ -121,6 +123,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
   const handleDirectSave = React.useCallback(async () => {
     setSaving(true);
     setSuccessMsg('');
+    setErrorMsg('');
     try {
       await updateProfileDetails({
         gender: gender === '' ? undefined : gender,
@@ -140,6 +143,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
       return true;
     } catch (e) {
       console.error(e);
+      setErrorMsg('Failed to save profile changes. Please try again.');
       return false;
     } finally {
       setSaving(false);
@@ -509,6 +513,12 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
                 <div style={{ color: '#34d399', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <CheckCircle size={15} />
                   {successMsg}
+                </div>
+              )}
+              {errorMsg && (
+                <div style={{ color: 'hsl(var(--error))', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <AlertCircle size={15} />
+                  {errorMsg}
                 </div>
               )}
             </div>

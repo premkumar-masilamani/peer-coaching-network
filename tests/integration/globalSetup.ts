@@ -65,8 +65,8 @@ export async function setup() {
   } else {
     console.log('[GlobalSetup] Starting Firebase Emulators...');
     emulatorProcess = spawn(
-      'npx',
-      ['firebase', 'emulators:start', '--project=peer-coaching-network-dev', '--only', 'auth,firestore', '--config', 'firebase.emulator.json'],
+      './node_modules/.bin/firebase',
+      ['emulators:start', '--project=peer-coaching-network-dev', '--only', 'auth,firestore', '--config', 'firebase.emulator.json'],
       {
         stdio: 'inherit',
         shell: true,
