@@ -2,10 +2,17 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
-import { UnsavedChangesProvider, useUnsavedChanges } from '../UnsavedChangesContext';
+import { UnsavedChangesProvider, useUnsavedChanges, useNavigateToProfile } from '../UnsavedChangesContext';
+import { navigateToProfile } from '../../utils/url';
 
 // @ts-expect-error - IS_REACT_ACT_ENVIRONMENT is not typed on globalThis
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
+// Stub the raw profile navigator so we can assert the guarded hook delegates to
+// it without touching window.history / dispatching real popstate events.
+vi.mock('../../utils/url', () => ({
+  navigateToProfile: vi.fn(),
+}));
 
 // ---------------------------------------------------------------------------
 // Mock ReviewChangesModal so it renders simple buttons we can click in tests.
@@ -39,9 +46,11 @@ describe('UnsavedChangesContext', () => {
   let container: HTMLDivElement | null = null;
   let root: Root | null = null;
   let latestCtx: ReturnType<typeof useUnsavedChanges> | null = null;
+  let latestNavigateToProfile: ReturnType<typeof useNavigateToProfile> | null = null;
 
   const TestConsumer = () => {
     latestCtx = useUnsavedChanges();
+    latestNavigateToProfile = useNavigateToProfile();
     return <div id="consumer" />;
   };
 
@@ -62,6 +71,7 @@ describe('UnsavedChangesContext', () => {
     document.body.appendChild(container);
     root = createRoot(container);
     latestCtx = null;
+    latestNavigateToProfile = null;
   });
 
   afterEach(() => {
@@ -228,5 +238,88 @@ describe('UnsavedChangesContext', () => {
     expect(onSave).not.toHaveBeenCalled();
     expect(navigate).toHaveBeenCalledOnce();
     expect(q('[data-testid="mock-modal"]')).toBeNull();
+  });
+
+  // ---------------------------------------------------------------------------
+  // useNavigateToProfile — guarded profile navigation
+  // ---------------------------------------------------------------------------
+
+  it('navigates to the profile immediately when not dirty', () => {
+    renderProvider();
+    act(() => { latestNavigateToProfile!('coach-123'); });
+    expect(navigateToProfile).toHaveBeenCalledWith('coach-123');
+    expect(q('[data-testid="mock-modal"]')).toBeNull();
+  });
+
+  it('opens the confirmation modal instead of navigating when dirty', () => {
+    renderProvider();
+    const onSave = vi.fn().mockResolvedValue(true);
+    act(() => { latestCtx!.setPageDirtyState(true, ['Changed bio'], onSave); });
+    act(() => { latestNavigateToProfile!('coach-123'); });
+    expect(navigateToProfile).not.toHaveBeenCalled();
+    expect(q('[data-testid="mock-modal"]')).not.toBeNull();
+  });
+
+  it('navigates to the profile after discarding unsaved changes', () => {
+    renderProvider();
+    const onSave = vi.fn().mockResolvedValue(true);
+    act(() => { latestCtx!.setPageDirtyState(true, ['Changed bio'], onSave); });
+    act(() => { latestNavigateToProfile!('coach-456'); });
+    act(() => { (q('[data-testid="btn-discard"]') as HTMLButtonElement).click(); });
+    expect(navigateToProfile).toHaveBeenCalledWith('coach-456');
+    expect(q('[data-testid="mock-modal"]')).toBeNull();
+  });
+
+  // ---------------------------------------------------------------------------
+  // beforeunload guard — full page unload (tab close / reload)
+  // ---------------------------------------------------------------------------
+
+  it('registers a beforeunload listener only while dirty and removes it when clean', () => {
+    const addSpy = vi.spyOn(window, 'addEventListener');
+    const removeSpy = vi.spyOn(window, 'removeEventListener');
+    renderProvider();
+    expect(addSpy).not.toHaveBeenCalledWith('beforeunload', expect.any(Function));
+
+    const onSave = vi.fn().mockResolvedValue(true);
+    act(() => { latestCtx!.setPageDirtyState(true, ['Changed bio'], onSave); });
+    expect(addSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
+
+    act(() => { latestCtx!.setPageDirtyState(false, [], onSave); });
+    expect(removeSpy).toHaveBeenCalledWith('beforeunload', expect.any(Function));
+
+    addSpy.mockRestore();
+    removeSpy.mockRestore();
+  });
+
+  it('prevents the unload and sets returnValue when dirty', () => {
+    renderProvider();
+    const onSave = vi.fn().mockResolvedValue(true);
+    act(() => { latestCtx!.setPageDirtyState(true, ['Changed bio'], onSave); });
+
+    // jsdom models a plain Event's `returnValue` with legacy boolean cancel
+    // semantics rather than the string slot a real BeforeUnloadEvent exposes,
+    // so we intercept the assignment to confirm the handler sets it, and assert
+    // on preventDefault / defaultPrevented for the actual guard behavior.
+    const event = new Event('beforeunload', { cancelable: true }) as BeforeUnloadEvent;
+    let assignedReturnValue: unknown;
+    Object.defineProperty(event, 'returnValue', {
+      configurable: true,
+      get: () => assignedReturnValue,
+      set: (v) => { assignedReturnValue = v; },
+    });
+    const preventDefaultSpy = vi.spyOn(event, 'preventDefault');
+    act(() => { window.dispatchEvent(event); });
+
+    expect(preventDefaultSpy).toHaveBeenCalledOnce();
+    expect(event.defaultPrevented).toBe(true);
+    expect(assignedReturnValue).toBe('');
+  });
+
+  it('does not block the unload when not dirty', () => {
+    renderProvider();
+    const event = new Event('beforeunload', { cancelable: true }) as BeforeUnloadEvent;
+    const preventDefaultSpy = vi.spyOn(event, 'preventDefault');
+    act(() => { window.dispatchEvent(event); });
+    expect(preventDefaultSpy).not.toHaveBeenCalled();
   });
 });
