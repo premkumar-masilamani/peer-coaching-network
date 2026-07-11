@@ -18,6 +18,7 @@ import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/crede
 import { formatDisplayName, formatMemberSince, logAnalyticsEvent } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
 import { GENDER_OPTIONS, type Gender, type Qualification, QUALIFICATION, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
+import { collectValidationErrors, clearFieldError, type FormErrors } from '../utils/formValidation';
 
 import { verifyIcfCredential } from '../services/icfService';
 import { updateVerifiedCredentials } from '../services/firebaseService';
@@ -89,7 +90,10 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
 
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
-  
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+
+  const dismissError = (key: string) => setFormErrors(prev => clearFieldError(prev, key));
+
   const [verifying, setVerifying] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState('');
 
@@ -343,14 +347,23 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
         </div>
 
         {/* ── Editable form ───────────────────────────────────────────────── */}
-        <form onSubmit={(e) => { 
-          e.preventDefault(); 
-          if (onboardingMode) {
-            handleDirectSave();
-          } else {
-            requestExplicitSave(); 
-          }
-        }}>
+        <form
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            const form = e.currentTarget;
+            if (!form.checkValidity()) {
+              setFormErrors(collectValidationErrors(form));
+              return;
+            }
+            setFormErrors({});
+            if (onboardingMode) {
+              handleDirectSave();
+            } else {
+              requestExplicitSave();
+            }
+          }}
+        >
           {/* 1. Credentials */}
           <div className="form-group">
             {/* Not a <label>: the credentials below are read-only badges, not a form control. */}
@@ -428,9 +441,9 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
             </label>
             <select
               id="country-select-edit"
-              className="input-field"
+              className={`input-field${formErrors['country-select-edit'] ? ' input-error' : ''}`}
               value={country}
-              onChange={(e) => handleCountryChange(e.target.value)}
+              onChange={(e) => { handleCountryChange(e.target.value); dismissError('country-select-edit'); dismissError('timezone-select-edit'); }}
               required
             >
               <option value="">Select Country</option>
@@ -438,6 +451,9 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
+            {formErrors['country-select-edit'] && (
+              <span className="form-error-text">{formErrors['country-select-edit']}</span>
+            )}
           </div>
 
           {/* 4. Timezone */}
@@ -448,9 +464,9 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
             </label>
             <select
               id="timezone-select-edit"
-              className="input-field"
+              className={`input-field${formErrors['timezone-select-edit'] ? ' input-error' : ''}`}
               value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
+              onChange={(e) => { setTimezone(e.target.value); dismissError('timezone-select-edit'); }}
               required
             >
               <option value="">Select Timezone</option>
@@ -458,6 +474,9 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
                 <option key={tz.value} value={tz.value}>{tz.label}</option>
               ))}
             </select>
+            {formErrors['timezone-select-edit'] && (
+              <span className="form-error-text">{formErrors['timezone-select-edit']}</span>
+            )}
           </div>
 
           {/* 5. Professional Biography */}
@@ -466,14 +485,17 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
             <textarea
               id="bio-input-edit"
               rows={4}
-              className="input-field"
+              className={`input-field${formErrors['bio-input-edit'] ? ' input-error' : ''}`}
               placeholder="Tell other coaches about your coaching style..."
               value={bio}
-              onChange={(e) => setBio(e.target.value)}
+              onChange={(e) => { setBio(e.target.value); dismissError('bio-input-edit'); }}
               style={{ resize: 'vertical' }}
               maxLength={INPUT_LIMITS.BIO}
               required
             />
+            {formErrors['bio-input-edit'] && (
+              <span className="form-error-text">{formErrors['bio-input-edit']}</span>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
               <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
                 {bio.length} / {INPUT_LIMITS.BIO} characters

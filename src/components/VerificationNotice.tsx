@@ -18,6 +18,7 @@ import { GENDER_OPTIONS, type Gender, type Qualification, QUALIFICATION, ICF_DIR
 
 import { getCredentialDescription, buildDisplayCredentials } from '../utils/credentials';
 import { verifyIcfCredential } from '../services/icfService';
+import { collectValidationErrors, clearFieldError, type FormErrors } from '../utils/formValidation';
 
 export const VerificationNotice: React.FC = () => {
   const { user, profile, updateProfileDetails, logout } = useAuth();
@@ -32,6 +33,9 @@ export const VerificationNotice: React.FC = () => {
 
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+
+  const dismissError = (key: string) => setFormErrors(prev => clearFieldError(prev, key));
 
   const [verifying, setVerifying] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState('');
@@ -72,8 +76,14 @@ export const VerificationNotice: React.FC = () => {
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
+    if (!form.checkValidity()) {
+      setFormErrors(collectValidationErrors(form));
+      return;
+    }
+    setFormErrors({});
     setSaving(true);
     setSuccessMsg('');
     try {
@@ -176,7 +186,7 @@ export const VerificationNotice: React.FC = () => {
           </div>
         </div>
 
-        <form onSubmit={handleSave}>
+        <form noValidate onSubmit={handleSave}>
           {/* 1. Credentials */}
           <div className="form-group">
             {/* Not a <label>: the credentials below are read-only, not a form control. */}
@@ -251,9 +261,9 @@ export const VerificationNotice: React.FC = () => {
             </label>
             <select
               id="country-select"
-              className="input-field"
+              className={`input-field${formErrors['country-select'] ? ' input-error' : ''}`}
               value={country}
-              onChange={(e) => handleCountryChange(e.target.value)}
+              onChange={(e) => { handleCountryChange(e.target.value); dismissError('country-select'); dismissError('timezone-select'); }}
               required
             >
               <option value="">Select Country</option>
@@ -261,6 +271,9 @@ export const VerificationNotice: React.FC = () => {
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
+            {formErrors['country-select'] && (
+              <span className="form-error-text">{formErrors['country-select']}</span>
+            )}
           </div>
 
           {/* 4. Timezone Select */}
@@ -271,9 +284,9 @@ export const VerificationNotice: React.FC = () => {
             </label>
             <select
               id="timezone-select"
-              className="input-field"
+              className={`input-field${formErrors['timezone-select'] ? ' input-error' : ''}`}
               value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
+              onChange={(e) => { setTimezone(e.target.value); dismissError('timezone-select'); }}
               required
             >
               <option value="">Select Timezone</option>
@@ -281,6 +294,9 @@ export const VerificationNotice: React.FC = () => {
                 <option key={tz.value} value={tz.value}>{tz.label}</option>
               ))}
             </select>
+            {formErrors['timezone-select'] && (
+              <span className="form-error-text">{formErrors['timezone-select']}</span>
+            )}
           </div>
 
           {/* 5. Coach Bio */}
@@ -289,14 +305,17 @@ export const VerificationNotice: React.FC = () => {
             <textarea
               id="bio-input"
               rows={4}
-              className="input-field"
+              className={`input-field${formErrors['bio-input'] ? ' input-error' : ''}`}
               placeholder="Tell other coaches about your coaching style, focus and ideal clients..."
               value={bio}
-              onChange={(e) => setBio(e.target.value)}
+              onChange={(e) => { setBio(e.target.value); dismissError('bio-input'); }}
               style={{ resize: 'vertical' }}
               maxLength={INPUT_LIMITS.BIO}
               required
             />
+            {formErrors['bio-input'] && (
+              <span className="form-error-text">{formErrors['bio-input']}</span>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
               <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
                 {bio.length} / {INPUT_LIMITS.BIO} characters
