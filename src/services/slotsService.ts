@@ -116,14 +116,34 @@ export const lazyRecalculateAvailableSlotsCache = async (uid: string): Promise<v
     if (snap.exists()) {
       const data = snap.data();
       const lastUpdated = data.lastUpdated;
-      if (lastUpdated) {
+      
+      // Compare userStatus or credentials to propagate changes
+      const userDocRef = doc(db, COLLECTIONS.USERS, uid);
+      const userSnap = await getDoc(userDocRef);
+      if (userSnap.exists()) {
+        const profile = userSnap.data();
+        if (data.userStatus !== profile.userStatus) {
+          shouldRecalc = true;
+          logger.info(`lazyRecalculateAvailableSlotsCache: Status changed from ${data.userStatus} to ${profile.userStatus}.`);
+        }
+        const hasSameAcc = !!data.icf_acc === !!profile.icf_acc;
+        const hasSamePcc = !!data.icf_pcc === !!profile.icf_pcc;
+        const hasSameMcc = !!data.icf_mcc === !!profile.icf_mcc;
+        const hasSameActc = !!data.icf_actc === !!profile.icf_actc;
+        if (!hasSameAcc || !hasSamePcc || !hasSameMcc || !hasSameActc) {
+          shouldRecalc = true;
+          logger.info(`lazyRecalculateAvailableSlotsCache: Credentials changed.`);
+        }
+      }
+
+      if (!shouldRecalc && lastUpdated) {
         const lastUpdatedMs = new Date(lastUpdated).getTime();
         const ageMs = Date.now() - lastUpdatedMs;
         if (ageMs > 24 * 60 * 60 * 1000) {
           shouldRecalc = true;
           logger.info(`lazyRecalculateAvailableSlotsCache: Cache for ${uid} is older than 24 hours (${Math.round(ageMs / 3600000)}h).`);
         }
-      } else {
+      } else if (!shouldRecalc) {
         shouldRecalc = true;
         logger.info(`lazyRecalculateAvailableSlotsCache: Cache for ${uid} has no lastUpdated timestamp.`);
       }
