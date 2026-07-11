@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "test": "vitest run --project=unit",
     "coverage": "vitest run --project=unit --coverage",
+    "seed": "node scripts/seed-emulator.cjs",
     "test:integration": "vitest run --project=integration",
     "test:perf": "TEST_USER_COUNT=100 vitest run --project=integration --reporter=verbose",
     "prepare": "git config core.hooksPath .githooks"
@@ -47,5 +48,8 @@
     "typescript-eslint": "^8.59.2",
     "vite": "^8.0.12",
     "vitest": "^4.1.9"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": "eslint --max-warnings=0"
   }
 }
