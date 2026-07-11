@@ -12,6 +12,7 @@ import { formatDisplayName } from '../services/firebaseService';
 import { SUPPORT_CATEGORIES, type SupportCategory, INPUT_LIMITS, SUPPORT_STATUS, type SupportStatus } from '../config';
 import { MessageSquare, Plus, Send, ChevronLeft, LifeBuoy, Tag, Type, AlignLeft, CheckCircle, Circle } from 'lucide-react';
 import { activateOnEnterOrSpace } from '../utils/keyboardNavigation';
+import { collectValidationErrors, clearFieldError, type FormErrors } from '../utils/formValidation';
 
 export const SupportFeedback: React.FC = () => {
   const { profile } = useAuth();
@@ -30,6 +31,10 @@ export const SupportFeedback: React.FC = () => {
   
   // Reply State
   const [replyText, setReplyText] = useState('');
+
+  // Validation errors for the new-request form
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+  const dismissError = (key: string) => setFormErrors(prev => clearFieldError(prev, key));
 
   const loadTickets = useCallback(async () => {
     if (!profile) return;
@@ -68,10 +73,16 @@ export const SupportFeedback: React.FC = () => {
     return () => window.removeEventListener('tab-reclick', handleTabReclick);
   }, []);
 
-  const handleCreateRequest = async (e: React.FormEvent) => {
+  const handleCreateRequest = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
+    if (!form.checkValidity()) {
+      setFormErrors(collectValidationErrors(form));
+      return;
+    }
+    setFormErrors({});
     if (!profile || !subject.trim() || !message.trim()) return;
-    
+
     setSubmitting(true);
     try {
       await createSupportRequest(
@@ -198,7 +209,7 @@ export const SupportFeedback: React.FC = () => {
 
       {/* New Request Form */}
       {view === 'new' && (
-        <form onSubmit={handleCreateRequest} style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '16px' }}>
+        <form noValidate onSubmit={handleCreateRequest} style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginTop: '16px' }}>
           <div className="form-group">
             <label className="form-label" htmlFor="support-category">
               <Tag size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
@@ -218,31 +229,37 @@ export const SupportFeedback: React.FC = () => {
               <Type size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
               Subject
             </label>
-            <input 
+            <input
               id="support-subject"
-              className="input-field" 
-              placeholder="Briefly describe your issue or request" 
-              value={subject} 
-              onChange={e => setSubject(e.target.value)} 
+              className={`input-field${formErrors['support-subject'] ? ' input-error' : ''}`}
+              placeholder="Briefly describe your issue or request"
+              value={subject}
+              onChange={e => { setSubject(e.target.value); dismissError('support-subject'); }}
               required
               maxLength={INPUT_LIMITS.SUPPORT_SUBJECT}
             />
+            {formErrors['support-subject'] && (
+              <span className="form-error-text">{formErrors['support-subject']}</span>
+            )}
           </div>
           <div className="form-group">
             <label className="form-label" htmlFor="support-message">
               <AlignLeft size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
               Message Details
             </label>
-            <textarea 
+            <textarea
               id="support-message"
-              className="input-field" 
-              placeholder="Provide as much detail as possible..." 
+              className={`input-field${formErrors['support-message'] ? ' input-error' : ''}`}
+              placeholder="Provide as much detail as possible..."
               rows={6}
-              value={message} 
-              onChange={e => setMessage(e.target.value)} 
+              value={message}
+              onChange={e => { setMessage(e.target.value); dismissError('support-message'); }}
               maxLength={INPUT_LIMITS.SUPPORT_MESSAGE}
               required
             />
+            {formErrors['support-message'] && (
+              <span className="form-error-text">{formErrors['support-message']}</span>
+            )}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px' }}>
             <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
