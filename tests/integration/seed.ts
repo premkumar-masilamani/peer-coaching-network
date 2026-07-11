@@ -2,7 +2,7 @@ import { adminAuth, adminDb } from './helpers/adminClient';
 import { Timestamp } from 'firebase-admin/firestore';
 
 const projectId = process.env.VITE_FIREBASE_PROJECT_ID || 'peer-coaching-network-dev';
-const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID || '(default)';
+const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID || 'pcn-dev';
 
 export async function wipeEmulatorData() {
   const firestoreUrl = `http://127.0.0.1:8080/emulator/v1/projects/${projectId}/databases/${databaseId}/documents`;

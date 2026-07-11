@@ -50,7 +50,7 @@ export default defineConfig(({ mode }) => {
             pool: 'forks',
             env: {
               VITE_USE_FIREBASE_EMULATOR: 'true',
-              VITE_FIRESTORE_DATABASE_ID: '(default)',
+              VITE_FIRESTORE_DATABASE_ID: 'pcn-dev',
               VITE_FIREBASE_PROJECT_ID: 'peer-coaching-network-dev',
               VITE_ENABLE_GOOGLE_INTEGRATION: 'false',
             },
