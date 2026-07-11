@@ -9,12 +9,13 @@
     "build": "tsc -b && vite build --mode development",
     "build:dev": "tsc -b && vite build --mode development",
     "build:prod": "tsc -b && vite build --mode production",
-    "lint": "eslint .",
+    "lint": "tsc -b && eslint .",
     "preview": "vite preview",
     "test": "vitest run --project=unit",
     "coverage": "vitest run --project=unit --coverage",
     "test:integration": "vitest run --project=integration",
-    "test:perf": "TEST_USER_COUNT=100 vitest run --project=integration --reporter=verbose"
+    "test:perf": "TEST_USER_COUNT=100 vitest run --project=integration --reporter=verbose",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "overrides": {
     "eslint-plugin-jsx-a11y": {

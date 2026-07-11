@@ -18,6 +18,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { BOOKING_ERROR, type BookingError, BOOKING_ERROR_MESSAGES, SCHEDULE_MODAL_STATUS, type ScheduleModalStatus, INPUT_LIMITS } from '../../config';
+import { collectValidationErrors, clearFieldError, type FormErrors } from '../../utils/formValidation';
 
 interface ScheduleModalProps {
   coach: UserProfile;
@@ -41,6 +42,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   const [bookingStatus, setBookingStatus] = useState<ScheduleModalStatus>(SCHEDULE_MODAL_STATUS.IDLE);
   const [createdEvent, setCreatedEvent] = useState<CalendarEvent | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
 
   const qualifications: string[] = [];
   if (coach.icf_acc) qualifications.push('ICF ACC');
@@ -75,13 +77,18 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     year: 'numeric'
   });
 
-  const handleBook = async (e: React.FormEvent) => {
+  const handleBook = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!topic.trim()) {
-      setErrorMsg('Please enter a coaching topic to confirm your booking.');
-      setBookingStatus(SCHEDULE_MODAL_STATUS.ERROR);
+    const form = e.currentTarget;
+    if (!form.checkValidity() || !topic.trim()) {
+      const errors = collectValidationErrors(form);
+      if (!topic.trim() && !errors['topic-input']) {
+        errors['topic-input'] = 'Please enter a coaching topic to confirm your booking.';
+      }
+      setFormErrors(errors);
       return;
     }
+    setFormErrors({});
 
     setBookingStatus(SCHEDULE_MODAL_STATUS.BOOKING);
     setErrorMsg('');
@@ -225,7 +232,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
         {/* State 2: Booking Form */}
         {bookingStatus !== SCHEDULE_MODAL_STATUS.SUCCESS && (
-          <form onSubmit={handleBook}>
+          <form noValidate onSubmit={handleBook}>
             <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: qualifications.length > 0 ? '4px' : '20px' }}>
               Book a session with {formatDisplayName(coach)}
             </h3>
@@ -255,11 +262,12 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               </label>
               <textarea
                 id="topic-input"
-                className="input-field"
+                className={`input-field${formErrors['topic-input'] ? ' input-error' : ''}`}
                 placeholder="e.g. Life coaching feedback, ICF log hours practice..."
                 value={topic}
                 onChange={(e) => {
                   setTopic(e.target.value);
+                  setFormErrors(prev => clearFieldError(prev, 'topic-input'));
                   if (bookingStatus === SCHEDULE_MODAL_STATUS.ERROR && e.target.value.trim()) {
                     setBookingStatus(SCHEDULE_MODAL_STATUS.IDLE);
                     setErrorMsg('');
@@ -275,6 +283,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                 maxLength={INPUT_LIMITS.COACHING_TOPIC}
                 style={{ resize: 'vertical', minHeight: '140px' }}
               />
+              {formErrors['topic-input'] && (
+                <span className="form-error-text">{formErrors['topic-input']}</span>
+              )}
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
                 <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
                   {topic.length} / {INPUT_LIMITS.COACHING_TOPIC} characters
