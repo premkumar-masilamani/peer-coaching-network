@@ -24,20 +24,20 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 26.5.0
           cache: 'npm'
 
       - name: Install Dependencies
         run: npm ci
 
       - name: Run Linter
-        run: npm run lint
+        run: make lint
 
       - name: Run Unit Tests
-        run: npm run test
+        run: make test
 
       - name: Build Web Application (Development)
-        run: npm run build:dev
+        run: make build-dev
         env:
           VITE_FIREBASE_API_KEY: ${{ vars.DEV_VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.DEV_VITE_FIREBASE_AUTH_DOMAIN }}
@@ -69,20 +69,20 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: 26.5.0
           cache: 'npm'
 
       - name: Install Dependencies
         run: npm ci
 
       - name: Run Linter
-        run: npm run lint
+        run: make lint
 
       - name: Run Unit Tests
-        run: npm run test
+        run: make test
 
       - name: Build Web Application (Production)
-        run: npm run build:prod
+        run: make build-prod
         env:
           VITE_FIREBASE_API_KEY: ${{ vars.PROD_VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.PROD_VITE_FIREBASE_AUTH_DOMAIN }}
