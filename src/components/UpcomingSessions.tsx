@@ -133,12 +133,15 @@ export const UpcomingSessions: React.FC = () => {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [bookingToCancel, setBookingToCancel] = useState<CalendarEvent | null>(null);
 
-  const getBookingForSlot = useCallback((slotStart: Date, slotEnd: Date) => {
+  const getBookingForSlot = useCallback((slotStart: Date) => {
     return userBusyEvents.find(e => {
       if (e.type !== EVENT_TYPE.PEER_COACHING) return false;
-      const start = new Date(e.start.dateTime);
-      const end = new Date(e.end.dateTime);
-      return slotStart < end && slotEnd > start;
+      const bookingStart = new Date(e.start.dateTime);
+      // Match only the slot whose start time equals the booking's start time.
+      // An overlap check (slotStart < bookingEnd && slotEnd > bookingStart) causes
+      // a single 1-hour booking to appear in multiple consecutive 60-min slot rows
+      // (e.g. 8:30-9:30, 9:00-10:00, and 9:30-10:30 all overlap a 9:00-10:00 booking).
+      return slotStart.getTime() === bookingStart.getTime();
     });
   }, [userBusyEvents]);
   
@@ -434,7 +437,7 @@ export const UpcomingSessions: React.FC = () => {
       const isPassed = slot.endTime.getTime() < now;
       
       // Check if there is an active booking for this slot
-      const booking = getBookingForSlot(slot.startTime, slot.endTime);
+      const booking = getBookingForSlot(slot.startTime);
       
       // If the current user is unavailable at this slot (excluding bookings),
       // we filter it out (hide it) unless there is a booking already!

@@ -31,16 +31,16 @@ coverage:
 	npm run coverage
 
 emulator:
-	npx firebase emulators:start
+	firebase emulators:start
 
 local:
-	npm run local
+	node scripts/seed-emulator.cjs && npm run local
 
 erd:
 	node scripts/generate-erd.js
 
 deploy-dev: build-dev
-	. ./.env.development && npx firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
+	. ./.env.development && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
 
 deploy-prod: build-prod
-	. ./.env.production && npx firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
+	. ./.env.production && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
