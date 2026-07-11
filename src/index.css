@@ -532,6 +532,19 @@ button.logo-button {
   padding: 16px;
 }
 
+.modal-dialog-native {
+  border: none;
+  background: transparent;
+  padding: 0;
+  max-width: 500px;
+  width: 100%;
+}
+
+.modal-dialog-native::backdrop {
+  background: var(--modal-overlay-bg);
+  backdrop-filter: blur(8px);
+}
+
 .modal-content {
   width: 100%;
   max-width: 500px;
