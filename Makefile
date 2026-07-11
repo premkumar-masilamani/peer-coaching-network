@@ -9,7 +9,7 @@ install:
 	git config core.hooksPath .githooks
 
 build-dev:
-	npm run tsc && npm run vite -- build --mode development
+	npm run tsc && npm run vite -- build --mode production
 
 build-prod:
 	npm run tsc && npm run vite -- build --mode production
