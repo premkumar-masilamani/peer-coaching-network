@@ -2,7 +2,7 @@
   {
     "firstName": "Premkumar",
     "lastName": "Masilamani",
-    "email": "premkumar@test.example",
+    "email": "premkumar.masilamani@gmail.com",
     "role": "admin",
     "status": "active",
     "gender": "Male",
@@ -13,7 +13,7 @@
   {
     "firstName": "Aradhana",
     "lastName": "Premkumar",
-    "email": "aradhana@test.example",
+    "email": "aradhana.premkumar@gmail.com",
     "role": "user",
     "status": "active",
     "gender": "Female",
@@ -24,7 +24,7 @@
   {
     "firstName": "Sangavi",
     "lastName": "Premkumar",
-    "email": "sangavi@test.example",
+    "email": "sangavi.premkumar@gmail.com",
     "role": "user",
     "status": "inactive",
     "gender": "Female",
