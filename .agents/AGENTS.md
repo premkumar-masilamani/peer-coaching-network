@@ -46,6 +46,7 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Carousel Centering**: Use `activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })` inside a `useEffect` to automatically center selected carousel items.
 - **No Ref Mutation During Render (`react-hooks/refs`)**: Never write to `ref.current` in the render body. For arrays of element refs, assign in the ref callback and return the React 19 cleanup function (`return () => { refs.current[i] = null; }`).
 - **Scoped DOM IDs**: Generate ids consumed by `aria-controls` / `aria-labelledby` with `useId()`, never module-level constants, so the wiring survives multiple mounts of the same component.
+- **Pure State Updaters**: Never include side effects (e.g., triggering navigation, DOM mutations, browser history updates) inside functional `setState` updaters. Run all side effects outside of the state updates to prevent duplicate execution under `<StrictMode>`.
 
 ## 5. UI & Styling Guidelines
 - **CSS Variables & HSL**: Theme colors in `index.css` (e.g., `--primary`) are raw HSL values. You **MUST ALWAYS** wrap them in inline styles: `hsl(var(--primary))`.
