@@ -13,4 +13,4 @@ const app = getApps().length === 0
   : getApps()[0];
 
 export const adminAuth = getAuth(app);
-export const adminDb = getFirestore(app, process.env.VITE_FIRESTORE_DATABASE_ID || '(default)');
+export const adminDb = getFirestore(app, process.env.VITE_FIRESTORE_DATABASE_ID || 'pcn-dev');
