@@ -62,6 +62,7 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Glassmorphism**: Use `className="glass-panel"` for intelligent theme-aware cards and containers.
 - **Modals**: Never use inline JSX overlays. All modals must be standalone components in `src/components/modals/`.
 - **Modal Backgrounds**: Modals overlaying content must use opaque backgrounds (e.g., `background: hsl(var(--bg-surface))`) rather than transparent glass panels to prevent distracting visual bleed-through.
+- **Accessible Modal Semantics and Focus Restoration**: All modals must use standard HTML5 `<dialog>` semantics (or have explicit `role="dialog"` and `aria-modal="true"`). In addition, focus must be manually backed up upon opening the modal and explicitly restored to the triggering element when the modal is closed or unmounted to ensure full keyboard and screen-reader accessibility.
 - **Custom Popups & Feedback**: Prefer custom popup components over native inputs (e.g., `<input type="date">`) for complex selection. Provide clear visual feedback (e.g., highlighting pre-selected states) to prevent redundant interactions.
 - **Profile Banners**: Never block access to the dashboard or other tabs over an incomplete profile. Advisory banners only.
 - **Inline Error Feedback**: Avoid intrusive success or error popups (like alerts) for background verification actions. Use subtle inline text directly below or beside action buttons for errors, and quietly revert to a normal state on success for a frictionless experience.
