@@ -1,5 +1,5 @@
 import React from 'react';
-import { X } from 'lucide-react';
+import { Modal } from './Modal';
 
 interface ReviewChangesModalProps {
   isOpen: boolean;
@@ -29,78 +29,59 @@ export const ReviewChangesModal: React.FC<ReviewChangesModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    // Click-to-dismiss backdrop: a mouse convenience, not a control. Keyboard
-    // users dismiss via the close button below. The inner handler only stops
-    // clicks inside the dialog from reaching the backdrop.
-    /* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */
-    <div className="modal-overlay" style={{ pointerEvents: 'auto', zIndex: 9999 }} onClick={onClose}>
-      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
-      <div className="glass-panel modal-content" style={{ padding: '32px', position: 'relative', border: '1px solid rgba(139, 92, 246, 0.3)' }} onClick={(e) => e.stopPropagation()}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+    >
+      {userName && (
+        <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', marginBottom: '20px' }}>
+          <strong>{userName}</strong>:
+        </p>
+      )}
+      {!userName && <div style={{ height: '20px' }} />}
+
+      {changes.length === 0 ? (
+        <div className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px', textAlign: 'center' }}>
+          <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-muted))' }}>No modifications detected in draft.</p>
+        </div>
+      ) : (
+        <div className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>
+          <ul style={{ paddingLeft: '20px', margin: 0, fontSize: '0.95rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {changes.map((chg, idx) => (
+              <li key={idx} style={{ color: 'hsl(var(--text-secondary))' }}>
+                {chg}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
         <button
           onClick={onClose}
-          style={{
-            position: 'absolute',
-            top: '20px',
-            right: '20px',
-            background: 'transparent',
-            border: 'none',
-            color: 'hsl(var(--text-muted))',
-            cursor: 'pointer'
-          }}
+          className="btn btn-secondary"
+          style={{ flex: 1 }}
         >
-          <X size={18} />
+          {cancelText}
         </button>
-
-        <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '8px' }}>{title}</h3>
-        {userName && (
-          <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', marginBottom: '20px' }}>
-            <strong>{userName}</strong>:
-          </p>
-        )}
-        {!userName && <div style={{ height: '20px' }} />}
-
-        {changes.length === 0 ? (
-          <div className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px', textAlign: 'center' }}>
-            <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-muted))' }}>No modifications detected in draft.</p>
-          </div>
-        ) : (
-          <div className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>
-            <ul style={{ paddingLeft: '20px', margin: 0, fontSize: '0.95rem', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {changes.map((chg, idx) => (
-                <li key={idx} style={{ color: 'hsl(var(--text-secondary))' }}>
-                  {chg}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+        {onDiscard && (
           <button
-            onClick={onClose}
+            onClick={onDiscard}
             className="btn btn-secondary"
-            style={{ flex: 1 }}
+            style={{ flex: 1, borderColor: 'rgba(239, 68, 68, 0.2)', color: '#f87171' }}
           >
-            {cancelText}
+            {discardText}
           </button>
-          {onDiscard && (
-            <button
-              onClick={onDiscard}
-              className="btn btn-secondary"
-              style={{ flex: 1, borderColor: 'rgba(239, 68, 68, 0.2)', color: '#f87171' }}
-            >
-              {discardText}
-            </button>
-          )}
-          <button
-            onClick={onConfirm}
-            className="btn btn-primary"
-            style={{ flex: onDiscard ? 1.5 : 1 }}
-          >
-            {confirmText}
-          </button>
-        </div>
+        )}
+        <button
+          onClick={onConfirm}
+          className="btn btn-primary"
+          style={{ flex: onDiscard ? 1.5 : 1 }}
+        >
+          {confirmText}
+        </button>
       </div>
-    </div>
+    </Modal>
   );
 };
