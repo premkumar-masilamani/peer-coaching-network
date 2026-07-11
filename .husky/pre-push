@@ -1,0 +1,19 @@
+# pre-push: integration + performance tests
+# Requires the Firebase emulator to be running in a separate terminal:
+#   make emulator
+#
+# To skip when you intentionally push without the emulator:
+#   git push --no-verify
+auth_open=$(nc -z 127.0.0.1 9099 2>/dev/null && echo yes || echo no)
+fs_open=$(nc -z 127.0.0.1 8080 2>/dev/null && echo yes || echo no)
+
+if [ "$auth_open" != "yes" ] || [ "$fs_open" != "yes" ]; then
+  echo ""
+  echo "⚠️  Firebase emulators are not running (ports 9099/8080)."
+  echo "   Start them with: make emulator"
+  echo "   Or skip with:    git push --no-verify"
+  echo ""
+  exit 1
+fi
+
+npm run test:integration && npm run test:perf

@@ -76,23 +76,35 @@ jobs:
           node-version: 20
           cache: npm
 
+      # Firebase emulators are JVM-based; ubuntu-latest has no JDK by default.
+      - name: Set up Java 17 (required by Firebase emulators)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
       - name: Install dependencies
         run: npm ci
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
+      # firebase.ci.json: no UI emulator, explicit 127.0.0.1 binding.
+      # Keeps startup faster and avoids port-scan noise in CI logs.
       - name: Start Firebase Emulators
         run: |
           firebase emulators:start \
             --project=peer-coaching-network-dev \
             --only auth,firestore \
-            --config firebase.emulator.json &
+            --config firebase.ci.json &
           echo "EMULATOR_PID=$!" >> "$GITHUB_ENV"
+        env:
+          # Suppress JVM startup noise in CI logs
+          JAVA_TOOL_OPTIONS: '-Xms256m -Xmx512m'
 
       - name: Wait for emulators to be ready
         run: |
-          for i in $(seq 1 30); do
+          for i in $(seq 1 60); do
             auth_open=$(nc -z 127.0.0.1 9099 2>/dev/null && echo yes || echo no)
             fs_open=$(nc -z 127.0.0.1 8080 2>/dev/null && echo yes || echo no)
             if [ "$auth_open" = "yes" ] && [ "$fs_open" = "yes" ]; then
@@ -101,7 +113,7 @@ jobs:
             fi
             sleep 1
           done
-          echo "Emulators failed to start within 30s" >&2
+          echo "Emulators failed to start within 60s" >&2
           exit 1
 
       - name: Run integration tests

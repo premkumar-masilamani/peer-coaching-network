@@ -1,0 +1,4 @@
+# pre-commit: lint staged files + unit tests
+# Runs fast checks only. Integration/performance tests run on pre-push.
+npx lint-staged
+npm test
