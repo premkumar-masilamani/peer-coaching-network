@@ -1,0 +1,149 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Cancel any in-progress run for the same branch/PR so resources aren't
+# wasted if a second push lands before the first run finishes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Job 1: Lint ──────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
+
+  # ── Job 2: Unit tests ────────────────────────────────────────────────────────
+  unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
+
+  # ── Job 3: Integration & Performance tests ───────────────────────────────────
+  # Integration and performance tests share a single job because both need the
+  # Firebase emulator — reusing one process avoids paying the ~10s cold-start
+  # twice. The globalSetup in tests/integration/globalSetup.ts detects the
+  # already-running emulator on 9099/8080 and reuses it.
+  integration:
+    name: Integration & Performance Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Start Firebase Emulators
+        run: |
+          firebase emulators:start \
+            --project=peer-coaching-network-dev \
+            --only auth,firestore \
+            --config firebase.emulator.json &
+          echo "EMULATOR_PID=$!" >> "$GITHUB_ENV"
+
+      - name: Wait for emulators to be ready
+        run: |
+          for i in $(seq 1 30); do
+            auth_open=$(nc -z 127.0.0.1 9099 2>/dev/null && echo yes || echo no)
+            fs_open=$(nc -z 127.0.0.1 8080 2>/dev/null && echo yes || echo no)
+            if [ "$auth_open" = "yes" ] && [ "$fs_open" = "yes" ]; then
+              echo "Emulators ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Emulators failed to start within 30s" >&2
+          exit 1
+
+      - name: Run integration tests
+        run: npm run test:integration
+        env:
+          VITE_USE_FIREBASE_EMULATOR: 'true'
+          VITE_FIRESTORE_DATABASE_ID: '(default)'
+          VITE_FIREBASE_PROJECT_ID: peer-coaching-network-dev
+          VITE_ENABLE_GOOGLE_INTEGRATION: 'false'
+
+      - name: Run performance tests
+        run: npm run test:perf
+        env:
+          VITE_USE_FIREBASE_EMULATOR: 'true'
+          VITE_FIRESTORE_DATABASE_ID: '(default)'
+          VITE_FIREBASE_PROJECT_ID: peer-coaching-network-dev
+          VITE_ENABLE_GOOGLE_INTEGRATION: 'false'
+          TEST_USER_COUNT: '100'
+
+      - name: Stop Firebase Emulators
+        if: always()
+        run: |
+          if [ -n "$EMULATOR_PID" ]; then
+            kill "$EMULATOR_PID" 2>/dev/null || true
+          fi
+
+  # ── Gate job: required status check ──────────────────────────────────────────
+  # Register THIS job ("ci") as the required status check in GitHub branch
+  # protection — not the individual jobs above. That way, adding new jobs to
+  # this workflow never requires touching the branch protection rules.
+  ci:
+    name: CI Passed
+    runs-on: ubuntu-latest
+    needs: [lint, unit, integration]
+    if: always()
+    steps:
+      - name: All checks passed
+        run: |
+          if [[ "${{ needs.lint.result }}" != "success" || \
+                "${{ needs.unit.result }}" != "success" || \
+                "${{ needs.integration.result }}" != "success" ]]; then
+            echo "One or more CI jobs failed."
+            echo "  lint:        ${{ needs.lint.result }}"
+            echo "  unit:        ${{ needs.unit.result }}"
+            echo "  integration: ${{ needs.integration.result }}"
+            exit 1
+          fi
+          echo "All CI jobs passed."
