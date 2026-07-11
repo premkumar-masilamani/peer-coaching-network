@@ -75,12 +75,11 @@ export const UnsavedChangesProvider: React.FC<{ children: ReactNode }> = ({ chil
       if (success) {
         setIsDirty(false);
         setChanges([]);
-        setModalState(prev => {
-          if (prev.mode === 'navigate' && prev.navigateAction) {
-            prev.navigateAction();
-          }
-          return { ...prev, isOpen: false };
-        });
+        const { mode, navigateAction } = modalState;
+        setModalState(prev => ({ ...prev, isOpen: false }));
+        if (mode === 'navigate' && navigateAction) {
+          navigateAction();
+        }
       } else {
         setModalState(prev => ({ ...prev, isOpen: false }));
       }
@@ -90,12 +89,11 @@ export const UnsavedChangesProvider: React.FC<{ children: ReactNode }> = ({ chil
   const handleDiscard = () => {
     setIsDirty(false);
     setChanges([]);
-    setModalState(prev => {
-      if (prev.mode === 'navigate' && prev.navigateAction) {
-        prev.navigateAction();
-      }
-      return { ...prev, isOpen: false };
-    });
+    const { mode, navigateAction } = modalState;
+    setModalState(prev => ({ ...prev, isOpen: false }));
+    if (mode === 'navigate' && navigateAction) {
+      navigateAction();
+    }
   };
 
   return (
