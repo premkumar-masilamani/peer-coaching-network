@@ -68,12 +68,16 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 
 ## 6. Unsaved State Tracking
 - **Global Tracking**: Any form that mutates local state without persisting to Firestore must integrate the `useUnsavedChanges` hook to intercept and block accidental cross-tab navigation.
+- **Guarded Profile Navigation**: Never import `navigateToProfile` from `utils/url` directly in a component — the raw util pushes URL state and dispatches `popstate`, bypassing the dirty guard. Always use the `useNavigateToProfile()` hook from `UnsavedChangesContext`, which routes the jump through `navigateWithConfirmation`.
+- **Full Page-Unload Guard**: Tab close / reload / external navigation is covered by a `beforeunload` listener registered in `UnsavedChangesProvider` only while `isDirty`. In-app navigation (tabs, profiles) is intercepted separately via `navigateWithConfirmation`; the two layers together are what make the guard complete.
 - **Specific Modification Feedback**: Provide concrete, contextual diff statements to `ReviewChangesModal` (e.g., `"Added blocked date: Dec 25, 2026"`). Do not push generic fallback messages.
 - **Save Button Layout**: Save buttons inside complex user-editable forms (`ProfileEdit`, `AvailabilityEdit`) must be placed logically close to the fields they govern (e.g., at the bottom of the form or column container), rather than floating loosely in a global page header.
 
 ## 7. Layout & Coding Conventions
 - **Accessibility Linting**: `eslint-plugin-jsx-a11y` runs on `**/*.tsx`. Never blanket-disable its rules. Deliberate exceptions (backdrop click-catchers, `stopPropagation` guards, modal `autoFocus`) require a narrowly-scoped `eslint-disable-next-line` naming each rule, plus a comment saying why keyboard users are unaffected.
 - **jsx-a11y Peer Range**: The plugin caps its `eslint` peer at `^9` but runs correctly on `eslint` 10. `package.json` carries an `overrides` entry pinning it to the root `eslint`; without it, a plain `npm install` fails with `ERESOLVE`. Remove the override once the plugin declares v10 support.
+- **Vitest Unit Glob Covers `.tsx`**: The `unit` project include is `src/**/*.test.{ts,tsx}`. Component/context suites that render JSX must be `.tsx` files — a `.ts`-only glob silently skips them (they never run, never fail). After adding a component test, confirm collection with `npx vitest list --project=unit --filesOnly`.
+- **Testing `beforeunload` in jsdom**: A plain `Event`'s `returnValue` uses legacy boolean cancel semantics, not the string slot a real `BeforeUnloadEvent` exposes. Assert the guard via `preventDefault` / `defaultPrevented`; intercept the `returnValue` setter with `Object.defineProperty` if you must check the assigned value.
 - **Named Exports**: Expose modules as named exports (e.g. `export const ProfileEdit`) rather than default exports.
 - **Verbatim Module Syntax**: When importing type definitions, prefix them with the `type` keyword (e.g. `import { type UserRole, type UserStatus } from '../config'`) to comply with `verbatimModuleSyntax` and prevent build failures.
 - **Constant & Type Naming**:
