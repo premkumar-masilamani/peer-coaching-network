@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { ReviewChangesModal } from '../components/modals/ReviewChangesModal';
+import { navigateToProfile } from '../utils/url';
 
 type SaveFunction = () => Promise<boolean>;
 
@@ -46,6 +47,22 @@ export const UnsavedChangesProvider: React.FC<{ children: ReactNode }> = ({ chil
     } else {
       performNavigation();
     }
+  }, [isDirty]);
+
+  // Guard full page unloads (tab close / reload / external navigation) while
+  // there are unsaved edits. In-app tab and profile navigation is intercepted
+  // by navigateWithConfirmation; this covers the cases the SPA can't, where the
+  // browser is about to tear down the page. Modern browsers ignore any custom
+  // message: calling preventDefault() and assigning a defined returnValue is
+  // what triggers their own generic "Leave site?" prompt.
+  useEffect(() => {
+    if (!isDirty) return;
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
 
   const handleClose = () => {
@@ -105,4 +122,15 @@ export const useUnsavedChanges = () => {
     throw new Error('useUnsavedChanges must be used within an UnsavedChangesProvider');
   }
   return context;
+};
+
+// Returns a profile navigator that respects the unsaved-changes guard. Callers
+// should always use this instead of importing navigateToProfile directly, so a
+// jump to a public profile can never silently discard in-progress edits.
+export const useNavigateToProfile = () => {
+  const { navigateWithConfirmation } = useUnsavedChanges();
+  return useCallback(
+    (uid: string) => navigateWithConfirmation('profile', () => navigateToProfile(uid)),
+    [navigateWithConfirmation]
+  );
 };

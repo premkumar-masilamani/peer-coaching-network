@@ -18,13 +18,12 @@ import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/crede
 import { formatDisplayName, formatMemberSince, logAnalyticsEvent } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
 import { GENDER_OPTIONS, type Gender, type Qualification, QUALIFICATION, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
-import { navigateToProfile } from '../utils/url';
 
 import { verifyIcfCredential } from '../services/icfService';
 import { updateVerifiedCredentials } from '../services/firebaseService';
 
 
-import { useUnsavedChanges } from '../context/UnsavedChangesContext';
+import { useUnsavedChanges, useNavigateToProfile } from '../context/UnsavedChangesContext';
 
 export interface ProfileEditProps {
   onboardingMode?: boolean;
@@ -68,6 +67,7 @@ function getCompletionItems(profile: ReturnType<typeof useAuth>['profile']): Com
 export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSaveSuccess }) => {
   const { user, profile, updateProfileDetails } = useAuth();
   const { setPageDirtyState, requestExplicitSave } = useUnsavedChanges();
+  const navigateToProfile = useNavigateToProfile();
   const [copied, setCopied] = useState(false);
 
   // State for editable profile details
