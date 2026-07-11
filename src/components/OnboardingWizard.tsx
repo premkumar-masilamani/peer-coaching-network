@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ProfileEdit } from './ProfileEdit';
 import { AvailabilityEdit } from './AvailabilityEdit';
@@ -14,14 +14,17 @@ export const OnboardingWizard: React.FC = () => {
   if (!profile?.bio) missingFields.push('Professional Bio');
   if (!profile?.gender) missingFields.push('Gender');
 
-  const handleComplete = async () => {
+  const handleComplete = useCallback(async () => {
     if (!user) return;
     try {
       await updateOwnProfile(user.uid, { onboardingComplete: true });
     } catch (e) {
       console.error('Failed to complete onboarding', e);
     }
-  };
+  }, [user]);
+
+  const handleNextStep = useCallback(() => setStep(2), []);
+  const handlePrevStep = useCallback(() => setStep(1), []);
 
   return (
     <div className="app-container" style={{ height: 'auto', minHeight: '100vh' }}>
@@ -83,7 +86,7 @@ export const OnboardingWizard: React.FC = () => {
               <div style={{ margin: '0' }}>
                 <ProfileEdit 
                   onboardingMode={true} 
-                  onSaveSuccess={() => setStep(2)} 
+                  onSaveSuccess={handleNextStep} 
                 />
               </div>
             </div>
@@ -100,7 +103,7 @@ export const OnboardingWizard: React.FC = () => {
                 <AvailabilityEdit 
                   onboardingMode={true} 
                   onSaveSuccess={handleComplete}
-                  onBackClick={() => setStep(1)}
+                  onBackClick={handlePrevStep}
                 />
               </div>
             </div>
