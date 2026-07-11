@@ -12,6 +12,8 @@ This document acts as the definitive codebase guide and runtime manual. It stric
   - `VITE_LOG_LEVEL`: Overrides console verbosity (`'debug'`, `'info'`, `'warn'`, `'error'`).
 - **Commands**:
   - `make dev` / `make local` (emulator) / `make build` / `make build-prod` / `make lint` / `make emulator` / `make install` / `npm run test`
+- **Dependency Execution**:
+  - Avoid using `npx` anywhere in the codebase or shell scripts; invoke scripts or local tools via package.json scripts or direct paths (e.g. node modules bin or make commands).
 - **Deployments**: 
   - `firebase.json` uses an array of database configurations (`firestore: [{ database: "pcn-dev", ... }, { database: "pcn-prod", ... }]`).
   - Deploy using dynamic targets: `firebase deploy --only firestore:${VITE_FIRESTORE_DATABASE_ID},hosting`
@@ -78,7 +80,7 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 ## 7. Layout & Coding Conventions
 - **Accessibility Linting**: `eslint-plugin-jsx-a11y` runs on `**/*.tsx`. Never blanket-disable its rules. Deliberate exceptions (backdrop click-catchers, `stopPropagation` guards, modal `autoFocus`) require a narrowly-scoped `eslint-disable-next-line` naming each rule, plus a comment saying why keyboard users are unaffected.
 - **jsx-a11y Peer Range**: The plugin caps its `eslint` peer at `^9` but runs correctly on `eslint` 10. `package.json` carries an `overrides` entry pinning it to the root `eslint`; without it, a plain `npm install` fails with `ERESOLVE`. Remove the override once the plugin declares v10 support.
-- **Vitest Unit Glob Covers `.tsx`**: The `unit` project include is `src/**/*.test.{ts,tsx}`. Component/context suites that render JSX must be `.tsx` files — a `.ts`-only glob silently skips them (they never run, never fail). After adding a component test, confirm collection with `npx vitest list --project=unit --filesOnly`.
+- **Vitest Unit Glob Covers `.tsx`**: The `unit` project include is `src/**/*.test.{ts,tsx}`. Component/context suites that render JSX must be `.tsx` files — a `.ts`-only glob silently skips them (they never run, never fail). After adding a component test, confirm collection with `npm run test -- --list --project=unit --filesOnly`.
 - **Testing `beforeunload` in jsdom**: A plain `Event`'s `returnValue` uses legacy boolean cancel semantics, not the string slot a real `BeforeUnloadEvent` exposes. Assert the guard via `preventDefault` / `defaultPrevented`; intercept the `returnValue` setter with `Object.defineProperty` if you must check the assigned value.
 - **Named Exports**: Expose modules as named exports (e.g. `export const ProfileEdit`) rather than default exports.
 - **Verbatim Module Syntax**: When importing type definitions, prefix them with the `type` keyword (e.g. `import { type UserRole, type UserStatus } from '../config'`) to comply with `verbatimModuleSyntax` and prevent build failures.

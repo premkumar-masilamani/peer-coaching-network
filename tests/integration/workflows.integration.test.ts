@@ -15,7 +15,7 @@ import {
   scheduleMeeting,
   cancelBooking
 } from '../../src/services/googleCalendar';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, setDoc } from 'firebase/firestore';
 import { db } from '../../src/services/firebaseService';
 import { BOOKING_STATUS, BOOKING_ERROR, COLLECTIONS } from '../../src/config';
 
@@ -269,5 +269,30 @@ describe.runIf(!isPerfRun)('Use Case A - Functional Workflows against Firebase E
       const error = err as { code?: string };
       expect(error.code).toBe('permission-denied');
     }
+  });
+
+  it('11. personalAvailabilityCache write with large number of slots (>200) succeeds', async () => {
+    await signInUser(activeUser.uid);
+
+    const cacheRef = doc(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE, activeUser.uid);
+    const largeSlots: string[] = [];
+    for (let i = 0; i < 240; i++) {
+      largeSlots.push(`2030-01-01T${String(Math.floor(i / 10)).padStart(2, '0')}:${String(i % 10).padStart(2, '0')}:00.000Z`);
+    }
+
+    const payload = {
+      userId: activeUser.uid,
+      lastUpdated: new Date().toISOString(),
+      availableSlots: largeSlots,
+      availableDatesUtc: ['2030-01-01'],
+      gender: 'Male',
+      country: 'US',
+      icf_acc: false,
+      icf_pcc: false,
+      icf_mcc: false,
+      icf_actc: false,
+    };
+
+    await expect(setDoc(cacheRef, payload)).resolves.toBeUndefined();
   });
 });
