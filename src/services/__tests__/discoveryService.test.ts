@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { queryAvailableCoachesForDay, subscribeToBookings, subscribeToUserBookings } from '../discoveryService';
+import { queryAvailableCoachesForDay, subscribeToUserBookings } from '../discoveryService';
 import { logger } from '../../utils/logger';
 import { snap } from './helpers/firebaseMocks';
 
@@ -139,20 +139,6 @@ describe('discoveryService', () => {
     });
   });
 
-  describe('subscribeToBookings', () => {
-    it('maps confirmed bookings and logs snapshot errors', () => {
-      let snapCb: any; let errCb: any;
-      mockOnSnapshot.mockImplementation((_q: any, cb: any, err: any) => { snapCb = cb; errCb = err; return () => {}; });
-
-      const cb = vi.fn();
-      subscribeToBookings(cb);
-      snapCb({ forEach: (f: any) => f({ data: () => ({ bookingId: 'b-1' }) }) });
-      expect(cb).toHaveBeenCalledWith([{ bookingId: 'b-1' }]);
-
-      errCb(new Error('Snap error'));
-      expect(logger.error).toHaveBeenCalledWith('Error in subscribeToBookings:', expect.any(Error));
-    });
-  });
 
   describe('subscribeToUserBookings', () => {
     it('maps the user\'s bookings and logs snapshot errors', () => {

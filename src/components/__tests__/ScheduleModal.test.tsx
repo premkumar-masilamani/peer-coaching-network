@@ -3,6 +3,8 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
 import { ScheduleModal } from '../modals/ScheduleModal';
+import { type UserProfile } from '../../services/types';
+
 
 // @ts-expect-error - IS_REACT_ACT_ENVIRONMENT is not typed on globalThis
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -32,7 +34,7 @@ vi.mock('../../utils/logger', () => ({
 }));
 
 vi.mock('../../services/profileService', () => ({
-  formatDisplayName: (p: any) => p?.displayName || 'Unknown',
+  formatDisplayName: (p: { displayName?: string } | null | undefined) => p?.displayName || 'Unknown',
 }));
 
 vi.mock('../../services/firebaseApp', () => ({
@@ -58,7 +60,7 @@ describe('ScheduleModal component', () => {
     timezone: 'UTC',
     userRole: 'user',
     userStatus: 'active',
-  } as any;
+  } as unknown as UserProfile;
 
   const mockStartTime = new Date('2026-06-18T10:00:00Z');
   const mockEndTime = new Date('2026-06-18T10:30:00Z');
@@ -152,7 +154,7 @@ describe('ScheduleModal component', () => {
   });
 
   it('shows booking error feedback when scheduling fails', async () => {
-    const err = new Error('SLOT_TAKEN') as any;
+    const err = new Error('SLOT_TAKEN') as Error & { code?: string };
     err.code = 'SLOT_TAKEN';
     mockGoogleCalendar.scheduleMeeting.mockRejectedValueOnce(err);
 

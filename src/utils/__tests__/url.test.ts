@@ -29,7 +29,7 @@ describe('url', () => {
       // Force URL to throw on any instantiation
       globalThis.URL = function() {
         throw new Error('mocked error');
-      } as any;
+      } as unknown as typeof URL;
       try {
         expect(sanitizeHttpsUrl('https://example.com')).toBeUndefined();
       } finally {
@@ -72,7 +72,7 @@ describe('url', () => {
           throw new Error('mocked error');
         }
         return new originalURL(u, base);
-      } as any;
+      } as unknown as typeof URL;
       try {
         expect(sanitizeMeetLink('https://meet.google.com/abc-defg-hij')).toBeUndefined();
       } finally {

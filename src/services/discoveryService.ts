@@ -18,19 +18,6 @@ import { seededShuffle } from '../utils/seededShuffle';
 import { logger } from '../utils/logger';
 import type { UserProfile, DiscoveryFilters } from './types';
 
-export const subscribeToBookings = (callback: (bookings: DocumentData[]) => void): (() => void) => {
-  if (!db) return () => {};
-  const q = query(collection(db, COLLECTIONS.BOOKINGS), where('status', '==', BOOKING_STATUS.CONFIRMED));
-  return onSnapshot(q, (querySnap) => {
-    const list: DocumentData[] = [];
-    querySnap.forEach((doc) => {
-      list.push(doc.data());
-    });
-    callback(list);
-  }, (err) => {
-    logger.error('Error in subscribeToBookings:', err);
-  });
-};
 
 export const queryAvailableCoachesForDay = async (
   localDayStart: Date,

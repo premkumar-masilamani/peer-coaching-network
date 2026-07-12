@@ -43,7 +43,7 @@ describe('firebaseService barrel', () => {
     'createSupportRequest', 'getSupportRequestsForUser', 'getAllSupportRequests',
     'addMessageToSupportRequest', 'updateSupportRequestStatus', 'deleteSupportRequest',
     // discoveryService
-    'subscribeToBookings', 'queryAvailableCoachesForDay', 'subscribeToUserBookings',
+    'queryAvailableCoachesForDay', 'subscribeToUserBookings',
   ];
 
   it.each(expectedExports)('re-exports %s', (name) => {

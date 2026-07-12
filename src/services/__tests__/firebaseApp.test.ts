@@ -137,8 +137,7 @@ describe('firebaseApp', () => {
     it('sets _firebase_emulators_connected on globalThis when window is undefined', async () => {
       vi.resetModules();
       const originalWindow = globalThis.window;
-      // @ts-ignore
-      delete globalThis.window;
+      delete (globalThis as unknown as { window: unknown }).window;
       
       try {
         const globalRecord = globalThis as unknown as Record<string, unknown>;

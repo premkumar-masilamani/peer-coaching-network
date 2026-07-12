@@ -38,7 +38,7 @@ vi.mock('../../context/UnsavedChangesContext', () => ({
 }));
 
 const mockFirebaseService = vi.hoisted(() => ({
-  formatDisplayName: vi.fn((p: any) => p?.displayName || 'Unknown'),
+  formatDisplayName: vi.fn((p: { displayName?: string } | null | undefined) => p?.displayName || 'Unknown'),
   queryAvailableCoachesForDay: vi.fn(),
   subscribeToUserBookings: vi.fn(() => () => {}),
   getUserAvailableSlots: vi.fn(() => Promise.resolve([])),
