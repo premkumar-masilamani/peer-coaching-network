@@ -215,7 +215,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
       {/* State 2: Booking Form */}
       {bookingStatus !== SCHEDULE_MODAL_STATUS.SUCCESS && (
-        <form onSubmit={handleBook}>
+        <form noValidate onSubmit={handleBook}>
           <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: qualifications.length > 0 ? '4px' : '20px' }}>
             Book a session with {formatDisplayName(coach)}
           </h3>
@@ -245,11 +245,12 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             </label>
             <textarea
               id="topic-input"
-              className="input-field"
+              className={`input-field${formErrors['topic-input'] ? ' input-error' : ''}`}
               placeholder="e.g. Life coaching feedback, ICF log hours practice..."
               value={topic}
               onChange={(e) => {
                 setTopic(e.target.value);
+                setFormErrors(prev => clearFieldError(prev, 'topic-input'));
                 if (bookingStatus === SCHEDULE_MODAL_STATUS.ERROR && e.target.value.trim()) {
                   setBookingStatus(SCHEDULE_MODAL_STATUS.IDLE);
                   setErrorMsg('');
@@ -265,6 +266,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               maxLength={INPUT_LIMITS.COACHING_TOPIC}
               style={{ resize: 'vertical', minHeight: '140px' }}
             />
+            {formErrors['topic-input'] && (
+              <span className="form-error-text">{formErrors['topic-input']}</span>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
               <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
                 {topic.length} / {INPUT_LIMITS.COACHING_TOPIC} characters
@@ -315,116 +319,8 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               {bookingStatus === SCHEDULE_MODAL_STATUS.BOOKING ? 'Scheduling...' : bookingStatus === SCHEDULE_MODAL_STATUS.TOKEN_EXPIRED ? 'Reconnect Google' : 'Confirm Session'}
             </button>
           </div>
-        )}
-
-        {/* State 2: Booking Form */}
-        {bookingStatus !== SCHEDULE_MODAL_STATUS.SUCCESS && (
-          <form noValidate onSubmit={handleBook}>
-            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: qualifications.length > 0 ? '4px' : '20px' }}>
-              Book a session with {formatDisplayName(coach)}
-            </h3>
-            {qualifications.length > 0 && (
-              <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', marginBottom: '20px' }}>
-                {qualifications.join(', ')}
-              </p>
-            )}
-
-            {/* Date & Time details read-only block */}
-            <div className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', fontSize: '0.9rem' }}>
-                <Calendar size={15} color="hsl(var(--primary))" />
-                <span><strong>Date:</strong> {dateString}</span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.9rem' }}>
-                <Clock size={15} color="hsl(var(--primary))" />
-                <span><strong>Time:</strong> {timeString}</span>
-              </div>
-            </div>
-
-            {/* Meeting Topic */}
-            <div className="form-group">
-              <label className="form-label" htmlFor="topic-input">
-                <BookOpen size={13} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-                Coaching Topic
-              </label>
-              <textarea
-                id="topic-input"
-                className={`input-field${formErrors['topic-input'] ? ' input-error' : ''}`}
-                placeholder="e.g. Life coaching feedback, ICF log hours practice..."
-                value={topic}
-                onChange={(e) => {
-                  setTopic(e.target.value);
-                  setFormErrors(prev => clearFieldError(prev, 'topic-input'));
-                  if (bookingStatus === SCHEDULE_MODAL_STATUS.ERROR && e.target.value.trim()) {
-                    setBookingStatus(SCHEDULE_MODAL_STATUS.IDLE);
-                    setErrorMsg('');
-                  }
-                }}
-                required
-                // The rule guards against autofocus on page load. This is a modal
-                // opened by explicit user action, where focus must move into the
-                // dialog; this textarea is its first and primary control.
-                // eslint-disable-next-line jsx-a11y/no-autofocus
-                autoFocus
-                rows={10}
-                maxLength={INPUT_LIMITS.COACHING_TOPIC}
-                style={{ resize: 'vertical', minHeight: '140px' }}
-              />
-              {formErrors['topic-input'] && (
-                <span className="form-error-text">{formErrors['topic-input']}</span>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
-                <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
-                  {topic.length} / {INPUT_LIMITS.COACHING_TOPIC} characters
-                </span>
-              </div>
-            </div>
-
-
-
-            {/* Error message (e.g. slot just taken) */}
-            {(bookingStatus === SCHEDULE_MODAL_STATUS.ERROR || bookingStatus === SCHEDULE_MODAL_STATUS.TOKEN_EXPIRED) && errorMsg && (
-              <div style={{
-                display: 'flex',
-                gap: '8px',
-                padding: '10px 12px',
-                borderRadius: '8px',
-                background: 'rgba(239, 68, 68, 0.08)',
-                border: '1px solid rgba(239, 68, 68, 0.2)',
-                color: '#f87171',
-                fontSize: '0.8rem',
-                marginTop: '16px'
-              }}>
-                <AlertCircle size={14} style={{ flexShrink: 0 }} />
-                <span>{errorMsg}</span>
-              </div>
-            )}
-
-            {/* Footer buttons */}
-            <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-              <button type="button" onClick={onClose} className="btn btn-secondary" style={{ flex: 1 }}>
-                Cancel
-              </button>
-              <button 
-                type={bookingStatus === SCHEDULE_MODAL_STATUS.TOKEN_EXPIRED ? 'button' : 'submit'}
-                onClick={bookingStatus === SCHEDULE_MODAL_STATUS.TOKEN_EXPIRED ? async () => {
-                  try {
-                    await login();
-                    setBookingStatus(SCHEDULE_MODAL_STATUS.IDLE);
-                    setErrorMsg('');
-                  } catch (e) {
-                    logger.error('Re-login failed', e);
-                  }
-                } : undefined}
-                className="btn btn-primary"
-                disabled={bookingStatus === SCHEDULE_MODAL_STATUS.BOOKING}
-                style={{ flex: 2 }}
-              >
-                {bookingStatus === SCHEDULE_MODAL_STATUS.BOOKING ? 'Scheduling...' : bookingStatus === SCHEDULE_MODAL_STATUS.TOKEN_EXPIRED ? 'Reconnect Google' : 'Confirm Session'}
-              </button>
-            </div>
-          </form>
-        )}
+        </form>
+      )}
       </Modal>
   );
 };

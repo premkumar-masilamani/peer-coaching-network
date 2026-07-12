@@ -81,7 +81,6 @@ export {
 } from './supportService';
 
 export {
-  subscribeToBookings,
   queryAvailableCoachesForDay,
   subscribeToUserBookings,
 } from './discoveryService';
