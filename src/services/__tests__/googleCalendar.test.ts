@@ -88,6 +88,10 @@ vi.mock('../googleToken', () => ({
   clearGoogleToken: vi.fn()
 }));
 
+vi.mock('../scheduleService', () => ({
+  getSchedule: vi.fn(),
+}));
+
 vi.mock('../../utils/logger', () => ({
   logger: {
     debug: vi.fn(),
@@ -114,6 +118,7 @@ vi.stubGlobal('fetch', mockFetch);
 describe('googleCalendar service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockFetch.mockReset();
     configMock.ENABLE_GOOGLE_INTEGRATION = true;
     vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
   });
@@ -431,6 +436,7 @@ describe('googleCalendar service', () => {
           bookingId: 'booking-123',
           status: BOOKING_STATUS.CONFIRMED,
           startTime: { toDate: () => new Date('2026-06-18T10:00:00Z') },
+          endTime: { toDate: () => new Date('2026-06-18T11:00:00Z') },
           clientUid: 'client-123',
           googleEventId: 'gcal-event-123'
         })
@@ -443,7 +449,7 @@ describe('googleCalendar service', () => {
       await cancelBooking('booking-123');
 
       expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
-      expect(mockDeleteDoc).toHaveBeenCalledTimes(1);
+      expect(mockDeleteDoc).toHaveBeenCalledTimes(2);
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockFetch.mock.calls[0][0]).toContain('gcal-event-123');
       expect(mockFetch.mock.calls[0][0]).toContain('sendUpdates=all');
@@ -451,15 +457,13 @@ describe('googleCalendar service', () => {
     });
 
     it('handles deleteDoc failure in cancelBooking gracefully', async () => {
-      mockFetch.mockResolvedValueOnce({ ok: true });
-      
-
       mockGetDoc.mockResolvedValueOnce({
         exists: () => true,
         data: () => ({
           bookingId: 'booking-123',
           status: BOOKING_STATUS.CONFIRMED,
           startTime: { toDate: () => new Date('2026-06-18T10:00:00Z') },
+          endTime: { toDate: () => new Date('2026-06-18T11:00:00Z') },
           clientUid: 'client-123',
         })
       });
@@ -468,8 +472,6 @@ describe('googleCalendar service', () => {
       mockDeleteDoc.mockRejectedValueOnce(new Error('Delete doc error'));
 
       await cancelBooking('booking-123');
-
-      
     });
 
     it('handles google event delete fetch failure gracefully', async () => {
@@ -481,6 +483,7 @@ describe('googleCalendar service', () => {
           bookingId: 'booking-123',
           status: BOOKING_STATUS.CONFIRMED,
           startTime: { toDate: () => new Date('2026-06-18T10:00:00Z') },
+          endTime: { toDate: () => new Date('2026-06-18T11:00:00Z') },
           clientUid: 'client-123',
           googleEventId: 'gcal-event-123'
         })
@@ -490,9 +493,51 @@ describe('googleCalendar service', () => {
       mockDeleteDoc.mockResolvedValue(undefined);
       mockFetch.mockRejectedValueOnce(new Error('Delete fetch failed'));
 
-      await cancelBooking('booking-123');
+      await expect(cancelBooking('booking-123')).rejects.toThrow('Network error or Google Calendar API is currently unreachable');
+    });
 
-      
+    it('handles google event delete fetch 401 status code (token expired)', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          bookingId: 'booking-123',
+          status: BOOKING_STATUS.CONFIRMED,
+          startTime: { toDate: () => new Date('2026-06-18T10:00:00Z') },
+          endTime: { toDate: () => new Date('2026-06-18T11:00:00Z') },
+          clientUid: 'client-123',
+          googleEventId: 'gcal-event-123'
+        })
+      });
+
+      mockUpdateDoc.mockResolvedValue(undefined);
+      mockDeleteDoc.mockResolvedValue(undefined);
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({}) });
+
+      await expect(cancelBooking('booking-123')).rejects.toThrow('Google Token Expired');
+    });
+
+    it('handles google event delete fetch 500 status code (API error)', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          bookingId: 'booking-123',
+          status: BOOKING_STATUS.CONFIRMED,
+          startTime: { toDate: () => new Date('2026-06-18T10:00:00Z') },
+          endTime: { toDate: () => new Date('2026-06-18T11:00:00Z') },
+          clientUid: 'client-123',
+          googleEventId: 'gcal-event-123'
+        })
+      });
+
+      mockUpdateDoc.mockResolvedValue(undefined);
+      mockDeleteDoc.mockResolvedValue(undefined);
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({ error: { message: 'Internal Server Error' } }) });
+
+      await expect(cancelBooking('booking-123')).rejects.toThrow('Failed to delete Google Calendar event.');
     });
   });
 
@@ -815,6 +860,75 @@ describe('googleCalendar service', () => {
       const events = await getUpcomingEvents();
       expect(events.length).toBe(1);
       expect(events[0].id).toBe('booking-confirmed-valid');
+    });
+  });
+
+  describe('getCoachesAvailability remaining coverage', () => {
+    it('covers getCoachesAvailability error paths and unrequested coach uids', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      
+      const mockTelemetry = vi.fn().mockRejectedValue(new Error('Telemetry failure'));
+      const originalTelemetry = logger.telemetry;
+      logger.telemetry = mockTelemetry;
+      
+      const originalPromiseAllSettled = Promise.allSettled;
+      Promise.allSettled = vi.fn().mockResolvedValueOnce([
+        { status: 'rejected', reason: new Error('Query failure') }
+      ]) as any;
+      
+      const coaches = [{ userId: 'coach-1', email: 'coach@example.com' }] as any[];
+      await getCoachesAvailability(coaches, '2026-06-18T00:00:00Z', '2026-06-25T00:00:00Z');
+      expect(mockTelemetry).toHaveBeenCalled();
+      
+      Promise.allSettled = originalPromiseAllSettled;
+      logger.telemetry = originalTelemetry;
+    });
+
+    it('covers getCoachesAvailability unrequested uids and fallback schedule fetch error', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      
+      const originalPromiseAllSettled = Promise.allSettled;
+      Promise.allSettled = vi.fn().mockResolvedValueOnce([
+        {
+          status: 'fulfilled',
+          value: {
+            forEach: (cb: any) => {
+              cb({ id: 'unrequested-coach', data: () => ({ availableSlots: ['slot-1'] }) });
+            }
+          }
+        }
+      ]) as any;
+
+      const { getSchedule } = await import('../scheduleService');
+      vi.mocked(getSchedule).mockRejectedValueOnce(new Error('getSchedule error'));
+      
+      const coaches = [{ userId: 'coach-1', email: 'coach@example.com' }] as any[];
+      const result = await getCoachesAvailability(coaches, '2026-06-18T00:00:00Z', '2026-06-25T00:00:00Z');
+      expect(result['coach-1']).toEqual([]);
+      
+      Promise.allSettled = originalPromiseAllSettled;
+    });
+
+    it('covers getCoachesAvailability requested uids mapping', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      
+      const originalPromiseAllSettled = Promise.allSettled;
+      Promise.allSettled = vi.fn().mockResolvedValueOnce([
+        {
+          status: 'fulfilled',
+          value: {
+            forEach: (cb: any) => {
+              cb({ id: 'coach-1', data: () => ({ availableSlots: ['slot-1'] }) });
+            }
+          }
+        }
+      ]) as any;
+
+      const coaches = [{ userId: 'coach-1', email: 'coach@example.com' }] as any[];
+      const result = await getCoachesAvailability(coaches, '2026-06-18T00:00:00Z', '2026-06-25T00:00:00Z');
+      expect(result['coach-1']).toEqual(['slot-1']);
+      
+      Promise.allSettled = originalPromiseAllSettled;
     });
   });
 });

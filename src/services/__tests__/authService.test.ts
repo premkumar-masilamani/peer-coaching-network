@@ -98,6 +98,21 @@ describe('authService', () => {
       expect(updates.displayName).toBe('New Name');
     });
 
+    it('syncs a changed email for an existing user', async () => {
+      const { getRedirectResult, GoogleAuthProvider } = await import('firebase/auth');
+      vi.mocked(getRedirectResult).mockResolvedValue({
+        user: { uid: 'user-123', email: 'NEW@example.com', displayName: 'Test User', photoURL: 'https://photo.url' },
+      } as any);
+      vi.spyOn(GoogleAuthProvider, 'credentialFromResult').mockReturnValue(null as any);
+      mockGetDoc.mockResolvedValue({
+        exists: () => true,
+        data: () => ({ userId: 'user-123', email: 'old@example.com', displayName: 'Test User', firstName: 'Test', lastName: 'User', photoURL: 'https://photo.url' }),
+      });
+
+      expect(await handleAuthRedirect()).toBe(true);
+      expect(mockUpdateDoc).toHaveBeenCalledWith(expect.anything(), { email: 'new@example.com' });
+    });
+
     it('creates the profile and schedule sub-collections for a new user', async () => {
       const { getRedirectResult, GoogleAuthProvider } = await import('firebase/auth');
       vi.mocked(getRedirectResult).mockResolvedValue({
