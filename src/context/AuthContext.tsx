@@ -73,9 +73,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // If the user is an active coach, trigger lazy available slots cache recalculation
         if (status === USER_STATUS.ACTIVE && roleVal === USER_ROLE.USER) {
-          lazyRecalculateAvailableSlotsCache(user.uid).catch((err) => {
-            console.error('Failed lazy availability recalculation on login:', err);
-          });
+          lazyRecalculateAvailableSlotsCache(user.uid);
         }
       } else {
         setProfile(null);
