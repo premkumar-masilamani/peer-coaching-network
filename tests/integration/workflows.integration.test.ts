@@ -8,7 +8,7 @@ import {
   updateOwnProfile,
   updateSchedule,
   getSchedule,
-  subscribeToAllUsers,
+  getAllUsers,
   type UserProfile
 } from '../../src/services/firebaseService';
 import {
@@ -238,25 +238,19 @@ describe.runIf(!isPerfRun)('Use Case A - Functional Workflows against Firebase E
   it('9. Admin reads all users', async () => {
     await signInUser(adminUser.uid);
 
-    // Keep the latest snapshot the live subscription emits and poll it, rather
-    // than racing a single fixed timeout that silently resolves an empty list.
-    let latestUsers: UserProfile[] = [];
-    const unsubscribe = subscribeToAllUsers((users) => {
-      latestUsers = users;
-    });
+    // One-shot query, retried until the seeded users are all readable (the
+    // custom-token sign-in propagates asynchronously to the emulator).
+    const usersList: UserProfile[] = await waitFor(
+      async () => {
+        const users = await getAllUsers();
+        return users.length >= userCount ? users : undefined;
+      },
+      { description: `getAllUsers to return >= ${userCount} users` }
+    );
 
-    try {
-      const usersList = await waitFor(
-        () => (latestUsers.length >= userCount ? latestUsers : undefined),
-        { description: `subscribeToAllUsers to emit >= ${userCount} users` }
-      );
-
-      expect(usersList.length).toBeGreaterThanOrEqual(userCount);
-      const adminInSnapshot = usersList.find(u => u.userId === adminUser.uid);
-      expect(adminInSnapshot).toBeDefined();
-    } finally {
-      unsubscribe();
-    }
+    expect(usersList.length).toBeGreaterThanOrEqual(userCount);
+    const adminInSnapshot = usersList.find(u => u.userId === adminUser.uid);
+    expect(adminInSnapshot).toBeDefined();
   });
 
   it('10. Non-admin cannot read systemLogs', async () => {

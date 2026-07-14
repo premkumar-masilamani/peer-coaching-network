@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  subscribeToAllUsers,
+  getAllUsers,
   updateProfile,
   formatDisplayName,
   formatMemberSince,
@@ -12,6 +12,7 @@ import {
 import type { UserProfile } from '../services/firebaseService';
 import { ReviewChangesModal } from './modals/ReviewChangesModal';
 import { useUnsavedChanges } from '../context/UnsavedChangesContext';
+import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { sanitizeImageUrl, sanitizeMeetLink } from '../utils/url';
 import {
   Search,
@@ -157,14 +158,26 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     }
   >>({});
 
-  // Subscribe to all user records
-  useEffect(() => {
-    const unsub = subscribeToAllUsers((usersList) => {
+  // One-shot query for all user records, refreshed on window focus and after
+  // admin mutations (approvals/role changes) in lieu of a live subscription.
+  const loadUsers = useCallback(async () => {
+    try {
+      const usersList = await getAllUsers();
       setUsers(usersList);
+    } catch (e) {
+      console.error('Error loading users:', e);
+    } finally {
       setLoading(false);
-    });
-    return () => unsub();
+    }
   }, []);
+
+  useFocusRefresh(loadUsers);
+
+  useEffect(() => {
+    (async () => {
+      await loadUsers();
+    })();
+  }, [loadUsers]);
 
 
 
@@ -241,12 +254,16 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
         delete next[uid];
         return next;
       });
+
+      // Re-fetch so the mutated record reflects immediately (previously
+      // delivered by the live users subscription).
+      await loadUsers();
     } catch (e) {
       console.error('Error approving user changes:', e);
     } finally {
       setSavingId(null);
     }
-  }, [users]);
+  }, [users, loadUsers]);
 
   const { setPageDirtyState } = useUnsavedChanges();
 

@@ -11,11 +11,11 @@ import {
   Check,
   RefreshCw
 } from 'lucide-react';
-import { 
-  type UserProfile, 
-  formatDisplayName, 
-  formatMemberSince, 
-  subscribeToProfile 
+import {
+  type UserProfile,
+  formatDisplayName,
+  formatMemberSince,
+  getProfile
 } from '../services/firebaseService';
 import { 
   getCredentialBadgeClass, 
@@ -44,11 +44,19 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
   }
 
   useEffect(() => {
-    const unsubscribe = subscribeToProfile(uid, (data) => {
-      setProfile(data);
-      setLoading(false);
-    });
-    return () => unsubscribe();
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getProfile(uid);
+        if (cancelled) return;
+        setProfile(data);
+      } catch (err) {
+        console.error('Error loading profile:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [uid]);
 
   const handleCopyLink = async () => {

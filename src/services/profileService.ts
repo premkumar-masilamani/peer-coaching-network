@@ -1,7 +1,7 @@
 import {
   doc,
+  getDoc,
   updateDoc,
-  onSnapshot,
   collection,
   query,
   where,
@@ -27,16 +27,11 @@ import type { UserProfile } from './types';
 // here so profile consumers keep a single import surface.
 export { getEffectiveStatus, getEffectiveRole, isApproved } from './profileHelpers';
 
-// ── Profile listeners and mutators ────────────────────────────────────────────
-export const subscribeToProfile = (uid: string, callback: (profile: UserProfile | null) => void): (() => void) => {
+// ── Profile queries and mutators ──────────────────────────────────────────────
+export const getProfile = async (uid: string): Promise<UserProfile | null> => {
   const docRef = doc(db, COLLECTIONS.USERS, uid);
-  return onSnapshot(docRef, (docSnap) => {
-    if (docSnap.exists()) {
-      callback(docSnap.data() as UserProfile);
-    } else {
-      callback(null);
-    }
-  });
+  const docSnap = await getDoc(docRef);
+  return docSnap.exists() ? (docSnap.data() as UserProfile) : null;
 };
 
 // Generic mutator. Used by admin operations that legitimately write privileged
@@ -83,34 +78,32 @@ export const formatMemberSince = (createdAt?: Timestamp | string | null): string
 };
 
 // ── Admin-specific operations ─────────────────────────────────────────────────
-export const subscribeToAllUsers = (callback: (users: UserProfile[]) => void): (() => void) => {
-  const q = collection(db, COLLECTIONS.USERS);
-  return onSnapshot(q, (querySnap) => {
-    const users: UserProfile[] = [];
-    querySnap.forEach((doc) => {
-      users.push(doc.data() as UserProfile);
-    });
-    callback(users);
+export const getAllUsers = async (): Promise<UserProfile[]> => {
+  const querySnap = await getDocs(collection(db, COLLECTIONS.USERS));
+  const users: UserProfile[] = [];
+  querySnap.forEach((doc) => {
+    users.push(doc.data() as UserProfile);
   });
+  return users;
 };
 
-// Live subscription to ACTIVE users only (peer coaches), avoiding a full
+// One-shot query for ACTIVE users only (peer coaches), avoiding a full
 // users-collection download for the dashboard. We filter on the
 // userStatus field.
-export const subscribeToActiveCoaches = (callback: (users: UserProfile[]) => void): (() => void) => {
+export const getActiveCoaches = async (): Promise<UserProfile[]> => {
   const q = query(collection(db, COLLECTIONS.USERS), where('userStatus', '==', USER_STATUS.ACTIVE));
-  return onSnapshot(q, (querySnap) => {
-    const users: UserProfile[] = [];
-    querySnap.forEach((d) => users.push(d.data() as UserProfile));
-    callback(users);
-  });
+  const querySnap = await getDocs(q);
+  const users: UserProfile[] = [];
+  querySnap.forEach((d) => users.push(d.data() as UserProfile));
+  return users;
 };
 
-// Live count of pending (inactive) users — transfers only pending documents
+// Count of pending (inactive) users — transfers only pending documents
 // rather than the whole collection just to derive a badge number.
-export const subscribeToPendingUsersCount = (callback: (count: number) => void): (() => void) => {
+export const getPendingUsersCount = async (): Promise<number> => {
   const q = query(collection(db, COLLECTIONS.USERS), where('userStatus', '==', USER_STATUS.INACTIVE));
-  return onSnapshot(q, (querySnap) => callback(querySnap.size));
+  const querySnap = await getDocs(q);
+  return querySnap.size;
 };
 
 export const setUserRoleAndStatus = async (

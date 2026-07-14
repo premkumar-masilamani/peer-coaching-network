@@ -13,13 +13,14 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 vi.mock('../../services/firebaseService', () => {
   return {
     subscribeToAuth: vi.fn(),
-    subscribeToProfile: vi.fn(),
+    getProfile: vi.fn(),
     loginWithGoogle: vi.fn(),
     handleAuthRedirect: vi.fn(),
     logout: vi.fn(),
     updateOwnProfile: vi.fn(),
     getEffectiveRole: vi.fn(),
     getEffectiveStatus: vi.fn(),
+    lazyRecalculateAvailableSlotsCache: vi.fn(),
     isFirebaseConfigured: true,
   };
 });
@@ -28,7 +29,6 @@ describe('AuthContext', () => {
   let container: HTMLDivElement | null = null;
   let root: Root | null = null;
   let authCallback: ((user: any) => void) | null = null;
-  let profileCallback: ((profile: any) => void) | null = null;
 
   let latestContextValue: any = null;
 
@@ -43,7 +43,6 @@ describe('AuthContext', () => {
     root = createRoot(container);
 
     authCallback = null;
-    profileCallback = null;
     latestContextValue = null;
 
     vi.mocked(firebaseService.subscribeToAuth).mockImplementation((cb) => {
@@ -52,10 +51,8 @@ describe('AuthContext', () => {
     });
     vi.mocked(firebaseService.handleAuthRedirect).mockResolvedValue(false);
 
-    vi.mocked(firebaseService.subscribeToProfile).mockImplementation((_uid, cb) => {
-      profileCallback = cb;
-      return () => {};
-    });
+    // Default: profile fetch resolves to null; individual tests override.
+    vi.mocked(firebaseService.getProfile).mockResolvedValue(null);
 
     vi.mocked(firebaseService.getEffectiveStatus).mockImplementation((prof: any) => {
       return prof?.status || 'inactive';
@@ -124,17 +121,24 @@ describe('AuthContext', () => {
     });
 
     const mockUser = { uid: 'user123', email: 'test@example.com' };
+    const mockProfile = { uid: 'user123', status: 'active', role: 'admin' };
+
+    // Deferred so we can observe the pending (loading) state before the fetch resolves.
+    let resolveProfile: (p: any) => void = () => {};
+    vi.mocked(firebaseService.getProfile).mockImplementation(
+      () => new Promise((res) => { resolveProfile = res; })
+    );
 
     await act(async () => {
       authCallback!(mockUser);
     });
 
-    expect(firebaseService.subscribeToProfile).toHaveBeenCalledWith('user123', expect.any(Function));
+    expect(firebaseService.getProfile).toHaveBeenCalledWith('user123');
     expect(latestContextValue.loading).toBe(true);
 
-    const mockProfile = { uid: 'user123', status: 'active', role: 'admin' };
     await act(async () => {
-      profileCallback!(mockProfile);
+      resolveProfile(mockProfile);
+      await Promise.resolve();
     });
 
     expect(latestContextValue.loading).toBe(false);
@@ -143,7 +147,7 @@ describe('AuthContext', () => {
     expect(latestContextValue.role).toBe('admin');
   });
 
-  it('sets role to null if user profile is inactive', () => {
+  it('sets role to null if user profile is inactive', async () => {
     act(() => {
       root!.render(
         <AuthProvider>
@@ -153,19 +157,17 @@ describe('AuthContext', () => {
     });
 
     const mockUser = { uid: 'user123' };
-    act(() => {
-      authCallback!(mockUser);
-    });
-
     const mockProfile = { uid: 'user123', status: 'inactive', role: 'admin' };
-    act(() => {
-      profileCallback!(mockProfile);
+    vi.mocked(firebaseService.getProfile).mockResolvedValue(mockProfile as any);
+
+    await act(async () => {
+      authCallback!(mockUser);
     });
 
     expect(latestContextValue.role).toBeNull();
   });
 
-  it('handles null profile state', () => {
+  it('handles null profile state', async () => {
     act(() => {
       root!.render(
         <AuthProvider>
@@ -175,12 +177,10 @@ describe('AuthContext', () => {
     });
 
     const mockUser = { uid: 'user123' };
-    act(() => {
-      authCallback!(mockUser);
-    });
+    vi.mocked(firebaseService.getProfile).mockResolvedValue(null);
 
-    act(() => {
-      profileCallback!(null);
+    await act(async () => {
+      authCallback!(mockUser);
     });
 
     expect(latestContextValue.profile).toBeNull();
