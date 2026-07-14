@@ -299,6 +299,10 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     };
 
     setPageDirtyState(isDirty, newChanges, saveHandler);
+
+    return () => {
+      setPageDirtyState(false, [], async () => true);
+    };
   }, [drafts, users, setPageDirtyState, executeApproval]);
 
   // Filter logic
