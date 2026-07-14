@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { queryAvailableCoachesForDay, subscribeToUserBookings } from '../discoveryService';
+import { queryAvailableCoachesForDay, getUserBookings } from '../discoveryService';
 import { logger } from '../../utils/logger';
 import { snap } from './helpers/firebaseMocks';
 
@@ -23,7 +23,7 @@ vi.mock('firebase/auth', async () => (await import('./helpers/firebaseMocks')).b
 vi.mock('firebase/firestore', async () => (await import('./helpers/firebaseMocks')).buildFirestoreMock(H.shared));
 vi.mock('../../utils/logger', async () => (await import('./helpers/firebaseMocks')).buildLoggerMock());
 
-const { mockGetDocs, mockOnSnapshot } = H.shared;
+const { mockGetDocs } = H.shared;
 
 const dayRange = [new Date('2026-07-01T00:00:00Z'), new Date('2026-07-01T23:59:59Z')] as const;
 const oneSlot = [{ startTime: new Date('2026-07-01T10:00:00.000Z'), endTime: new Date('2026-07-01T11:00:00.000Z') }];
@@ -140,18 +140,18 @@ describe('discoveryService', () => {
   });
 
 
-  describe('subscribeToUserBookings', () => {
-    it('maps the user\'s bookings and logs snapshot errors', () => {
-      let snapCb: any; let errCb: any;
-      mockOnSnapshot.mockImplementation((_q: any, cb: any, err: any) => { snapCb = cb; errCb = err; return () => {}; });
+  describe('getUserBookings', () => {
+    it('maps the user\'s confirmed bookings', async () => {
+      mockGetDocs.mockResolvedValueOnce({
+        forEach: (f: any) => { f({ data: () => ({ bookingId: 'b-1' }) }); f({ data: () => ({ bookingId: 'b-2' }) }); }
+      });
+      expect(await getUserBookings('user-1')).toEqual([{ bookingId: 'b-1' }, { bookingId: 'b-2' }]);
+    });
 
-      const cb = vi.fn();
-      subscribeToUserBookings('user-1', cb);
-      snapCb({ forEach: (f: any) => { f({ data: () => ({ bookingId: 'b-1' }) }); f({ data: () => ({ bookingId: 'b-2' }) }); } });
-      expect(cb).toHaveBeenCalledWith([{ bookingId: 'b-1' }, { bookingId: 'b-2' }]);
-
-      errCb(new Error('boom'));
-      expect(logger.error).toHaveBeenCalledWith('Error in subscribeToUserBookings:', expect.any(Error));
+    it('logs the error and returns an empty list on failure', async () => {
+      mockGetDocs.mockRejectedValueOnce(new Error('boom'));
+      expect(await getUserBookings('user-1')).toEqual([]);
+      expect(logger.error).toHaveBeenCalledWith('Error in getUserBookings:', expect.any(Error));
     });
   });
 });

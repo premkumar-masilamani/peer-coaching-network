@@ -6,10 +6,10 @@ import {
   formatMemberSince,
   updateProfile,
   updateOwnProfile,
-  subscribeToProfile,
-  subscribeToAllUsers,
-  subscribeToActiveCoaches,
-  subscribeToPendingUsersCount,
+  getProfile,
+  getAllUsers,
+  getActiveCoaches,
+  getPendingUsersCount,
   setUserRoleAndStatus,
   updateVerifiedCredentials,
   getProfiles,
@@ -34,7 +34,7 @@ vi.mock('firebase/auth', async () => (await import('./helpers/firebaseMocks')).b
 vi.mock('firebase/firestore', async () => (await import('./helpers/firebaseMocks')).buildFirestoreMock(H.shared));
 vi.mock('../../utils/logger', async () => (await import('./helpers/firebaseMocks')).buildLoggerMock());
 
-const { mockGetDoc, mockUpdateDoc, mockGetDocs, mockOnSnapshot } = H.shared;
+const { mockGetDoc, mockUpdateDoc, mockGetDocs } = H.shared;
 
 describe('profileService', () => {
   beforeEach(() => {
@@ -119,48 +119,35 @@ describe('profileService', () => {
     });
   });
 
-  describe('subscribeToProfile', () => {
-    it('emits the profile when the doc exists', () => {
-      mockOnSnapshot.mockImplementation((_ref: any, cb: any) => { cb({ exists: () => true, data: () => ({ userId: 'u1', displayName: 'Jane' }) }); return () => {}; });
-      const cb = vi.fn();
-      subscribeToProfile('u1', cb);
-      expect(cb).toHaveBeenCalledWith({ userId: 'u1', displayName: 'Jane' });
+  describe('getProfile', () => {
+    it('returns the profile when the doc exists', async () => {
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ userId: 'u1', displayName: 'Jane' }) });
+      expect(await getProfile('u1')).toEqual({ userId: 'u1', displayName: 'Jane' });
     });
-    it('emits null when the doc is missing', () => {
-      mockOnSnapshot.mockImplementation((_ref: any, cb: any) => { cb({ exists: () => false }); return () => {}; });
-      const cb = vi.fn();
-      subscribeToProfile('u1', cb);
-      expect(cb).toHaveBeenCalledWith(null);
+    it('returns null when the doc is missing', async () => {
+      mockGetDoc.mockResolvedValueOnce({ exists: () => false });
+      expect(await getProfile('u1')).toBeNull();
     });
   });
 
-  describe('subscribeToAllUsers', () => {
-    it('maps the snapshot to a users array', () => {
-      mockOnSnapshot.mockImplementation((_ref: any, cb: any) => {
-        cb({ forEach: (f: any) => { f({ data: () => ({ userId: 'u1' }) }); f({ data: () => ({ userId: 'u2' }) }); } });
-        return () => {};
-      });
-      const cb = vi.fn();
-      subscribeToAllUsers(cb);
-      expect(cb).toHaveBeenCalledWith([{ userId: 'u1' }, { userId: 'u2' }]);
+  describe('getAllUsers', () => {
+    it('maps the snapshot to a users array', async () => {
+      mockGetDocs.mockResolvedValueOnce({ forEach: (f: any) => { f({ data: () => ({ userId: 'u1' }) }); f({ data: () => ({ userId: 'u2' }) }); } });
+      expect(await getAllUsers()).toEqual([{ userId: 'u1' }, { userId: 'u2' }]);
     });
   });
 
-  describe('subscribeToActiveCoaches', () => {
-    it('emits active coaches', () => {
-      mockOnSnapshot.mockImplementation((_ref: any, cb: any) => { cb({ forEach: (f: any) => f({ data: () => ({ userId: 'active' }) }) }); return () => {}; });
-      const cb = vi.fn();
-      subscribeToActiveCoaches(cb);
-      expect(cb).toHaveBeenCalledWith([{ userId: 'active' }]);
+  describe('getActiveCoaches', () => {
+    it('returns active coaches', async () => {
+      mockGetDocs.mockResolvedValueOnce({ forEach: (f: any) => f({ data: () => ({ userId: 'active' }) }) });
+      expect(await getActiveCoaches()).toEqual([{ userId: 'active' }]);
     });
   });
 
-  describe('subscribeToPendingUsersCount', () => {
-    it('emits the query size', () => {
-      mockOnSnapshot.mockImplementation((_ref: any, cb: any) => { cb({ size: 5 }); return () => {}; });
-      const cb = vi.fn();
-      subscribeToPendingUsersCount(cb);
-      expect(cb).toHaveBeenCalledWith(5);
+  describe('getPendingUsersCount', () => {
+    it('returns the query size', async () => {
+      mockGetDocs.mockResolvedValueOnce({ size: 5 });
+      expect(await getPendingUsersCount()).toBe(5);
     });
   });
 

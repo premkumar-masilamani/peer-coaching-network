@@ -19,8 +19,8 @@ vi.mock('../../services/firebaseService', () => ({
   formatDisplayName: () => 'Ada Lovelace',
   formatMemberSince: () => 'Jan 2026',
   isApproved: () => true,
-  // Header only subscribes for admins; return a no-op unsubscribe.
-  subscribeToPendingUsersCount: () => () => {},
+  // Header only queries the pending count for admins; resolve to zero.
+  getPendingUsersCount: () => Promise.resolve(0),
 }));
 
 vi.mock('../../utils/url', () => ({

@@ -20,10 +20,30 @@ service cloud.firestore {
     // (set only by a trusted backend) would add defense-in-depth and remove the
     // per-check get(); that requires a server component this client-only app
     // does not yet have.
+    //
+    // The exists() guard is required because this function is also evaluated by
+    // the global admin rule below on EVERY request — including a user's own
+    // sign-up create, when their profile does not exist yet. Without the guard,
+    // currentUserDoc() would dereference a null get() and error. get()/exists()
+    // to the same path are cached per request, so the guard adds no extra
+    // document-access cost.
     function isAdmin() {
       return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && currentUserDoc().userRole == 'admin'
         && currentUserDoc().userStatus == 'active';
+    }
+
+    // ── Global admin access ─────────────────────────────────────────────────
+    // Admins default to FULL read/write access to every collection. Firestore
+    // grants a request if ANY matching rule allows it, so this wildcard is
+    // layered on top of the per-collection rules below: those rules govern
+    // regular users, and this one gives admins blanket access — including to
+    // any collection added later — without having to thread isAdmin() through
+    // each rule. Non-admin permissions are unaffected (rules only ever add
+    // access, never remove it).
+    match /{document=**} {
+      allow read, write: if isAdmin();
     }
 
     // Global Type Safety & Limits Helpers
@@ -217,7 +237,8 @@ service cloud.firestore {
       allow read: if isSignedIn();
 
       // Self sign-up: a user may create only their own document, only as a
-      // pending account (inactive), and only with the 'user' role.
+      // pending account (inactive), and only with the 'user' role. (Admins get
+      // full access via the global admin rule at the top of this file.)
       allow create: if isOwner(uid)
         && request.resource.data.userStatus == 'inactive'
         && request.resource.data.userRole == 'user'
@@ -245,7 +266,8 @@ service cloud.firestore {
 
       // Only a participant may create a booking they are part of, and the
       // booking ID must match the coachUid format to prevent slot hijacking.
-      // Enforced initial status must be pending.
+      // Enforced initial status must be pending. (Admins get full access via the
+      // global admin rule at the top of this file.)
       allow create: if isSignedIn()
         && currentUserDoc().userStatus == 'active'
         && request.auth.uid in [
@@ -315,17 +337,17 @@ service cloud.firestore {
 
     match /coachAvailabilityByDate/{docId} {
       // Per-coach, per-day availability shards for O(day)-scoped discovery.
-      // Readable by any signed-in user. Writable ONLY by the owning coach: the
-      // document ID must be "{ownUid}_{dateISO}" and coachUid must match.
+      // Readable by any signed-in user. The owning coach writes their own shards:
+      // the document ID must be "{ownUid}_{dateISO}" and coachUid must match.
       //
-      // Deliberately NO isAdmin() fallback. Shards are rebuilt in a writeBatch of
-      // up to ~30 documents, and Firestore allows only 20 document-access (get())
-      // calls per batched write — an isAdmin() branch would evaluate get()s per
-      // document and blow that budget. Admin-triggered recalcs therefore refresh
-      // only the aggregate cache (see doRecalculateAvailableSlotsCache); the
-      // coach's shards are rebuilt on their next own recalc. Discovery gates on
-      // the live users/ profile, so admin status changes take effect immediately
-      // without any shard write.
+      // These per-collection rules are intentionally free of get()/exists()
+      // calls. Shards are rebuilt in a writeBatch of up to ~30 documents, and
+      // Firestore allows only 20 document-access calls per batched write, so the
+      // coach's own write path must stay cheap. Admin access is provided by the
+      // global admin rule at the top of this file; because its single isAdmin()
+      // get()/exists() is against the requester's own /users doc and cached per
+      // request, it costs one document access across the whole batch — safely
+      // within budget.
       allow read: if isSignedIn();
       allow create, update: if isSignedIn()
         && isValidCoachAvailabilityByDate(request.resource.data)
