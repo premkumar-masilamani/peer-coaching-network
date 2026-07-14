@@ -6,7 +6,9 @@ import {
   addMessageToSupportRequest, 
   updateSupportRequestStatus,
   deleteSupportRequest,
-  type SupportRequest 
+  getSupportMessages,
+  type SupportRequest,
+  type SupportMessage
 } from '../services/firebaseService';
 import { formatDisplayName } from '../services/firebaseService';
 import { MessageSquare, Send, ChevronLeft, Trash2, CheckCircle, Circle } from 'lucide-react';
@@ -25,6 +27,20 @@ export const SupportDesk: React.FC = () => {
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [selectedRequest, setSelectedRequest] = useState<SupportRequest | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [messages, setMessages] = useState<SupportMessage[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+
+  const loadMessages = useCallback(async (requestId: string) => {
+    setLoadingMessages(true);
+    try {
+      const msgs = await getSupportMessages(requestId);
+      setMessages(msgs);
+    } catch (err) {
+      console.error('Failed to load messages', err);
+    } finally {
+      setLoadingMessages(false);
+    }
+  }, []);
 
   const loadRequests = useCallback(async () => {
     try {
@@ -32,10 +48,13 @@ export const SupportDesk: React.FC = () => {
       setRequests(data);
       if (selectedRequest) {
         const updated = data.find(t => t.id === selectedRequest.id);
-        if (updated) setSelectedRequest(updated);
-        else {
+        if (updated) {
+          setSelectedRequest(updated);
+          await loadMessages(selectedRequest.id);
+        } else {
           setSelectedRequest(null);
           setView('list');
+          setMessages([]);
         }
       }
     } catch (err) {
@@ -43,7 +62,7 @@ export const SupportDesk: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [selectedRequest]);
+  }, [selectedRequest, loadMessages]);
 
   useFocusRefresh(useCallback(() => {
     if (profile?.userRole === 'admin') {
@@ -66,6 +85,7 @@ export const SupportDesk: React.FC = () => {
       if (customEvent.detail === 'support-desk') {
         setView('list');
         setSelectedRequest(null);
+        setMessages([]);
       }
     };
     window.addEventListener('tab-reclick', handleTabReclick);
@@ -121,6 +141,7 @@ export const SupportDesk: React.FC = () => {
       await deleteSupportRequest(selectedRequest.id);
       setSelectedRequest(null);
       setView('list');
+      setMessages([]);
       await loadRequests();
     } catch (err) {
       console.error('Failed to delete request', err);
@@ -218,30 +239,34 @@ export const SupportDesk: React.FC = () => {
           
           {/* Messages */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
-            {selectedRequest.messages.map((msg) => {
-              const isAdmin = msg.senderRole === 'admin';
-              return (
-                <div key={msg.id} style={{ 
-                  alignSelf: isAdmin ? 'flex-end' : 'flex-start',
-                  maxWidth: '80%',
-                  background: 'var(--card-bg)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '12px',
-                  padding: '16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    <strong>{isAdmin ? 'You (Admin)' : `${msg.senderName} (${selectedRequest.userEmail})`}</strong>
-                    <span>{new Date(msg.createdAt).toLocaleString()}</span>
+            {loadingMessages ? (
+              <div style={{ color: 'var(--text-secondary)' }}>Loading thread messages...</div>
+            ) : (
+              messages.map((msg) => {
+                const isAdmin = msg.senderRole === 'admin';
+                return (
+                  <div key={msg.id} style={{ 
+                    alignSelf: isAdmin ? 'flex-end' : 'flex-start',
+                    maxWidth: '80%',
+                    background: 'var(--card-bg)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      <strong>{isAdmin ? 'You (Admin)' : `${msg.senderName} (${selectedRequest.userEmail})`}</strong>
+                      <span>{new Date(msg.createdAt).toLocaleString()}</span>
+                    </div>
+                    <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                      {msg.content}
+                    </div>
                   </div>
-                  <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
-                    {msg.content}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
 
           {/* Reply Box */}
@@ -288,7 +313,11 @@ export const SupportDesk: React.FC = () => {
             </div>
           ) : (
             filteredRequests.map(req => {
-              const openRequest = () => { setSelectedRequest(req); setView('detail'); };
+              const openRequest = async () => {
+                setSelectedRequest(req);
+                setView('detail');
+                await loadMessages(req.id);
+              };
               return (
               // role="button" rather than a real <button>: the card contains an
               // <h4>, which is not valid inside a button.

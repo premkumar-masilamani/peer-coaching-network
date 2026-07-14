@@ -16,6 +16,7 @@ export interface FirestoreShared {
   mockOnSnapshot: any;
   mockDeleteDoc: any;
   mockBatchSet: any;
+  mockBatchUpdate: any;
   mockBatchDelete: any;
   mockBatchCommit: any;
 }
@@ -43,6 +44,7 @@ export const createFirestoreShared = (): FirestoreShared => ({
   mockOnSnapshot: vi.fn(),
   mockDeleteDoc: vi.fn(),
   mockBatchSet: vi.fn(),
+  mockBatchUpdate: vi.fn(),
   mockBatchDelete: vi.fn(),
   mockBatchCommit: vi.fn(() => Promise.resolve()),
 });
@@ -61,7 +63,24 @@ export const buildFirestoreMock = (s: FirestoreShared) => ({
     }
     return { id: paths[paths.length - 1] || col, path: `${col}/${paths.join('/')}` };
   }),
-  collection: vi.fn((_db: any, col: string) => ({ id: col, path: col })),
+  collection: vi.fn((...args: any[]) => {
+    if (args.length === 2) {
+      const parent = args[0];
+      const path = args[1];
+      if (parent && typeof parent === 'object' && 'path' in parent) {
+        return { id: path, path: `${parent.path}/${path}` };
+      }
+      return { id: path, path };
+    }
+    if (args.length > 2) {
+      const colPath = args[1];
+      const segments = args.slice(2);
+      const fullPath = [colPath, ...segments].join('/');
+      const id = segments[segments.length - 1] || colPath;
+      return { id, path: fullPath };
+    }
+    return { id: args[0], path: args[0] };
+  }),
   query: vi.fn((col: any, ...queries: any[]) => ({ id: col.id, path: col.path, queries })),
   where: vi.fn((field: string, op: string, val: unknown) => ({ field, op, val })),
   or: vi.fn((...conditions: any[]) => ({ type: 'or', conditions })),
@@ -74,8 +93,9 @@ export const buildFirestoreMock = (s: FirestoreShared) => ({
   getDocs: s.mockGetDocs,
   onSnapshot: s.mockOnSnapshot,
   documentId: vi.fn(() => 'documentId'),
-  writeBatch: vi.fn(() => ({ set: s.mockBatchSet, delete: s.mockBatchDelete, commit: s.mockBatchCommit })),
+  writeBatch: vi.fn(() => ({ set: s.mockBatchSet, update: s.mockBatchUpdate, delete: s.mockBatchDelete, commit: s.mockBatchCommit })),
   Timestamp: MockTimestamp,
+  serverTimestamp: vi.fn(() => 'mock-server-timestamp'),
 });
 
 // firebase/auth mock with a mutable currentUser so tests can simulate sessions.

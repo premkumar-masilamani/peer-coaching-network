@@ -11,5 +11,6 @@ export const COLLECTIONS = {
   PERSONAL_AVAILABILITY_CACHE: 'personalAvailabilityCache',
   COACH_AVAILABILITY_BY_DATE: 'coachAvailabilityByDate',
   SUPPORT_REQUESTS: 'supportRequests',
+  SUPPORT_MESSAGES: 'messages',
   SYSTEM_LOGS: 'systemLogs',
 } as const;
