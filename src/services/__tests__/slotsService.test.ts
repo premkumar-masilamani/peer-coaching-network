@@ -6,8 +6,9 @@ import {
   lazyRecalculateAvailableSlotsCache,
   getUserAvailableSlots,
 } from '../slotsService';
-import { timeStringToTimestamp } from '../../utils/slotGeneration';
+import { timeStringToTimestamp, generateTemplateSlots } from '../../utils/slotGeneration';
 import { logger } from '../../utils/logger';
+import { BOOKING_HORIZON_DAYS } from '../../config';
 
 const H = vi.hoisted(() => {
   (import.meta.env as any).VITE_USE_FIREBASE_EMULATOR = 'true';
@@ -77,6 +78,20 @@ describe('slotsService', () => {
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ timezone: 'UTC', gender: 'female', country: 'IN', userStatus: 'active', userRole: 'user', icf_acc: true }) });
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => allDaysEnabled });
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ blockedDates: [] }) });
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          availableSlots: ['2000-01-01T10:00:00.000Z'],
+          availableDatesUtc: ['2000-01-01'],
+          gender: 'female',
+          country: 'IN',
+          icf_acc: true,
+          icf_pcc: false,
+          icf_mcc: false,
+          icf_actc: false,
+          userStatus: 'active'
+        })
+      });
       mockGetDocs.mockResolvedValueOnce({ forEach: (cb: any) => cb({ data: () => ({ coachUid: 'coach-recalc', dateISO: '2000-01-01' }), ref: { id: 'coach-recalc_2000-01-01' } }) });
       mockSetDoc.mockResolvedValue(undefined);
 
@@ -102,6 +117,7 @@ describe('slotsService', () => {
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ timezone: 'UTC', gender: 'female', country: 'IN', userStatus: 'active' }) });
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => allDaysEnabled });
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ blockedDates: [] }) });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => false }); // existing cache is missing
       mockSetDoc.mockResolvedValue(undefined);
 
       await recalculateAvailableSlotsCache('coach-x');
@@ -129,6 +145,7 @@ describe('slotsService', () => {
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ timezone: 'UTC', userStatus: 'active' }) });
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => everyDayOverlapping });
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ blockedDates: [] }) });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => false }); // existing cache is missing
       mockGetDocs.mockResolvedValueOnce({ forEach: () => {} });
       mockSetDoc.mockResolvedValue(undefined);
 
@@ -155,10 +172,93 @@ describe('slotsService', () => {
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ timezone: 'UTC', userStatus: 'active' }) });
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => allDaysEnabled });
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ blockedDates: [] }) });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => false }); // existing cache is missing
       mockSetDoc.mockRejectedValueOnce(new Error('write denied'));
 
       await expect(recalculateAvailableSlotsCache('coach-fail')).rejects.toThrow('write denied');
       expect(logger.telemetry).toHaveBeenCalledWith('error', 'recalculation_failure', expect.objectContaining({ userId: 'coach-fail' }));
+    });
+
+    it('skips the day-shard writes batch if availability and filter fields did not change', async () => {
+      H.authState.currentUser = { uid: 'coach-recalc' };
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ timezone: 'UTC', gender: 'female', country: 'IN', userStatus: 'active', userRole: 'user', icf_acc: true }) });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => allDaysEnabled });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ blockedDates: [] }) });
+      
+      const computedSlots = generateTemplateSlots({
+        availableDays: allDaysEnabled,
+        blockedDates: [],
+        timezone: 'UTC',
+        anchorDate: new Date(),
+        horizonDays: BOOKING_HORIZON_DAYS,
+      });
+      const finalFreeSlots = Array.from(new Set(computedSlots)).sort();
+      const finalAvailableDatesUtc = Array.from(new Set(finalFreeSlots.map(s => s.split('T')[0]))).sort();
+
+      // Mock existing cache: matches computed slots and matching filter fields and status
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          availableSlots: finalFreeSlots,
+          availableDatesUtc: finalAvailableDatesUtc,
+          gender: 'female',
+          country: 'IN',
+          icf_acc: true,
+          icf_pcc: false,
+          icf_mcc: false,
+          icf_actc: false,
+          userStatus: 'active'
+        })
+      });
+      mockSetDoc.mockResolvedValue(undefined);
+
+      await recalculateAvailableSlotsCache('coach-recalc');
+
+      const aggCall = mockSetDoc.mock.calls.find((c: any) => c[0].path?.startsWith('personalAvailabilityCache'));
+      expect(aggCall).toBeDefined();
+      expect(mockBatchSet).not.toHaveBeenCalled();
+      expect(mockBatchCommit).not.toHaveBeenCalled();
+    });
+
+    it('rewrites only changed shards and deletes stale shards without getDocs when there is nothing to delete', async () => {
+      H.authState.currentUser = { uid: 'coach-recalc' };
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ timezone: 'UTC', gender: 'female', country: 'IN', userStatus: 'active', userRole: 'user', icf_acc: true }) });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => allDaysEnabled });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ blockedDates: [] }) });
+      
+      const computedSlots = generateTemplateSlots({
+        availableDays: allDaysEnabled,
+        blockedDates: [],
+        timezone: 'UTC',
+        anchorDate: new Date(),
+        horizonDays: BOOKING_HORIZON_DAYS,
+      });
+      const finalFreeSlots = Array.from(new Set(computedSlots)).sort();
+      const finalAvailableDatesUtc = Array.from(new Set(finalFreeSlots.map(s => s.split('T')[0]))).sort();
+
+      // Mock existing cache: has computed slots but with gender changed ('male' instead of 'female'),
+      // so it is dirty.
+      mockGetDoc.mockResolvedValueOnce({
+        exists: () => true,
+        data: () => ({
+          availableSlots: finalFreeSlots,
+          availableDatesUtc: finalAvailableDatesUtc,
+          gender: 'male', // Changed
+          country: 'IN',
+          icf_acc: true,
+          icf_pcc: false,
+          icf_mcc: false,
+          icf_actc: false,
+          userStatus: 'active'
+        })
+      });
+      mockSetDoc.mockResolvedValue(undefined);
+
+      await recalculateAvailableSlotsCache('coach-recalc');
+
+      // Since gender changed, day shards must be rewritten.
+      // And because old dates (availableDatesUtc) was empty, staleDates is empty, so getDocs is skipped!
+      expect(mockGetDocs).not.toHaveBeenCalled();
     });
   });
 
@@ -305,6 +405,7 @@ describe('slotsService', () => {
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ timezone: 'UTC', userStatus: 'active' }) });
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({}) });
       mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ blockedDates: [] }) });
+      mockGetDoc.mockResolvedValueOnce({ exists: () => false }); // existing cache is missing
       mockSetDoc.mockRejectedValueOnce(new Error('write denied'));
 
       const mockTelemetry = vi.fn().mockRejectedValueOnce(new Error('telemetry crash'));
