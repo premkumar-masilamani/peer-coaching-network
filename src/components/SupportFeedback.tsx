@@ -6,7 +6,9 @@ import {
   createSupportRequest, 
   addMessageToSupportRequest, 
   updateSupportRequestStatus,
-  type SupportRequest 
+  getSupportMessages,
+  type SupportRequest,
+  type SupportMessage
 } from '../services/firebaseService';
 import { formatDisplayName } from '../services/firebaseService';
 import { SUPPORT_CATEGORIES, type SupportCategory, INPUT_LIMITS, SUPPORT_STATUS, type SupportStatus } from '../config';
@@ -36,6 +38,21 @@ export const SupportFeedback: React.FC = () => {
   const [formErrors, setFormErrors] = useState<FormErrors>({});
   const dismissError = (key: string) => setFormErrors(prev => clearFieldError(prev, key));
 
+  const [messages, setMessages] = useState<SupportMessage[]>([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+
+  const loadMessages = useCallback(async (requestId: string) => {
+    setLoadingMessages(true);
+    try {
+      const msgs = await getSupportMessages(requestId);
+      setMessages(msgs);
+    } catch (err) {
+      console.error('Failed to load messages', err);
+    } finally {
+      setLoadingMessages(false);
+    }
+  }, []);
+
   const loadTickets = useCallback(async () => {
     if (!profile) return;
     try {
@@ -43,14 +60,21 @@ export const SupportFeedback: React.FC = () => {
       setTickets(data);
       if (selectedTicket) {
         const updated = data.find(t => t.id === selectedTicket.id);
-        if (updated) setSelectedTicket(updated);
+        if (updated) {
+          setSelectedTicket(updated);
+          await loadMessages(selectedTicket.id);
+        } else {
+          setSelectedTicket(null);
+          setView('list');
+          setMessages([]);
+        }
       }
     } catch (err) {
       console.error('Failed to load support requests', err);
     } finally {
       setLoading(false);
     }
-  }, [profile, selectedTicket]);
+  }, [profile, selectedTicket, loadMessages]);
 
   useFocusRefresh(loadTickets);
 
@@ -67,6 +91,7 @@ export const SupportFeedback: React.FC = () => {
       if (customEvent.detail === 'support') {
         setView('list');
         setSelectedTicket(null);
+        setMessages([]);
       }
     };
     window.addEventListener('tab-reclick', handleTabReclick);
@@ -299,31 +324,35 @@ export const SupportFeedback: React.FC = () => {
           
           {/* Messages */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
-            {selectedTicket.messages.map((msg) => {
-              const isMe = msg.senderId === profile?.userId;
-              const isAdmin = msg.senderRole === 'admin';
-              return (
-                <div key={msg.id} style={{ 
-                  alignSelf: isMe ? 'flex-end' : 'flex-start',
-                  maxWidth: '80%',
-                  background: 'var(--card-bg)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '12px',
-                  padding: '16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                    <strong>{isMe ? 'You' : msg.senderName} {isAdmin && '(Admin)'}</strong>
-                    <span>{new Date(msg.createdAt).toLocaleString()}</span>
+            {loadingMessages ? (
+              <div style={{ color: 'var(--text-secondary)' }}>Loading thread messages...</div>
+            ) : (
+              messages.map((msg) => {
+                const isMe = msg.senderId === profile?.userId;
+                const isAdmin = msg.senderRole === 'admin';
+                return (
+                  <div key={msg.id} style={{ 
+                    alignSelf: isMe ? 'flex-end' : 'flex-start',
+                    maxWidth: '80%',
+                    background: 'var(--card-bg)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '12px',
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      <strong>{isMe ? 'You' : msg.senderName} {isAdmin && '(Admin)'}</strong>
+                      <span>{new Date(msg.createdAt).toLocaleString()}</span>
+                    </div>
+                    <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
+                      {msg.content}
+                    </div>
                   </div>
-                  <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
-                    {msg.content}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
 
           {/* Reply Box */}
@@ -368,7 +397,11 @@ export const SupportFeedback: React.FC = () => {
             </div>
           ) : (
             filteredTickets.map(ticket => {
-              const openTicket = () => { setSelectedTicket(ticket); setView('detail'); };
+              const openTicket = async () => {
+                setSelectedTicket(ticket);
+                setView('detail');
+                await loadMessages(ticket.id);
+              };
               return (
               // role="button" rather than a real <button>: the card contains an
               // <h4>, which is not valid inside a button.

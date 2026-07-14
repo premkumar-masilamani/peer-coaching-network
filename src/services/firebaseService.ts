@@ -75,6 +75,7 @@ export {
   createSupportRequest,
   getSupportRequestsForUser,
   getAllSupportRequests,
+  getSupportMessages,
   addMessageToSupportRequest,
   updateSupportRequestStatus,
   deleteSupportRequest,
