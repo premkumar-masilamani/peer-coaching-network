@@ -128,14 +128,54 @@ describe('discoveryService', () => {
       expect(mockGetDocs).toHaveBeenCalledTimes(1);
     });
 
-    it('drops a coach who has a confirmed booking at the slot', async () => {
+    it('drops a coach who has a confirmed booking at the slot without fetching their profile', async () => {
       const slotIso = '2026-07-01T10:00:00.000Z';
       mockGetDocs.mockResolvedValueOnce(snap([{ coachUid: 'coach1', dateISO: '2026-07-01', freeSlots: [slotIso, '2026-07-01T10:30:00.000Z'] }]));
       mockGetDocs.mockResolvedValueOnce(snap([{ coachUid: 'coach1', clientUid: 'someClient', startTime: { dateTime: slotIso } }]));
-      mockGetDocs.mockResolvedValueOnce(snap([{ userId: 'coach1', userRole: 'user', userStatus: 'active', firstName: 'Alice' }]));
 
       const result = await queryAvailableCoachesForDay(dayRange[0], dayRange[1], oneSlot, {}, 'seed', 'client1');
       expect(result[slotIso]).toEqual([]);
+      expect(mockGetDocs).toHaveBeenCalledTimes(2);
+    });
+
+    it('queries active profiles in chunks and lazy-loads additional ones if inactive profiles are found', async () => {
+      const slotIso = '2026-07-01T10:00:00.000Z';
+      const nextSlotIso = '2026-07-01T10:30:00.000Z';
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { coachUid: 'coach1', dateISO: '2026-07-01', freeSlots: [slotIso, nextSlotIso] },
+        { coachUid: 'coach2', dateISO: '2026-07-01', freeSlots: [slotIso, nextSlotIso] },
+        { coachUid: 'coach3', dateISO: '2026-07-01', freeSlots: [slotIso, nextSlotIso] },
+        { coachUid: 'coach4', dateISO: '2026-07-01', freeSlots: [slotIso, nextSlotIso] },
+        { coachUid: 'coach5', dateISO: '2026-07-01', freeSlots: [slotIso, nextSlotIso] },
+        { coachUid: 'coach6', dateISO: '2026-07-01', freeSlots: [slotIso, nextSlotIso] },
+        { coachUid: 'coach7', dateISO: '2026-07-01', freeSlots: [slotIso, nextSlotIso] },
+      ]));
+      mockGetDocs.mockResolvedValueOnce(snap([]));
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { userId: 'coach1', userRole: 'user', userStatus: 'active', firstName: 'Alice' },
+        { userId: 'coach2', userRole: 'user', userStatus: 'inactive', firstName: 'Peter' },
+        { userId: 'coach3', userRole: 'user', userStatus: 'active', firstName: 'Ada' },
+        { userId: 'coach4', userRole: 'user', userStatus: 'active', firstName: 'Fiona' },
+        { userId: 'coach5', userRole: 'user', userStatus: 'active', firstName: 'Match' },
+      ]));
+      mockGetDocs.mockResolvedValueOnce(snap([
+        { userId: 'coach6', userRole: 'user', userStatus: 'active', firstName: 'Bob' },
+      ]));
+
+      const result = await queryAvailableCoachesForDay(dayRange[0], dayRange[1], oneSlot, {}, 'seed', 'client1');
+
+      expect(mockGetDocs).toHaveBeenCalledTimes(4);
+
+      const firstPassQuery = mockGetDocs.mock.calls[2][0];
+      expect(firstPassQuery.queries?.[0]).toEqual({ field: 'documentId', op: 'in', val: ['coach1', 'coach2', 'coach3', 'coach4', 'coach5'] });
+      expect(firstPassQuery.queries?.[1]).toEqual({ field: 'userStatus', op: '==', val: 'active' });
+
+      const secondPassQuery = mockGetDocs.mock.calls[3][0];
+      expect(secondPassQuery.queries?.[0]).toEqual({ field: 'documentId', op: 'in', val: ['coach6'] });
+      expect(secondPassQuery.queries?.[1]).toEqual({ field: 'userStatus', op: '==', val: 'active' });
+
+      const activeIds = result[slotIso].map(c => c.userId);
+      expect(activeIds).toEqual(['coach1', 'coach3', 'coach4', 'coach5', 'coach6']);
     });
   });
 

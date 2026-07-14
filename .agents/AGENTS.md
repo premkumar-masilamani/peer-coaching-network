@@ -6,6 +6,8 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 
 ## 1. Tech Stack & Environment
 - **Core**: Vite + React 19 + TypeScript (SPA), Cloud Firestore, Google Calendar REST API.
+- **Pure Client-Side Architecture**: This is an experimental project that must run strictly client-side. There is no backend, and there must be no Cloud Functions, server-side code, or custom backend APIs. All architectural compromises, security mitigations, scheduling locks, and validation must be designed, written, and executed purely on the client (using client-side transactions and Firestore security rules). Do not suggest, recommend, or implement server-side components, or propose architectures that require them.
+- **Cost Invariants**: Implement all storage and access patterns as cheaply as possible to stay strictly within the Firebase Spark (free) tier limits. Avoid high-frequency polling, unnecessary document reads/writes, or excessive caching structures that might cause cost-limit exhaustion.
 - **Environment Overrides**:
   - `VITE_USE_FIREBASE_EMULATOR=true`: Routes to local emulators (Auth :9099, Firestore :8080).
   - `VITE_ENABLE_GOOGLE_INTEGRATION=false`: Disables real API calls; runs sandbox fallback mode.
