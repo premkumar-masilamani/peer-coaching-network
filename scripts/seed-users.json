@@ -1,0 +1,35 @@
+[
+  {
+    "firstName": "Premkumar",
+    "lastName": "Masilamani",
+    "email": "premkumar.masilamani.2020@gmail.com",
+    "role": "admin",
+    "status": "active",
+    "gender": "Male",
+    "country": "India",
+    "timezone": "Asia/Kolkata",
+    "bio": "Platform administrator and executive coach with over a decade of experience in leadership development, organisational transformation, and peer coaching facilitation. Passionate about building communities that foster authentic growth."
+  },
+  {
+    "firstName": "Aradhana",
+    "lastName": "Premkumar",
+    "email": "aradhana.premkumar@gmail.com",
+    "role": "user",
+    "status": "active",
+    "gender": "Female",
+    "country": "India",
+    "timezone": "Asia/Kolkata",
+    "bio": "Certified peer coach specialising in career transitions, mindfulness-based leadership, and personal effectiveness. Committed to creating a safe space for reflective conversations and meaningful breakthroughs."
+  },
+  {
+    "firstName": "Sangavi",
+    "lastName": "Premkumar",
+    "email": "sangavi.premkumar@gmail.com",
+    "role": "user",
+    "status": "inactive",
+    "gender": "Female",
+    "country": "India",
+    "timezone": "Asia/Kolkata",
+    "bio": "Aspiring coach with a background in organisational psychology and human-centred design. Eager to contribute to peer coaching communities and support others on their professional journeys."
+  }
+]

@@ -270,6 +270,26 @@ p {
   color: hsl(var(--text-muted));
 }
 
+/* Error state for invalid inputs (see story 102 – stylized form validation) */
+.input-field.input-error {
+  border-color: hsl(var(--danger) / 0.7);
+}
+
+.input-field.input-error:focus {
+  border-color: hsl(var(--danger));
+  box-shadow: 0 0 0 3px hsl(var(--danger) / 0.15);
+}
+
+/* Inline validation error message rendered below a form control */
+.form-error-text {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: hsl(var(--danger));
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* Buttons */
 .btn {
   font-family: var(--font-family);
@@ -339,6 +359,39 @@ p {
   color: hsl(var(--text-muted));
   cursor: not-allowed;
   border: 1px solid var(--border-light);
+}
+
+/* Focus Visibility (WCAG 2.4.7). Do not set border-radius here: this selector
+   has the same specificity as .btn/.input-field but comes later, so it would
+   override their corners for keyboard users only. The outline already follows
+   each element's own radius. */
+:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+/* The active date tab is filled with --primary, so a primary-coloured outline
+   would vanish against it. */
+.date-tab.active:focus-visible {
+  outline-color: hsl(var(--text-primary));
+}
+
+/* Header Logo */
+.logo-button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  text-align: left;
+  font-family: inherit;
+  color: inherit;
+}
+
+button.logo-button {
+  cursor: pointer;
 }
 
 /* Badges */
@@ -477,6 +530,19 @@ p {
   align-items: center;
   justify-content: center;
   padding: 16px;
+}
+
+.modal-dialog-native {
+  border: none;
+  background: transparent;
+  padding: 0;
+  max-width: 500px;
+  width: 100%;
+}
+
+.modal-dialog-native::backdrop {
+  background: var(--modal-overlay-bg);
+  backdrop-filter: blur(8px);
 }
 
 .modal-content {

@@ -12,13 +12,19 @@ This document acts as the definitive codebase guide and runtime manual. It stric
   - `VITE_LOG_LEVEL`: Overrides console verbosity (`'debug'`, `'info'`, `'warn'`, `'error'`).
 - **Commands**:
   - `make dev` / `make local` (emulator) / `make build` / `make build-prod` / `make lint` / `make emulator` / `make install` / `npm run test`
+- **Dependency Execution**:
+  - Avoid using `npx` anywhere in the codebase or shell scripts; invoke scripts or local tools via package.json scripts or direct paths (e.g. node modules bin or make commands).
 - **Deployments**: 
   - `firebase.json` uses an array of database configurations (`firestore: [{ database: "pcn-dev", ... }, { database: "pcn-prod", ... }]`).
   - Deploy using dynamic targets: `firebase deploy --only firestore:${VITE_FIRESTORE_DATABASE_ID},hosting`
 
 ## 2. Architecture & State Flow
-- **Service Layer**: Keep UI components strictly decoupled from storage and Google APIs (use `src/services/firebaseService.ts` and `src/services/googleCalendar.ts`).
-- **Context Source of Truth**: `AuthContext.tsx` holds application auth and live Firestore profile state (`onSnapshot`).
+- **Service Layer**: Keep UI components strictly decoupled from storage and Google APIs.
+- **Domain-Split Services**: The service layer is one module per domain — `firebaseApp` (Firebase bootstrap only), `authService`, `profileService`, `scheduleService`, `slotsService`, `supportService`, `discoveryService` — plus a side-effect-free `types.ts` and dependency-free `profileHelpers.ts`. New code MUST import from the specific service; `src/services/firebaseService.ts` is a pure barrel re-export kept only for backward compatibility, not an entry point for new code.
+- **Side-Effect-Free Types**: Never export domain types from a module that also performs Firebase bootstrap. Domain types live in `src/services/types.ts`, so importing a type never triggers app initialization.
+- **Single Slot Generator**: All expansion of a coach's availability template into bookable slot start times goes through `generateTemplateSlots()` in `src/utils/slotGeneration.ts`. Never re-inline the day-sweep / 30-minute-cadence loop — the cache-recalculation path (`slotsService`) and the Google Calendar fallback path (`googleCalendar`) must stay byte-for-byte identical, so any change happens in one place.
+- **Call-Time-Only Import Cycles**: `scheduleService ↔ slotsService` is an intentional lazy import cycle (a schedule write triggers a recalc; the recalc reads the schedule). It works ONLY because the imported symbols are referenced inside function bodies, never at module top level — hoisting such a reference to module scope fails at import (TDZ), often only in the production bundle. Put genuinely shared, pure predicates (e.g. `isApproved`) in a dependency-free helper module rather than importing a heavy service and creating a real cycle.
+- **Context Source of Truth**: `AuthContext.tsx` holds application auth and Firestore profile state. Data is read via one-shot queries (`getDoc`/`getDocs`), never live `onSnapshot` listeners; keep views fresh by re-querying after mutations and via `useFocusRefresh`, not real-time subscriptions.
 - **Adjust-During-Render**: App routing changes and filtering are derived during render rather than side-effects to prevent flickering or cascading-render warnings.
 - **Flat Routing**: Uses custom state (`currentTab`) and `window.history.pushState` + `PopStateEvent('popstate')`. Always clear routing parameters across global tab transitions. Guard history with `url.searchParams.has()` before pushing state.
 
@@ -40,15 +46,25 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Context Hooks Dependencies**: Always wrap extracted handlers (like `handleSave`) in `useCallback` when passing them into context state setters (like `setPageDirtyState`) to prevent infinite cascading render loops.
 - **Decoupling State for Layout Flashes**: To prevent UI flickering on tab switches or date selection, decouple the "UI render state" from the "Query state" (`fetchedDayIndex` vs `selectedDayIndex`). Hold previous data on screen with a soft CSS transition until new data arrives rather than unmounting components for a spinner.
 - **Carousel Centering**: Use `activeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })` inside a `useEffect` to automatically center selected carousel items.
+- **No Ref Mutation During Render (`react-hooks/refs`)**: Never write to `ref.current` in the render body. For arrays of element refs, assign in the ref callback and return the React 19 cleanup function (`return () => { refs.current[i] = null; }`).
+- **Scoped DOM IDs**: Generate ids consumed by `aria-controls` / `aria-labelledby` with `useId()`, never module-level constants, so the wiring survives multiple mounts of the same component.
+- **Pure State Updaters**: Never include side effects (e.g., triggering navigation, DOM mutations, browser history updates) inside functional `setState` updaters. Run all side effects outside of the state updates to prevent duplicate execution under `<StrictMode>`.
 
 ## 5. UI & Styling Guidelines
 - **CSS Variables & HSL**: Theme colors in `index.css` (e.g., `--primary`) are raw HSL values. You **MUST ALWAYS** wrap them in inline styles: `hsl(var(--primary))`.
 - **Theming**: Supported values are `'light' | 'dark'` only. No `'system'` fallback.
 - **Buttons & Interactive Elements**: Never use inline styles for buttons. Always use utility classes `className="btn btn-primary"` or `className="btn btn-secondary"`.
+- **Semantic Interactivity**: Never attach `onClick` to a `div`, `img`, or `span`. Use `<button type="button">`, which provides Enter/Space activation natively — no `onKeyDown` required.
+- **Button Content Model**: A `<button>` may only contain phrasing content. Use `<span>`, never `div`/`h3`/`p`. When converting a heading, reapply the global `h1–h6` font and color, as a `span` does not inherit them.
+- **Button CSS Resets**: Converting a `div` to a `button` resets inherited styles. Restore `font-family: inherit`, `color: inherit`, and `text-align` in the element's class (not inline).
+- **Conditional Interactivity**: Render an element as a `<button>` only when it can actually act. `role` is `null` for pending users and `undefined` while auth loads; neither may receive a focusable control that does nothing.
+- **Focus Rings**: Never declare `border-radius` inside a bare `:focus-visible` block. It ties `.btn`/`.input-field` on specificity and wins on source order, silently reshaping them for keyboard users only. The outline already follows each element's own radius.
+- **Tabs Use Manual Activation**: When selecting a tab triggers a fetch, arrow keys move focus only (roving `tabIndex` driven by a `focusedTabIndex` separate from the selected index); `Enter`/`Space` commits. Automatic activation fires one query per keystroke and races the responses. Arrow keys must wrap, and `Home`/`End` must jump to the first/last tab. Always pair `role="tablist"` with a real `role="tabpanel"`, or `aria-selected` refers to nothing.
 - **Semantic Text**: Use `hsl(var(--text-primary))`, `hsl(var(--text-secondary))`, and `hsl(var(--text-muted))`. Do not hardcode hex values.
 - **Glassmorphism**: Use `className="glass-panel"` for intelligent theme-aware cards and containers.
 - **Modals**: Never use inline JSX overlays. All modals must be standalone components in `src/components/modals/`.
 - **Modal Backgrounds**: Modals overlaying content must use opaque backgrounds (e.g., `background: hsl(var(--bg-surface))`) rather than transparent glass panels to prevent distracting visual bleed-through.
+- **Accessible Modal Semantics and Focus Restoration**: All modals must use standard HTML5 `<dialog>` semantics (or have explicit `role="dialog"` and `aria-modal="true"`). In addition, focus must be manually backed up upon opening the modal and explicitly restored to the triggering element when the modal is closed or unmounted to ensure full keyboard and screen-reader accessibility.
 - **Custom Popups & Feedback**: Prefer custom popup components over native inputs (e.g., `<input type="date">`) for complex selection. Provide clear visual feedback (e.g., highlighting pre-selected states) to prevent redundant interactions.
 - **Profile Banners**: Never block access to the dashboard or other tabs over an incomplete profile. Advisory banners only.
 - **Inline Error Feedback**: Avoid intrusive success or error popups (like alerts) for background verification actions. Use subtle inline text directly below or beside action buttons for errors, and quietly revert to a normal state on success for a frictionless experience.
@@ -56,10 +72,16 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 
 ## 6. Unsaved State Tracking
 - **Global Tracking**: Any form that mutates local state without persisting to Firestore must integrate the `useUnsavedChanges` hook to intercept and block accidental cross-tab navigation.
+- **Guarded Profile Navigation**: Never import `navigateToProfile` from `utils/url` directly in a component — the raw util pushes URL state and dispatches `popstate`, bypassing the dirty guard. Always use the `useNavigateToProfile()` hook from `UnsavedChangesContext`, which routes the jump through `navigateWithConfirmation`.
+- **Full Page-Unload Guard**: Tab close / reload / external navigation is covered by a `beforeunload` listener registered in `UnsavedChangesProvider` only while `isDirty`. In-app navigation (tabs, profiles) is intercepted separately via `navigateWithConfirmation`; the two layers together are what make the guard complete.
 - **Specific Modification Feedback**: Provide concrete, contextual diff statements to `ReviewChangesModal` (e.g., `"Added blocked date: Dec 25, 2026"`). Do not push generic fallback messages.
 - **Save Button Layout**: Save buttons inside complex user-editable forms (`ProfileEdit`, `AvailabilityEdit`) must be placed logically close to the fields they govern (e.g., at the bottom of the form or column container), rather than floating loosely in a global page header.
 
 ## 7. Layout & Coding Conventions
+- **Accessibility Linting**: `eslint-plugin-jsx-a11y` runs on `**/*.tsx`. Never blanket-disable its rules. Deliberate exceptions (backdrop click-catchers, `stopPropagation` guards, modal `autoFocus`) require a narrowly-scoped `eslint-disable-next-line` naming each rule, plus a comment saying why keyboard users are unaffected.
+- **jsx-a11y Peer Range**: The plugin caps its `eslint` peer at `^9` but runs correctly on `eslint` 10. `package.json` carries an `overrides` entry pinning it to the root `eslint`; without it, a plain `npm install` fails with `ERESOLVE`. Remove the override once the plugin declares v10 support.
+- **Vitest Unit Glob Covers `.tsx`**: The `unit` project include is `src/**/*.test.{ts,tsx}`. Component/context suites that render JSX must be `.tsx` files — a `.ts`-only glob silently skips them (they never run, never fail). After adding a component test, confirm collection with `npm run test -- --list --project=unit --filesOnly`.
+- **Testing `beforeunload` in jsdom**: A plain `Event`'s `returnValue` uses legacy boolean cancel semantics, not the string slot a real `BeforeUnloadEvent` exposes. Assert the guard via `preventDefault` / `defaultPrevented`; intercept the `returnValue` setter with `Object.defineProperty` if you must check the assigned value.
 - **Named Exports**: Expose modules as named exports (e.g. `export const ProfileEdit`) rather than default exports.
 - **Verbatim Module Syntax**: When importing type definitions, prefix them with the `type` keyword (e.g. `import { type UserRole, type UserStatus } from '../config'`) to comply with `verbatimModuleSyntax` and prevent build failures.
 - **Constant & Type Naming**:

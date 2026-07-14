@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-import { describe, it, expect } from 'vitest';
-import { sanitizeHttpsUrl, sanitizeMeetLink, sanitizeImageUrl } from '../url';
+import { describe, it, expect, vi } from 'vitest';
+import { sanitizeHttpsUrl, sanitizeMeetLink, sanitizeImageUrl, navigateToProfile, clearProfileFromUrl } from '../url';
 
 describe('url', () => {
   describe('sanitizeHttpsUrl', () => {
@@ -30,7 +29,7 @@ describe('url', () => {
       // Force URL to throw on any instantiation
       globalThis.URL = function() {
         throw new Error('mocked error');
-      } as any;
+      } as unknown as typeof URL;
       try {
         expect(sanitizeHttpsUrl('https://example.com')).toBeUndefined();
       } finally {
@@ -73,7 +72,7 @@ describe('url', () => {
           throw new Error('mocked error');
         }
         return new originalURL(u, base);
-      } as any;
+      } as unknown as typeof URL;
       try {
         expect(sanitizeMeetLink('https://meet.google.com/abc-defg-hij')).toBeUndefined();
       } finally {
@@ -96,6 +95,76 @@ describe('url', () => {
 
     it('uses custom fallback if provided and target is invalid', () => {
       expect(sanitizeImageUrl('http://example.com/img.png', 'https://fallback.com/custom.png')).toBe('https://fallback.com/custom.png');
+    });
+  });
+
+  describe('profile navigation', () => {
+
+    it('navigateToProfile sets query param, calls pushState, and dispatches popstate event', () => {
+      const pushStateSpy = vi.spyOn(window.history, 'pushState');
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+      navigateToProfile('user-123');
+
+      expect(pushStateSpy).toHaveBeenCalled();
+      const pushCall = pushStateSpy.mock.calls[0];
+      expect(pushCall[2]).toContain('profile=user-123');
+
+      expect(dispatchSpy).toHaveBeenCalled();
+      const event = dispatchSpy.mock.calls[0][0];
+      expect(event).toBeInstanceOf(PopStateEvent);
+      expect(event.type).toBe('popstate');
+
+      pushStateSpy.mockRestore();
+      dispatchSpy.mockRestore();
+    });
+
+    it('clearProfileFromUrl deletes query param and dispatches popstate if profile was set', () => {
+      const originalUrl = window.location.href;
+      // Set the query parameter manually first
+      const url = new URL(window.location.href);
+      url.searchParams.set('profile', 'user-123');
+      window.history.pushState({}, '', url.toString());
+
+      const pushStateSpy = vi.spyOn(window.history, 'pushState');
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+      clearProfileFromUrl();
+
+      expect(pushStateSpy).toHaveBeenCalled();
+      const pushCall = pushStateSpy.mock.calls[0];
+      expect(pushCall[2]).not.toContain('profile=');
+
+      expect(dispatchSpy).toHaveBeenCalled();
+      const event = dispatchSpy.mock.calls[0][0];
+      expect(event).toBeInstanceOf(PopStateEvent);
+      expect(event.type).toBe('popstate');
+
+      pushStateSpy.mockRestore();
+      dispatchSpy.mockRestore();
+
+      // Reset URL back to original
+      window.history.pushState({}, '', originalUrl);
+    });
+
+    it('clearProfileFromUrl does nothing if profile was not set', () => {
+      const originalUrl = window.location.href;
+      const url = new URL(window.location.href);
+      url.searchParams.delete('profile');
+      window.history.pushState({}, '', url.toString());
+
+      const pushStateSpy = vi.spyOn(window.history, 'pushState');
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+      clearProfileFromUrl();
+
+      expect(pushStateSpy).not.toHaveBeenCalled();
+      expect(dispatchSpy).not.toHaveBeenCalled();
+
+      pushStateSpy.mockRestore();
+      dispatchSpy.mockRestore();
+
+      window.history.pushState({}, '', originalUrl);
     });
   });
 });

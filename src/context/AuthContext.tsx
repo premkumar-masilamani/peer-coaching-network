@@ -1,19 +1,20 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { User } from 'firebase/auth';
 import {
   subscribeToAuth,
-  subscribeToProfile,
+  getProfile,
   loginWithGoogle,
   handleAuthRedirect,
   logout as fbLogout,
   updateOwnProfile,
   getEffectiveRole,
   getEffectiveStatus,
-  isFirebaseConfigured
+  isFirebaseConfigured,
+  lazyRecalculateAvailableSlotsCache
 } from '../services/firebaseService';
 import type { UserProfile } from '../services/firebaseService';
-import { type UserRole } from '../config';
+import { type UserRole, USER_ROLE, USER_STATUS } from '../config';
 
 
 interface AuthContextType {
@@ -59,23 +60,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => unsubAuth();
   }, []);
 
-  // Subscribe to user profile updates once auth is resolved
+  // Apply a fetched profile to context state (profile + derived role), and kick
+  // the lazy availability recalc for active coaches.
+  const applyProfile = useCallback((uid: string, prof: UserProfile | null) => {
+    if (prof) {
+      setProfile(prof);
+      const status = getEffectiveStatus(prof);
+      const roleVal = getEffectiveRole(prof);
+      setRole(status === USER_STATUS.ACTIVE ? roleVal : null);
+
+      // If the user is an active coach, trigger lazy available slots cache recalculation
+      if (status === USER_STATUS.ACTIVE && roleVal === USER_ROLE.USER) {
+        lazyRecalculateAvailableSlotsCache(uid);
+      }
+    } else {
+      setProfile(null);
+      setRole(null);
+    }
+  }, []);
+
+  // Fetch the user profile once auth is resolved (one-shot query, not a live
+  // subscription). Own-profile edits re-fetch via updateProfileDetails below.
   useEffect(() => {
     if (!user) return;
 
-    const unsubProfile = subscribeToProfile(user.uid, (prof) => {
-      if (prof) {
-        setProfile(prof);
-        setRole(getEffectiveStatus(prof) === 'active' ? getEffectiveRole(prof) : null);
-      } else {
-        setProfile(null);
-        setRole(null);
+    let cancelled = false;
+    (async () => {
+      try {
+        const prof = await getProfile(user.uid);
+        if (cancelled) return;
+        applyProfile(user.uid, prof);
+      } catch (e) {
+        console.error('Profile load error:', e);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      setLoading(false);
-    });
+    })();
 
-    return () => unsubProfile();
-  }, [user]);
+    return () => { cancelled = true; };
+  }, [user, applyProfile]);
 
   const login = async () => {
     setLoading(true);
@@ -106,6 +129,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!user) return;
     try {
       await updateOwnProfile(user.uid, updates);
+      // Re-fetch to reflect the saved changes (previously delivered by the live
+      // profile snapshot).
+      const prof = await getProfile(user.uid);
+      applyProfile(user.uid, prof);
     } catch (e) {
       console.error('Update profile error:', e);
       throw e;

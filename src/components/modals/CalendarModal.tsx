@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Modal } from './Modal';
 
 interface CalendarModalProps {
   isOpen: boolean;
@@ -137,85 +138,56 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
   const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
   return (
-    <div className="modal-overlay" style={{ pointerEvents: 'auto', zIndex: 9999 }} onClick={onClose}>
-      <div 
-        className="glass-panel modal-content" 
-        style={{ 
-          padding: '24px', 
-          position: 'relative', 
-          border: '1px solid rgba(139, 92, 246, 0.3)', 
-          width: '100%', 
-          maxWidth: '450px',
-          background: 'hsl(var(--bg-surface))'
-        }} 
-        onClick={(e) => e.stopPropagation()}
-      >
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth="450px">
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '20px' }}>
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleToday}
           style={{
-            position: 'absolute',
-            top: '20px',
-            right: '20px',
             background: 'transparent',
-            border: 'none',
-            color: 'hsl(var(--text-muted))',
-            cursor: 'pointer'
+            border: '1px solid rgba(139, 92, 246, 0.3)',
+            borderRadius: '6px',
+            padding: '4px 10px',
+            fontSize: '0.8rem',
+            color: 'hsl(var(--primary))',
+            cursor: 'pointer',
+            fontWeight: 600,
+            transition: 'all 0.2s ease'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(139, 92, 246, 0.1)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
           }}
         >
-          <X size={18} />
+          Today
         </button>
-
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '20px' }}>
-          <button
-            type="button"
-            onClick={handleToday}
-            style={{
-              background: 'transparent',
-              border: '1px solid rgba(139, 92, 246, 0.3)',
-              borderRadius: '6px',
-              padding: '4px 10px',
-              fontSize: '0.8rem',
-              color: 'hsl(var(--primary))',
-              cursor: 'pointer',
-              fontWeight: 600,
-              transition: 'all 0.2s ease'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(139, 92, 246, 0.1)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-            }}
-          >
-            Today
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <button 
-            type="button"
-            onClick={handlePrevMonth}
-            style={{ background: 'transparent', border: 'none', color: 'hsl(var(--text-primary))', cursor: 'pointer', padding: '4px' }}
-          >
-            <ChevronLeft size={20} />
-          </button>
-          <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>
-            {monthNames[month]} {year}
-          </div>
-          <button 
-            type="button"
-            onClick={handleNextMonth}
-            style={{ background: 'transparent', border: 'none', color: 'hsl(var(--text-primary))', cursor: 'pointer', padding: '4px' }}
-          >
-            <ChevronRight size={20} />
-          </button>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
-          {renderDays()}
-        </div>
       </div>
-    </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <button 
+          type="button"
+          onClick={handlePrevMonth}
+          style={{ background: 'transparent', border: 'none', color: 'hsl(var(--text-primary))', cursor: 'pointer', padding: '4px' }}
+        >
+          <ChevronLeft size={20} />
+        </button>
+        <div style={{ fontWeight: 600, fontSize: '1.1rem' }}>
+          {monthNames[month]} {year}
+        </div>
+        <button 
+          type="button"
+          onClick={handleNextMonth}
+          style={{ background: 'transparent', border: 'none', color: 'hsl(var(--text-primary))', cursor: 'pointer', padding: '4px' }}
+        >
+          <ChevronRight size={20} />
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '8px' }}>
+        {renderDays()}
+      </div>
+    </Modal>
   );
 };

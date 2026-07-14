@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+#
+# Pre-commit gate: run lint, unit tests, and integration tests locally before
+# every commit. Integration tests boot the Firebase emulators (requires Java),
+# which the vitest globalSetup starts automatically.
+#
+# Performance tests are intentionally NOT run here — they spin up 100 concurrent
+# emulator writes and can take minutes. Run them on demand with:
+#   make test-perf
+#
+# To skip this hook for a single commit (use sparingly):
+#   git commit --no-verify
+#
+set -euo pipefail
+
+# Run from the repository root regardless of where git invoked the hook.
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+echo "▶ pre-commit: typecheck + lint"
+make lint
+
+echo "▶ pre-commit: unit tests"
+make test
+
+echo "▶ pre-commit: integration tests"
+make test-int
+
+echo "✔ pre-commit checks passed"

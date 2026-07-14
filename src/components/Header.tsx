@@ -2,8 +2,9 @@ import React from 'react';
 import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, USER_STATUS } from '../config';
 import { useAuth } from '../context/AuthContext';
 import { Sparkles, Shield } from 'lucide-react';
-import { formatDisplayName, formatMemberSince, isApproved, subscribeToPendingUsersCount } from '../services/firebaseService';
+import { formatDisplayName, formatMemberSince, isApproved, getPendingUsersCount } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
+import { useFocusRefresh } from '../hooks/useFocusRefresh';
 
 interface HeaderProps {
   currentTab: TabKey;
@@ -17,18 +18,64 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
 
   const isActive = isApproved(profile);
   const isActiveAdmin = role === USER_ROLE.ADMIN && isActive;
+  const canNavigateHome = role === USER_ROLE.USER || role === USER_ROLE.ADMIN;
 
-  React.useEffect(() => {
-    if (role === USER_ROLE.ADMIN && isActive) {
-      // Subscribe to a count derived from only the pending docs, not the whole
-      // users collection. (The badge is hidden for non-admins, so
-      // no explicit reset is needed when this branch is skipped.)
-      const unsub = subscribeToPendingUsersCount(setPendingCount);
-      return () => unsub();
+  // One-shot query for a count derived from only the pending docs, not the whole
+  // users collection. (The badge is hidden for non-admins, so no explicit reset
+  // is needed when the branch is skipped.) Refreshed on window focus so newly
+  // registered members surface without a live subscription.
+  const refreshPendingCount = React.useCallback(async () => {
+    if (role !== USER_ROLE.ADMIN || !isActive) return;
+    try {
+      setPendingCount(await getPendingUsersCount());
+    } catch (e) {
+      console.error('Error loading pending users count:', e);
     }
   }, [role, isActive]);
 
+  React.useEffect(() => {
+    (async () => {
+      await refreshPendingCount();
+    })();
+  }, [refreshPendingCount]);
+
+  useFocusRefresh(refreshPendingCount);
+
   if (!user) return null;
+
+  const logoContent = (
+    <>
+      <span style={{
+        background: 'hsl(var(--primary))',
+        width: '40px',
+        height: '40px',
+        borderRadius: '10px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        boxShadow: '0 4px 12px var(--primary-glow)'
+      }}>
+        <Sparkles size={20} color="#fff" />
+      </span>
+      <span>
+        {/* Styled as a heading, but not an h3: headings are not valid inside a button. */}
+        <span style={{
+          display: 'block',
+          fontFamily: 'var(--font-family-display)',
+          color: 'hsl(var(--text-primary))',
+          fontSize: '1.15rem',
+          fontWeight: 800,
+          letterSpacing: '-0.03em'
+        }}>
+          Peer Coaching <span style={{ color: 'hsl(var(--primary))' }}>Network</span>
+        </span>
+        <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))', fontWeight: 600, textTransform: 'uppercase' }}>
+          Collaborative Calendly for coaches
+        </span>
+      </span>
+    </>
+  );
 
   return (
     <header className="glass-panel" style={{ 
@@ -45,29 +92,21 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
         justifyContent: 'space-between',
         margin: '0 auto'
       }}>
-        {/* Logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }} onClick={() => (role === USER_ROLE.USER || role === USER_ROLE.ADMIN) && setCurrentTab(TABS.DASHBOARD)}>
-          <div style={{
-            background: 'hsl(var(--primary))',
-            width: '40px',
-            height: '40px',
-            borderRadius: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 4px 12px var(--primary-glow)'
-          }}>
-            <Sparkles size={20} color="#fff" />
-          </div>
-          <div>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 800, letterSpacing: '-0.03em' }}>
-              Peer Coaching <span style={{ color: 'hsl(var(--primary))' }}>Network</span>
-            </h3>
-            <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))', fontWeight: 600, textTransform: 'uppercase' }}>
-              Collaborative Calendly for coaches
-            </span>
-          </div>
-        </div>
+        {/* Logo. Only a button when the role can actually navigate, so other
+            roles do not get a focusable control that does nothing. A button may
+            only contain phrasing content, hence the spans rather than div/h3. */}
+        {canNavigateHome ? (
+          <button
+            type="button"
+            className="logo-button"
+            aria-label="Go to Dashboard"
+            onClick={() => setCurrentTab(TABS.DASHBOARD)}
+          >
+            {logoContent}
+          </button>
+        ) : (
+          <div className="logo-button">{logoContent}</div>
+        )}
 
         {/* User Badge and Menu */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

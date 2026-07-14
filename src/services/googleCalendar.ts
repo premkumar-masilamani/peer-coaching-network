@@ -1,6 +1,10 @@
-import type { UserProfile, AvailableDays } from './firebaseService';
-import { db, auth, getSchedule, timestampToTimeString, formatDisplayName } from './firebaseService';
-import { 
+import type { UserProfile, AvailableDays } from './types';
+import { db, auth } from './firebaseApp';
+import { getSchedule } from './scheduleService';
+import { formatDisplayName } from './profileService';
+import { chunkArray } from '../utils/chunkArray';
+import { generateTemplateSlots } from '../utils/slotGeneration';
+import {
   collection,
   query,
   where,
@@ -13,8 +17,7 @@ import {
   runTransaction,
   Timestamp 
 } from 'firebase/firestore';
-import type { DocumentData, QuerySnapshot } from 'firebase/firestore';
-import { getLocalDateInTimezone, getUtcForLocalDateTime, parseLocalTime } from '../utils/timezoneHelpers';
+import type { DocumentData, QuerySnapshot, DocumentSnapshot } from 'firebase/firestore';
 import { getGoogleToken } from './googleToken';
 import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION, LOG_SEVERITY, BOOKING_STATUS, EVENT_TYPE, BOOKING_ERROR, COLLECTIONS } from '../config';
 import { logger } from '../utils/logger';
@@ -38,15 +41,6 @@ export interface CalendarEvent {
   clientUid?: string;
   attendees?: { email: string; displayName?: string }[];
 }
-
-// Split an array into chunks of at most `size` (for Firestore `in` queries,
-// which accept up to 30 values).
-const chunkArray = <T>(arr: T[], size: number): T[][] => {
-  const out: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
-  return out;
-};
-
 
 interface GoogleCalendarEvent {
   id: string;
@@ -138,6 +132,10 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
         for (const d of snap.docs) {
           const data = d.data();
           if (data.status === BOOKING_STATUS.CANCELLED) continue; // skip cancelled bookings
+          if (data.status === BOOKING_STATUS.PENDING && data.expireAt) {
+            const expireTime = data.expireAt.toDate().getTime();
+            if (expireTime < Date.now()) continue; // skip expired pending bookings
+          }
           
           const existingEvent = events.find(e => e.id === data.bookingId);
           if (existingEvent) {
@@ -197,6 +195,16 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
   return events;
 };
 
+const getDeterministicRequestId = (id: string): string => {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    const chr = id.charCodeAt(i);
+    hash = ((hash << 5) - hash) + chr;
+    hash |= 0;
+  }
+  return 'req-' + Math.abs(hash).toString(36) + id.replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
+};
+
 export const scheduleMeeting = async (
   coachUid: string,
   coachEmail: string,
@@ -233,6 +241,8 @@ export const scheduleMeeting = async (
     topic,
   });
 
+  const bookingId = `${coachUid}_${startIso}`;
+
   const eventPayload = {
     summary: resolvedSummary,
     description: resolvedDescription,
@@ -247,15 +257,13 @@ export const scheduleMeeting = async (
     attendees: [{ email: coachEmail }],
     conferenceData: {
       createRequest: {
-        requestId: Math.random().toString(36).substring(2, 12),
+        requestId: getDeterministicRequestId(bookingId),
         conferenceSolutionKey: {
           type: 'hangoutsMeet',
         },
       },
     },
   };
-
-  const bookingId = `${coachUid}_${startIso}`;
   logger.info(`Attempting to book session for client ${clientUid} with coach ${coachUid} at ${startIso}`);
   await logger.telemetry(LOG_SEVERITY.INFO, 'booking_attempt', {
     clientUid,
@@ -269,10 +277,29 @@ export const scheduleMeeting = async (
     throw new Error('Database not initialized');
   }
 
+  const startMs = new Date(startIso).getTime();
+  const endMs = new Date(endIso).getTime();
+  const isOneHour = (endMs - startMs) > 30 * 60 * 1000;
+
+  const t0 = startIso;
+  const tMinus30 = new Date(startMs - 30 * 60 * 1000).toISOString();
+  const tPlus30 = new Date(startMs + 30 * 60 * 1000).toISOString();
+
   const bookingRef = doc(db, COLLECTIONS.BOOKINGS, bookingId);
-  const clientBookingCacheRef = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${clientUid}_${startIso}`);
-  const coachAsClientRef = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${coachUid}_${startIso}`);
-  const clientAsCoachRef = doc(db, COLLECTIONS.BOOKINGS, `${clientUid}_${startIso}`);
+  
+  const coachAtT0Ref = doc(db, COLLECTIONS.BOOKINGS, `${coachUid}_${t0}`);
+  const coachAtTMinus30Ref = doc(db, COLLECTIONS.BOOKINGS, `${coachUid}_${tMinus30}`);
+  const coachAtTPlus30Ref = doc(db, COLLECTIONS.BOOKINGS, `${coachUid}_${tPlus30}`);
+
+  const clientAsCoachAtT0Ref = doc(db, COLLECTIONS.BOOKINGS, `${clientUid}_${t0}`);
+  const clientAsCoachAtTMinus30Ref = doc(db, COLLECTIONS.BOOKINGS, `${clientUid}_${tMinus30}`);
+  const clientAsCoachAtTPlus30Ref = doc(db, COLLECTIONS.BOOKINGS, `${clientUid}_${tPlus30}`);
+
+  const clientBookingCacheAtT0Ref = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${clientUid}_${t0}`);
+  const clientBookingCacheAtTPlus30Ref = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${clientUid}_${tPlus30}`);
+  
+  const coachAsClientAtT0Ref = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${coachUid}_${t0}`);
+  const coachAsClientAtTPlus30Ref = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${coachUid}_${tPlus30}`);
 
   let realMeetLink = meetLink;
   let googleEventId = `mock-booking-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
@@ -282,6 +309,8 @@ export const scheduleMeeting = async (
   let attempts = 0;
   const maxAttempts = 3;
   let lastError: Error | null = null;
+
+  const pendingExpireDate = new Date(Date.now() + 10 * 60 * 1000);
 
   const bookingData = {
     bookingId,
@@ -293,7 +322,8 @@ export const scheduleMeeting = async (
     topic,
     coachUid,
     clientUid,
-    createdAt: Timestamp.now()
+    createdAt: Timestamp.now(),
+    expireAt: Timestamp.fromDate(pendingExpireDate)
   };
 
   while (attempts < maxAttempts && !transactionSuccess) {
@@ -301,42 +331,123 @@ export const scheduleMeeting = async (
     try {
       await runTransaction(db, async (tx) => {
         const [
-          coachAsCoachDoc,
-          coachAsClientDoc,
-          clientAsClientDoc,
-          clientAsCoachDoc
+          coachAtT0,
+          coachAtTMinus30,
+          coachAtTPlus30,
+          clientAsCoachAtT0,
+          clientAsCoachAtTMinus30,
+          clientAsCoachAtTPlus30,
+          clientBookingCacheAtT0,
+          clientBookingCacheAtTPlus30,
+          coachAsClientAtT0,
+          coachAsClientAtTPlus30
         ] = await Promise.all([
-          tx.get(bookingRef),
-          tx.get(coachAsClientRef),
-          tx.get(clientBookingCacheRef),
-          tx.get(clientAsCoachRef)
+          tx.get(coachAtT0Ref),
+          tx.get(coachAtTMinus30Ref),
+          tx.get(coachAtTPlus30Ref),
+          tx.get(clientAsCoachAtT0Ref),
+          tx.get(clientAsCoachAtTMinus30Ref),
+          tx.get(clientAsCoachAtTPlus30Ref),
+          tx.get(clientBookingCacheAtT0Ref),
+          tx.get(clientBookingCacheAtTPlus30Ref),
+          tx.get(coachAsClientAtT0Ref),
+          tx.get(coachAsClientAtTPlus30Ref)
         ]);
 
-        if (coachAsCoachDoc.exists() && coachAsCoachDoc.data()?.status !== BOOKING_STATUS.CANCELLED) {
+        const isBookingActive = (docSnap: DocumentSnapshot) => {
+          if (!docSnap.exists()) return false;
+          const data = typeof docSnap.data === 'function' ? docSnap.data() : undefined;
+          if (!data) return true;
+          if (data.status === BOOKING_STATUS.CANCELLED) return false;
+          if (data.status === BOOKING_STATUS.PENDING && data.expireAt) {
+            const expireAt = data.expireAt?.toDate ? data.expireAt.toDate() : new Date(data.expireAt);
+            if (expireAt < new Date()) {
+              return false;
+            }
+          }
+          return true;
+        };
+
+        const isCacheActive = (docSnap: DocumentSnapshot) => {
+          if (!docSnap.exists()) return false;
+          const data = typeof docSnap.data === 'function' ? docSnap.data() : undefined;
+          if (!data) return true;
+          if (data.expireAt) {
+            const expireAt = data.expireAt?.toDate ? data.expireAt.toDate() : new Date(data.expireAt);
+            if (expireAt < new Date()) {
+              return false;
+            }
+          }
+          return true;
+        };
+
+        const isOneHourBooking = (docSnap: DocumentSnapshot) => {
+          if (!isBookingActive(docSnap)) return false;
+          const data = docSnap.data();
+          if (!data) return false;
+          const start = data.startTime.toDate().getTime();
+          const end = data.endTime.toDate().getTime();
+          return (end - start) > 30 * 60 * 1000;
+        };
+
+        // 1. Coach Availability checks
+        if (isBookingActive(coachAtT0)) {
           throw new Error(BOOKING_ERROR.SLOT_TAKEN);
         }
-        if (coachAsClientDoc.exists()) {
+        if (isOneHourBooking(coachAtTMinus30)) {
           throw new Error(BOOKING_ERROR.SLOT_TAKEN);
         }
-        if (clientAsClientDoc.exists()) {
+        if (isOneHour && isBookingActive(coachAtTPlus30)) {
+          throw new Error(BOOKING_ERROR.SLOT_TAKEN);
+        }
+
+        // 2. Coach as Client checks
+        if (isCacheActive(coachAsClientAtT0)) {
+          throw new Error(BOOKING_ERROR.SLOT_TAKEN);
+        }
+        if (isOneHour && isCacheActive(coachAsClientAtTPlus30)) {
+          throw new Error(BOOKING_ERROR.SLOT_TAKEN);
+        }
+
+        // 3. Client Availability as Client checks
+        if (isCacheActive(clientBookingCacheAtT0)) {
           throw new Error(BOOKING_ERROR.BOOKED_AS_CLIENT);
         }
-        if (clientAsCoachDoc.exists() && clientAsCoachDoc.data()?.status !== BOOKING_STATUS.CANCELLED) {
+        if (isOneHour && isCacheActive(clientBookingCacheAtTPlus30)) {
+          throw new Error(BOOKING_ERROR.BOOKED_AS_CLIENT);
+        }
+
+        // 4. Client Availability as Coach checks
+        if (isBookingActive(clientAsCoachAtT0)) {
+          throw new Error(BOOKING_ERROR.BOOKED_AS_COACH);
+        }
+        if (isOneHourBooking(clientAsCoachAtTMinus30)) {
+          throw new Error(BOOKING_ERROR.BOOKED_AS_COACH);
+        }
+        if (isOneHour && isBookingActive(clientAsCoachAtTPlus30)) {
           throw new Error(BOOKING_ERROR.BOOKED_AS_COACH);
         }
 
         tx.set(bookingRef, bookingData);
         
-        const startTimestamp = new Date(startIso);
-        const expireDate = new Date(startTimestamp.getTime() + 24 * 60 * 60 * 1000);
-        tx.set(clientBookingCacheRef, {
+        tx.set(clientBookingCacheAtT0Ref, {
           clientUid,
           coachUid,
           bookingId,
-          startIso,
+          startIso: t0,
           createdAt: Timestamp.now(),
-          expireAt: Timestamp.fromDate(expireDate)
+          expireAt: Timestamp.fromDate(pendingExpireDate)
         });
+        if (isOneHour) {
+          tx.set(clientBookingCacheAtTPlus30Ref, {
+            clientUid,
+            coachUid,
+            bookingId,
+            startIso: tPlus30,
+            createdAt: Timestamp.now(),
+            expireAt: Timestamp.fromDate(pendingExpireDate)
+          });
+        }
       });
       transactionSuccess = true;
     } catch (err) {
@@ -360,12 +471,23 @@ export const scheduleMeeting = async (
     throw lastError || new Error('FAILED_TO_PERSIST');
   }
 
+  const deleteLocks = async () => {
+    try {
+      await deleteDoc(clientBookingCacheAtT0Ref);
+      if (isOneHour) {
+        await deleteDoc(clientBookingCacheAtTPlus30Ref);
+      }
+    } catch (e) {
+      logger.error('Error deleting client booking cache locks on rollback:', e);
+    }
+  };
+
   // Step 2: Attempt Google Calendar Event Creation if integration enabled
   if (ENABLE_GOOGLE_INTEGRATION) {
     if (!token) {
       // Rollback
       await updateDoc(bookingRef, { status: BOOKING_STATUS.CANCELLED });
-      await deleteDoc(clientBookingCacheRef);
+      await deleteLocks();
       const err = new Error('Google Token Expired');
       (err as ApiError).code = 'GOOGLE_TOKEN_EXPIRED';
       throw err;
@@ -387,7 +509,7 @@ export const scheduleMeeting = async (
       if (!response.ok) {
         // Rollback Firestore
         await updateDoc(bookingRef, { status: BOOKING_STATUS.CANCELLED });
-        await deleteDoc(clientBookingCacheRef);
+        await deleteLocks();
 
         if (response.status === 401) {
           const err = new Error('Google Token Expired');
@@ -413,7 +535,7 @@ export const scheduleMeeting = async (
       
       // Rollback Firestore on unexpected fetch failure
       await updateDoc(bookingRef, { status: BOOKING_STATUS.CANCELLED });
-      await deleteDoc(clientBookingCacheRef);
+      await deleteLocks();
 
       const genericError = new Error('Network error or Google Calendar API is currently unreachable. Please try again.');
       (genericError as ApiError).code = 'GOOGLE_API_ERROR';
@@ -422,11 +544,24 @@ export const scheduleMeeting = async (
   }
 
   // Step 3: Update Firestore with Real IDs and set status to Confirmed
-  await updateDoc(bookingRef, {
-    googleEventId,
-    googleMeetLink: realMeetLink,
-    status: BOOKING_STATUS.CONFIRMED
-  });
+  const finalExpireDate = new Date(startMs + 24 * 60 * 60 * 1000);
+
+  await Promise.all([
+    updateDoc(bookingRef, {
+      googleEventId,
+      googleMeetLink: realMeetLink,
+      status: BOOKING_STATUS.CONFIRMED,
+      expireAt: null
+    }),
+    updateDoc(clientBookingCacheAtT0Ref, {
+      expireAt: Timestamp.fromDate(finalExpireDate)
+    }),
+    ...(isOneHour ? [
+      updateDoc(clientBookingCacheAtTPlus30Ref, {
+        expireAt: Timestamp.fromDate(finalExpireDate)
+      })
+    ] : [])
+  ]);
 
   logger.info(`Successfully booked session. Booking ID: ${bookingId}`);
 
@@ -502,6 +637,11 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
   if (data.clientUid && startIso) {
     try {
       await deleteDoc(doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${data.clientUid}_${startIso}`));
+      const durationMs = data.endTime.toDate().getTime() - data.startTime.toDate().getTime();
+      if (durationMs > 30 * 60 * 1000) {
+        const nextStartIso = new Date(data.startTime.toDate().getTime() + 30 * 60 * 1000).toISOString();
+        await deleteDoc(doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${data.clientUid}_${nextStartIso}`));
+      }
     } catch (e) {
       logger.error('Error releasing client booking cache:', e);
     }
@@ -510,57 +650,27 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
   logger.info(`Successfully cancelled booking. Booking ID: ${bookingId}`);
 };
 
+// Template-only availability used when a coach has no precomputed cache document.
+// Windowed to [timeMin, timeMax); delegates to the single shared slot generator
+// so this path can never drift from the availability-cache recalculation.
 export const generateFallbackAvailableSlots = (
   coach: UserProfile,
   schedule: { availableDays: AvailableDays; blockedDates: string[] },
   timeMinStr: string,
   timeMaxStr: string
 ): string[] => {
-  const timezone = coach.timezone || 'UTC';
-  const { availableDays, blockedDates } = schedule;
-
   const timeMin = new Date(timeMinStr);
   const timeMax = new Date(timeMaxStr);
 
-  const localToday = getLocalDateInTimezone(timeMin, timezone);
-  const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-
-  const availableSlots: string[] = [];
-
-  for (let i = 0; i < BOOKING_HORIZON_DAYS; i++) {
-    const currentDate = new Date(localToday);
-    currentDate.setDate(localToday.getDate() + i);
-    if (currentDate.getTime() > timeMax.getTime()) break;
-
-    const year = currentDate.getFullYear();
-    const month = currentDate.getMonth() + 1;
-    const day = currentDate.getDate();
-
-    const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    if (blockedDates.includes(dateStr)) continue;
-
-    const dayName = daysOfWeek[currentDate.getDay()];
-    const daySched = availableDays[dayName as keyof AvailableDays] || { enabled: false, slots: [] };
-
-    if (!daySched.enabled || !daySched.slots || daySched.slots.length === 0) continue;
-
-    for (const slot of daySched.slots) {
-      const startTimeString = timestampToTimeString(slot.startTime);
-      const endTimeString = timestampToTimeString(slot.endTime);
-      
-      const parsedStart = parseLocalTime(startTimeString);
-      const parsedEnd = parseLocalTime(endTimeString);
-      
-      for (let hour = parsedStart.hour; hour < parsedEnd.hour; hour++) {
-        const slotStartUtc = getUtcForLocalDateTime(year, month, day, hour, parsedStart.minute, timezone);
-        if (slotStartUtc.getTime() >= timeMin.getTime() && slotStartUtc.getTime() < timeMax.getTime()) {
-          availableSlots.push(slotStartUtc.toISOString());
-        }
-      }
-    }
-  }
-
-  return availableSlots;
+  return generateTemplateSlots({
+    availableDays: schedule.availableDays,
+    blockedDates: schedule.blockedDates,
+    timezone: coach.timezone || 'UTC',
+    anchorDate: timeMin,
+    horizonDays: BOOKING_HORIZON_DAYS,
+    rangeStartMs: timeMin.getTime(),
+    rangeEndMs: timeMax.getTime(),
+  });
 };
 
 export const getCoachesAvailability = async (
@@ -580,13 +690,13 @@ export const getCoachesAvailability = async (
     const uidChunks = chunkArray(uids, 30);
 
     const foundUids = new Set<string>();
-    const availableSlotsCacheResults = await Promise.allSettled(
+    const personalAvailabilityCacheResults = await Promise.allSettled(
       uidChunks.map(c =>
-        getDocs(query(collection(activeDb, COLLECTIONS.AVAILABLE_SLOTS_CACHE), where(documentId(), 'in', c)))
+        getDocs(query(collection(activeDb, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE), where(documentId(), 'in', c)))
       )
     );
     
-    availableSlotsCacheResults.forEach((res, index) => {
+    personalAvailabilityCacheResults.forEach((res, index) => {
       if (res.status !== 'fulfilled') {
         logger.error('Error fetching available slots cache chunk:', res.reason);
         logger.telemetry(LOG_SEVERITY.ERROR, 'cache_query_failure', {

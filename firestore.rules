@@ -20,10 +20,30 @@ service cloud.firestore {
     // (set only by a trusted backend) would add defense-in-depth and remove the
     // per-check get(); that requires a server component this client-only app
     // does not yet have.
+    //
+    // The exists() guard is required because this function is also evaluated by
+    // the global admin rule below on EVERY request — including a user's own
+    // sign-up create, when their profile does not exist yet. Without the guard,
+    // currentUserDoc() would dereference a null get() and error. get()/exists()
+    // to the same path are cached per request, so the guard adds no extra
+    // document-access cost.
     function isAdmin() {
       return isSignedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
         && currentUserDoc().userRole == 'admin'
         && currentUserDoc().userStatus == 'active';
+    }
+
+    // ── Global admin access ─────────────────────────────────────────────────
+    // Admins default to FULL read/write access to every collection. Firestore
+    // grants a request if ANY matching rule allows it, so this wildcard is
+    // layered on top of the per-collection rules below: those rules govern
+    // regular users, and this one gives admins blanket access — including to
+    // any collection added later — without having to thread isAdmin() through
+    // each rule. Non-admin permissions are unaffected (rules only ever add
+    // access, never remove it).
+    match /{document=**} {
+      allow read, write: if isAdmin();
     }
 
     // Global Type Safety & Limits Helpers
@@ -66,8 +86,6 @@ service cloud.firestore {
         && (data.get('photoURL', null) == null || isValidString(data.photoURL, 1000))
         && isString(data.gender)
         && isValidString(data.country, 100)
-        && (data.get('qualifications', null) == null || isList(data.qualifications))
-        && (data.get('icfCredentials', null) == null || isList(data.icfCredentials))
         && (data.get('icf_acc', null) == null || isBool(data.icf_acc))
         && (data.get('icf_pcc', null) == null || isBool(data.icf_pcc))
         && (data.get('icf_mcc', null) == null || isBool(data.icf_mcc))
@@ -118,7 +136,8 @@ service cloud.firestore {
         && isValidString(data.coachUid, 100)
         && isValidString(data.clientUid, 100)
         && isTimestamp(data.createdAt)
-        && (data.get('cancelledAt', null) == null || isTimestamp(data.cancelledAt));
+        && (data.get('cancelledAt', null) == null || isTimestamp(data.cancelledAt))
+        && (data.get('expireAt', null) == null || isTimestamp(data.expireAt));
     }
 
     // Validation helper for client booking cache
@@ -132,13 +151,16 @@ service cloud.firestore {
         && isTimestamp(data.expireAt);
     }
 
-    // Validation helper for available slots cache
-    function isValidAvailableSlotsCache(data) {
+    // Validation helper for the coach's aggregate availability cache.
+    // Upper bound: BOOKING_HORIZON_DAYS (30) x 24 hourly slots = 720 possible
+    // slots, plus margin. The previous cap of 200 rejected any coach whose
+    // template exceeded ~25 hours/week over the horizon (e.g. all 7 days, 9-5).
+    function isValidPersonalAvailabilityCache(data) {
       return isMap(data)
         && isValidString(data.userId, 100)
         && isValidString(data.lastUpdated, 100)
         && isList(data.availableSlots)
-        && data.availableSlots.size() <= 200
+        && data.availableSlots.size() <= 750
         && (data.get('gender', null) == null || isString(data.gender))
         && (data.get('country', null) == null || isValidString(data.country, 100))
         && (data.get('icf_acc', null) == null || isBool(data.icf_acc))
@@ -146,6 +168,22 @@ service cloud.firestore {
         && (data.get('icf_mcc', null) == null || isBool(data.icf_mcc))
         && (data.get('icf_actc', null) == null || isBool(data.icf_actc))
         && (data.get('availableDatesUtc', null) == null || isList(data.availableDatesUtc));
+    }
+
+    // Validation helper for per-coach, per-day availability shards.
+    function isValidCoachAvailabilityByDate(data) {
+      return isMap(data)
+        && isValidString(data.coachUid, 100)
+        && isValidString(data.dateISO, 10)
+        && isList(data.freeSlots)
+        && data.freeSlots.size() <= 24
+        && isValidString(data.lastUpdated, 100)
+        && (data.get('gender', null) == null || isString(data.gender))
+        && (data.get('country', null) == null || isValidString(data.country, 100))
+        && (data.get('icf_acc', null) == null || isBool(data.icf_acc))
+        && (data.get('icf_pcc', null) == null || isBool(data.icf_pcc))
+        && (data.get('icf_mcc', null) == null || isBool(data.icf_mcc))
+        && (data.get('icf_actc', null) == null || isBool(data.icf_actc));
     }
 
     // Validation helper for support message structure
@@ -179,7 +217,11 @@ service cloud.firestore {
     // profile must leave these unchanged.
     function privilegedFieldsUnchanged() {
       return request.resource.data.userRole == resource.data.userRole
-        && request.resource.data.userStatus == resource.data.userStatus;
+        && request.resource.data.userStatus == resource.data.userStatus
+        && request.resource.data.get('icf_acc', null) == resource.data.get('icf_acc', null)
+        && request.resource.data.get('icf_pcc', null) == resource.data.get('icf_pcc', null)
+        && request.resource.data.get('icf_mcc', null) == resource.data.get('icf_mcc', null)
+        && request.resource.data.get('icf_actc', null) == resource.data.get('icf_actc', null);
     }
 
     // Identity fields are immutable on a self-update (defense-in-depth).
@@ -195,7 +237,8 @@ service cloud.firestore {
       allow read: if isSignedIn();
 
       // Self sign-up: a user may create only their own document, only as a
-      // pending account (inactive), and only with the 'user' role.
+      // pending account (inactive), and only with the 'user' role. (Admins get
+      // full access via the global admin rule at the top of this file.)
       allow create: if isOwner(uid)
         && request.resource.data.userStatus == 'inactive'
         && request.resource.data.userRole == 'user'
@@ -223,8 +266,10 @@ service cloud.firestore {
 
       // Only a participant may create a booking they are part of, and the
       // booking ID must match the coachUid format to prevent slot hijacking.
-      // Enforced initial status must be pending.
+      // Enforced initial status must be pending. (Admins get full access via the
+      // global admin rule at the top of this file.)
       allow create: if isSignedIn()
+        && currentUserDoc().userStatus == 'active'
         && request.auth.uid in [
           request.resource.data.coachUid,
           request.resource.data.clientUid
@@ -262,22 +307,53 @@ service cloud.firestore {
     match /clientBookingCache/{cacheId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn()
+        && currentUserDoc().userStatus == 'active'
         && request.resource.data.clientUid == request.auth.uid
         && cacheId.matches(request.resource.data.clientUid + '_.*')
         && isValidClientBookingCacheDoc(request.resource.data);
+      allow update: if isSignedIn()
+        && (isAdmin()
+          || (resource.data.clientUid == request.auth.uid
+              && request.resource.data.clientUid == resource.data.clientUid
+              && request.resource.data.coachUid == resource.data.coachUid
+              && request.resource.data.bookingId == resource.data.bookingId
+              && request.resource.data.startIso == resource.data.startIso
+              && isValidClientBookingCacheDoc(request.resource.data)));
       allow delete: if isSignedIn()
         && (isAdmin()
           || resource.data.clientUid == request.auth.uid
           || resource.data.coachUid == request.auth.uid);
     }
 
-    match /availableSlotsCache/{uid} {
-      // Derived available-slot cache. Readable by any signed-in user, but only the
-      // OWNER may write their own cache. Live bookings are read from the 
-      // authoritative `bookings` collection and merged client-side.
+    match /personalAvailabilityCache/{uid} {
+      // Derived aggregate cache backing the coach's own availability view.
+      // Readable by any signed-in user. Writable only by the OWNER, or by an
+      // admin (admin profile/credential edits trigger a recalc for that coach).
+      // This is a single-document write, so isAdmin()'s get() calls stay well
+      // within the 10-document-access budget.
       allow read: if isSignedIn();
-      // Owners may write their own cache; admins can also write any cache.
-      allow write: if (isSignedIn() && isValidAvailableSlotsCache(request.resource.data)) || (isOwner(uid) && isValidAvailableSlotsCache(request.resource.data)) || (isAdmin() && isValidAvailableSlotsCache(request.resource.data));
+      allow write: if (isOwner(uid) || isAdmin()) && isValidPersonalAvailabilityCache(request.resource.data) && request.resource.data.userId == uid;
+    }
+
+    match /coachAvailabilityByDate/{docId} {
+      // Per-coach, per-day availability shards for O(day)-scoped discovery.
+      // Readable by any signed-in user. The owning coach writes their own shards:
+      // the document ID must be "{ownUid}_{dateISO}" and coachUid must match.
+      //
+      // These per-collection rules are intentionally free of get()/exists()
+      // calls. Shards are rebuilt in a writeBatch of up to ~30 documents, and
+      // Firestore allows only 20 document-access calls per batched write, so the
+      // coach's own write path must stay cheap. Admin access is provided by the
+      // global admin rule at the top of this file; because its single isAdmin()
+      // get()/exists() is against the requester's own /users doc and cached per
+      // request, it costs one document access across the whole batch — safely
+      // within budget.
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn()
+        && isValidCoachAvailabilityByDate(request.resource.data)
+        && request.resource.data.coachUid == request.auth.uid
+        && docId == request.auth.uid + '_' + request.resource.data.dateISO;
+      allow delete: if isSignedIn() && resource.data.coachUid == request.auth.uid;
     }
 
     match /systemLogs/{logId} {

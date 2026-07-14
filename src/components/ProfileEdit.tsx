@@ -11,20 +11,21 @@ import {
   ExternalLink,
   Copy,
   Check,
+  AlertCircle,
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
-import { getCredentialDescription } from '../utils/credentials';
+import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince, logAnalyticsEvent } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
-import { GENDER_OPTIONS, type Gender, type Qualification, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
-import { navigateToProfile } from '../utils/url';
-import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
+import { GENDER_OPTIONS, type Gender, type Qualification, QUALIFICATION, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
+import { collectValidationErrors, clearFieldError, type FormErrors } from '../utils/formValidation';
+
 import { verifyIcfCredential } from '../services/icfService';
 import { updateVerifiedCredentials } from '../services/firebaseService';
 
 
-import { useUnsavedChanges } from '../context/UnsavedChangesContext';
+import { useUnsavedChanges, useNavigateToProfile } from '../context/UnsavedChangesContext';
 
 export interface ProfileEditProps {
   onboardingMode?: boolean;
@@ -68,6 +69,7 @@ function getCompletionItems(profile: ReturnType<typeof useAuth>['profile']): Com
 export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSaveSuccess }) => {
   const { user, profile, updateProfileDetails } = useAuth();
   const { setPageDirtyState, requestExplicitSave } = useUnsavedChanges();
+  const navigateToProfile = useNavigateToProfile();
   const [copied, setCopied] = useState(false);
 
   // State for editable profile details
@@ -89,22 +91,23 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
 
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
-  
+  const [errorMsg, setErrorMsg] = useState('');
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+
+  const dismissError = (key: string) => setFormErrors(prev => clearFieldError(prev, key));
+
   const [verifying, setVerifying] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState('');
 
-  
-  const displayCredentials = getDisplayCredentials(profile?.icfCredentials);
-
+  const displayCredentials = buildDisplayCredentials(profile || {});
   const handleVerify = async () => {
     if (!profile) return;
     setVerifying(true);
     setVerifyMsg('');
     try {
-      const creds = await verifyIcfCredential(profile.firstName, profile.lastName);
-      if (creds && creds.length > 0) {
-        const newQuals = creds.map(c => mapIcfLevelToQualification(c.level)).filter(Boolean) as Qualification[];
-        await updateVerifiedCredentials(profile.userId, creds, newQuals);
+      const newQuals = await verifyIcfCredential(profile.firstName, profile.lastName);
+      if (newQuals && newQuals.length > 0) {
+        await updateVerifiedCredentials(profile.userId, newQuals);
         // No success message needed
       } else {
         setVerifyMsg('Could not find active credential in ICF Directory.');
@@ -120,6 +123,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
   const handleDirectSave = React.useCallback(async () => {
     setSaving(true);
     setSuccessMsg('');
+    setErrorMsg('');
     try {
       await updateProfileDetails({
         gender: gender === '' ? undefined : gender,
@@ -139,6 +143,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
       return true;
     } catch (e) {
       console.error(e);
+      setErrorMsg('Failed to save profile changes. Please try again.');
       return false;
     } finally {
       setSaving(false);
@@ -346,33 +351,43 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
         </div>
 
         {/* ── Editable form ───────────────────────────────────────────────── */}
-        <form onSubmit={(e) => { 
-          e.preventDefault(); 
-          if (onboardingMode) {
-            handleDirectSave();
-          } else {
-            requestExplicitSave(); 
-          }
-        }}>
+        <form
+          noValidate
+          onSubmit={(e) => {
+            e.preventDefault();
+            const form = e.currentTarget;
+            if (!form.checkValidity()) {
+              setFormErrors(collectValidationErrors(form));
+              return;
+            }
+            setFormErrors({});
+            if (onboardingMode) {
+              handleDirectSave();
+            } else {
+              requestExplicitSave();
+            }
+          }}
+        >
           {/* 1. Credentials */}
           <div className="form-group">
-            <label className="form-label">
+            {/* Not a <label>: the credentials below are read-only badges, not a form control. */}
+            <span className="form-label">
               <Award size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
               Credentials
-            </label>
+            </span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
               {displayCredentials.length > 0 ? (
-                displayCredentials.map((cred, idx) => (
-                  <div key={idx} style={{ fontSize: '0.9rem', color: 'hsl(var(--text-primary))', fontWeight: 500, marginBottom: '4px' }}>
-                    {getCredentialDescription(mapIcfLevelToQualification(cred.level) || cred.level)}
-                    <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', marginLeft: '8px' }}>
-                      (Expires: {cred.expiryDate.toDate().toLocaleDateString(undefined, { month: 'short', year: 'numeric' })})
+                displayCredentials.map((qual, idx) => {
+                  return (
+                    <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.8rem' }}>
+                      <Award size={14} style={{ marginRight: '6px' }} />
+                      {qual}
                     </span>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>
-                  Trainee Coach
+                  {QUALIFICATION.UNCERTIFIED}
                 </div>
               )}
               
@@ -430,9 +445,9 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
             </label>
             <select
               id="country-select-edit"
-              className="input-field"
+              className={`input-field${formErrors['country-select-edit'] ? ' input-error' : ''}`}
               value={country}
-              onChange={(e) => handleCountryChange(e.target.value)}
+              onChange={(e) => { handleCountryChange(e.target.value); dismissError('country-select-edit'); dismissError('timezone-select-edit'); }}
               required
             >
               <option value="">Select Country</option>
@@ -440,6 +455,9 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
+            {formErrors['country-select-edit'] && (
+              <span className="form-error-text">{formErrors['country-select-edit']}</span>
+            )}
           </div>
 
           {/* 4. Timezone */}
@@ -450,9 +468,9 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
             </label>
             <select
               id="timezone-select-edit"
-              className="input-field"
+              className={`input-field${formErrors['timezone-select-edit'] ? ' input-error' : ''}`}
               value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
+              onChange={(e) => { setTimezone(e.target.value); dismissError('timezone-select-edit'); }}
               required
             >
               <option value="">Select Timezone</option>
@@ -460,6 +478,9 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
                 <option key={tz.value} value={tz.value}>{tz.label}</option>
               ))}
             </select>
+            {formErrors['timezone-select-edit'] && (
+              <span className="form-error-text">{formErrors['timezone-select-edit']}</span>
+            )}
           </div>
 
           {/* 5. Professional Biography */}
@@ -468,14 +489,17 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
             <textarea
               id="bio-input-edit"
               rows={4}
-              className="input-field"
+              className={`input-field${formErrors['bio-input-edit'] ? ' input-error' : ''}`}
               placeholder="Tell other coaches about your coaching style..."
               value={bio}
-              onChange={(e) => setBio(e.target.value)}
+              onChange={(e) => { setBio(e.target.value); dismissError('bio-input-edit'); }}
               style={{ resize: 'vertical' }}
               maxLength={INPUT_LIMITS.BIO}
               required
             />
+            {formErrors['bio-input-edit'] && (
+              <span className="form-error-text">{formErrors['bio-input-edit']}</span>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
               <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
                 {bio.length} / {INPUT_LIMITS.BIO} characters
@@ -489,6 +513,12 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
                 <div style={{ color: '#34d399', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <CheckCircle size={15} />
                   {successMsg}
+                </div>
+              )}
+              {errorMsg && (
+                <div style={{ color: 'hsl(var(--error))', fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <AlertCircle size={15} />
+                  {errorMsg}
                 </div>
               )}
             </div>

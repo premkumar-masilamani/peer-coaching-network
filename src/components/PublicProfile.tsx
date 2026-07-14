@@ -11,19 +11,19 @@ import {
   Check,
   RefreshCw
 } from 'lucide-react';
-import { 
-  type UserProfile, 
-  formatDisplayName, 
-  formatMemberSince, 
-  subscribeToProfile 
+import {
+  type UserProfile,
+  formatDisplayName,
+  formatMemberSince,
+  getProfile
 } from '../services/firebaseService';
 import { 
   getCredentialBadgeClass, 
-  getCredentialDescription 
+  getCredentialDescription,
+  buildDisplayCredentials
 } from '../utils/credentials';
 import { sanitizeImageUrl } from '../utils/url';
-import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
-import type { Qualification } from '../config';
+import { type Qualification, QUALIFICATION } from '../config';
 
 interface PublicProfileProps {
   uid: string;
@@ -44,11 +44,19 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
   }
 
   useEffect(() => {
-    const unsubscribe = subscribeToProfile(uid, (data) => {
-      setProfile(data);
-      setLoading(false);
-    });
-    return () => unsubscribe();
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await getProfile(uid);
+        if (cancelled) return;
+        setProfile(data);
+      } catch (err) {
+        console.error('Error loading profile:', err);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [uid]);
 
   const handleCopyLink = async () => {
@@ -99,10 +107,10 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
 
   // Border mapping based on highest qualification
   let borderCol = 'var(--border-light)';
-  const displayCredentials = getDisplayCredentials(profile.icfCredentials);
-  const hasMCC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF MCC');
-  const hasPCC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF PCC');
-  const hasACC = displayCredentials.some(c => mapIcfLevelToQualification(c.level) === 'ICF ACC');
+  const hasMCC = !!profile.icf_mcc;
+  const hasPCC = !!profile.icf_pcc;
+  const hasACC = !!profile.icf_acc;
+  const displayCredentials = buildDisplayCredentials(profile);
   
   if (hasMCC) borderCol = 'hsl(var(--mcc-platinum))';
   else if (hasPCC) borderCol = 'hsl(var(--pcc-silver))';
@@ -196,18 +204,17 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
           {/* Qualifications Badges */}
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '16px', justifyContent: 'center' }}>
             {displayCredentials.length > 0 ? (
-              displayCredentials.map((cred, idx) => {
-                const qual = mapIcfLevelToQualification(cred.level) || cred.level;
+              displayCredentials.map((qual, idx) => {
                 return (
                   <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
                     <Award size={12} style={{ marginRight: '4px' }} />
-                    {qual as string}
+                    {qual}
                   </span>
                 );
               })
             ) : (
               <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
-                Trainee Coach
+                {QUALIFICATION.UNCERTIFIED}
               </span>
             )}
 
@@ -234,11 +241,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
               Verified Credentials
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {displayCredentials.map((cred, idx) => {
-                const qual = mapIcfLevelToQualification(cred.level) || cred.level;
-                // Don't show if expiry is before today
-                if (cred.expiryDate.toDate() < new Date()) return null;
-                
+              {displayCredentials.map((qual, idx) => {
                 return (
                   <div key={idx} style={{ 
                     padding: '16px', 
@@ -254,14 +257,11 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
                         {getCredentialDescription(qual as Qualification)}
                       </span>
                       <span className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.7rem' }}>
-                        {qual as string}
+                        {qual}
                       </span>
                     </div>
                     <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
                       International Coaching Federation (ICF)
-                    </span>
-                    <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))', marginTop: '4px' }}>
-                      Valid through: {cred.expiryDate.toDate().toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
                     </span>
                   </div>
                 );

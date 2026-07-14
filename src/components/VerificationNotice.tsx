@@ -14,10 +14,11 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getTimezonesForCountry } from '../utils/timezones';
 import { formatDisplayName, updateVerifiedCredentials } from '../services/firebaseService';
-import { GENDER_OPTIONS, type Gender, type Qualification, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
-import { getDisplayCredentials, mapIcfLevelToQualification } from '../utils/credentialHelpers';
+import { GENDER_OPTIONS, type Gender, type Qualification, QUALIFICATION, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
+
+import { getCredentialDescription, buildDisplayCredentials } from '../utils/credentials';
 import { verifyIcfCredential } from '../services/icfService';
-import { getCredentialDescription } from '../utils/credentials';
+import { collectValidationErrors, clearFieldError, type FormErrors } from '../utils/formValidation';
 
 export const VerificationNotice: React.FC = () => {
   const { user, profile, updateProfileDetails, logout } = useAuth();
@@ -32,21 +33,23 @@ export const VerificationNotice: React.FC = () => {
 
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+
+  const dismissError = (key: string) => setFormErrors(prev => clearFieldError(prev, key));
 
   const [verifying, setVerifying] = useState(false);
   const [verifyMsg, setVerifyMsg] = useState('');
 
-  const displayCredentials = getDisplayCredentials(profile?.icfCredentials);
+  const displayCredentials = buildDisplayCredentials(profile || {});
 
   const handleVerify = async () => {
     if (!profile) return;
     setVerifying(true);
     setVerifyMsg('');
     try {
-      const creds = await verifyIcfCredential(profile.firstName, profile.lastName);
-      if (creds && creds.length > 0) {
-        const newQuals = creds.map(c => mapIcfLevelToQualification(c.level)).filter(Boolean) as Qualification[];
-        await updateVerifiedCredentials(profile.userId, creds, newQuals);
+      const newQuals = await verifyIcfCredential(profile.firstName, profile.lastName);
+      if (newQuals && newQuals.length > 0) {
+        await updateVerifiedCredentials(profile.userId, newQuals);
         // No success message needed
       } else {
         setVerifyMsg('Could not find active credential in ICF Directory.');
@@ -73,8 +76,14 @@ export const VerificationNotice: React.FC = () => {
     }
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    const form = e.currentTarget;
+    if (!form.checkValidity()) {
+      setFormErrors(collectValidationErrors(form));
+      return;
+    }
+    setFormErrors({});
     setSaving(true);
     setSuccessMsg('');
     try {
@@ -146,7 +155,8 @@ export const VerificationNotice: React.FC = () => {
             }
           `}</style>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Full Name</label>
+            {/* Not <label>s: these display read-only account values, not form controls. */}
+            <span className="form-label">Full Name</span>
             <div style={{
               padding: '10px 14px',
               background: 'var(--panel-hover-bg)',
@@ -160,7 +170,7 @@ export const VerificationNotice: React.FC = () => {
             </div>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label className="form-label">Email Address</label>
+            <span className="form-label">Email Address</span>
             <div style={{
               padding: '10px 14px',
               background: 'var(--panel-hover-bg)',
@@ -176,26 +186,24 @@ export const VerificationNotice: React.FC = () => {
           </div>
         </div>
 
-        <form onSubmit={handleSave}>
+        <form noValidate onSubmit={handleSave}>
           {/* 1. Credentials */}
           <div className="form-group">
-            <label className="form-label">
+            {/* Not a <label>: the credentials below are read-only, not a form control. */}
+            <span className="form-label">
               <Award size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
               Credentials
-            </label>
+            </span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
               {displayCredentials.length > 0 ? (
-                displayCredentials.map((cred, idx) => (
+                displayCredentials.map((qual, idx) => (
                   <div key={idx} style={{ fontSize: '0.9rem', color: 'hsl(var(--text-primary))', fontWeight: 500, marginBottom: '4px' }}>
-                    {getCredentialDescription(mapIcfLevelToQualification(cred.level) || cred.level as Qualification)}
-                    <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', marginLeft: '8px' }}>
-                      (Expires: {cred.expiryDate.toDate().toLocaleDateString(undefined, { month: 'short', year: 'numeric' })})
-                    </span>
+                    {getCredentialDescription(qual as Qualification)}
                   </div>
                 ))
               ) : (
                 <div style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>
-                  Trainee Coach
+                  {QUALIFICATION.UNCERTIFIED}
                 </div>
               )}
               
@@ -253,9 +261,9 @@ export const VerificationNotice: React.FC = () => {
             </label>
             <select
               id="country-select"
-              className="input-field"
+              className={`input-field${formErrors['country-select'] ? ' input-error' : ''}`}
               value={country}
-              onChange={(e) => handleCountryChange(e.target.value)}
+              onChange={(e) => { handleCountryChange(e.target.value); dismissError('country-select'); dismissError('timezone-select'); }}
               required
             >
               <option value="">Select Country</option>
@@ -263,6 +271,9 @@ export const VerificationNotice: React.FC = () => {
                 <option key={c} value={c}>{c}</option>
               ))}
             </select>
+            {formErrors['country-select'] && (
+              <span className="form-error-text">{formErrors['country-select']}</span>
+            )}
           </div>
 
           {/* 4. Timezone Select */}
@@ -273,9 +284,9 @@ export const VerificationNotice: React.FC = () => {
             </label>
             <select
               id="timezone-select"
-              className="input-field"
+              className={`input-field${formErrors['timezone-select'] ? ' input-error' : ''}`}
               value={timezone}
-              onChange={(e) => setTimezone(e.target.value)}
+              onChange={(e) => { setTimezone(e.target.value); dismissError('timezone-select'); }}
               required
             >
               <option value="">Select Timezone</option>
@@ -283,6 +294,9 @@ export const VerificationNotice: React.FC = () => {
                 <option key={tz.value} value={tz.value}>{tz.label}</option>
               ))}
             </select>
+            {formErrors['timezone-select'] && (
+              <span className="form-error-text">{formErrors['timezone-select']}</span>
+            )}
           </div>
 
           {/* 5. Coach Bio */}
@@ -291,14 +305,17 @@ export const VerificationNotice: React.FC = () => {
             <textarea
               id="bio-input"
               rows={4}
-              className="input-field"
+              className={`input-field${formErrors['bio-input'] ? ' input-error' : ''}`}
               placeholder="Tell other coaches about your coaching style, focus and ideal clients..."
               value={bio}
-              onChange={(e) => setBio(e.target.value)}
+              onChange={(e) => { setBio(e.target.value); dismissError('bio-input'); }}
               style={{ resize: 'vertical' }}
               maxLength={INPUT_LIMITS.BIO}
               required
             />
+            {formErrors['bio-input'] && (
+              <span className="form-error-text">{formErrors['bio-input']}</span>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
               <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
                 {bio.length} / {INPUT_LIMITS.BIO} characters
