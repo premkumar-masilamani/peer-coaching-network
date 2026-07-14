@@ -10,11 +10,11 @@
 //   • types.ts          — side-effect-free domain types
 //   • firebaseApp.ts    — Firebase bootstrap (app/auth/db/analytics/emulators)
 //   • authService.ts    — Google auth + session lifecycle
-//   • profileService.ts — profile CRUD, admin subscriptions, role/status helpers
+//   • profileService.ts — profile CRUD, admin queries, role/status helpers
 //   • scheduleService.ts— availability template read/write + time helpers
 //   • slotsService.ts   — availability-cache recalculation + Google busy merge
 //   • supportService.ts — support/feedback tickets
-//   • discoveryService.ts — coach discovery + booking subscriptions
+//   • discoveryService.ts — coach discovery + booking queries
 //
 // Prefer importing directly from the specific service in new code.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -39,16 +39,16 @@ export {
 } from './authService';
 
 export {
-  subscribeToProfile,
+  getProfile,
   updateProfile,
   updateOwnProfile,
   getEffectiveStatus,
   getEffectiveRole,
   isApproved,
   formatMemberSince,
-  subscribeToAllUsers,
-  subscribeToActiveCoaches,
-  subscribeToPendingUsersCount,
+  getAllUsers,
+  getActiveCoaches,
+  getPendingUsersCount,
   setUserRoleAndStatus,
   formatDisplayName,
   updateVerifiedCredentials,
@@ -82,5 +82,5 @@ export {
 
 export {
   queryAvailableCoachesForDay,
-  subscribeToUserBookings,
+  getUserBookings,
 } from './discoveryService';

@@ -40,7 +40,7 @@ vi.mock('../../context/UnsavedChangesContext', () => ({
 const mockFirebaseService = vi.hoisted(() => ({
   formatDisplayName: vi.fn((p: { displayName?: string } | null | undefined) => p?.displayName || 'Unknown'),
   queryAvailableCoachesForDay: vi.fn(),
-  subscribeToUserBookings: vi.fn(() => () => {}),
+  getUserBookings: vi.fn(() => Promise.resolve([])),
   getUserAvailableSlots: vi.fn(() => Promise.resolve([])),
   getProfiles: vi.fn(() => Promise.resolve([])),
 }));
@@ -48,7 +48,7 @@ const mockFirebaseService = vi.hoisted(() => ({
 vi.mock('../../services/firebaseService', () => ({
   formatDisplayName: mockFirebaseService.formatDisplayName,
   queryAvailableCoachesForDay: mockFirebaseService.queryAvailableCoachesForDay,
-  subscribeToUserBookings: mockFirebaseService.subscribeToUserBookings,
+  getUserBookings: mockFirebaseService.getUserBookings,
   getUserAvailableSlots: mockFirebaseService.getUserAvailableSlots,
   getProfiles: mockFirebaseService.getProfiles,
 }));
@@ -122,14 +122,11 @@ describe('UpcomingSessions component', () => {
     expect(dayButtons.length).toBeGreaterThan(0);
   });
 
-  it('subscribes to user bookings on mount', () => {
+  it('queries user bookings on mount', () => {
     act(() => {
       root.render(<UpcomingSessions />);
     });
 
-    expect(mockFirebaseService.subscribeToUserBookings).toHaveBeenCalledWith(
-      'client-123',
-      expect.any(Function)
-    );
+    expect(mockFirebaseService.getUserBookings).toHaveBeenCalledWith('client-123');
   });
 });
