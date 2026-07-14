@@ -3,7 +3,6 @@ import {
   query,
   where,
   getDocs,
-  onSnapshot,
   Timestamp,
   documentId,
   or,
@@ -178,8 +177,8 @@ export const queryAvailableCoachesForDay = async (
   return result;
 };
 
-export const subscribeToUserBookings = (uid: string, callback: (bookings: DocumentData[]) => void): (() => void) => {
-  if (!db) return () => {};
+export const getUserBookings = async (uid: string): Promise<DocumentData[]> => {
+  if (!db) return [];
   const q = query(
     collection(db, COLLECTIONS.BOOKINGS),
     and(
@@ -190,13 +189,15 @@ export const subscribeToUserBookings = (uid: string, callback: (bookings: Docume
       )
     )
   );
-  return onSnapshot(q, (querySnap) => {
+  try {
+    const querySnap = await getDocs(q);
     const list: DocumentData[] = [];
     querySnap.forEach((doc) => {
       list.push(doc.data());
     });
-    callback(list);
-  }, (err) => {
-    logger.error('Error in subscribeToUserBookings:', err);
-  });
+    return list;
+  } catch (err) {
+    logger.error('Error in getUserBookings:', err);
+    return [];
+  }
 };

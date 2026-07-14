@@ -2,8 +2,9 @@ import React from 'react';
 import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, USER_STATUS } from '../config';
 import { useAuth } from '../context/AuthContext';
 import { Sparkles, Shield } from 'lucide-react';
-import { formatDisplayName, formatMemberSince, isApproved, subscribeToPendingUsersCount } from '../services/firebaseService';
+import { formatDisplayName, formatMemberSince, isApproved, getPendingUsersCount } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
+import { useFocusRefresh } from '../hooks/useFocusRefresh';
 
 interface HeaderProps {
   currentTab: TabKey;
@@ -19,15 +20,26 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
   const isActiveAdmin = role === USER_ROLE.ADMIN && isActive;
   const canNavigateHome = role === USER_ROLE.USER || role === USER_ROLE.ADMIN;
 
-  React.useEffect(() => {
-    if (role === USER_ROLE.ADMIN && isActive) {
-      // Subscribe to a count derived from only the pending docs, not the whole
-      // users collection. (The badge is hidden for non-admins, so
-      // no explicit reset is needed when this branch is skipped.)
-      const unsub = subscribeToPendingUsersCount(setPendingCount);
-      return () => unsub();
+  // One-shot query for a count derived from only the pending docs, not the whole
+  // users collection. (The badge is hidden for non-admins, so no explicit reset
+  // is needed when the branch is skipped.) Refreshed on window focus so newly
+  // registered members surface without a live subscription.
+  const refreshPendingCount = React.useCallback(async () => {
+    if (role !== USER_ROLE.ADMIN || !isActive) return;
+    try {
+      setPendingCount(await getPendingUsersCount());
+    } catch (e) {
+      console.error('Error loading pending users count:', e);
     }
   }, [role, isActive]);
+
+  React.useEffect(() => {
+    (async () => {
+      await refreshPendingCount();
+    })();
+  }, [refreshPendingCount]);
+
+  useFocusRefresh(refreshPendingCount);
 
   if (!user) return null;
 

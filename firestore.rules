@@ -217,11 +217,15 @@ service cloud.firestore {
       allow read: if isSignedIn();
 
       // Self sign-up: a user may create only their own document, only as a
-      // pending account (inactive), and only with the 'user' role.
-      allow create: if isOwner(uid)
-        && request.resource.data.userStatus == 'inactive'
-        && request.resource.data.userRole == 'user'
-        && isValidUserDoc(request.resource.data);
+      // pending account (inactive), and only with the 'user' role. Admins have
+      // full access and may create any user document. The owner clause is
+      // evaluated first so a legitimate self sign-up short-circuits before
+      // isAdmin()'s get() runs against the not-yet-existent profile.
+      allow create: if (isOwner(uid)
+          && request.resource.data.userStatus == 'inactive'
+          && request.resource.data.userRole == 'user'
+          && isValidUserDoc(request.resource.data))
+        || isAdmin();
 
       // Owners may edit their own non-privileged fields; admins may edit anything.
       allow update: if isAdmin()
@@ -243,18 +247,19 @@ service cloud.firestore {
     match /bookings/{bookingId} {
       allow read: if isSignedIn();
 
-      // Only a participant may create a booking they are part of, and the
-      // booking ID must match the coachUid format to prevent slot hijacking.
-      // Enforced initial status must be pending.
-      allow create: if isSignedIn()
-        && currentUserDoc().userStatus == 'active'
-        && request.auth.uid in [
-          request.resource.data.coachUid,
-          request.resource.data.clientUid
-        ]
-        && bookingId.matches(request.resource.data.coachUid + '_.*')
-        && request.resource.data.status == 'pending'
-        && isValidBookingDoc(request.resource.data);
+      // Admins have full access. Otherwise, only a participant may create a
+      // booking they are part of, and the booking ID must match the coachUid
+      // format to prevent slot hijacking. Enforced initial status must be pending.
+      allow create: if isAdmin()
+        || (isSignedIn()
+          && currentUserDoc().userStatus == 'active'
+          && request.auth.uid in [
+            request.resource.data.coachUid,
+            request.resource.data.clientUid
+          ]
+          && bookingId.matches(request.resource.data.coachUid + '_.*')
+          && request.resource.data.status == 'pending'
+          && isValidBookingDoc(request.resource.data));
 
       // Participants (or admins) may modify/cancel a booking.
       // coachUid, clientUid, startTime, and endTime are immutable on update.
@@ -284,11 +289,13 @@ service cloud.firestore {
     // across coaches in the same time slot.
     match /clientBookingCache/{cacheId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn()
-        && currentUserDoc().userStatus == 'active'
-        && request.resource.data.clientUid == request.auth.uid
-        && cacheId.matches(request.resource.data.clientUid + '_.*')
-        && isValidClientBookingCacheDoc(request.resource.data);
+      // Admins have full access; otherwise the owning mentee creates their own lock.
+      allow create: if isAdmin()
+        || (isSignedIn()
+          && currentUserDoc().userStatus == 'active'
+          && request.resource.data.clientUid == request.auth.uid
+          && cacheId.matches(request.resource.data.clientUid + '_.*')
+          && isValidClientBookingCacheDoc(request.resource.data));
       allow update: if isSignedIn()
         && (isAdmin()
           || (resource.data.clientUid == request.auth.uid
@@ -315,23 +322,30 @@ service cloud.firestore {
 
     match /coachAvailabilityByDate/{docId} {
       // Per-coach, per-day availability shards for O(day)-scoped discovery.
-      // Readable by any signed-in user. Writable ONLY by the owning coach: the
-      // document ID must be "{ownUid}_{dateISO}" and coachUid must match.
+      // Readable by any signed-in user. The owning coach writes their own shards:
+      // the document ID must be "{ownUid}_{dateISO}" and coachUid must match.
+      // Admins have full access via an isAdmin() fallback.
       //
-      // Deliberately NO isAdmin() fallback. Shards are rebuilt in a writeBatch of
-      // up to ~30 documents, and Firestore allows only 20 document-access (get())
-      // calls per batched write — an isAdmin() branch would evaluate get()s per
-      // document and blow that budget. Admin-triggered recalcs therefore refresh
-      // only the aggregate cache (see doRecalculateAvailableSlotsCache); the
-      // coach's shards are rebuilt on their next own recalc. Discovery gates on
-      // the live users/ profile, so admin status changes take effect immediately
-      // without any shard write.
+      // ORDERING IS LOAD-BEARING: the owner clause is evaluated FIRST so it
+      // short-circuits before isAdmin()'s get() ever runs. Shards are rebuilt in a
+      // writeBatch of up to ~30 documents, and Firestore allows only 20
+      // document-access (get()) calls per batched write; because the owner clause
+      // is true for every doc in a coach's own batch, the isAdmin() get() is never
+      // evaluated there and the budget stays intact. isAdmin()'s get() is only
+      // reached on non-owner writes (an admin editing another coach's shard), which
+      // are single-document and well within budget. Note the normal
+      // admin-triggered recalc path still only refreshes the aggregate cache (see
+      // doRecalculateAvailableSlotsCache); discovery gates on the live users/
+      // profile, so admin status changes take effect immediately without a shard
+      // write.
       allow read: if isSignedIn();
-      allow create, update: if isSignedIn()
-        && isValidCoachAvailabilityByDate(request.resource.data)
-        && request.resource.data.coachUid == request.auth.uid
-        && docId == request.auth.uid + '_' + request.resource.data.dateISO;
-      allow delete: if isSignedIn() && resource.data.coachUid == request.auth.uid;
+      allow create, update: if (isSignedIn()
+          && isValidCoachAvailabilityByDate(request.resource.data)
+          && request.resource.data.coachUid == request.auth.uid
+          && docId == request.auth.uid + '_' + request.resource.data.dateISO)
+        || isAdmin();
+      allow delete: if (isSignedIn() && resource.data.coachUid == request.auth.uid)
+        || isAdmin();
     }
 
     match /systemLogs/{logId} {

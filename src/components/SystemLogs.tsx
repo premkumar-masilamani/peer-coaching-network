@@ -1,14 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from '../services/firebaseService';
-import { 
-  collection, 
-  query, 
-  orderBy, 
-  where, 
-  limit, 
-  startAfter, 
-  onSnapshot 
+import {
+  collection,
+  query,
+  orderBy,
+  where,
+  limit,
+  startAfter,
+  getDocs
 } from 'firebase/firestore';
 import { 
   AlertCircle, 
@@ -109,9 +109,12 @@ export const SystemLogs: React.FC = () => {
     // Request 101 docs to check if there is a next page
     q = query(q, limit(101));
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const snapshot = await getDocs(q);
+        if (cancelled) return;
+
         const fetchedLogs: SystemLog[] = [];
         snapshot.forEach((docSnap) => {
           const data = docSnap.data();
@@ -133,18 +136,18 @@ export const SystemLogs: React.FC = () => {
           const nextCursor = fetchedLogs[fetchedLogs.length - 1].doc;
           pageCursorsRef.current[pageIndex + 1] = nextCursor;
         }
-        
+
         setHasNext(hasMore);
         setLogs(fetchedLogs);
         setLoading(false);
-      },
-      (error) => {
-        console.error('Error listening to system logs:', error);
+      } catch (error) {
+        if (cancelled) return;
+        console.error('Error loading system logs:', error);
         setLoading(false);
       }
-    );
+    })();
 
-    return () => unsubscribe();
+    return () => { cancelled = true; };
   }, [pageIndex, selectedSeverities]);
 
   const handleCopy = (text: string, id: string) => {
@@ -246,7 +249,7 @@ export const SystemLogs: React.FC = () => {
             System Logs
           </h2>
           <p style={{ margin: '4px 0 0 0', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            Monitor real-time system events and exceptions.
+            Monitor system events and exceptions.
           </p>
         </div>
 
@@ -315,7 +318,7 @@ export const SystemLogs: React.FC = () => {
       <div className="glass-panel" style={{ padding: '8px', marginBottom: '20px' }}>
         {loading && logs.length === 0 ? (
           <p style={{ padding: '48px', color: 'var(--text-muted)', textAlign: 'center' }}>
-            Subscribing to system logs...
+            Loading system logs...
           </p>
         ) : logs.length === 0 ? (
           <div style={{ padding: '64px 24px', textAlign: 'center', color: 'var(--text-muted)' }}>

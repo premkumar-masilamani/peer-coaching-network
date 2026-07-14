@@ -29,9 +29,9 @@ describe('firebaseService barrel', () => {
     // authService
     'loginWithGoogle', 'handleAuthRedirect', 'logout', 'subscribeToAuth',
     // profileService
-    'subscribeToProfile', 'updateProfile', 'updateOwnProfile', 'getEffectiveStatus',
-    'getEffectiveRole', 'isApproved', 'formatMemberSince', 'subscribeToAllUsers',
-    'subscribeToActiveCoaches', 'subscribeToPendingUsersCount', 'setUserRoleAndStatus',
+    'getProfile', 'updateProfile', 'updateOwnProfile', 'getEffectiveStatus',
+    'getEffectiveRole', 'isApproved', 'formatMemberSince', 'getAllUsers',
+    'getActiveCoaches', 'getPendingUsersCount', 'setUserRoleAndStatus',
     'formatDisplayName', 'updateVerifiedCredentials', 'getProfiles',
     // scheduleService
     'timeStringToTimestamp', 'timestampToTimeString', 'DEFAULT_AVAILABLE_DAYS',
@@ -43,7 +43,7 @@ describe('firebaseService barrel', () => {
     'createSupportRequest', 'getSupportRequestsForUser', 'getAllSupportRequests',
     'addMessageToSupportRequest', 'updateSupportRequestStatus', 'deleteSupportRequest',
     // discoveryService
-    'queryAvailableCoachesForDay', 'subscribeToUserBookings',
+    'queryAvailableCoachesForDay', 'getUserBookings',
   ];
 
   it.each(expectedExports)('re-exports %s', (name) => {

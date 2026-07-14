@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useId } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
-import { formatDisplayName, queryAvailableCoachesForDay, subscribeToUserBookings, getUserAvailableSlots, getProfiles } from '../services/firebaseService';
+import { formatDisplayName, queryAvailableCoachesForDay, getUserBookings, getUserAvailableSlots, getProfiles } from '../services/firebaseService';
 import { getCredentialBadgeClass, getCredentialDescription, buildDisplayCredentials } from '../utils/credentials';
 import type { UserProfile, DiscoveryFilters } from '../services/firebaseService';
 import { 
@@ -261,14 +261,17 @@ export const UpcomingSessions: React.FC = () => {
     return arr;
   }, [fetchedDayDate, viewerTimezone, selectedDuration]);
 
-  // Fetch active peer coaches only (server-side filtered, not the whole users
-  // collection).
-  useEffect(() => {
+  // One-shot query for the current user's confirmed bookings. Refreshed on
+  // focus and date/filter changes via handleRefresh below (previously a live
+  // subscription).
+  const loadUserBookings = useCallback(async () => {
     if (!currentUser?.uid) return;
-    const unsub = subscribeToUserBookings(currentUser.uid, (bookingsList) => {
+    try {
+      const bookingsList = await getUserBookings(currentUser.uid);
       setUserLiveBookings(bookingsList);
-    });
-    return () => unsub();
+    } catch (err) {
+      console.error('Error loading user bookings:', err);
+    }
   }, [currentUser]);
 
   const loadCurrentUserAvailableSlots = useCallback(async () => {
@@ -328,11 +331,12 @@ export const UpcomingSessions: React.FC = () => {
 
   const handleRefresh = useCallback(async () => {
     await Promise.all([
+      loadUserBookings(),
       loadCurrentUserAvailableSlots(),
       loadGoogleCalendarEvents(),
       loadDayAvailability()
     ]);
-  }, [loadCurrentUserAvailableSlots, loadGoogleCalendarEvents, loadDayAvailability]);
+  }, [loadUserBookings, loadCurrentUserAvailableSlots, loadGoogleCalendarEvents, loadDayAvailability]);
 
   useFocusRefresh(handleRefresh);
 
