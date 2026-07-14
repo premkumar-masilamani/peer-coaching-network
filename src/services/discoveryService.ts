@@ -13,7 +13,6 @@ import { COLLECTIONS, BOOKING_STATUS, COACH_DISCOVERY_LIMIT, USER_ROLE } from '.
 import { db } from './firebaseApp';
 import { isApproved } from './profileHelpers';
 import { chunkArray } from '../utils/chunkArray';
-import { seededShuffle } from '../utils/seededShuffle';
 import { logger } from '../utils/logger';
 import type { UserProfile, DiscoveryFilters } from './types';
 
@@ -23,7 +22,7 @@ export const queryAvailableCoachesForDay = async (
   localDayEnd: Date,
   slots: { startTime: Date; endTime: Date }[],
   filters: DiscoveryFilters,
-  sessionSeed: string,
+  _sessionSeed: string,
   currentUserUid?: string
 ): Promise<Record<string, UserProfile[]>> => {
   if (!db) return {};
@@ -105,27 +104,7 @@ export const queryAvailableCoachesForDay = async (
     if (b.clientUid) busySet.add(b.clientUid);
   });
 
-  const profileChunks = chunkArray(candidateUids, 30);
-  const coachProfiles: UserProfile[] = [];
-
-  const profileSnaps = await Promise.all(
-    profileChunks.map(chunk =>
-      getDocs(query(collection(db, COLLECTIONS.USERS), where(documentId(), 'in', chunk)))
-    )
-  );
-
-  profileSnaps.forEach((snap) => {
-    snap.forEach((docSnap) => {
-      const profile = docSnap.data() as UserProfile;
-       // Gate on the live, authoritative profile: only active coaches (role USER or ADMIN,
-       // status active) are discoverable. Inactive/pending coaches with a stale
-       // availability shard must never surface for booking.
-       if ((profile.userRole === USER_ROLE.USER || profile.userRole === USER_ROLE.ADMIN) && isApproved(profile)) {
-         coachProfiles.push(profile);
-       }
-    });
-  });
-
+  // Calculate merged intervals in-memory
   const coachMergedIntervals = new Map<string, { start: number; end: number }[]>();
   cacheMap.forEach((slotsList, uid) => {
     const slotDurationMs = 30 * 60 * 1000;
@@ -152,26 +131,106 @@ export const queryAvailableCoachesForDay = async (
     coachMergedIntervals.set(uid, merged);
   });
 
-  const result: Record<string, UserProfile[]> = {};
-
+  // Identify available candidate UIDs for each slot (before fetching profiles)
+  const slotAvailableUids = new Map<string, string[]>();
   slots.forEach((slot) => {
     const slotIso = slot.startTime.toISOString();
     const slotStartMs = slot.startTime.getTime();
     const slotEndMs = slot.endTime.getTime();
     const busySet = slotBusyUsers.get(slotIso) || new Set<string>();
 
-    let availableCoaches = coachProfiles.filter((coach) => {
-      const merged = coachMergedIntervals.get(coach.userId) || [];
+    const available = candidateUids.filter((uid) => {
+      const merged = coachMergedIntervals.get(uid) || [];
       const isCovered = merged.some(
         interval => interval.start <= slotStartMs && slotEndMs <= interval.end
       );
       if (!isCovered) return false;
-      if (busySet.has(coach.userId)) return false;
+      if (busySet.has(uid)) return false;
       return true;
     });
+    slotAvailableUids.set(slotIso, available);
+  });
 
-    availableCoaches = seededShuffle(availableCoaches, sessionSeed + slotIso);
-    result[slotIso] = availableCoaches.slice(0, COACH_DISCOVERY_LIMIT);
+  // Multi-pass lazy profile fetch loop
+  const coachProfilesMap = new Map<string, UserProfile>();
+  const slotFetchedOffset = new Map<string, number>(); // track progress through slotAvailableUids
+  slots.forEach(s => slotFetchedOffset.set(s.startTime.toISOString(), 0));
+
+  const slotsSatisfied = (): boolean => {
+    return slots.every((slot) => {
+      const slotIso = slot.startTime.toISOString();
+      const available = slotAvailableUids.get(slotIso) || [];
+      const offset = slotFetchedOffset.get(slotIso) || 0;
+      
+      const activeCount = available.slice(0, offset).filter(uid => coachProfilesMap.has(uid)).length;
+      return activeCount >= COACH_DISCOVERY_LIMIT || offset >= available.length;
+    });
+  };
+
+  while (!slotsSatisfied()) {
+    const uidsToFetchThisPass = new Set<string>();
+    
+    slots.forEach((slot) => {
+      const slotIso = slot.startTime.toISOString();
+      const available = slotAvailableUids.get(slotIso) || [];
+      const offset = slotFetchedOffset.get(slotIso) || 0;
+      
+      const activeCount = available.slice(0, offset).filter(uid => coachProfilesMap.has(uid)).length;
+      const needed = COACH_DISCOVERY_LIMIT - activeCount;
+      if (needed <= 0 || offset >= available.length) return;
+
+      const nextSlice = available.slice(offset, offset + needed);
+      nextSlice.forEach(uid => {
+        if (!coachProfilesMap.has(uid)) {
+          uidsToFetchThisPass.add(uid);
+        }
+      });
+      slotFetchedOffset.set(slotIso, offset + needed);
+    });
+
+    const chunk = Array.from(uidsToFetchThisPass);
+    if (chunk.length === 0) {
+      break;
+    }
+
+    const profileChunks = chunkArray(chunk, 30);
+    const snaps = await Promise.all(
+      profileChunks.map(c =>
+        getDocs(
+          query(
+            collection(db, COLLECTIONS.USERS),
+            where(documentId(), 'in', c),
+            where('userStatus', '==', 'active')
+          )
+        )
+      )
+    );
+
+    snaps.forEach((snap) => {
+      snap.forEach((docSnap) => {
+        const profile = docSnap.data() as UserProfile;
+        if ((profile.userRole === USER_ROLE.USER || profile.userRole === USER_ROLE.ADMIN) && isApproved(profile)) {
+          coachProfilesMap.set(profile.userId, profile);
+        }
+      });
+    });
+  }
+
+  // Build final results mapping slotIso -> active profiles (sliced to limit)
+  const result: Record<string, UserProfile[]> = {};
+  slots.forEach((slot) => {
+    const slotIso = slot.startTime.toISOString();
+    const available = slotAvailableUids.get(slotIso) || [];
+    const activeProfiles: UserProfile[] = [];
+    
+    for (const uid of available) {
+      if (activeProfiles.length >= COACH_DISCOVERY_LIMIT) break;
+      const profile = coachProfilesMap.get(uid);
+      if (profile) {
+        activeProfiles.push(profile);
+      }
+    }
+    result[slotIso] = activeProfiles;
   });
 
   return result;
