@@ -66,7 +66,6 @@ export interface SupportRequest {
   status: SupportStatus;
   createdAt: string; // ISO string
   updatedAt: string; // ISO string
-  messages: SupportMessage[];
 }
 
 export interface DiscoveryFilters {

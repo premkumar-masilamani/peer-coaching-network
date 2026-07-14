@@ -194,7 +194,7 @@ service cloud.firestore {
         && isValidString(msg.senderName, 200)
         && (msg.senderRole == 'user' || msg.senderRole == 'admin')
         && isValidString(msg.content, 2000) // Hard size limit enforced
-        && isValidString(msg.createdAt, 100);
+        && isTimestamp(msg.createdAt);
     }
 
     // Validation helper for support request documents
@@ -207,10 +207,8 @@ service cloud.firestore {
         && (data.category == 'Report Bugs' || data.category == 'Feature Request' || data.category == 'General Inquiry')
         && isValidString(data.subject, 200)
         && (data.status == 'open' || data.status == 'closed')
-        && isValidString(data.createdAt, 100)
-        && isValidString(data.updatedAt, 100)
-        && isList(data.messages)
-        && (data.messages.size() == 0 || isValidSupportMessage(data.messages[data.messages.size() - 1]));
+        && isTimestamp(data.createdAt)
+        && isTimestamp(data.updatedAt);
     }
 
     // Privileged fields may only be set by an admin. An owner editing their own
@@ -372,9 +370,6 @@ service cloud.firestore {
       allow create: if isSignedIn()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'open'
-        && request.resource.data.messages.size() == 1
-        && request.resource.data.messages[0].senderRole == 'user'
-        && request.resource.data.messages[0].senderId == request.auth.uid
         && isValidSupportRequestDoc(request.resource.data);
       
       allow read: if isAdmin()
@@ -390,18 +385,27 @@ service cloud.firestore {
             && request.resource.data.subject == resource.data.subject
             && request.resource.data.createdAt == resource.data.createdAt
             && (request.resource.data.status == 'open' || request.resource.data.status == 'closed')
-            && (
-              (request.resource.data.messages == resource.data.messages)
-              || (
-                request.resource.data.messages.size() == resource.data.messages.size() + 1
-                && isValidSupportMessage(request.resource.data.messages[resource.data.messages.size() - 1])
-                && request.resource.data.messages[resource.data.messages.size() - 1].senderRole == 'user'
-                && request.resource.data.messages[resource.data.messages.size() - 1].senderId == request.auth.uid
-              )
-            )
             && isValidSupportRequestDoc(request.resource.data));
 
       allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        // Read: Admins, or the owner of the parent support ticket
+        allow read: if isAdmin()
+          || (isSignedIn() && get(/databases/$(database)/documents/supportRequests/$(requestId)).data.userId == request.auth.uid);
+
+        // Create: The creator must sign their own message (senderId validation), and must be either an Admin or the ticket owner
+        allow create: if isSignedIn()
+          && request.resource.data.senderId == request.auth.uid
+          && (isAdmin() || get(/databases/$(database)/documents/supportRequests/$(requestId)).data.userId == request.auth.uid)
+          && isValidSupportMessage(request.resource.data);
+
+        // Update: Messages are immutable
+        allow update: if false;
+
+        // Delete: Cascaded when deleting the parent support request (Admin only)
+        allow delete: if isAdmin();
+      }
     }
   }
 }
