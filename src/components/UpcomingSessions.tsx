@@ -29,7 +29,7 @@ import {
   ChevronDown
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
-import { getLocalDateInTimezone, getTimezoneCode, getUtcForLocalDateTime, isSlotAvailable } from '../utils/timezoneHelpers';
+import { getLocalDateInTimezone, getTimezoneCode, getUtcForLocalDateTime } from '../utils/timezoneHelpers';
 import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
 import { sanitizeImageUrl } from '../utils/url';
 import { useNavigateToProfile } from '../context/UnsavedChangesContext';
