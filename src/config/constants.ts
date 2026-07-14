@@ -3,7 +3,7 @@
  */
 export const BOOKING_START_OFFSET_DAYS = 1;
 export const BOOKING_HORIZON_DAYS = 30;
-export const COACH_DISCOVERY_LIMIT = 10;
+export const COACH_DISCOVERY_LIMIT = 5;
 
 /** Duration of a single bookable availability slot, in milliseconds (30 minutes). */
 export const SLOT_DURATION_MS = 30 * 60 * 1000;
