@@ -160,6 +160,10 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
     const isDirty = newChanges.length > 0;
     
     setPageDirtyState(isDirty, newChanges, handleDirectSave);
+
+    return () => {
+      setPageDirtyState(false, [], async () => true);
+    };
   }, [gender, country, bio, timezone, profile, qualifications, updateProfileDetails, setPageDirtyState, onSaveSuccess, handleDirectSave]);
 
   const handleCountryChange = (selectedCountry: string) => {
