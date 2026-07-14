@@ -322,4 +322,40 @@ describe('UnsavedChangesContext', () => {
     act(() => { window.dispatchEvent(event); });
     expect(preventDefaultSpy).not.toHaveBeenCalled();
   });
+
+  // ---------------------------------------------------------------------------
+  // onSave cleanup
+  // ---------------------------------------------------------------------------
+
+  it('clears onSave when confirm is clicked and save succeeds', async () => {
+    renderProvider();
+    const onSave = vi.fn().mockResolvedValue(true);
+    act(() => { latestCtx!.setPageDirtyState(true, ['field X'], onSave); });
+    act(() => { latestCtx!.requestExplicitSave(); });
+
+    await act(async () => {
+      (q('[data-testid="btn-confirm"]') as HTMLButtonElement).click();
+    });
+
+    expect(onSave).toHaveBeenCalledOnce();
+
+    onSave.mockClear();
+    act(() => { latestCtx!.requestExplicitSave(); });
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('clears onSave when discard is clicked', async () => {
+    renderProvider();
+    const onSave = vi.fn().mockResolvedValue(true);
+    const navigate = vi.fn();
+    act(() => { latestCtx!.setPageDirtyState(true, ['field Y'], onSave); });
+    act(() => { latestCtx!.navigateWithConfirmation('settings', navigate); });
+
+    act(() => { (q('[data-testid="btn-discard"]') as HTMLButtonElement).click(); });
+
+    expect(onSave).not.toHaveBeenCalled();
+
+    act(() => { latestCtx!.requestExplicitSave(); });
+    expect(onSave).not.toHaveBeenCalled();
+  });
 });

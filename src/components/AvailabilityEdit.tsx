@@ -414,6 +414,10 @@ export const AvailabilityEdit: React.FC<AvailabilityEditProps> = ({ onboardingMo
     const isDirty = newChanges.length > 0;
 
     setPageDirtyState(isDirty, newChanges, handleDirectSave);
+
+    return () => {
+      setPageDirtyState(false, [], async () => true);
+    };
   }, [uid, weekly, blockedDates, initialWeekly, initialBlockedDates, setPageDirtyState, onSaveSuccess, handleDirectSave]);
 
   if (loadingSchedule) {
