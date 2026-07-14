@@ -7,6 +7,7 @@ import {
   where,
   getDocs,
   writeBatch,
+  type DocumentReference,
 } from 'firebase/firestore';
 import {
   BOOKING_HORIZON_DAYS,
@@ -167,9 +168,10 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
     const userDocRef = doc(db, COLLECTIONS.USERS, uid);
     const personalAvailabilityCacheRef = doc(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE, uid);
 
-    const [userDoc, schedule] = await Promise.all([
+    const [userDoc, schedule, existingCacheDoc] = await Promise.all([
       getDoc(userDocRef),
-      getSchedule(uid)
+      getSchedule(uid),
+      getDoc(personalAvailabilityCacheRef)
     ]);
 
     if (!userDoc.exists()) return;
@@ -221,6 +223,45 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
     const finalFreeSlots = isDiscoverable ? freeSlots : [];
     const finalAvailableDatesUtc = isDiscoverable ? availableDatesUtc : [];
 
+    const targetUserStatus = profile.userStatus || USER_STATUS.INACTIVE;
+
+    // Compare with the existing cached document to detect structural changes
+    let skipShardWrites = false;
+    const existingSlotsByDate = new Map<string, string[]>();
+    let areFilterFieldsEqual = false;
+
+    if (existingCacheDoc.exists()) {
+      const existingData = existingCacheDoc.data();
+      const existingSlots = existingData.availableSlots || [];
+
+      for (const iso of existingSlots) {
+        const dateISO = iso.split('T')[0];
+        const list = existingSlotsByDate.get(dateISO) || [];
+        list.push(iso);
+        existingSlotsByDate.set(dateISO, list);
+      }
+
+      // Check structural equality of the sorted slots arrays
+      const slotsEqual = existingSlots.length === finalFreeSlots.length &&
+        existingSlots.every((slot: string, idx: number) => slot === finalFreeSlots[idx]);
+
+      // Check filter fields equality
+      areFilterFieldsEqual =
+        existingData.gender === filterFields.gender &&
+        existingData.country === filterFields.country &&
+        existingData.icf_acc === filterFields.icf_acc &&
+        existingData.icf_pcc === filterFields.icf_pcc &&
+        existingData.icf_mcc === filterFields.icf_mcc &&
+        existingData.icf_actc === filterFields.icf_actc;
+
+      // Check status equality to honor userStatus updates
+      const statusEqual = existingData.userStatus === targetUserStatus;
+
+      if (slotsEqual && areFilterFieldsEqual && statusEqual) {
+        skipShardWrites = true;
+      }
+    }
+
     // Aggregate cache: retained for the coach's own "My Sessions" / personal
     // availability view (a single-document read). We always write because
     // profile metadata may have changed even when the slots are unchanged.
@@ -232,7 +273,7 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
       availableSlots: finalFreeSlots,
       availableDatesUtc: finalAvailableDatesUtc,
       ...filterFields,
-      userStatus: profile.userStatus || USER_STATUS.INACTIVE,
+      userStatus: targetUserStatus,
     });
 
     // Per-day discovery shards: one owned document per coach per UTC date, so
@@ -251,6 +292,11 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
       return;
     }
 
+    if (skipShardWrites) {
+      logger.info(`Successfully recalculated slots cache; day shards are already up-to-date for user: ${uid}`);
+      return;
+    }
+
     const slotsByDate = new Map<string, string[]>();
     for (const iso of finalFreeSlots) {
       const dateISO = iso.split('T')[0];
@@ -260,27 +306,61 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
     }
 
     // Read existing shards so dates that lost all availability can be deleted.
-    const existingShardsSnap = await getDocs(
-      query(collection(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE), where('coachUid', '==', uid))
-    );
+    // Optimize: skip the getDocs(coachUid==uid) read when there is nothing to delete.
+    const oldDates = Array.from(existingSlotsByDate.keys());
+    const staleDates = oldDates.filter(d => !slotsByDate.has(d));
+    const hasStaleDates = staleDates.length > 0;
 
-    const batch = writeBatch(db);
-    for (const [dateISO, slots] of slotsByDate) {
-      const shardRef = doc(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE, `${uid}_${dateISO}`);
-      batch.set(shardRef, {
-        coachUid: uid,
-        dateISO,
-        freeSlots: slots,
-        lastUpdated,
-        ...filterFields,
+    const existingShards: { dateISO: string; ref: DocumentReference }[] = [];
+    if (hasStaleDates) {
+      const existingShardsSnap = await getDocs(
+        query(collection(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE), where('coachUid', '==', uid))
+      );
+      existingShardsSnap.forEach((shardDoc) => {
+        const data = shardDoc.data();
+        existingShards.push({
+          dateISO: data.dateISO,
+          ref: shardDoc.ref
+        });
       });
     }
-    existingShardsSnap.forEach((shardDoc) => {
-      if (!slotsByDate.has(shardDoc.data().dateISO)) {
-        batch.delete(shardDoc.ref);
+
+    const batch = writeBatch(db);
+    let batchOpsCount = 0;
+
+    for (const [dateISO, slots] of slotsByDate) {
+      const existingSlots = existingSlotsByDate.get(dateISO);
+      const slotsEqual = existingSlots &&
+        existingSlots.length === slots.length &&
+        existingSlots.every((val, index) => val === slots[index]);
+
+      const shouldWriteShard = !slotsEqual || !areFilterFieldsEqual;
+
+      if (shouldWriteShard) {
+        const shardRef = doc(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE, `${uid}_${dateISO}`);
+        batch.set(shardRef, {
+          coachUid: uid,
+          dateISO,
+          freeSlots: slots,
+          lastUpdated,
+          ...filterFields,
+        });
+        batchOpsCount++;
       }
-    });
-    await batch.commit();
+    }
+
+    if (hasStaleDates) {
+      existingShards.forEach((shard) => {
+        if (!slotsByDate.has(shard.dateISO)) {
+          batch.delete(shard.ref);
+          batchOpsCount++;
+        }
+      });
+    }
+
+    if (batchOpsCount > 0) {
+      await batch.commit();
+    }
 
     logger.info(`Successfully recalculated available slots cache and day shards for user: ${uid}`);
   } catch (err) {
