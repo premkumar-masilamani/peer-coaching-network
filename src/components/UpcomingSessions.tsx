@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useId } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
-import { formatDisplayName, queryAvailableCoachesForDay, getUserBookings, getUserAvailableSlots, getProfiles } from '../services/firebaseService';
+import { formatDisplayName, queryAvailableCoachesForDay, getUserBookings, getProfiles } from '../services/firebaseService';
 import { getCredentialBadgeClass, getCredentialDescription, buildDisplayCredentials } from '../utils/credentials';
 import type { UserProfile, DiscoveryFilters } from '../services/firebaseService';
 import { 
@@ -59,9 +59,7 @@ export const UpcomingSessions: React.FC = () => {
   };
   
   // List states
-  // List states
   const [dayAvailability, setDayAvailability] = useState<Record<string, UserProfile[]>>({});
-  const [currentUserBaseAvailable, setCurrentUserBaseAvailable] = useState<string[]>([]);
   const [loadingCalendar, setLoadingCalendar] = useState(true);
   const [isFetchingDay, setIsFetchingDay] = useState(false);
   const [userBaseBusyEvents, setUserBaseBusyEvents] = useState<CalendarEvent[]>([]);
@@ -274,16 +272,6 @@ export const UpcomingSessions: React.FC = () => {
     }
   }, [currentUser]);
 
-  const loadCurrentUserAvailableSlots = useCallback(async () => {
-    if (!currentUser?.uid) return;
-    try {
-      const slotsList = await getUserAvailableSlots(currentUser.uid);
-      setCurrentUserBaseAvailable(slotsList);
-    } catch (err) {
-      console.error('Error loading current user available slots:', err);
-    }
-  }, [currentUser]);
-
   const loadGoogleCalendarEvents = useCallback(async () => {
     try {
       const allEvents = await getUpcomingEvents();
@@ -332,11 +320,10 @@ export const UpcomingSessions: React.FC = () => {
   const handleRefresh = useCallback(async () => {
     await Promise.all([
       loadUserBookings(),
-      loadCurrentUserAvailableSlots(),
       loadGoogleCalendarEvents(),
       loadDayAvailability()
     ]);
-  }, [loadUserBookings, loadCurrentUserAvailableSlots, loadGoogleCalendarEvents, loadDayAvailability]);
+  }, [loadUserBookings, loadGoogleCalendarEvents, loadDayAvailability]);
 
   useFocusRefresh(handleRefresh);
 
@@ -373,19 +360,13 @@ export const UpcomingSessions: React.FC = () => {
 
   // Check if current user is unavailable (due to template gaps, blocked dates, or google calendar events, excluding active PCN bookings)
   const isUserUnavailable = useCallback((slotStart: Date, slotEnd: Date) => {
-    const currentUid = currentUser?.uid;
-    if (currentUid && currentUserBaseAvailable.length > 0) {
-      if (!isSlotAvailable(currentUserBaseAvailable, slotStart, slotEnd)) {
-        return true;
-      }
-    }
     return userBusyEvents.some(e => {
       if (e.type === EVENT_TYPE.PEER_COACHING) return false;
       const start = new Date(e.start.dateTime);
       const end = new Date(e.end.dateTime);
       return slotStart < end && slotEnd > start;
     });
-  }, [currentUser, currentUserBaseAvailable, userBusyEvents]);
+  }, [userBusyEvents]);
 
   // Handle qualification filter toggle
   const toggleQualFilter = (qual: Qualification) => {
