@@ -129,6 +129,7 @@ service cloud.firestore {
         && isValidString(data.bookingId, 150)
         && isString(data.googleEventId)
         && isString(data.googleMeetLink)
+        && (data.googleMeetLink == '' || data.googleMeetLink.matches('https://meet\\.google\\.com/.*'))
         && (data.status == 'pending' || data.status == 'confirmed' || data.status == 'cancelled')
         && isTimestamp(data.startTime)
         && isTimestamp(data.endTime)

@@ -1,6 +1,7 @@
 import React from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Modal } from './Modal';
+import { sanitizeMeetLink } from '../../utils/url';
 
 interface SessionDetailsModalProps {
   isOpen: boolean;
@@ -24,6 +25,8 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({
   onClose
 }) => {
   if (!isOpen) return null;
+
+  const sanitizedMeetLink = sanitizeMeetLink(meetLink);
 
   return (
     <Modal
@@ -49,7 +52,7 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({
           <strong>Time:</strong> {time}
         </p>
         
-        {!meetLink ? (
+        {!sanitizedMeetLink ? (
           <div style={{
             borderTop: '1px solid var(--border-light)',
             paddingTop: '12px',
@@ -73,7 +76,7 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({
             gap: '8px'
           }}>
             <a
-              href={meetLink}
+              href={sanitizedMeetLink}
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-primary"
