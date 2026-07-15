@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useId } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
+import { useNow } from '../hooks/useNow';
 import { formatDisplayName, queryAvailableCoachesForDay, getUserBookings, getProfiles } from '../services/firebaseService';
 import { getCredentialBadgeClass, getCredentialDescription, buildDisplayCredentials } from '../utils/credentials';
 import type { UserProfile, DiscoveryFilters } from '../services/firebaseService';
@@ -64,7 +65,9 @@ export const UpcomingSessions: React.FC = () => {
   const [isFetchingDay, setIsFetchingDay] = useState(false);
   const [userBaseBusyEvents, setUserBaseBusyEvents] = useState<CalendarEvent[]>([]);
   const [userLiveBookings, setUserLiveBookings] = useState<DocumentData[]>([]);
-  const [now] = useState(() => Date.now());
+  // Updates every minute / on focus so slots that have just passed are correctly
+  // marked unavailable without a reload (previously frozen at mount).
+  const now = useNow();
   const [selectedDuration, setSelectedDuration] = useState<30 | 60>(60);
   const queryRequestIdRef = React.useRef(0);
 

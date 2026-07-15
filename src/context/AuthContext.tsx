@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import type { User } from 'firebase/auth';
 import {
   subscribeToAuth,
@@ -116,7 +116,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => { cancelled = true; };
   }, [user, applyProfile]);
 
-  const login = async () => {
+  // Stable callback identities so the memoized context value below only changes
+  // when the underlying state does — otherwise every provider render would hand
+  // consumers a fresh value object and re-render all of them.
+  const login = useCallback(async () => {
     setLoading(true);
     try {
       await loginWithGoogle();
@@ -126,9 +129,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
       throw e;
     }
-  };
+  }, [refreshGoogleTokenStatus]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     setLoading(true);
     try {
       await fbLogout();
@@ -141,9 +144,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
       refreshGoogleTokenStatus();
     }
-  };
+  }, [refreshGoogleTokenStatus]);
 
-  const updateProfileDetails = async (updates: Partial<UserProfile>) => {
+  const updateProfileDetails = useCallback(async (updates: Partial<UserProfile>) => {
     if (!user) return;
     try {
       await updateOwnProfile(user.uid, updates);
@@ -155,22 +158,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error('Update profile error:', e);
       throw e;
     }
-  };
+  }, [user, applyProfile]);
+
+  // Memoize the context value so consumers don't re-render on every provider
+  // render — only when one of these dependencies actually changes.
+  const contextValue = useMemo(
+    () => ({
+      user,
+      profile,
+      role,
+      loading: loading || isHandlingRedirect,
+      isRealFirebase: isFirebaseConfigured,
+      googleTokenStatus,
+      login,
+      logout,
+      updateProfileDetails,
+    }),
+    [user, profile, role, loading, isHandlingRedirect, googleTokenStatus, login, logout, updateProfileDetails]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        profile,
-        role,
-        loading: loading || isHandlingRedirect,
-        isRealFirebase: isFirebaseConfigured,
-        googleTokenStatus,
-        login,
-        logout,
-        updateProfileDetails,
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

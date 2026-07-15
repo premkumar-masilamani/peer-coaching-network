@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useTransientState } from '../hooks/useTransientState';
 import { useAuth } from '../context/AuthContext';
 import {
   User,
@@ -70,7 +71,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
   const { user, profile, updateProfileDetails } = useAuth();
   const { setPageDirtyState, requestExplicitSave } = useUnsavedChanges();
   const navigateToProfile = useNavigateToProfile();
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useTransientState(false);
 
   // State for editable profile details
   const [gender, setGender] = useState<Gender | ''>(profile?.gender || '');
@@ -90,7 +91,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
   const timezoneOptions = getTimezonesForCountry(country);
 
   const [saving, setSaving] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useTransientState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [formErrors, setFormErrors] = useState<FormErrors>({});
 
@@ -137,9 +138,8 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
         timezone,
         hasBio: !!bio,
       });
-      setSuccessMsg('Profile changes saved successfully!');
+      setSuccessMsg('Profile changes saved successfully!', 4000);
       if (onSaveSuccess) onSaveSuccess();
-      setTimeout(() => setSuccessMsg(''), 4000);
       return true;
     } catch (e) {
       console.error(e);
@@ -148,7 +148,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
     } finally {
       setSaving(false);
     }
-  }, [gender, country, bio, timezone, updateProfileDetails, onSaveSuccess]);
+  }, [gender, country, bio, timezone, updateProfileDetails, onSaveSuccess, setSuccessMsg]);
 
   React.useEffect(() => {
     const newChanges: string[] = [];
@@ -251,8 +251,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
                     const profileLink = `${window.location.origin}${window.location.pathname}?profile=${user.uid}`;
                     try {
                       await navigator.clipboard.writeText(profileLink);
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
+                      setCopied(true, 2000);
                     } catch (err) {
                       console.error('Failed to copy link:', err);
                     }

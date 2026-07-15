@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTransientState } from '../hooks/useTransientState';
 import {
   MapPin,
   Award,
@@ -33,7 +34,7 @@ interface PublicProfileProps {
 export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) => {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useTransientState(false);
   const [prevUid, setPrevUid] = useState(uid);
 
   // Adjust state during render when uid prop changes to avoid synchronous setState inside useEffect.
@@ -63,8 +64,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
     const profileLink = `${window.location.origin}${window.location.pathname}?profile=${uid}`;
     try {
       await navigator.clipboard.writeText(profileLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopied(true, 2000);
     } catch (err) {
       console.error('Failed to copy link:', err);
     }

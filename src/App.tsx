@@ -47,6 +47,17 @@ const AppContent: React.FC = () => {
   });
   const [publicProfileUid, setPublicProfileUid] = useState<string | null>(null);
 
+  // Bumped when the Support tab is re-clicked while already active. Passed to
+  // SupportFeedback as a prop so it can reset its view — replaces a former
+  // window-level 'tab-reclick' CustomEvent (untyped, unmockable, invisible in the
+  // component tree).
+  const [supportReclickNonce, setSupportReclickNonce] = useState(0);
+  const handleTabReclick = (tab: TabKey) => {
+    if (tab === TABS.SUPPORT) {
+      setSupportReclickNonce(n => n + 1);
+    }
+  };
+
   const handleTabChange = (tab: TabKey, adminFilter?: 'all' | UserStatus | UserRole) => {
     navigateWithConfirmation(tab, () => {
       const url = new URL(window.location.href);
@@ -275,6 +286,7 @@ const AppContent: React.FC = () => {
             setCurrentTab={handleTabChange}
             collapsed={navCollapsed}
             setCollapsed={setNavCollapsed}
+            onTabReclick={handleTabReclick}
           />
 
           <main style={{ flex: 1, minWidth: 0, height: '100%', overflowY: 'auto', paddingRight: '16px', paddingBottom: '16px' }}>
@@ -353,7 +365,7 @@ const AppContent: React.FC = () => {
                 {currentTab === TABS.PROFILE && <ProfileEdit />}
                 {currentTab === TABS.AVAILABILITY && <AvailabilityEdit />}
                 {currentTab === TABS.BOOKINGS && <MySessions />}
-                {currentTab === TABS.SUPPORT && <SupportFeedback />}
+                {currentTab === TABS.SUPPORT && <SupportFeedback reclickNonce={supportReclickNonce} />}
                 {currentTab === TABS.ADMIN && role === USER_ROLE.ADMIN && (
                   <AdminDashboard
                     initialFilter={adminTabFilter}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTransientState } from '../hooks/useTransientState';
 import { useAuth } from '../context/AuthContext';
 import {
   recalculateAvailableSlotsCache,
@@ -142,9 +143,9 @@ export const AvailabilityEdit: React.FC<AvailabilityEditProps> = ({ onboardingMo
 
   // UI state
   const [saving, setSaving] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useTransientState('');
   const [errorMsg, setErrorMsg] = useState('');
-  const [blockErrorMsg, setBlockErrorMsg] = useState('');
+  const [blockErrorMsg, setBlockErrorMsg] = useTransientState('');
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   // NOTE: the editable form is seeded once from the profile via the useState
@@ -257,8 +258,7 @@ export const AvailabilityEdit: React.FC<AvailabilityEditProps> = ({ onboardingMo
       });
       return nextWeekly;
     });
-    setSuccessMsg(`Applied ${DAYS_OF_WEEK.find(d => d.key === sourceDayKey)?.label} schedule to all other days!`);
-    setTimeout(() => setSuccessMsg(''), 3000);
+    setSuccessMsg(`Applied ${DAYS_OF_WEEK.find(d => d.key === sourceDayKey)?.label} schedule to all other days!`, 3000);
   };
 
   const handleAddBlockedDate = (selectedDate: string) => {
@@ -266,14 +266,12 @@ export const AvailabilityEdit: React.FC<AvailabilityEditProps> = ({ onboardingMo
 
     const todayStr = getTodayDateString();
     if (selectedDate < todayStr) {
-      setBlockErrorMsg('You cannot block a past date.');
-      setTimeout(() => setBlockErrorMsg(''), 3000);
+      setBlockErrorMsg('You cannot block a past date.', 3000);
       return;
     }
 
     if (blockedDates.includes(selectedDate)) {
-      setBlockErrorMsg('This date is already blocked.');
-      setTimeout(() => setBlockErrorMsg(''), 3000);
+      setBlockErrorMsg('This date is already blocked.', 3000);
       return;
     }
 
@@ -371,9 +369,8 @@ export const AvailabilityEdit: React.FC<AvailabilityEditProps> = ({ onboardingMo
         blockedDatesCount: blockedDates.length,
       });
 
-      setSuccessMsg('Availability template and schedules saved successfully!');
+      setSuccessMsg('Availability template and schedules saved successfully!', 4000);
       if (onSaveSuccess) onSaveSuccess();
-      setTimeout(() => setSuccessMsg(''), 4000);
       setInitialWeekly(weekly);
       setInitialBlockedDates(blockedDates);
       return true;
@@ -384,7 +381,7 @@ export const AvailabilityEdit: React.FC<AvailabilityEditProps> = ({ onboardingMo
     } finally {
       setSaving(false);
     }
-  }, [uid, weekly, blockedDates, onSaveSuccess]);
+  }, [uid, weekly, blockedDates, onSaveSuccess, setSuccessMsg]);
 
   useEffect(() => {
     if (!initialWeekly || !initialBlockedDates) return;
