@@ -1,6 +1,4 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { COLLECTIONS } from '../config';
-import { db } from './firebaseApp';
+import { fetchScheduleRaw, writeSchedule } from './firestoreRepository';
 // Lazy import cycle with slotsService (it reads getSchedule from here). Only
 // referenced inside updateSchedule below (call-time), so module evaluation order
 // is irrelevant — do not hoist this call to module top level.
@@ -24,18 +22,11 @@ export const DEFAULT_AVAILABLE_DAYS: AvailableDays = {
 };
 
 export const getSchedule = async (userId: string): Promise<{ availableDays: AvailableDays; blockedDates: string[] }> => {
-  const availableDaysRef = doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.SCHEDULE, COLLECTIONS.AVAILABLE_DAYS);
-  const blockedDatesRef = doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.SCHEDULE, COLLECTIONS.BLOCKED_DATES);
-
-  const [daysSnap, datesSnap] = await Promise.all([
-    getDoc(availableDaysRef),
-    getDoc(blockedDatesRef)
-  ]);
-
-  const availableDays = daysSnap.exists() ? (daysSnap.data() as AvailableDays) : DEFAULT_AVAILABLE_DAYS;
-  const blockedDates = datesSnap.exists() ? (datesSnap.data().blockedDates as string[]) : [];
-
-  return { availableDays, blockedDates };
+  const { availableDays, blockedDates } = await fetchScheduleRaw(userId);
+  return {
+    availableDays: availableDays ?? DEFAULT_AVAILABLE_DAYS,
+    blockedDates: blockedDates ?? [],
+  };
 };
 
 export const updateSchedule = async (
@@ -43,13 +34,7 @@ export const updateSchedule = async (
   availableDays: AvailableDays,
   blockedDates: string[]
 ): Promise<void> => {
-  const availableDaysRef = doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.SCHEDULE, COLLECTIONS.AVAILABLE_DAYS);
-  const blockedDatesRef = doc(db, COLLECTIONS.USERS, userId, COLLECTIONS.SCHEDULE, COLLECTIONS.BLOCKED_DATES);
-
-  await Promise.all([
-    setDoc(availableDaysRef, availableDays),
-    setDoc(blockedDatesRef, { blockedDates })
-  ]);
+  await writeSchedule(userId, availableDays, blockedDates);
 
   // Schedule changed, update the available slots cache
   recalculateAvailableSlotsCache(userId).catch((err) => logger.error(`Error recalculating slots cache for ${userId}:`, err));

@@ -1,24 +1,19 @@
-import {
-  doc,
-  getDoc,
-  updateDoc,
-  collection,
-  query,
-  where,
-  getDocs,
-  documentId,
-} from 'firebase/firestore';
 import type { DocumentData, Timestamp } from 'firebase/firestore';
 import {
   type Qualification,
   type UserRole,
   type UserStatus,
   USER_STATUS,
-  COLLECTIONS,
 } from '../config';
-import { db } from './firebaseApp';
+import {
+  getUserProfile,
+  updateUserProfile,
+  fetchAllUsers,
+  fetchUsersByStatus,
+  countUsersByStatus,
+  fetchUsersByIds,
+} from './firestoreRepository';
 import { recalculateAvailableSlotsCache } from './slotsService';
-import { chunkArray } from '../utils/chunkArray';
 import { logger } from '../utils/logger';
 import type { UserProfile } from './types';
 
@@ -29,16 +24,13 @@ export { getEffectiveStatus, getEffectiveRole, isApproved } from './profileHelpe
 
 // ── Profile queries and mutators ──────────────────────────────────────────────
 export const getProfile = async (uid: string): Promise<UserProfile | null> => {
-  const docRef = doc(db, COLLECTIONS.USERS, uid);
-  const docSnap = await getDoc(docRef);
-  return docSnap.exists() ? (docSnap.data() as UserProfile) : null;
+  return getUserProfile(uid);
 };
 
 // Generic mutator. Used by admin operations that legitimately write privileged
 // fields; server-side Firestore rules enforce that only admins may do so.
 export const updateProfile = async (uid: string, updates: Partial<UserProfile>): Promise<void> => {
-  const docRef = doc(db, COLLECTIONS.USERS, uid);
-  await updateDoc(docRef, updates);
+  await updateUserProfile(uid, updates);
   // Cache uses profile fields like status, gender, country, etc.
   recalculateAvailableSlotsCache(uid).catch((err) => logger.error(`Error recalculating slots cache for ${uid}:`, err));
 };
@@ -60,7 +52,7 @@ export const updateOwnProfile = async (uid: string, updates: Partial<UserProfile
     }
   }
   if (Object.keys(safeUpdates).length === 0) return;
-  await updateDoc(doc(db, COLLECTIONS.USERS, uid), safeUpdates);
+  await updateUserProfile(uid, safeUpdates);
   // Cache uses profile fields like status, gender, country, etc.
   recalculateAvailableSlotsCache(uid).catch((err) => logger.error(`Error recalculating slots cache for ${uid}:`, err));
 };
@@ -79,31 +71,20 @@ export const formatMemberSince = (createdAt?: Timestamp | string | null): string
 
 // ── Admin-specific operations ─────────────────────────────────────────────────
 export const getAllUsers = async (): Promise<UserProfile[]> => {
-  const querySnap = await getDocs(collection(db, COLLECTIONS.USERS));
-  const users: UserProfile[] = [];
-  querySnap.forEach((doc) => {
-    users.push(doc.data() as UserProfile);
-  });
-  return users;
+  return fetchAllUsers();
 };
 
 // One-shot query for ACTIVE users only (peer coaches), avoiding a full
 // users-collection download for the dashboard. We filter on the
 // userStatus field.
 export const getActiveCoaches = async (): Promise<UserProfile[]> => {
-  const q = query(collection(db, COLLECTIONS.USERS), where('userStatus', '==', USER_STATUS.ACTIVE));
-  const querySnap = await getDocs(q);
-  const users: UserProfile[] = [];
-  querySnap.forEach((d) => users.push(d.data() as UserProfile));
-  return users;
+  return fetchUsersByStatus(USER_STATUS.ACTIVE);
 };
 
 // Count of pending (inactive) users — transfers only pending documents
 // rather than the whole collection just to derive a badge number.
 export const getPendingUsersCount = async (): Promise<number> => {
-  const q = query(collection(db, COLLECTIONS.USERS), where('userStatus', '==', USER_STATUS.INACTIVE));
-  const querySnap = await getDocs(q);
-  return querySnap.size;
+  return countUsersByStatus(USER_STATUS.INACTIVE);
 };
 
 export const setUserRoleAndStatus = async (
@@ -126,7 +107,6 @@ export const formatDisplayName = (user: { firstName?: string; lastName?: string;
 };
 
 export const updateVerifiedCredentials = async (uid: string, newQualifications: Qualification[]): Promise<void> => {
-  const userDocRef = doc(db, COLLECTIONS.USERS, uid);
   const updates: DocumentData = {};
   if (newQualifications) {
     updates.icf_acc = newQualifications.includes('ICF ACC');
@@ -134,23 +114,12 @@ export const updateVerifiedCredentials = async (uid: string, newQualifications: 
     updates.icf_mcc = newQualifications.includes('ICF MCC');
     updates.icf_actc = newQualifications.includes('ICF ACTC');
   }
-  await updateDoc(userDocRef, updates);
+  await updateUserProfile(uid, updates);
   // Credential/qualification changes alter the denormalized filter fields in the
   // availability cache and day shards, so refresh them.
   recalculateAvailableSlotsCache(uid).catch((err) => logger.error(`Error recalculating slots cache for ${uid}:`, err));
 };
 
 export const getProfiles = async (uids: string[]): Promise<UserProfile[]> => {
-  if (!db || uids.length === 0) return [];
-  const chunks = chunkArray(uids, 30);
-  const profiles: UserProfile[] = [];
-  const snaps = await Promise.all(
-    chunks.map(c => getDocs(query(collection(db, COLLECTIONS.USERS), where(documentId(), 'in', c))))
-  );
-  snaps.forEach(snap => {
-    snap.forEach(d => {
-      profiles.push(d.data() as UserProfile);
-    });
-  });
-  return profiles;
+  return fetchUsersByIds(uids);
 };

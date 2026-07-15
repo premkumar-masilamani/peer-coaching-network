@@ -6,8 +6,6 @@ import {
   onAuthStateChanged,
 } from 'firebase/auth';
 import type { User } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
-import type { DocumentData } from 'firebase/firestore';
 import {
   type Gender,
   type UserRole,
@@ -15,9 +13,14 @@ import {
   USER_ROLE,
   USER_STATUS,
   THEME,
-  COLLECTIONS,
 } from '../config';
 import { auth, db } from './firebaseApp';
+import {
+  getUserProfile,
+  createUserProfile,
+  updateUserProfile,
+  writeSchedule,
+} from './firestoreRepository';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
 import { DEFAULT_AVAILABLE_DAYS } from './scheduleService';
 import type { UserProfile } from './types';
@@ -32,10 +35,9 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
   }
 
   // Check/create user document in firestore
-  const userDocRef = doc(db, COLLECTIONS.USERS, user.uid);
-  const userDoc = await getDoc(userDocRef);
+  const existingProfile = await getUserProfile(user.uid);
 
-  if (!userDoc.exists()) {
+  if (!existingProfile) {
     const email = user.email;
     const displayName = user.displayName;
     if (!email || !displayName) {
@@ -51,8 +53,8 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
     const assignedRole: UserRole = USER_ROLE.USER;
     const initialStatus: UserStatus = USER_STATUS.INACTIVE;
 
-    // Create new user profile
-    const newProfile: UserProfile = {
+    // Create new user profile (createdAt is stamped by the repository).
+    const newProfile: Omit<UserProfile, 'createdAt'> = {
       userId: user.uid,
       email: cleanEmail,
       firstName,
@@ -65,23 +67,18 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
       country: '',
       bio: '',
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-      createdAt: Timestamp.now(),
       theme: THEME.LIGHT,
       icf_acc: false,
       icf_pcc: false,
       icf_mcc: false,
       icf_actc: false
     };
-    await setDoc(userDocRef, newProfile as DocumentData);
+    await createUserProfile(user.uid, newProfile);
 
-    // Initialize schedule sub-collection documents
-    const availableDaysRef = doc(db, COLLECTIONS.USERS, user.uid, COLLECTIONS.SCHEDULE, COLLECTIONS.AVAILABLE_DAYS);
-    const blockedDatesRef = doc(db, COLLECTIONS.USERS, user.uid, COLLECTIONS.SCHEDULE, COLLECTIONS.BLOCKED_DATES);
-    await setDoc(availableDaysRef, DEFAULT_AVAILABLE_DAYS);
-    await setDoc(blockedDatesRef, { blockedDates: [] });
+    // Initialize schedule sub-collection documents with defaults.
+    await writeSchedule(user.uid, DEFAULT_AVAILABLE_DAYS, []);
   } else {
     // Sync Google Profile data in database during login (Google takes priority)
-    const existingProfile = userDoc.data() as UserProfile;
     const updates: Partial<UserProfile> = {};
     if (user.displayName) {
       const parts = user.displayName.trim().split(' ');
@@ -105,7 +102,7 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
     }
 
     if (Object.keys(updates).length > 0) {
-      await updateDoc(userDocRef, updates);
+      await updateUserProfile(user.uid, updates);
     }
   }
 };

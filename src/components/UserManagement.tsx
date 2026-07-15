@@ -6,7 +6,6 @@ import {
   formatMemberSince,
   getEffectiveRole,
   getEffectiveStatus,
-  db,
   logAnalyticsEvent
 } from '../services/firebaseService';
 import type { UserProfile } from '../services/firebaseService';
@@ -21,14 +20,12 @@ import {
   Video,
   ExternalLink
 } from 'lucide-react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
+import { getCoachSessions } from '../services/googleCalendar';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
-import { type Qualification, QUALIFICATION, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, BOOKING_STATUS, EVENT_TYPE, COLLECTIONS, ICF_DIRECTORY_URL } from '../config';
+import { type Qualification, QUALIFICATION, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, ICF_DIRECTORY_URL } from '../config';
 import { verifyIcfCredential } from '../services/icfService';
 import { updateVerifiedCredentials } from '../services/firebaseService';
-import { getProfiles } from '../services/profileService';
 
 interface UserManagementProps {
   initialFilter?: 'all' | UserStatus | UserRole;
@@ -66,83 +63,14 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     const coach = selectedCoachUid && users ? users.find(u => u.userId === selectedCoachUid) : undefined;
 
     const fetchMeetings = async () => {
-      if (!coach || !db) {
+      if (!coach) {
         setCoachMeetings([]);
         return;
       }
       try {
-        // Query by stable userId, not email.
-        const qClient = query(collection(db, COLLECTIONS.BOOKINGS), where('clientUid', '==', coach.userId));
-        const snapClient = await getDocs(qClient);
-
-        const qHost = query(collection(db, COLLECTIONS.BOOKINGS), where('coachUid', '==', coach.userId));
-        const snapHost = await getDocs(qHost);
-
-        const meetings: CalendarEvent[] = [];
-        const seenIds = new Set<string>();
-
-        const uids = new Set<string>();
-        const collectUids = (snap: QuerySnapshot<DocumentData>) => {
-          snap.docs.forEach((d) => {
-            const data = d.data();
-            if (data.status === BOOKING_STATUS.CANCELLED) return;
-            if (data.coachUid) uids.add(data.coachUid);
-            if (data.clientUid) uids.add(data.clientUid);
-          });
-        };
-
-        collectUids(snapClient);
-        collectUids(snapHost);
-
-        const profilesList = await getProfiles(Array.from(uids));
-        const profileMap = new Map<string, UserProfile>();
-        profilesList.forEach((profile) => {
-          profileMap.set(profile.userId, profile);
-        });
-
-        const processSnap = (snap: QuerySnapshot<DocumentData>) => {
-          for (const docSnap of snap.docs) {
-            const data = docSnap.data();
-            if (data.status === BOOKING_STATUS.CANCELLED) continue;
-            if (!seenIds.has(data.bookingId)) {
-              seenIds.add(data.bookingId);
-              
-              const startStr: string = data.startTime && typeof data.startTime.toDate === 'function'
-                ? data.startTime.toDate().toISOString()
-                : (data.startTime?.dateTime || data.startTime || '');
-              const endStr: string = data.endTime && typeof data.endTime.toDate === 'function'
-                ? data.endTime.toDate().toISOString()
-                : (data.endTime?.dateTime || data.endTime || '');
-
-              const coachProfile = profileMap.get(data.coachUid) || null;
-              const clientProfile = profileMap.get(data.clientUid) || null;
-
-              const coachFirstName = coachProfile ? (coachProfile.firstName || (formatDisplayName(coachProfile) || 'Coach').split(' ')[0]) : 'Coach';
-              const clientFirstName = clientProfile ? (clientProfile.firstName || (formatDisplayName(clientProfile) || 'Peer').split(' ')[0]) : 'Peer';
-
-              meetings.push({
-                id: data.bookingId,
-                summary: `${coachFirstName} / ${clientFirstName} - Peer Coaching Session`,
-                description: `Topic: ${data.topic}`,
-                start: { dateTime: startStr },
-                end: { dateTime: endStr },
-                meetLink: data.googleMeetLink,
-                type: EVENT_TYPE.PEER_COACHING,
-                coachUid: data.coachUid,
-                clientUid: data.clientUid,
-                attendees: [
-                  { email: coachProfile?.email || '', displayName: coachProfile ? formatDisplayName(coachProfile) : '' },
-                  { email: clientProfile?.email || '', displayName: clientProfile ? formatDisplayName(clientProfile) : '' }
-                ]
-              });
-            }
-          }
-        };
-
-        processSnap(snapClient);
-        processSnap(snapHost);
-
-        meetings.sort((a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime());
+        // Firestore access + enrichment live in the service layer; the component
+        // only asks for this coach's sessions and renders them.
+        const meetings = await getCoachSessions(coach.userId);
         setCoachMeetings(meetings);
       } catch (err) {
         console.error('Error fetching coach meetings:', err);
