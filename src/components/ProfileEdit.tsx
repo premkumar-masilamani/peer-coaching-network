@@ -15,7 +15,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
-import { getTimezonesForCountry } from '../utils/timezones';
+import { loadTimezonesForCountry, type TimezoneOption } from '../utils/timezonesLazy';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince, logAnalyticsEvent } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
@@ -88,7 +88,15 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
   const [bio, setBio] = useState(profile?.bio || '');
   const [timezone, setTimezone] = useState(profile?.timezone || '');
 
-  const timezoneOptions = getTimezonesForCountry(country);
+  // Timezone options are loaded from a lazily-imported chunk (see timezonesLazy).
+  const [timezoneOptions, setTimezoneOptions] = useState<TimezoneOption[]>([]);
+  React.useEffect(() => {
+    let active = true;
+    loadTimezonesForCountry(country).then((opts) => {
+      if (active) setTimezoneOptions(opts);
+    });
+    return () => { active = false; };
+  }, [country]);
 
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useTransientState('');
@@ -166,15 +174,11 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
     };
   }, [gender, country, bio, timezone, profile, qualifications, updateProfileDetails, setPageDirtyState, onSaveSuccess, handleDirectSave]);
 
-  const handleCountryChange = (selectedCountry: string) => {
+  const handleCountryChange = async (selectedCountry: string) => {
     setCountry(selectedCountry);
     if (selectedCountry) {
-      const options = getTimezonesForCountry(selectedCountry);
-      if (options.length > 0) {
-        setTimezone(options[0].value);
-      } else {
-        setTimezone('');
-      }
+      const options = await loadTimezonesForCountry(selectedCountry);
+      setTimezone(options.length > 0 ? options[0].value : '');
     } else {
       setTimezone('');
     }

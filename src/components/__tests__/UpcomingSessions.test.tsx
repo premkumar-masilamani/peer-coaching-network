@@ -29,6 +29,10 @@ vi.mock('../../hooks/useFocusRefresh', () => ({
   useFocusRefresh: vi.fn(),
 }));
 
+vi.mock('../../context/ToastContext', () => ({
+  useToast: () => ({ showToast: vi.fn() }),
+}));
+
 const mockUnsavedChanges = vi.hoisted(() => ({
   navigateToProfile: vi.fn(),
 }));

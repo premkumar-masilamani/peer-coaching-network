@@ -1,0 +1,73 @@
+/* Toast notification primitive. Selectors are namespaced under `.pcn-toast`
+   to avoid collisions with the global stylesheet. */
+.pcn-toast-viewport {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.pcn-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border-light);
+  background: hsl(var(--bg-surface-elevated));
+  color: hsl(var(--text-primary));
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  animation: pcn-toast-in 160ms ease-out;
+}
+
+.pcn-toast--error {
+  border-left: 4px solid hsl(0, 72%, 51%);
+}
+
+.pcn-toast--success {
+  border-left: 4px solid hsl(142, 61%, 42%);
+}
+
+.pcn-toast__icon {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.pcn-toast--error .pcn-toast__icon {
+  color: hsl(0, 72%, 51%);
+}
+
+.pcn-toast--success .pcn-toast__icon {
+  color: hsl(142, 61%, 42%);
+}
+
+.pcn-toast__message {
+  flex: 1 1 auto;
+}
+
+.pcn-toast__close {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: hsl(var(--text-muted));
+  border-radius: 4px;
+}
+
+.pcn-toast__close:hover {
+  color: hsl(var(--text-primary));
+}
+
+@keyframes pcn-toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
