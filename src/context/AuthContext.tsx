@@ -14,7 +14,8 @@ import {
   lazyRecalculateAvailableSlotsCache
 } from '../services/firebaseService';
 import type { UserProfile } from '../services/firebaseService';
-import { type UserRole, USER_ROLE, USER_STATUS } from '../config';
+import { type UserRole, USER_ROLE, USER_STATUS, type GoogleTokenStatus } from '../config';
+import { getGoogleTokenExpiryStatus } from '../services/googleToken';
 
 
 interface AuthContextType {
@@ -23,6 +24,7 @@ interface AuthContextType {
   role: UserRole | null | undefined; // undefined = loading/unset, null = no role (pending)
   loading: boolean;
   isRealFirebase: boolean;
+  googleTokenStatus: GoogleTokenStatus;
   login: () => Promise<void>;
   logout: () => Promise<void>;
   updateProfileDetails: (updates: Partial<UserProfile>) => Promise<void>;
@@ -36,13 +38,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<UserRole | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [isHandlingRedirect, setIsHandlingRedirect] = useState(true);
+  const [googleTokenStatus, setGoogleTokenStatus] = useState<GoogleTokenStatus>(() => getGoogleTokenExpiryStatus());
+
+  const refreshGoogleTokenStatus = useCallback(() => {
+    setGoogleTokenStatus(getGoogleTokenExpiryStatus());
+  }, []);
 
   // Handle OAuth Redirect Result
   useEffect(() => {
     handleAuthRedirect()
+      .then(() => {
+        refreshGoogleTokenStatus();
+      })
       .catch(e => console.error("OAuth redirect handling error:", e))
       .finally(() => setIsHandlingRedirect(false));
-  }, []);
+  }, [refreshGoogleTokenStatus]);
 
   // Subscribe to Auth status
   useEffect(() => {
@@ -79,6 +89,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Set up background token status checking interval
+  useEffect(() => {
+    const interval = setInterval(refreshGoogleTokenStatus, 30000); // 30 seconds
+    return () => clearInterval(interval);
+  }, [refreshGoogleTokenStatus, user]);
+
   // Fetch the user profile once auth is resolved (one-shot query, not a live
   // subscription). Own-profile edits re-fetch via updateProfileDetails below.
   useEffect(() => {
@@ -104,6 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       await loginWithGoogle();
+      refreshGoogleTokenStatus();
     } catch (e) {
       console.error('Login error:', e);
       setLoading(false);
@@ -122,6 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setProfile(null);
       setRole(undefined);
       setLoading(false);
+      refreshGoogleTokenStatus();
     }
   };
 
@@ -147,6 +165,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role,
         loading: loading || isHandlingRedirect,
         isRealFirebase: isFirebaseConfigured,
+        googleTokenStatus,
         login,
         logout,
         updateProfileDetails,
