@@ -49,7 +49,21 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({
           <strong>Time:</strong> {time}
         </p>
         
-        {meetLink && (
+        {!meetLink ? (
+          <div style={{
+            borderTop: '1px solid var(--border-light)',
+            paddingTop: '12px',
+            marginTop: '12px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            color: 'hsl(var(--text-secondary))',
+            fontSize: '0.85rem'
+          }}>
+            <span>Google Meet link pending...</span>
+          </div>
+        ) : (
           <div style={{
             borderTop: '1px solid var(--border-light)',
             paddingTop: '12px',
