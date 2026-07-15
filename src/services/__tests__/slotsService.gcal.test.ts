@@ -40,6 +40,7 @@ vi.mock('firebase/firestore', () => ({
   deleteDoc: vi.fn(), getDocs: vi.fn(), onSnapshot: vi.fn(), documentId: vi.fn(),
   writeBatch: vi.fn(), orderBy: vi.fn(),
   Timestamp: { now: vi.fn(), fromDate: vi.fn() },
+  serverTimestamp: vi.fn(() => 'mock-server-timestamp'),
 }));
 vi.mock('../../utils/logger', () => ({
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(), telemetry: vi.fn(() => Promise.resolve()) },

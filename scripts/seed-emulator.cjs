@@ -110,7 +110,7 @@ function buildFakeGoogleIdToken(email, displayName) {
 async function signInWithGoogleEmulator(email, displayName) {
   const idToken = buildFakeGoogleIdToken(email, displayName);
 
-  const url = `${AUTH_EMULATOR_URL}/identitytoolkit.googleapis.com/v1/projects/${PROJECT_ID}/accounts:signInWithIdp?key=fake-api-key`;
+  const url = `${AUTH_EMULATOR_URL}/identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key=fake-api-key`;
 
   const res = await fetch(url, {
     method: 'POST',
