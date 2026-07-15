@@ -45,6 +45,10 @@ export const logger = {
     }
   },
 
+  // IMPORTANT: the `details` keys written here are constrained by an allowlist in
+  // firestore.rules (`isValidSystemLogDetails`). Adding a NEW key to any
+  // telemetry call requires adding it to that allowlist, otherwise the write is
+  // rejected by security rules and silently swallowed by the catch below.
   telemetry: async (
     type: LogSeverity,
     event: string,

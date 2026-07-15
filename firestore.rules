@@ -212,6 +212,40 @@ service cloud.firestore {
         && isTimestamp(data.updatedAt);
     }
 
+    // An optional map field: absent, or a string no longer than maxLen.
+    // Uses .get() so the key can be passed dynamically.
+    function isOptBoundedString(m, key, maxLen) {
+      return m.get(key, '') is string && m.get(key, '').size() <= maxLen;
+    }
+
+    // Validation helper for the systemLogs `details` map. Because this is a
+    // client-only app (no Cloud Functions to sink/rate-limit logs), the client
+    // SDK is the only enforcement point: without these bounds any signed-in user
+    // could write arbitrarily large log documents with arbitrary keys, driving
+    // storage cost. We therefore (1) cap the key count, (2) restrict keys to a
+    // known safe allowlist (the fields actually emitted by logger.telemetry),
+    // and (3) cap each value's size.
+    function isValidSystemLogDetails(details) {
+      return isMap(details)
+        && details.size() <= 10
+        && details.keys().hasOnly([
+          'errorCode', 'errorMessage', 'error',
+          'userId', 'clientUid', 'coachUid', 'startIso',
+          'bookingId', 'clientBookingCacheId', 'uids'
+        ])
+        && isOptBoundedString(details, 'errorCode', 200)
+        && isOptBoundedString(details, 'errorMessage', 500)
+        && isOptBoundedString(details, 'error', 500)
+        && isOptBoundedString(details, 'userId', 100)
+        && isOptBoundedString(details, 'clientUid', 100)
+        && isOptBoundedString(details, 'coachUid', 100)
+        && isOptBoundedString(details, 'startIso', 100)
+        && isOptBoundedString(details, 'bookingId', 150)
+        && isOptBoundedString(details, 'clientBookingCacheId', 250)
+        && (details.get('uids', null) == null
+            || (details.uids is list && details.uids.size() <= 50));
+    }
+
     // Validation helper for public anonymized busy slots
     function isValidBusySlotDoc(data) {
       return isMap(data)
@@ -280,6 +314,15 @@ service cloud.firestore {
       // booking ID must match the coachUid format to prevent slot hijacking.
       // Enforced initial status must be pending. (Admins get full access via the
       // global admin rule at the top of this file.)
+      //
+      // KNOWN RESIDUAL RISK (PCN-038): the initiator may name an arbitrary
+      // counterparty (a victim coach, or a victim client). This cannot be closed
+      // in rules alone under the current client-initiated booking design — the
+      // client legitimately writes the coach's busySlot (so we cannot require
+      // auth.uid == coachUid), and the counterparty's consent lock is written in
+      // the SAME transaction, so it is not visible to a create-time get(). The
+      // durable fix is an authoritative backend (PCN-035) or an in-app
+      // visibility/decline control; tracked separately, not addressed here.
       allow create: if isSignedIn()
         && currentUserDoc().userStatus == 'active'
         && request.auth.uid in [
@@ -338,7 +381,27 @@ service cloud.firestore {
     // Per-mentee/per-slot locks that prevent a mentee double-booking themselves
     // across coaches in the same time slot.
     match /clientBookingCache/{cacheId} {
-      allow read: if isSignedIn();
+      // Content (clientUid/coachUid/startIso — who books whom and when) is only
+      // readable by a participant or an admin, so booking relationships no longer
+      // leak to every signed-in user. `resource == null` is intentionally allowed:
+      // the booking transaction probes deterministically-named lock docs
+      // ("{uid}_{iso}") that usually do not exist, and a get() on a missing doc is
+      // still subject to this read rule — denying null would break every booking's
+      // no-conflict fast path. Probing only reveals existence, never content.
+      //
+      // EDGE: the reserve transaction also cross-reads a coach's *existing*
+      // coach-as-client lock ("{coachUid}_{iso}") where the initiator is not a
+      // participant. That read is now denied, so a booking against a coach who is
+      // concurrently a mentee at the same slot fails via permission-denied
+      // (retried, then a generic error) rather than a clean SLOT_TAKEN. This still
+      // fails SAFE — the booking is rejected, never double-booked — and that slot
+      // is meant to be unbookable anyway. A cleaner signal would mirror the
+      // coach-as-client conflict into a participant-agnostic public collection.
+      allow read: if isSignedIn()
+        && (isAdmin()
+          || resource == null
+          || resource.data.clientUid == request.auth.uid
+          || resource.data.coachUid == request.auth.uid);
       allow create: if isSignedIn()
         && currentUserDoc().userStatus == 'active'
         && request.resource.data.clientUid == request.auth.uid
@@ -395,7 +458,7 @@ service cloud.firestore {
         && (request.resource.data.type == 'info' || request.resource.data.type == 'warn' || request.resource.data.type == 'error')
         && isValidString(request.resource.data.event, 200)
         && (request.resource.data.get('userId', null) == null || request.resource.data.userId == request.auth.uid)
-        && request.resource.data.details is map
+        && isValidSystemLogDetails(request.resource.data.details)
         && isTimestamp(request.resource.data.timestamp)
         && isTimestamp(request.resource.data.expireAt);
       allow read, update, delete: if isAdmin();
