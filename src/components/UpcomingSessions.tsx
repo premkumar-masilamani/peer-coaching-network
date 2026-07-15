@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useId } from 'react';
+import './UpcomingSessions.css';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { useNow } from '../hooks/useNow';
 import { formatDisplayName, queryAvailableCoachesForDay, getUserBookings, getProfiles } from '../services/firebaseService';
@@ -40,6 +42,7 @@ import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER
 
 export const UpcomingSessions: React.FC = () => {
   const { user: currentUser, profile } = useAuth();
+  const { showToast } = useToast();
   const navigateToProfile = useNavigateToProfile();
   
   // Ref for date carousel scrolling
@@ -70,6 +73,10 @@ export const UpcomingSessions: React.FC = () => {
   const now = useNow();
   const [selectedDuration, setSelectedDuration] = useState<30 | 60>(60);
   const queryRequestIdRef = React.useRef(0);
+  // Request-sequence guards so a slow response is discarded when a newer
+  // load (or unmount under StrictMode double-mount) has superseded it.
+  const bookingsRequestIdRef = React.useRef(0);
+  const gcalRequestIdRef = React.useRef(0);
 
   const [sessionSeed] = useState(() => {
     let seed = sessionStorage.getItem('coach_discovery_seed');
@@ -268,19 +275,25 @@ export const UpcomingSessions: React.FC = () => {
   // subscription).
   const loadUserBookings = useCallback(async () => {
     if (!currentUser?.uid) return;
+    const requestId = ++bookingsRequestIdRef.current;
     try {
       const bookingsList = await getUserBookings(currentUser.uid);
+      if (requestId !== bookingsRequestIdRef.current) return;
       setUserLiveBookings(bookingsList);
     } catch (err) {
+      if (requestId !== bookingsRequestIdRef.current) return;
       console.error('Error loading user bookings:', err);
     }
   }, [currentUser]);
 
   const loadGoogleCalendarEvents = useCallback(async () => {
+    const requestId = ++gcalRequestIdRef.current;
     try {
       const allEvents = await getUpcomingEvents();
+      if (requestId !== gcalRequestIdRef.current) return;
       setUserBaseBusyEvents(allEvents);
     } catch (e) {
+      if (requestId !== gcalRequestIdRef.current) return;
       console.error('Error loading Google Calendar events:', e);
     }
   }, []);
@@ -326,6 +339,10 @@ export const UpcomingSessions: React.FC = () => {
     }
   }, [activeDayDate, querySlots, genderFilter, countryFilter, selectedQuals, sessionSeed, currentUser, selectedDayIndex]);
 
+  // Full refresh — used for explicit user actions (booking success, cancel) and
+  // window-focus. Deliberately NOT wired into the day/filter effect below so that
+  // a day-tab click or filter toggle does not re-run the expensive Google
+  // Calendar fetch or the own-bookings query.
   const handleRefresh = useCallback(async () => {
     await Promise.all([
       loadUserBookings(),
@@ -334,16 +351,27 @@ export const UpcomingSessions: React.FC = () => {
     ]);
   }, [loadUserBookings, loadGoogleCalendarEvents, loadDayAvailability]);
 
+  // Refresh everything on window focus (own-slots may have changed in another tab).
   useFocusRefresh(handleRefresh);
 
+  // Mount/user-scoped effect: fetch the viewer's own Calendar busy-events and
+  // confirmed bookings once per mount (and when the signed-in user changes).
+  // Does NOT depend on day/filter state, so switching day tabs or toggling
+  // filters no longer triggers a full Google Calendar reload.
   useEffect(() => {
-    let active = true;
-    (async () => {
-      if (!active) return;
-      await handleRefresh();
+    void (async () => {
+      await Promise.all([loadUserBookings(), loadGoogleCalendarEvents()]);
     })();
-    return () => { active = false; };
-  }, [activeDayDate, genderFilter, countryFilter, selectedQuals, currentUser, handleRefresh]);
+  }, [loadUserBookings, loadGoogleCalendarEvents]);
+
+  // Day/filter-scoped effect: re-query available coaches for the active day
+  // whenever the day or a filter changes. loadDayAvailability carries its own
+  // request-sequence guard (queryRequestIdRef), so stale responses are dropped.
+  useEffect(() => {
+    void (async () => {
+      await loadDayAvailability();
+    })();
+  }, [loadDayAvailability]);
 
   // Handle booking success with optimistic updates
   const handleBookingSuccess = (newEvent: CalendarEvent) => {
@@ -465,277 +493,6 @@ export const UpcomingSessions: React.FC = () => {
   return (
     <>
       <div className="animate-fade-in" style={{ width: '100%' }}>
-      {/* Dynamic styles */}
-      <style>{`
-        .duration-toggle-container {
-          display: flex;
-          gap: 8px;
-          width: 100%;
-        }
-        .duration-toggle-btn {
-          flex: 1;
-          font-size: 0.85rem !important;
-          padding: 8px 12px !important;
-          height: 40px;
-        }
-        .dashboard-layout {
-          width: 100%;
-        }
-
-        .carousel-wrapper {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 24px;
-          border-bottom: 1px solid var(--border-light);
-          padding-bottom: 12px;
-        }
-
-        .date-tabs-container {
-          display: flex;
-          overflow-x: auto;
-          gap: 12px;
-          scroll-behavior: smooth;
-          -webkit-overflow-scrolling: touch;
-          /* Hide scrollbar for clean aesthetic since we have buttons */
-          scrollbar-width: none;
-          -ms-overflow-style: none;
-          flex: 1;
-          min-width: 0;
-          scroll-snap-type: x mandatory;
-        }
-
-        .date-tabs-container::-webkit-scrollbar {
-          display: none;
-        }
-
-        .scroll-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 38px;
-          height: 38px;
-          border-radius: 50%;
-          border: 1px solid var(--border-light);
-          background: var(--input-bg);
-          color: hsl(var(--text-secondary));
-          cursor: pointer;
-          transition: all 0.2s ease;
-          flex-shrink: 0;
-        }
-
-        .scroll-btn:hover {
-          background: var(--btn-secondary-hover-bg);
-          border-color: hsl(var(--primary) / 0.4);
-          color: hsl(var(--text-primary));
-        }
-
-        .scroll-btn:active {
-          transform: scale(0.95);
-        }
-
-        .date-tab {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: 12px 18px;
-          min-width: 100px;
-          flex-shrink: 0;
-          cursor: pointer;
-          background: var(--input-bg);
-          border: 1px solid var(--border-light);
-          border-radius: 12px;
-          transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-          scroll-snap-align: start;
-          /* A button resets these; the div this replaced inherited them. */
-          font-family: inherit;
-          color: inherit;
-          text-align: center;
-        }
-
-        @media (min-width: 768px) {
-          .date-tab {
-            flex: 0 0 calc((100% - 72px) / 7);
-            min-width: 0;
-            padding: 12px 0;
-          }
-        }
-
-        .date-tab:hover {
-          background: var(--panel-hover-bg);
-          border-color: hsl(var(--primary) / 0.3);
-        }
-
-        .date-tab.active {
-          background-color: hsl(var(--primary));
-          border-color: transparent;
-          color: white;
-          box-shadow: var(--card-shadow);
-        }
-
-        .slot-row {
-          background: var(--bg-surface);
-          border: 1px solid var(--border-light);
-          border-radius: 16px;
-          padding: 20px;
-          margin-bottom: 16px;
-          transition: all 0.2s ease;
-        }
-
-
-
-        .slot-row.is-passed {
-          opacity: 0.5;
-          background: hsl(var(--bg-base) / 0.5);
-        }
-
-        .slot-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 12px;
-          border-bottom: 1px solid var(--border-light);
-          padding-bottom: 12px;
-        }
-
-        .slot-time {
-          font-size: 0.95rem;
-          font-weight: 700;
-          display: flex;
-          alignItems: center;
-          gap: 8px;
-          color: hsl(var(--text-primary));
-        }
-
-        .slot-coaches-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
-          gap: 16px;
-          margin-top: 16px;
-        }
-
-        .mini-coach-card {
-          background: var(--bg-surface);
-          border: 1px solid var(--border-light);
-          border-radius: 12px;
-          padding: 14px;
-          display: flex;
-          flex-direction: column;
-          justify-content: space-between;
-          transition: all 0.2s ease;
-        }
-
-        .mini-coach-card:hover {
-          background: var(--panel-hover-bg);
-          border-color: hsl(var(--primary) / 0.3);
-        }
-
-        .mini-coach-info {
-          display: flex;
-          gap: 12px;
-          align-items: flex-start;
-          margin-bottom: 10px;
-        }
-
-        .mini-coach-avatar-button {
-          display: block;
-          padding: 0;
-          background: none;
-          border: none;
-          border-radius: 50%;
-          flex-shrink: 0;
-          cursor: pointer;
-        }
-
-        .mini-coach-avatar {
-          display: block;
-          width: 44px;
-          height: 44px;
-          border-radius: 50%;
-          object-fit: cover;
-          transition: transform 0.2s ease, opacity 0.2s ease;
-        }
-
-        .mini-coach-avatar-button:hover .mini-coach-avatar {
-          transform: scale(1.05);
-          opacity: 0.9;
-        }
-
-        .mini-coach-details {
-          overflow: hidden;
-        }
-
-        .mini-coach-name {
-          display: block;
-          max-width: 100%;
-          font-size: 0.9rem;
-          font-weight: 700;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          cursor: pointer;
-          transition: color 0.15s ease;
-          /* Button reset: this was a div. */
-          padding: 0;
-          background: none;
-          border: none;
-          text-align: left;
-          font-family: inherit;
-          color: inherit;
-        }
-
-        .mini-coach-name:hover {
-          color: hsl(var(--primary));
-          text-decoration: underline;
-        }
-
-
-        .mini-coach-location {
-          font-size: 0.75rem;
-          color: hsl(var(--text-secondary));
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          margin-top: 2px;
-        }
-
-        .dropdown-item-label:hover {
-          background: var(--panel-hover-bg);
-        }
-
-        .mini-coach-quals {
-          display: flex;
-          gap: 4px;
-          flex-wrap: wrap;
-          margin-top: 6px;
-        }
-
-        .mini-coach-bio {
-          font-size: 0.78rem;
-          color: hsl(var(--text-secondary));
-          line-height: 1.4;
-          margin-bottom: 12px;
-        }
-
-        .session-card {
-          background: var(--bg-surface);
-          border: 1px solid var(--border-light);
-          border-left: 3px solid hsl(var(--primary));
-          border-radius: 10px;
-          padding: 14px;
-          margin-bottom: 12px;
-          transition: all 0.2s ease;
-        }
-
-        .session-card:hover {
-          background: var(--panel-hover-bg);
-          border-color: var(--border-light);
-        }
-
-        /* Removed multi-column layout media query */
-      `}</style>
 
       <div className="dashboard-layout">
           {/* Advanced Filter panel */}
@@ -1302,7 +1059,7 @@ export const UpcomingSessions: React.FC = () => {
             await handleRefresh();
           } catch (err) {
             console.error('Failed to cancel booking:', err);
-            alert('Failed to cancel booking. Please try again.');
+            showToast('Failed to cancel booking. Please try again.');
           } finally {
             setCancellingId(null);
             setBookingToCancel(null);

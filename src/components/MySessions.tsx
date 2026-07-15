@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { useNow } from '../hooks/useNow';
 import { getUpcomingEvents, cancelBooking } from '../services/googleCalendar';
@@ -21,6 +22,7 @@ import { EVENT_TYPE } from '../config';
 
 export const MySessions: React.FC = () => {
   const { user, profile } = useAuth();
+  const { showToast } = useToast();
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const [sessions, setSessions] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,6 +60,7 @@ export const MySessions: React.FC = () => {
       await loadSessions(true); // Silent refresh to avoid UI flicker
     } catch (e) {
       console.error('Error cancelling booking:', e);
+      showToast('Failed to cancel session. Please try again.');
     } finally {
       setCancellingId(null);
     }

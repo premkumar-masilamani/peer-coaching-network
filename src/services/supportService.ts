@@ -4,6 +4,7 @@ import {
   createSupportRequestWithFirstMessage,
   fetchSupportRequestDocsByUser,
   fetchAllSupportRequestDocs,
+  fetchSupportRequestsPage,
   fetchSupportMessageDocs,
   addSupportMessage,
   setSupportRequestStatus,
@@ -81,6 +82,19 @@ export const getAllSupportRequests = async (): Promise<SupportRequest[]> => {
   if (!db) return [];
   const docs = await fetchAllSupportRequestDocs();
   return docs.map(toSupportRequest).sort(byUpdatedAtDesc);
+};
+
+// One page of support tickets (newest-updated first) with an opaque cursor for
+// the next page, bounding the admin desk's initial read. The query already
+// returns tickets in updatedAt-desc order, so no additional client-side sort is
+// needed within a page.
+export const getSupportRequestsPage = async (
+  pageSize: number,
+  pageCursor?: unknown
+): Promise<{ requests: SupportRequest[]; nextCursor: unknown | null; hasMore: boolean }> => {
+  if (!db) return { requests: [], nextCursor: null, hasMore: false };
+  const { docs, nextCursor, hasMore } = await fetchSupportRequestsPage({ pageSize, pageCursor });
+  return { requests: docs.map(toSupportRequest), nextCursor, hasMore };
 };
 
 export const getSupportMessages = async (requestId: string): Promise<SupportMessage[]> => {

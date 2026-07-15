@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Header } from './components/Header';
 import { Login } from './components/Login';
@@ -6,7 +6,11 @@ import { VerificationNotice } from './components/VerificationNotice';
 import { UpcomingSessions } from './components/UpcomingSessions';
 import { ProfileEdit } from './components/ProfileEdit';
 import { AvailabilityEdit } from './components/AvailabilityEdit';
-import { AdminDashboard } from './components/AdminDashboard';
+// Admin dashboard (and its heavy children: UserManagement, SystemLogs) is
+// code-split so non-admin users never download it on first paint.
+const AdminDashboard = React.lazy(() =>
+  import('./components/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
+);
 import { OnboardingWizard } from './components/OnboardingWizard';
 import { LeftNav } from './components/LeftNav';
 import { MySessions } from './components/MySessions';
@@ -18,6 +22,7 @@ import { Sparkles, AlertTriangle, X } from 'lucide-react';
 import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, THEME } from './config';
 import { clearProfileFromUrl } from './utils/url';
 import { UnsavedChangesProvider, useUnsavedChanges } from './context/UnsavedChangesContext';
+import { ToastProvider } from './context/ToastContext';
 
 
 // Fields that matter for the non-blocking profile-complete banner.
@@ -367,10 +372,12 @@ const AppContent: React.FC = () => {
                 {currentTab === TABS.BOOKINGS && <MySessions />}
                 {currentTab === TABS.SUPPORT && <SupportFeedback reclickNonce={supportReclickNonce} />}
                 {currentTab === TABS.ADMIN && role === USER_ROLE.ADMIN && (
-                  <AdminDashboard
-                    initialFilter={adminTabFilter}
-                    setInitialFilter={handleAdminFilterChange}
-                  />
+                  <Suspense fallback={<div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>}>
+                    <AdminDashboard
+                      initialFilter={adminTabFilter}
+                      setInitialFilter={handleAdminFilterChange}
+                    />
+                  </Suspense>
                 )}
               </>
             )}
@@ -391,9 +398,11 @@ function App() {
 
   return (
     <AuthProvider>
-      <UnsavedChangesProvider>
-        <AppContent />
-      </UnsavedChangesProvider>
+      <ToastProvider>
+        <UnsavedChangesProvider>
+          <AppContent />
+        </UnsavedChangesProvider>
+      </ToastProvider>
     </AuthProvider>
   );
 }
