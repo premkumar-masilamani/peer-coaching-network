@@ -228,10 +228,16 @@ export const MySessions: React.FC = () => {
                               >
                                 {activeTab === 'upcoming' ? 'Confirmed' : 'Completed'}
                               </span>
-                              {safeMeetLink && activeTab === 'upcoming' && (
-                                <span style={{ fontSize: '0.7rem', color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                  <Video size={12} /> Google Meet
-                                </span>
+                              {activeTab === 'upcoming' && (
+                                safeMeetLink ? (
+                                  <span style={{ fontSize: '0.7rem', color: '#34d399', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Video size={12} /> Google Meet
+                                  </span>
+                                ) : (
+                                  <span style={{ fontSize: '0.7rem', color: 'hsl(var(--text-muted))', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    <Video size={12} /> Link pending
+                                  </span>
+                                )
                               )}
                             </div>
                             
@@ -249,23 +255,43 @@ export const MySessions: React.FC = () => {
                               </p>
                             )}
                             
-                            {safeMeetLink && activeTab === 'upcoming' && (
-                              <a
-                                href={safeMeetLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="btn btn-primary"
-                                style={{
-                                  width: '100%',
-                                  padding: '8px 16px',
-                                  fontSize: '0.8rem',
-                                  height: '34px',
-                                  gap: '6px'
-                                }}
-                              >
-                                Join Google Meet
-                                <ExternalLink size={12} />
-                              </a>
+                            {activeTab === 'upcoming' && (
+                              safeMeetLink ? (
+                                <a
+                                  href={safeMeetLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btn btn-primary"
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 16px',
+                                    fontSize: '0.8rem',
+                                    height: '34px',
+                                    gap: '6px'
+                                  }}
+                                >
+                                  Join Google Meet
+                                  <ExternalLink size={12} />
+                                </a>
+                              ) : (
+                                <button
+                                  type="button"
+                                  disabled
+                                  className="btn btn-primary"
+                                  style={{
+                                    width: '100%',
+                                    padding: '8px 16px',
+                                    fontSize: '0.8rem',
+                                    height: '34px',
+                                    gap: '6px',
+                                    opacity: 0.5,
+                                    cursor: 'not-allowed'
+                                  }}
+                                >
+                                  Join Link Pending
+                                  <ExternalLink size={12} />
+                                </button>
+                              )
                             )}
 
                             {isCancellable && (
