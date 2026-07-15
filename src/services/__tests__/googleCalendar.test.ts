@@ -424,6 +424,33 @@ describe('googleCalendar service', () => {
       expect(attemptCount).toBe(2);
       expect(logger.warn).toHaveBeenCalledTimes(1);
     });
+
+    it('retries fetching event from Google Calendar if hangoutLink is missing initially', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: 'gcal-event-123' })
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ id: 'gcal-event-123', hangoutLink: 'https://meet.google.com/abc-defg-hij' })
+      });
+      mockRunTransaction.mockResolvedValue(undefined);
+
+      const result = await scheduleMeeting(
+        'coach-123',
+        'coach@example.com',
+        'John Coach',
+        'client-123',
+        'Mock Client',
+        '2026-06-18T10:00:00Z',
+        '2026-06-18T10:30:00Z',
+        'Career Development'
+      );
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(result.meetLink).toBe('https://meet.google.com/abc-defg-hij');
+    });
   });
 
   describe('cancelBooking', () => {
@@ -633,6 +660,63 @@ describe('googleCalendar service', () => {
       const events = await getUpcomingEvents();
       expect(logger.error).toHaveBeenCalled();
       expect(events).toEqual([]);
+    });
+
+    it('performs self-healing to update Firestore booking when googleMeetLink is missing in DB but present in Google Calendar', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [
+            {
+              id: 'gcal-event-123',
+              summary: 'Google meeting',
+              start: { dateTime: '2026-06-20T10:00:00Z' },
+              end: { dateTime: '2026-06-20T11:00:00Z' },
+              hangoutLink: 'https://meet.google.com/abc-defg-hij',
+              attendees: [{ email: 'attendee@example.com', displayName: 'Attendee' }]
+            }
+          ]
+        })
+      });
+
+      mockGetDocs.mockResolvedValueOnce({
+        docs: [
+          {
+            ref: { id: 'booking-1' },
+            data: () => ({
+              bookingId: 'booking-1',
+              googleEventId: 'gcal-event-123',
+              googleMeetLink: '',
+              status: BOOKING_STATUS.CONFIRMED,
+              startTime: '2026-06-20T10:00:00Z',
+              endTime: '2026-06-20T11:00:00Z',
+              coachUid: 'coach-123',
+              clientUid: 'client-123',
+              topic: 'Career Development'
+            })
+          }
+        ]
+      });
+
+      mockGetDocs.mockResolvedValueOnce({ docs: [] });
+
+      mockGetDoc.mockImplementation(async (ref: any) => {
+        if (ref.path === 'users/coach-123') {
+          return { exists: () => true, data: () => ({ displayName: 'John Coach', email: 'coach@example.com' }) };
+        }
+        if (ref.path === 'users/client-123') {
+          return { exists: () => true, data: () => ({ displayName: 'Jane Client', email: 'client@example.com' }) };
+        }
+        return { exists: () => false };
+      });
+
+      mockUpdateDoc.mockResolvedValueOnce(undefined);
+
+      const events = await getUpcomingEvents();
+      expect(events.length).toBe(1);
+      expect(events[0].meetLink).toBe('https://meet.google.com/abc-defg-hij');
+      expect(mockUpdateDoc).toHaveBeenCalledWith({ id: 'booking-1' }, { googleMeetLink: 'https://meet.google.com/abc-defg-hij' });
     });
   });
 
