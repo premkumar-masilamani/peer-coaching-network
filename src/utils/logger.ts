@@ -1,6 +1,4 @@
-import { getApps, getApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { getApps } from 'firebase/app';
 
 const LOG_LEVELS = {
   debug: 0,
@@ -20,7 +18,7 @@ const shouldLog = (level: LogLevel): boolean => {
   return LOG_LEVELS[level] >= getLogLevel();
 };
 
-import { type LogSeverity, COLLECTIONS } from '../config';
+import { type LogSeverity } from '../config';
 
 export const logger = {
   debug: (message: string, ...optionalParams: unknown[]): void => {
@@ -53,24 +51,14 @@ export const logger = {
     details: Record<string, unknown> = {}
   ): Promise<void> => {
     try {
-      const apps = getApps();
-      if (apps.length === 0) return;
-      const app = getApp();
-      const databaseId = import.meta.env.VITE_FIRESTORE_DATABASE_ID;
-      const db = getFirestore(app, databaseId);
-      const auth = getAuth(app);
-      
-      const userId = auth.currentUser?.uid || null;
-      const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days TTL
-
-      await addDoc(collection(db, COLLECTIONS.SYSTEM_LOGS), {
-        type,
-        event,
-        userId,
-        details,
-        timestamp: serverTimestamp(),
-        expireAt: Timestamp.fromDate(expireAt)
-      });
+      // Nothing to write until Firebase is bootstrapped.
+      if (getApps().length === 0) return;
+      // The write itself lives in the Firestore repository. It is pulled in via a
+      // dynamic import because the logger sits below firebaseApp in the module
+      // graph (firebaseApp imports the logger); a static import of the repository
+      // (which imports firebaseApp) would create an initialization cycle.
+      const { writeSystemLog } = await import('../services/firestoreRepository');
+      await writeSystemLog(type, event, details);
     } catch (err) {
       console.error(`Failed to log telemetry event "${event}" to Firestore:`, err);
     }

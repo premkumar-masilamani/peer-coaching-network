@@ -1,18 +1,13 @@
-import {
-  collection,
-  query,
-  where,
-  getDocs,
-  Timestamp,
-  documentId,
-  or,
-  and,
-} from 'firebase/firestore';
 import type { DocumentData } from 'firebase/firestore';
-import { COLLECTIONS, BOOKING_STATUS, COACH_DISCOVERY_LIMIT, USER_ROLE } from '../config';
+import { COACH_DISCOVERY_LIMIT, USER_ROLE } from '../config';
 import { db } from './firebaseApp';
+import {
+  fetchCoachAvailabilityByDates,
+  fetchBusySlotsInDayRange,
+  fetchActiveUsersByIds,
+  fetchConfirmedBookingsByParticipant,
+} from './firestoreRepository';
 import { isApproved } from './profileHelpers';
-import { chunkArray } from '../utils/chunkArray';
 import { logger } from '../utils/logger';
 import type { UserProfile, DiscoveryFilters } from './types';
 
@@ -37,17 +32,11 @@ export const queryAvailableCoachesForDay = async (
   // Read only the selected day's per-coach shards (1-2 UTC dates → within the
   // `in` limit of 30). Each shard is a small, coach-owned document, so no two
   // coaches share a document and we never read the whole booking horizon.
-  const q = query(
-    collection(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE),
-    where('dateISO', 'in', uniqueUtcDates)
-  );
-
-  const cacheSnap = await getDocs(q);
+  const cacheDocs = await fetchCoachAvailabilityByDates(uniqueUtcDates);
   const cacheMap = new Map<string, string[]>();
   const rejected = new Set<string>();
 
-  cacheSnap.forEach((docSnap) => {
-    const data = docSnap.data();
+  cacheDocs.forEach((data) => {
     const uid = data.coachUid;
     if (uid === currentUserUid || rejected.has(uid)) return;
 
@@ -79,17 +68,11 @@ export const queryAvailableCoachesForDay = async (
   const candidateUids = Array.from(cacheMap.keys());
   if (candidateUids.length === 0) return {};
 
-  const busySlotsQuery = query(
-    collection(db, COLLECTIONS.BUSY_SLOTS),
-    where('startTime', '>=', Timestamp.fromDate(localDayStart)),
-    where('startTime', '<=', Timestamp.fromDate(localDayEnd))
-  );
-
-  const busySlotsSnap = await getDocs(busySlotsQuery);
+  // Public busy intervals for the day (coach-keyed) mark which coaches are taken.
+  const busySlots = await fetchBusySlotsInDayRange(localDayStart, localDayEnd);
   const slotBusyUsers = new Map<string, Set<string>>();
 
-  busySlotsSnap.forEach((doc) => {
-    const b = doc.data();
+  busySlots.forEach((b) => {
     const startStr = b.startTime && typeof b.startTime.toDate === 'function'
       ? b.startTime.toDate().toISOString()
       : (b.startTime?.dateTime || b.startTime);
@@ -159,7 +142,7 @@ export const queryAvailableCoachesForDay = async (
       const slotIso = slot.startTime.toISOString();
       const available = slotAvailableUids.get(slotIso) || [];
       const offset = slotFetchedOffset.get(slotIso) || 0;
-      
+
       const activeCount = available.slice(0, offset).filter(uid => coachProfilesMap.has(uid)).length;
       return activeCount >= COACH_DISCOVERY_LIMIT || offset >= available.length;
     });
@@ -167,12 +150,12 @@ export const queryAvailableCoachesForDay = async (
 
   while (!slotsSatisfied()) {
     const uidsToFetchThisPass = new Set<string>();
-    
+
     slots.forEach((slot) => {
       const slotIso = slot.startTime.toISOString();
       const available = slotAvailableUids.get(slotIso) || [];
       const offset = slotFetchedOffset.get(slotIso) || 0;
-      
+
       const activeCount = available.slice(0, offset).filter(uid => coachProfilesMap.has(uid)).length;
       const needed = COACH_DISCOVERY_LIMIT - activeCount;
       if (needed <= 0 || offset >= available.length) return;
@@ -191,26 +174,14 @@ export const queryAvailableCoachesForDay = async (
       break;
     }
 
-    const profileChunks = chunkArray(chunk, 30);
-    const snaps = await Promise.all(
-      profileChunks.map(c =>
-        getDocs(
-          query(
-            collection(db, COLLECTIONS.USERS),
-            where(documentId(), 'in', c),
-            where('userStatus', '==', 'active')
-          )
-        )
-      )
-    );
-
-    snaps.forEach((snap) => {
-      snap.forEach((docSnap) => {
-        const profile = docSnap.data() as UserProfile;
-        if ((profile.userRole === USER_ROLE.USER || profile.userRole === USER_ROLE.ADMIN) && isApproved(profile)) {
-          coachProfilesMap.set(profile.userId, profile);
-        }
-      });
+    // Repository fetches only ACTIVE users (server-side); we still gate on the
+    // live, authoritative profile below so stale shards can never surface a
+    // pending/inactive coach for booking.
+    const activeProfiles = await fetchActiveUsersByIds(chunk);
+    activeProfiles.forEach((profile) => {
+      if ((profile.userRole === USER_ROLE.USER || profile.userRole === USER_ROLE.ADMIN) && isApproved(profile)) {
+        coachProfilesMap.set(profile.userId, profile);
+      }
     });
   }
 
@@ -220,7 +191,7 @@ export const queryAvailableCoachesForDay = async (
     const slotIso = slot.startTime.toISOString();
     const available = slotAvailableUids.get(slotIso) || [];
     const activeProfiles: UserProfile[] = [];
-    
+
     for (const uid of available) {
       if (activeProfiles.length >= COACH_DISCOVERY_LIMIT) break;
       const profile = coachProfilesMap.get(uid);
@@ -236,23 +207,8 @@ export const queryAvailableCoachesForDay = async (
 
 export const getUserBookings = async (uid: string): Promise<DocumentData[]> => {
   if (!db) return [];
-  const q = query(
-    collection(db, COLLECTIONS.BOOKINGS),
-    and(
-      where('status', '==', BOOKING_STATUS.CONFIRMED),
-      or(
-        where('clientUid', '==', uid),
-        where('coachUid', '==', uid)
-      )
-    )
-  );
   try {
-    const querySnap = await getDocs(q);
-    const list: DocumentData[] = [];
-    querySnap.forEach((doc) => {
-      list.push(doc.data());
-    });
-    return list;
+    return await fetchConfirmedBookingsByParticipant(uid);
   } catch (err) {
     logger.error('Error in getUserBookings:', err);
     return [];

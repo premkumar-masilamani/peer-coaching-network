@@ -1,17 +1,5 @@
 import {
-  doc,
-  getDoc,
-  setDoc,
-  collection,
-  query,
-  where,
-  getDocs,
-  writeBatch,
-  type DocumentReference,
-} from 'firebase/firestore';
-import {
   BOOKING_HORIZON_DAYS,
-  COLLECTIONS,
   USER_ROLE,
   USER_STATUS,
   ENABLE_GOOGLE_INTEGRATION,
@@ -24,12 +12,17 @@ import { db, auth } from './firebaseApp';
 // cross-module reference below is inside a function body (call-time), never at
 // module top level — keep it that way.
 import { getSchedule } from './scheduleService';
+import {
+  getUserProfile,
+  getPersonalAvailabilityCache,
+  writePersonalAvailabilityCache,
+  syncCoachAvailabilityShards,
+} from './firestoreRepository';
 import { isApproved } from './profileHelpers';
 import { getGoogleToken } from './googleToken';
 import { generateTemplateSlots } from '../utils/slotGeneration';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
-import type { UserProfile } from './types';
 
 // Remove any 1-hr slot (identified by its ISO start) that overlaps a busy
 // interval. Exported for testing. A slot [start, start+1h) is busy if any
@@ -109,20 +102,16 @@ export const lazyRecalculateAvailableSlotsCache = async (uid: string): Promise<v
     return;
   }
 
-  const personalAvailabilityCacheRef = doc(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE, uid);
   try {
-    const snap = await getDoc(personalAvailabilityCacheRef);
+    const data = await getPersonalAvailabilityCache(uid);
     let shouldRecalc = false;
 
-    if (snap.exists()) {
-      const data = snap.data();
+    if (data) {
       const lastUpdated = data.lastUpdated;
-      
+
       // Compare userStatus or credentials to propagate changes
-      const userDocRef = doc(db, COLLECTIONS.USERS, uid);
-      const userSnap = await getDoc(userDocRef);
-      if (userSnap.exists()) {
-        const profile = userSnap.data();
+      const profile = await getUserProfile(uid);
+      if (profile) {
         if (data.userStatus !== profile.userStatus) {
           shouldRecalc = true;
           logger.info(`lazyRecalculateAvailableSlotsCache: Status changed from ${data.userStatus} to ${profile.userStatus}.`);
@@ -165,18 +154,14 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
   if (!db) return;
   logger.debug(`Starting available slots cache recalculation for user: ${uid}`);
   try {
-    const userDocRef = doc(db, COLLECTIONS.USERS, uid);
-    const personalAvailabilityCacheRef = doc(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE, uid);
-
-    const [userDoc, schedule, existingCacheDoc] = await Promise.all([
-      getDoc(userDocRef),
+    const [profile, schedule, existingCache] = await Promise.all([
+      getUserProfile(uid),
       getSchedule(uid),
-      getDoc(personalAvailabilityCacheRef)
+      getPersonalAvailabilityCache(uid),
     ]);
 
-    if (!userDoc.exists()) return;
+    if (!profile) return;
 
-    const profile = userDoc.data() as UserProfile;
     const timezone = profile.timezone || 'UTC';
     const { availableDays, blockedDates } = schedule;
 
@@ -225,14 +210,13 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
 
     const targetUserStatus = profile.userStatus || USER_STATUS.INACTIVE;
 
-    // Compare with the existing cached document to detect structural changes
+    // Compare with the existing cached document to detect structural changes.
     let skipShardWrites = false;
     const existingSlotsByDate = new Map<string, string[]>();
     let areFilterFieldsEqual = false;
 
-    if (existingCacheDoc.exists()) {
-      const existingData = existingCacheDoc.data();
-      const existingSlots = existingData.availableSlots || [];
+    if (existingCache) {
+      const existingSlots = existingCache.availableSlots || [];
 
       for (const iso of existingSlots) {
         const dateISO = iso.split('T')[0];
@@ -247,15 +231,15 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
 
       // Check filter fields equality
       areFilterFieldsEqual =
-        existingData.gender === filterFields.gender &&
-        existingData.country === filterFields.country &&
-        existingData.icf_acc === filterFields.icf_acc &&
-        existingData.icf_pcc === filterFields.icf_pcc &&
-        existingData.icf_mcc === filterFields.icf_mcc &&
-        existingData.icf_actc === filterFields.icf_actc;
+        existingCache.gender === filterFields.gender &&
+        existingCache.country === filterFields.country &&
+        existingCache.icf_acc === filterFields.icf_acc &&
+        existingCache.icf_pcc === filterFields.icf_pcc &&
+        existingCache.icf_mcc === filterFields.icf_mcc &&
+        existingCache.icf_actc === filterFields.icf_actc;
 
       // Check status equality to honor userStatus updates
-      const statusEqual = existingData.userStatus === targetUserStatus;
+      const statusEqual = existingCache.userStatus === targetUserStatus;
 
       if (slotsEqual && areFilterFieldsEqual && statusEqual) {
         skipShardWrites = true;
@@ -267,7 +251,7 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
     // profile metadata may have changed even when the slots are unchanged.
     // If the coach is deactivated or not a coach, we empty their slots to prevent
     // cache leakage.
-    await setDoc(personalAvailabilityCacheRef, {
+    await writePersonalAvailabilityCache(uid, {
       userId: uid,
       lastUpdated,
       availableSlots: finalFreeSlots,
@@ -305,62 +289,15 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
       slotsByDate.set(dateISO, list);
     }
 
-    // Read existing shards so dates that lost all availability can be deleted.
-    // Optimize: skip the getDocs(coachUid==uid) read when there is nothing to delete.
-    const oldDates = Array.from(existingSlotsByDate.keys());
-    const staleDates = oldDates.filter(d => !slotsByDate.has(d));
-    const hasStaleDates = staleDates.length > 0;
-
-    const existingShards: { dateISO: string; ref: DocumentReference }[] = [];
-    if (hasStaleDates) {
-      const existingShardsSnap = await getDocs(
-        query(collection(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE), where('coachUid', '==', uid))
-      );
-      existingShardsSnap.forEach((shardDoc) => {
-        const data = shardDoc.data();
-        existingShards.push({
-          dateISO: data.dateISO,
-          ref: shardDoc.ref
-        });
-      });
-    }
-
-    const batch = writeBatch(db);
-    let batchOpsCount = 0;
-
-    for (const [dateISO, slots] of slotsByDate) {
-      const existingSlots = existingSlotsByDate.get(dateISO);
-      const slotsEqual = existingSlots &&
-        existingSlots.length === slots.length &&
-        existingSlots.every((val, index) => val === slots[index]);
-
-      const shouldWriteShard = !slotsEqual || !areFilterFieldsEqual;
-
-      if (shouldWriteShard) {
-        const shardRef = doc(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE, `${uid}_${dateISO}`);
-        batch.set(shardRef, {
-          coachUid: uid,
-          dateISO,
-          freeSlots: slots,
-          lastUpdated,
-          ...filterFields,
-        });
-        batchOpsCount++;
-      }
-    }
-
-    if (hasStaleDates) {
-      existingShards.forEach((shard) => {
-        if (!slotsByDate.has(shard.dateISO)) {
-          batch.delete(shard.ref);
-          batchOpsCount++;
-        }
-      });
-    }
-
-    if (batchOpsCount > 0) {
-      await batch.commit();
-    }
+    // Reconcile the coach's per-day shards in a single batch: write changed
+    // shards and delete shards for dates that lost all availability.
+    await syncCoachAvailabilityShards(uid, {
+      slotsByDate,
+      existingSlotsByDate,
+      filterFields,
+      areFilterFieldsEqual,
+      lastUpdated,
+    });
 
     logger.info(`Successfully recalculated available slots cache and day shards for user: ${uid}`);
   } catch (err) {
@@ -384,7 +321,6 @@ export const getUserAvailableSlots = async (uid: string): Promise<string[]> => {
 
   lazyRecalculateAvailableSlotsCache(uid);
 
-  const ref = doc(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE, uid);
-  const snap = await getDoc(ref);
-  return snap.exists() ? (snap.data().availableSlots || []) : [];
+  const cache = await getPersonalAvailabilityCache(uid);
+  return cache ? (cache.availableSlots || []) : [];
 };
