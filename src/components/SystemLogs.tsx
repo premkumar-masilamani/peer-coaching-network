@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useRef } from 'react';
+import { useTransientState } from '../hooks/useTransientState';
 import { getLogsPage, type SystemLogEntry } from '../services/adminService';
 import {
   AlertCircle,
@@ -44,7 +45,7 @@ export const SystemLogs: React.FC = () => {
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   
   // Copy feedback state
-  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useTransientState<string | null>(null);
 
   // Toggle a severity in/out of the selected set
   const handleSeverityToggle = (sev: LogSeverity) => {
@@ -99,8 +100,7 @@ export const SystemLogs: React.FC = () => {
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
+    setCopiedId(id, 2000);
   };
 
   const formatTimestamp = (ts: any) => {
