@@ -8,11 +8,10 @@ import { useFocusRefresh } from '../hooks/useFocusRefresh';
 
 interface HeaderProps {
   currentTab: TabKey;
-  setCurrentTab: (tab: TabKey) => void;
-  setAdminTabFilter?: (filter: 'all' | UserStatus | UserRole) => void;
+  setCurrentTab: (tab: TabKey, adminFilter?: 'all' | UserStatus | UserRole) => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter }) => {
+export const Header: React.FC<HeaderProps> = ({ setCurrentTab }) => {
   const { user, profile, role, googleTokenStatus, login } = useAuth();
   const [pendingCount, setPendingCount] = React.useState(0);
 
@@ -172,10 +171,7 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab, setAdminTabFilter
           {isActiveAdmin && pendingCount > 0 && (
             <button
               onClick={() => {
-                setCurrentTab(TABS.ADMIN);
-                if (setAdminTabFilter) {
-                  setAdminTabFilter(USER_STATUS.INACTIVE);
-                }
+                setCurrentTab(TABS.ADMIN, USER_STATUS.INACTIVE);
               }}
               style={{
                 display: 'flex',

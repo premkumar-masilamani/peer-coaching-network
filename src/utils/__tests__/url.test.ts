@@ -119,9 +119,8 @@ describe('url', () => {
       dispatchSpy.mockRestore();
     });
 
-    it('clearProfileFromUrl deletes query param and dispatches popstate if profile was set', () => {
+    it('navigateToProfile does not pushState if profile query param is already set to the target uid', () => {
       const originalUrl = window.location.href;
-      // Set the query parameter manually first
       const url = new URL(window.location.href);
       url.searchParams.set('profile', 'user-123');
       window.history.pushState({}, '', url.toString());
@@ -129,18 +128,39 @@ describe('url', () => {
       const pushStateSpy = vi.spyOn(window.history, 'pushState');
       const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
 
+      navigateToProfile('user-123');
+
+      expect(pushStateSpy).not.toHaveBeenCalled();
+      expect(dispatchSpy).not.toHaveBeenCalled();
+
+      pushStateSpy.mockRestore();
+      dispatchSpy.mockRestore();
+
+      window.history.pushState({}, '', originalUrl);
+    });
+
+    it('clearProfileFromUrl deletes query param and dispatches popstate if profile was set, using replaceState', () => {
+      const originalUrl = window.location.href;
+      // Set the query parameter manually first
+      const url = new URL(window.location.href);
+      url.searchParams.set('profile', 'user-123');
+      window.history.pushState({}, '', url.toString());
+
+      const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
+      const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
       clearProfileFromUrl();
 
-      expect(pushStateSpy).toHaveBeenCalled();
-      const pushCall = pushStateSpy.mock.calls[0];
-      expect(pushCall[2]).not.toContain('profile=');
+      expect(replaceStateSpy).toHaveBeenCalled();
+      const replaceCall = replaceStateSpy.mock.calls[0];
+      expect(replaceCall[2]).not.toContain('profile=');
 
       expect(dispatchSpy).toHaveBeenCalled();
       const event = dispatchSpy.mock.calls[0][0];
       expect(event).toBeInstanceOf(PopStateEvent);
       expect(event.type).toBe('popstate');
 
-      pushStateSpy.mockRestore();
+      replaceStateSpy.mockRestore();
       dispatchSpy.mockRestore();
 
       // Reset URL back to original
@@ -153,15 +173,15 @@ describe('url', () => {
       url.searchParams.delete('profile');
       window.history.pushState({}, '', url.toString());
 
-      const pushStateSpy = vi.spyOn(window.history, 'pushState');
+      const replaceStateSpy = vi.spyOn(window.history, 'replaceState');
       const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
 
       clearProfileFromUrl();
 
-      expect(pushStateSpy).not.toHaveBeenCalled();
+      expect(replaceStateSpy).not.toHaveBeenCalled();
       expect(dispatchSpy).not.toHaveBeenCalled();
 
-      pushStateSpy.mockRestore();
+      replaceStateSpy.mockRestore();
       dispatchSpy.mockRestore();
 
       window.history.pushState({}, '', originalUrl);

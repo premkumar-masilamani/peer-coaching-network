@@ -136,9 +136,10 @@ describe('UpcomingSessions component', () => {
       resolveFirstQuery = resolve;
     });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let firstQuerySlots: any[] = [];
     let firstCall = true;
-    mockFirebaseService.queryAvailableCoachesForDay.mockImplementation((start, end, slots) => {
+    mockFirebaseService.queryAvailableCoachesForDay.mockImplementation((_start, _end, slots) => {
       if (firstCall) {
         firstCall = false;
         firstQuerySlots = slots;
