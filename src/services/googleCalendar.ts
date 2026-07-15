@@ -1,7 +1,7 @@
 import type { UserProfile, AvailableDays } from './types';
 import { db, auth } from './firebaseApp';
 import { getSchedule } from './scheduleService';
-import { formatDisplayName } from './profileService';
+import { formatDisplayName, getProfiles } from './profileService';
 import { chunkArray } from '../utils/chunkArray';
 import { generateTemplateSlots } from '../utils/slotGeneration';
 import {
@@ -116,19 +116,30 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
       const snapClient = await getDocs(qClient);
       const snapHost = await getDocs(qHost);
 
-      const profileCache = new Map<string, UserProfile>();
-      const getProfile = async (uid: string): Promise<UserProfile | null> => {
-        if (profileCache.has(uid)) return profileCache.get(uid)!;
-        const userSnap = await getDoc(doc(db, COLLECTIONS.USERS, uid));
-        if (userSnap.exists()) {
-          const profile = userSnap.data() as UserProfile;
-          profileCache.set(uid, profile);
-          return profile;
-        }
-        return null;
+      const uids = new Set<string>();
+      const collectUids = (snap: QuerySnapshot<DocumentData>) => {
+        snap.docs.forEach((d) => {
+          const data = d.data();
+          if (data.status === BOOKING_STATUS.CANCELLED) return;
+          if (data.status === BOOKING_STATUS.PENDING && data.expireAt) {
+            const expireTime = data.expireAt.toDate().getTime();
+            if (expireTime < Date.now()) return;
+          }
+          if (data.coachUid) uids.add(data.coachUid);
+          if (data.clientUid) uids.add(data.clientUid);
+        });
       };
 
-      const processSnap = async (snap: QuerySnapshot<DocumentData>) => {
+      collectUids(snapClient);
+      collectUids(snapHost);
+
+      const profilesList = await getProfiles(Array.from(uids));
+      const profileMap = new Map<string, UserProfile>();
+      profilesList.forEach((profile) => {
+        profileMap.set(profile.userId, profile);
+      });
+
+      const processSnap = (snap: QuerySnapshot<DocumentData>) => {
         for (const d of snap.docs) {
           const data = d.data();
           if (data.status === BOOKING_STATUS.CANCELLED) continue; // skip cancelled bookings
@@ -161,8 +172,8 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
               ? data.endTime.toDate().toISOString()
               : (data.endTime?.dateTime || data.endTime || '');
 
-            const coachProfile = await getProfile(data.coachUid);
-            const clientProfile = await getProfile(data.clientUid);
+            const coachProfile = profileMap.get(data.coachUid) || null;
+            const clientProfile = profileMap.get(data.clientUid) || null;
 
             const coachFirstName = coachProfile ? (coachProfile.firstName || (formatDisplayName(coachProfile) || 'Coach').split(' ')[0]) : 'Coach';
             const clientFirstName = clientProfile ? (clientProfile.firstName || (formatDisplayName(clientProfile) || 'Peer').split(' ')[0]) : 'Peer';
@@ -186,8 +197,8 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
         }
       };
 
-      await processSnap(snapClient);
-      await processSnap(snapHost);
+      processSnap(snapClient);
+      processSnap(snapHost);
     } catch (err) {
       logger.error('Error querying bookings from Firestore:', err);
     }
