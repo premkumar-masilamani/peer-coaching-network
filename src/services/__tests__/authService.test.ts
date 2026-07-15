@@ -32,13 +32,14 @@ describe('authService', () => {
   });
 
   describe('loginWithGoogle', () => {
-    it('starts a redirect sign-in requesting the calendar scopes', async () => {
+    it('starts a redirect sign-in requesting only the calendar.events scope', async () => {
       const { signInWithRedirect } = await import('firebase/auth');
       await loginWithGoogle();
       expect(signInWithRedirect).toHaveBeenCalledTimes(1);
       const provider = (signInWithRedirect as any).mock.calls[0][1];
-      expect(provider.addScope).toHaveBeenCalledWith('https://www.googleapis.com/auth/calendar');
       expect(provider.addScope).toHaveBeenCalledWith('https://www.googleapis.com/auth/calendar.events');
+      // The broad full-calendar scope must NOT be requested (least privilege).
+      expect(provider.addScope).not.toHaveBeenCalledWith('https://www.googleapis.com/auth/calendar');
       expect(provider.setCustomParameters).toHaveBeenCalledWith({ prompt: 'select_account' });
     });
   });

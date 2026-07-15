@@ -15,7 +15,7 @@ import {
   scheduleMeeting,
   cancelBooking
 } from '../../src/services/googleCalendar';
-import { doc, getDoc, collection, getDocs, setDoc } from 'firebase/firestore';
+import { doc, getDoc, collection, getDocs, setDoc, addDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../../src/services/firebaseService';
 import { BOOKING_STATUS, BOOKING_ERROR, COLLECTIONS } from '../../src/config';
 
@@ -351,5 +351,75 @@ describe.runIf(!isPerfRun)('Use Case A - Functional Workflows against Firebase E
     // Clean up
     await signInUser(pendingUser.uid);
     await cancelBooking(bookingId);
+  });
+
+  it('13. clientBookingCache content is readable only by its participants', async () => {
+    // activeUser (client) creates a self-owned lock naming pendingUser as coach.
+    await signInUser(activeUser.uid);
+    const startIso = '2031-03-15T09:00:00.000Z';
+    const cacheId = `${activeUser.uid}_${startIso}`;
+    const cacheRef = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, cacheId);
+    await setDoc(cacheRef, {
+      clientUid: activeUser.uid,
+      coachUid: pendingUser.uid,
+      bookingId: `${pendingUser.uid}_${startIso}`,
+      startIso,
+      createdAt: Timestamp.now(),
+      expireAt: Timestamp.fromDate(new Date(Date.now() + 60 * 60 * 1000)),
+    });
+
+    // The client participant can read it.
+    const clientRead = await getDoc(cacheRef);
+    expect(clientRead.exists()).toBe(true);
+
+    // The coach participant can read it.
+    await signInUser(pendingUser.uid);
+    const coachRead = await getDoc(cacheRef);
+    expect(coachRead.exists()).toBe(true);
+    expect(coachRead.data()?.clientUid).toBe(activeUser.uid);
+
+    // A third-party (admin excluded) cannot read the existing lock's content.
+    const outsider = await adminAuth.createUser({ email: 'cacheoutsider@example.com', password: 'password123' });
+    const adminTs = await import('firebase-admin/firestore');
+    await adminDb.collection('users').doc(outsider.uid).set({
+      userId: outsider.uid, email: 'cacheoutsider@example.com', firstName: 'Cache', lastName: 'Outsider',
+      userRole: 'user', userStatus: 'active', createdAt: adminTs.Timestamp.now(),
+      gender: 'other', country: 'US', bio: 'x', timezone: 'UTC', theme: 'light',
+    });
+    await signInUser(outsider.uid);
+    await expect(getDoc(cacheRef)).rejects.toThrow();
+
+    // But probing a NON-existent lock is still allowed (the booking transaction
+    // relies on this for its no-conflict fast path).
+    const missingRef = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${outsider.uid}_2031-03-15T23:00:00.000Z`);
+    const missingRead = await getDoc(missingRef);
+    expect(missingRead.exists()).toBe(false);
+  });
+
+  it('14. systemLogs details map is bounded and key-restricted', async () => {
+    await signInUser(activeUser.uid);
+    const logsCol = collection(db, COLLECTIONS.SYSTEM_LOGS);
+    const base = {
+      type: 'error',
+      event: 'test_event',
+      userId: activeUser.uid,
+      timestamp: Timestamp.now(),
+      expireAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
+    };
+
+    // Valid: allowlisted keys within size caps.
+    await expect(
+      addDoc(logsCol, { ...base, details: { errorCode: 'X', errorMessage: 'boom', error: 'stack' } })
+    ).resolves.toBeDefined();
+
+    // Rejected: an unknown key not on the allowlist.
+    await expect(
+      addDoc(logsCol, { ...base, details: { maliciousKey: 'data' } })
+    ).rejects.toThrow();
+
+    // Rejected: an allowlisted string value exceeding its size cap.
+    await expect(
+      addDoc(logsCol, { ...base, details: { error: 'a'.repeat(600) } })
+    ).rejects.toThrow();
   });
 });

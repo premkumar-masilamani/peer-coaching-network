@@ -109,8 +109,11 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
 
 export const loginWithGoogle = async (): Promise<void> => {
   const provider = new GoogleAuthProvider();
-  // Request Google Calendar access
-  provider.addScope('https://www.googleapis.com/auth/calendar');
+  // Request Google Calendar access. Only the events scope is needed: every
+  // Calendar API call in this app is event CRUD on the user's primary calendar
+  // (create/patch/delete events, freeBusy queries). The broader `auth/calendar`
+  // scope (full calendar management) is intentionally NOT requested — it would
+  // enlarge the blast radius of a stolen token and worsen the consent screen.
   provider.addScope('https://www.googleapis.com/auth/calendar.events');
   // Force Google to prompt the user to select an account on login
   provider.setCustomParameters({ prompt: 'select_account' });
