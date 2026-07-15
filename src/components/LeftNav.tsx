@@ -20,13 +20,17 @@ interface LeftNavProps {
   setCurrentTab: (tab: TabKey) => void;
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
+  // Called when the user clicks the tab that is already active (a "re-click"),
+  // so the owning view can reset itself. Replaces a former window CustomEvent.
+  onTabReclick?: (tab: TabKey) => void;
 }
 
-export const LeftNav: React.FC<LeftNavProps> = ({ 
-  currentTab, 
-  setCurrentTab, 
-  collapsed, 
-  setCollapsed 
+export const LeftNav: React.FC<LeftNavProps> = ({
+  currentTab,
+  setCurrentTab,
+  collapsed,
+  setCollapsed,
+  onTabReclick
 }) => {
   const { profile, role, logout, updateProfileDetails } = useAuth();
   const isAdmin = role === USER_ROLE.ADMIN && profile?.userStatus === USER_STATUS.ACTIVE;
@@ -96,7 +100,7 @@ export const LeftNav: React.FC<LeftNavProps> = ({
         <button
           onClick={() => {
             if (currentTab === TABS.SUPPORT) {
-              window.dispatchEvent(new CustomEvent('tab-reclick', { detail: TABS.SUPPORT }));
+              onTabReclick?.(TABS.SUPPORT);
             }
             setCurrentTab(TABS.SUPPORT);
           }}

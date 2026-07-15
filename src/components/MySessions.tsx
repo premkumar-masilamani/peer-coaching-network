@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
+import { useNow } from '../hooks/useNow';
 import { getUpcomingEvents, cancelBooking } from '../services/googleCalendar';
 import { logAnalyticsEvent } from '../services/firebaseService';
 import type { CalendarEvent } from '../services/googleCalendar';
@@ -25,7 +26,9 @@ export const MySessions: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [bookingToCancel, setBookingToCancel] = useState<CalendarEvent | null>(null);
-  const [now] = useState(() => Date.now());
+  // Recomputed every minute / on focus so ended sessions move to "past" without
+  // a manual reload (a mount-frozen timestamp left them classified as upcoming).
+  const now = useNow();
   const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -79,8 +82,16 @@ export const MySessions: React.FC = () => {
     return () => { cancelled = true; };
   }, []);
 
-  const upcoming = sessions.filter(s => new Date(s.start.dateTime).getTime() >= now);
-  const completed = sessions.filter(s => new Date(s.start.dateTime).getTime() < now);
+  // Memoize the split so the grouping memos below have stable inputs — filtering
+  // inline recreated these arrays every render, defeating those useMemos.
+  const upcoming = useMemo(
+    () => sessions.filter(s => new Date(s.start.dateTime).getTime() >= now),
+    [sessions, now]
+  );
+  const completed = useMemo(
+    () => sessions.filter(s => new Date(s.start.dateTime).getTime() < now),
+    [sessions, now]
+  );
 
   const groupedUpcoming = useMemo(() => {
     const groups: { [dateStr: string]: CalendarEvent[] } = {};
