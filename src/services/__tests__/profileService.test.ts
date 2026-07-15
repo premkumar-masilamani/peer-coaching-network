@@ -8,6 +8,7 @@ import {
   updateOwnProfile,
   getProfile,
   getAllUsers,
+  getUsersPage,
   getActiveCoaches,
   getPendingUsersCount,
   setUserRoleAndStatus,
@@ -134,6 +135,35 @@ describe('profileService', () => {
     it('maps the snapshot to a users array', async () => {
       mockGetDocs.mockResolvedValueOnce({ forEach: (f: any) => { f({ data: () => ({ userId: 'u1' }) }); f({ data: () => ({ userId: 'u2' }) }); } });
       expect(await getAllUsers()).toEqual([{ userId: 'u1' }, { userId: 'u2' }]);
+    });
+  });
+
+  describe('getUsersPage', () => {
+    it('returns one page and reports hasMore + cursor via look-ahead', async () => {
+      // pageSize 1 fetches 2 (look-ahead); the extra row means more pages exist
+      // and the returned page trims back to 1.
+      mockGetDocs.mockResolvedValueOnce({
+        forEach: (f: any) => {
+          f({ id: 'u1', data: () => ({ userId: 'u1' }) });
+          f({ id: 'u2', data: () => ({ userId: 'u2' }) });
+        },
+      });
+      const result = await getUsersPage(1);
+      expect(result.users).toEqual([{ userId: 'u1' }]);
+      expect(result.hasMore).toBe(true);
+      expect(result.nextCursor).not.toBeNull();
+    });
+
+    it('reports no further pages when the look-ahead row is absent', async () => {
+      mockGetDocs.mockResolvedValueOnce({
+        forEach: (f: any) => {
+          f({ id: 'u1', data: () => ({ userId: 'u1' }) });
+        },
+      });
+      const result = await getUsersPage(5);
+      expect(result.users).toEqual([{ userId: 'u1' }]);
+      expect(result.hasMore).toBe(false);
+      expect(result.nextCursor).toBeNull();
     });
   });
 

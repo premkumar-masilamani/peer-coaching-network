@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { getLogsPage, getUserBookingStats, getAllUsers } from '../adminService';
+import { getLogsPage, getUserBookingStats, getAllUsers, getUsersPage } from '../adminService';
 import { getSystemLogs } from '../systemLogsService';
 import { getCoachSessions } from '../googleCalendar';
-import { getAllUsers as fetchAllUsers } from '../profileService';
+import { getAllUsers as fetchAllUsers, getUsersPage as fetchUsersPage } from '../profileService';
 
 vi.mock('../systemLogsService', () => ({
   getSystemLogs: vi.fn(),
@@ -15,6 +15,8 @@ vi.mock('../googleCalendar', () => ({
 
 vi.mock('../profileService', () => ({
   getAllUsers: vi.fn(),
+  getUsersPage: vi.fn(),
+  getPendingUsers: vi.fn(),
 }));
 
 describe('adminService', () => {
@@ -56,6 +58,18 @@ describe('adminService', () => {
 
       expect(fetchAllUsers).toHaveBeenCalled();
       expect(res).toBe(mockUsers);
+    });
+  });
+
+  describe('getUsersPage', () => {
+    it('delegates to profileService.getUsersPage with page size and cursor', async () => {
+      const mockResult = { users: [], nextCursor: null, hasMore: false };
+      vi.mocked(fetchUsersPage).mockResolvedValue(mockResult);
+
+      const res = await getUsersPage({ pageSize: 25, pageCursor: 'cursor-token' });
+
+      expect(fetchUsersPage).toHaveBeenCalledWith(25, 'cursor-token');
+      expect(res).toBe(mockResult);
     });
   });
 });

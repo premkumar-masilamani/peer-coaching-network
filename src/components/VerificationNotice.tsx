@@ -13,7 +13,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
-import { getTimezonesForCountry } from '../utils/timezones';
+import { loadTimezonesForCountry, type TimezoneOption } from '../utils/timezonesLazy';
 import { formatDisplayName, updateVerifiedCredentials } from '../services/firebaseService';
 import { GENDER_OPTIONS, type Gender, type Qualification, QUALIFICATION, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
 
@@ -30,7 +30,15 @@ export const VerificationNotice: React.FC = () => {
   const [bio, setBio] = useState(profile?.bio || '');
   const [timezone, setTimezone] = useState(profile?.timezone || '');
 
-  const timezoneOptions = getTimezonesForCountry(country);
+  // Timezone options are loaded from a lazily-imported chunk (see timezonesLazy).
+  const [timezoneOptions, setTimezoneOptions] = useState<TimezoneOption[]>([]);
+  React.useEffect(() => {
+    let active = true;
+    loadTimezonesForCountry(country).then((opts) => {
+      if (active) setTimezoneOptions(opts);
+    });
+    return () => { active = false; };
+  }, [country]);
 
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useTransientState('');
@@ -63,15 +71,11 @@ export const VerificationNotice: React.FC = () => {
     }
   };
 
-  const handleCountryChange = (selectedCountry: string) => {
+  const handleCountryChange = async (selectedCountry: string) => {
     setCountry(selectedCountry);
     if (selectedCountry) {
-      const options = getTimezonesForCountry(selectedCountry);
-      if (options.length > 0) {
-        setTimezone(options[0].value);
-      } else {
-        setTimezone('');
-      }
+      const options = await loadTimezonesForCountry(selectedCountry);
+      setTimezone(options.length > 0 ? options[0].value : '');
     } else {
       setTimezone('');
     }

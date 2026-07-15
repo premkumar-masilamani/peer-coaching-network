@@ -4,6 +4,7 @@ import {
   createSupportRequest,
   getSupportRequestsForUser,
   getAllSupportRequests,
+  getSupportRequestsPage,
   getSupportMessages,
   addMessageToSupportRequest,
   updateSupportRequestStatus,
@@ -168,6 +169,41 @@ describe('supportService', () => {
       expect(result).toHaveLength(2);
       expect(result[0].id).toBe('r2');
       expect(result[1].id).toBe('r1');
+    });
+  });
+
+  describe('getSupportRequestsPage', () => {
+    it('returns empty page when firestore is not initialized', async () => {
+      H.dbContainer.db = null as any;
+      const result = await getSupportRequestsPage(10);
+      expect(result).toEqual({ requests: [], nextCursor: null, hasMore: false });
+    });
+
+    it('returns one page and reports hasMore + cursor via look-ahead', async () => {
+      const makeDoc = (id: string, updatedAt: string) => ({
+        id,
+        data: () => ({
+          userId: 'user-1',
+          userDisplayName: 'Jane Doe',
+          userEmail: 'jane@example.com',
+          category: 'bug',
+          subject: `Sub ${id}`,
+          status: 'open',
+          createdAt: '2026-07-01T12:00:00Z',
+          updatedAt,
+        }),
+      });
+      // Requesting pageSize 1 fetches 2 (look-ahead) so the extra row signals
+      // that a further page exists; the returned page trims back to 1.
+      const mockDocs = [makeDoc('r1', '2026-07-02T00:00:00Z'), makeDoc('r2', '2026-07-01T00:00:00Z')];
+      mockGetDocs.mockResolvedValueOnce({ forEach: (cb: any) => mockDocs.forEach(cb) });
+
+      const result = await getSupportRequestsPage(1);
+
+      expect(result.requests).toHaveLength(1);
+      expect(result.requests[0].id).toBe('r1');
+      expect(result.hasMore).toBe(true);
+      expect(result.nextCursor).not.toBeNull();
     });
   });
 
