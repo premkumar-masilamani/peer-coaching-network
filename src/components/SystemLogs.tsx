@@ -1,43 +1,27 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useRef } from 'react';
-import { db } from '../services/firebaseService';
+import { getSystemLogs, type SystemLogEntry } from '../services/systemLogsService';
 import {
-  collection,
-  query,
-  orderBy,
-  where,
-  limit,
-  startAfter,
-  getDocs
-} from 'firebase/firestore';
-import { 
-  AlertCircle, 
-  ChevronLeft, 
-  ChevronRight, 
-  Info, 
-  Terminal, 
-  TriangleAlert, 
-  User, 
-  Copy, 
-  Check, 
-  Eye, 
-  EyeOff 
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  Terminal,
+  TriangleAlert,
+  User,
+  Copy,
+  Check,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
-import { type LogSeverity, LOG_SEVERITY, COLLECTIONS } from '../config';
+import { type LogSeverity, LOG_SEVERITY } from '../config';
 
 // LogSeverity is imported from config — 'error' | 'warn' | 'info'
 
-interface SystemLog {
-  id: string;
-  type: LogSeverity;
-  event: string;
-  userId: string | null;
-  details: Record<string, any>;
-  timestamp: any;
-  expireAt: any;
-  doc: any; // Storing the document snapshot for pagination
-}
+// The repository types `details` as Record<string, unknown>; widen to `any` here
+// so the detail fields can be read directly in JSX.
+type SystemLog = Omit<SystemLogEntry, 'details'> & { details: Record<string, any> };
 
 const SEVERITY_OPTIONS: { value: LogSeverity; label: string }[] = [
   { value: LOG_SEVERITY.ERROR, label: 'Errors' },
@@ -85,55 +69,18 @@ export const SystemLogs: React.FC = () => {
   };
 
   useEffect(() => {
-    if (!db) return;
-
-    let q = query(
-      collection(db, COLLECTIONS.SYSTEM_LOGS),
-      orderBy('timestamp', 'desc')
-    );
-
-    if (selectedSeverities.length === 1) {
-      // Exact match is more efficient for a single value
-      q = query(q, where('type', '==', selectedSeverities[0]));
-    } else if (selectedSeverities.length === 2) {
-      // Firestore `in` query supports up to 30 values
-      q = query(q, where('type', 'in', selectedSeverities));
-    }
-    // If 0 or 3 selected — show all (no where clause needed)
-
-    const cursor = pageCursorsRef.current[pageIndex];
-    if (cursor) {
-      q = query(q, startAfter(cursor));
-    }
-
-    // Request 101 docs to check if there is a next page
-    q = query(q, limit(101));
-
     let cancelled = false;
     (async () => {
       try {
-        const snapshot = await getDocs(q);
+        // Service owns the database access and pagination look-ahead; the cursor
+        // it returns is opaque and stored for the next page.
+        const { logs: fetchedLogs, nextCursor, hasMore } = await getSystemLogs({
+          severities: selectedSeverities,
+          pageCursor: pageCursorsRef.current[pageIndex],
+        });
         if (cancelled) return;
 
-        const fetchedLogs: SystemLog[] = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data();
-          fetchedLogs.push({
-            id: docSnap.id,
-            type: data.type,
-            event: data.event,
-            userId: data.userId,
-            details: data.details || {},
-            timestamp: data.timestamp,
-            expireAt: data.expireAt,
-            doc: docSnap
-          } as SystemLog);
-        });
-
-        const hasMore = fetchedLogs.length > 100;
-        if (hasMore) {
-          fetchedLogs.pop(); // Remove the 101st item
-          const nextCursor = fetchedLogs[fetchedLogs.length - 1].doc;
+        if (hasMore && nextCursor) {
           pageCursorsRef.current[pageIndex + 1] = nextCursor;
         }
 

@@ -2,8 +2,8 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { logger } from '../logger';
 
-const { mockAddDoc, mockGetApps } = vi.hoisted(() => ({
-  mockAddDoc: vi.fn(),
+const { mockWriteSystemLog, mockGetApps } = vi.hoisted(() => ({
+  mockWriteSystemLog: vi.fn(),
   mockGetApps: vi.fn(() => [] as any[]),
 }));
 
@@ -13,20 +13,10 @@ vi.mock('firebase/app', () => ({
   getApp: vi.fn(() => ({})),
 }));
 
-vi.mock('firebase/auth', () => ({
-  getAuth: vi.fn(() => ({
-    currentUser: { uid: 'user-123', email: 'user@example.com' },
-  })),
-}));
-
-vi.mock('firebase/firestore', () => ({
-  getFirestore: vi.fn(() => ({})),
-  collection: vi.fn((_db, col) => ({ id: col, path: col })),
-  addDoc: mockAddDoc,
-  serverTimestamp: vi.fn(() => 'server-timestamp'),
-  Timestamp: {
-    fromDate: (date: Date) => ({ toDate: () => date, seconds: Math.floor(date.getTime() / 1000) }),
-  },
+// The logger delegates the actual Firestore write to the repository (via a
+// dynamic import). Mock that boundary rather than the raw Firestore SDK.
+vi.mock('../../services/firestoreRepository', () => ({
+  writeSystemLog: mockWriteSystemLog,
 }));
 
 describe('logger utility', () => {
@@ -123,34 +113,22 @@ describe('logger utility', () => {
     it('ignores logging telemetry if no Firebase apps are initialized', async () => {
       mockGetApps.mockReturnValueOnce([]);
       await logger.telemetry('info', 'some_event');
-      expect(mockAddDoc).not.toHaveBeenCalled();
+      expect(mockWriteSystemLog).not.toHaveBeenCalled();
     });
 
-    it('successfully logs telemetry when Firebase is initialized', async () => {
+    it('delegates the write to the repository when Firebase is initialized', async () => {
       mockGetApps.mockReturnValueOnce([{}]);
-      mockAddDoc.mockResolvedValueOnce({ id: 'log-id' });
-
-      const now = Date.now();
-      vi.spyOn(Date, 'now').mockReturnValue(now);
+      mockWriteSystemLog.mockResolvedValueOnce(undefined);
 
       await logger.telemetry('info', 'test_telemetry', { val: 42 });
 
-      expect(mockAddDoc).toHaveBeenCalledTimes(1);
-      const [colRef, data] = mockAddDoc.mock.calls[0];
-      expect(colRef.path).toBe('systemLogs');
-      expect(data.type).toBe('info');
-      expect(data.event).toBe('test_telemetry');
-      expect(data.userId).toBe('user-123');
-      expect(data.details).toEqual({ val: 42 });
-      expect(data.timestamp).toBe('server-timestamp');
-
-      const expectedExpire = new Date(now + 7 * 24 * 60 * 60 * 1000);
-      expect(data.expireAt.toDate().getTime()).toBe(expectedExpire.getTime());
+      expect(mockWriteSystemLog).toHaveBeenCalledTimes(1);
+      expect(mockWriteSystemLog).toHaveBeenCalledWith('info', 'test_telemetry', { val: 42 });
     });
 
-    it('handles Firestore failure gracefully without throwing exceptions', async () => {
+    it('handles a repository write failure gracefully without throwing exceptions', async () => {
       mockGetApps.mockReturnValueOnce([{}]);
-      mockAddDoc.mockRejectedValueOnce(new Error('Firestore error'));
+      mockWriteSystemLog.mockRejectedValueOnce(new Error('Firestore error'));
 
       await expect(logger.telemetry('error', 'bad_event')).resolves.not.toThrow();
       expect(consoleErrorSpy).toHaveBeenCalled();

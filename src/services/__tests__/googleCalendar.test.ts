@@ -734,7 +734,11 @@ describe('googleCalendar service', () => {
       const events = await getUpcomingEvents();
       expect(events.length).toBe(1);
       expect(events[0].meetLink).toBe('https://meet.google.com/abc-defg-hij');
-      expect(mockUpdateDoc).toHaveBeenCalledWith({ id: 'booking-1' }, { googleMeetLink: 'https://meet.google.com/abc-defg-hij' });
+      // The repository self-heals by booking id, so the target ref is bookings/{bookingId}.
+      expect(mockUpdateDoc).toHaveBeenCalledWith(
+        expect.objectContaining({ path: 'bookings/booking-1' }),
+        { googleMeetLink: 'https://meet.google.com/abc-defg-hij' }
+      );
     });
   });
 
@@ -990,14 +994,11 @@ describe('googleCalendar service', () => {
       vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
       
       const originalPromiseAllSettled = Promise.allSettled;
+      // The repository returns a Map<uid, cacheData> per chunk.
       Promise.allSettled = vi.fn().mockResolvedValueOnce([
         {
           status: 'fulfilled',
-          value: {
-            forEach: (cb: any) => {
-              cb({ id: 'unrequested-coach', data: () => ({ availableSlots: ['slot-1'] }) });
-            }
-          }
+          value: new Map([['unrequested-coach', { availableSlots: ['slot-1'] }]]),
         }
       ]) as any;
 
@@ -1015,14 +1016,11 @@ describe('googleCalendar service', () => {
       vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
       
       const originalPromiseAllSettled = Promise.allSettled;
+      // The repository returns a Map<uid, cacheData> per chunk.
       Promise.allSettled = vi.fn().mockResolvedValueOnce([
         {
           status: 'fulfilled',
-          value: {
-            forEach: (cb: any) => {
-              cb({ id: 'coach-1', data: () => ({ availableSlots: ['slot-1'] }) });
-            }
-          }
+          value: new Map([['coach-1', { availableSlots: ['slot-1'] }]]),
         }
       ]) as any;
 
