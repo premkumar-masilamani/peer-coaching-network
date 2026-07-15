@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   getAllUsers,
   updateProfile,
@@ -36,6 +36,11 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  const usersRef = useRef(users);
+  useEffect(() => {
+    usersRef.current = users;
+  }, [users]);
   const [roleFilter, setRoleFilter] = useState<'all' | UserStatus | UserRole>(initialFilter);
   const [selectedCoachUid, setSelectedCoachUid] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -60,25 +65,34 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
 
   // Fetch coach meetings when a coach profile is opened
   useEffect(() => {
-    const coach = selectedCoachUid && users ? users.find(u => u.userId === selectedCoachUid) : undefined;
+    let cancelled = false;
 
     const fetchMeetings = async () => {
+      const coach = selectedCoachUid && usersRef.current ? usersRef.current.find(u => u.userId === selectedCoachUid) : undefined;
       if (!coach) {
-        setCoachMeetings([]);
+        if (!cancelled) {
+          setCoachMeetings([]);
+        }
         return;
       }
       try {
         // Firestore access + enrichment live in the service layer; the component
         // only asks for this coach's sessions and renders them.
         const meetings = await getCoachSessions(coach.userId);
-        setCoachMeetings(meetings);
+        if (!cancelled) {
+          setCoachMeetings(meetings);
+        }
       } catch (err) {
         console.error('Error fetching coach meetings:', err);
       }
     };
 
     fetchMeetings();
-  }, [selectedCoachUid, users]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCoachUid]);
 
   const handleTabChange = (filter: 'all' | UserStatus | UserRole) => {
     setRoleFilter(filter);
