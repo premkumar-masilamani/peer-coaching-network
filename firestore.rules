@@ -349,26 +349,35 @@ service cloud.firestore {
       // Enforced initial status must be pending. (Admins get full access via the
       // global admin rule at the top of this file.)
       //
-      // PCN-038 MITIGATION: the initiator could previously name an arbitrary
-      // counterparty (a victim coach, or a victim client) at ANY slot —
-      // fabricating or squatting sessions in a victim's name. We now require the
-      // booked slot to be one the named coach has actually PUBLISHED in their own
-      // coachAvailabilityByDate shard (an independently-existing doc only that
-      // coach can write), so a booking can no longer be manufactured against a
-      // coach for a slot they never offered. See coachPublishedSlot().
+      // Bookings are bound on BOTH parties at create time:
       //
-      // RESIDUAL RISK: naming an arbitrary *client* as the victim while booking a
-      // real, coach-offered slot is still not fully closable in rules alone — the
-      // client's consent lock (clientBookingCache) is written in the SAME
-      // transaction, so it is not visible to this create-time get(). The durable
-      // fix is an authoritative backend (PCN-035) or an in-app visibility/decline
-      // control; tracked separately, not addressed here.
+      // PCN-035: the CREATOR must be the named client. Bookings are always
+      // client-initiated (ScheduleModal -> scheduleMeeting binds the signed-in
+      // user as clientUid), so requiring auth.uid == clientUid means a coach — or
+      // anyone who is not the named client — can no longer fabricate a booking in
+      // a victim client's name. This closes the direction the app's transaction
+      // already blocked (its clientBookingCache write requires clientUid ==
+      // auth.uid) but which a RAW single-document booking write could previously
+      // still reach under the old `auth.uid in [coachUid, clientUid]` rule.
+      // NOTE: this is a deliberate gate on the client-initiated design. If a
+      // future feature lets a COACH propose a session, this check must be
+      // relaxed and paired with a client-authored acceptance doc (gated by a
+      // get()) so the coach still cannot bind a client without consent.
+      //
+      // PCN-038: the booked slot must be one the named coach has actually
+      // PUBLISHED in their own coachAvailabilityByDate shard (an
+      // independently-existing doc only that coach can write), so a client cannot
+      // manufacture a booking against a coach for a slot they never offered.
+      // See coachPublishedSlot().
+      //
+      // RESIDUAL (not closable in rules): an honest-but-malicious client can
+      // still squat a coach's real, published slot with a booking they do not
+      // intend to honor. That is abuse of a legitimate action, not fabrication —
+      // mitigated by the 10-minute PENDING TTL and the coach's cancel/visibility
+      // controls. Durable rate-limiting/reputation needs an authoritative backend.
       allow create: if isSignedIn()
         && currentUserDoc().userStatus == 'active'
-        && request.auth.uid in [
-          request.resource.data.coachUid,
-          request.resource.data.clientUid
-        ]
+        && request.auth.uid == request.resource.data.clientUid
         // Pin bookingId and the published-slot check to startIso so the named
         // slot cannot be spoofed. This tightens the previous prefix-only match.
         && bookingId == request.resource.data.coachUid + '_' + request.resource.data.startIso
