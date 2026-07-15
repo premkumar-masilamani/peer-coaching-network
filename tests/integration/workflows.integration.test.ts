@@ -548,4 +548,40 @@ describe.runIf(!isPerfRun)('Use Case A - Functional Workflows against Firebase E
       )
     ).rejects.toThrow();
   });
+
+  it('18. PCN-035: a coach cannot fabricate a booking naming a victim client', async () => {
+    // The direction PCN-038 left open: a malicious COACH crafts a raw
+    // single-document booking write (bypassing the app transaction) naming an
+    // arbitrary victim as the client, at a slot the coach genuinely published.
+    // The create rule now requires auth.uid == clientUid, so the coach — who is
+    // not the named client — is denied.
+    const coachUid = activeUser.uid;
+    const victimClientUid = pendingUser.uid;
+    const startIso = '2032-10-10T08:00:00.000Z';
+    const endIso = '2032-10-10T08:30:00.000Z';
+    const bookingId = `${coachUid}_${startIso}`;
+
+    // The coach publishes their own slot (so coachPublishedSlot passes) and signs
+    // in as themselves.
+    await seedCoachAvailability(coachUid, [startIso]);
+    await signInUser(coachUid);
+
+    await expect(
+      setDoc(
+        doc(db, COLLECTIONS.BOOKINGS, bookingId),
+        makeBookingDoc({ bookingId, startIso, endIso, coachUid, clientUid: victimClientUid, topic: 'Fabricated as coach' })
+      )
+    ).rejects.toThrow();
+
+    // Sanity: the SAME slot booked by the client themselves (auth.uid ==
+    // clientUid) is permitted — the tightening does not block the legitimate
+    // client-initiated flow.
+    await signInUser(victimClientUid);
+    await expect(
+      setDoc(
+        doc(db, COLLECTIONS.BOOKINGS, bookingId),
+        makeBookingDoc({ bookingId, startIso, endIso, coachUid, clientUid: victimClientUid, topic: 'Legit client booking' })
+      )
+    ).resolves.toBeUndefined();
+  });
 });
