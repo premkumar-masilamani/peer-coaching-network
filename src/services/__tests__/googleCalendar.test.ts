@@ -7,7 +7,7 @@ import {
   getUpcomingEvents,
   getCoachesAvailability
 } from '../googleCalendar';
-import { getGoogleToken } from '../googleToken';
+import { getGoogleToken, clearGoogleToken } from '../googleToken';
 import { logger } from '../../utils/logger';
 import { BOOKING_STATUS, EVENT_TYPE, BOOKING_ERROR } from '../../config';
 
@@ -616,6 +616,54 @@ describe('googleCalendar service', () => {
       const events = await getUpcomingEvents();
       expect(events.length).toBe(1);
       expect(events[0].summary).toBe('Coach / Jane - Peer Coaching Session');
+    });
+
+    it('follows nextPageToken to page through all Google Calendar events', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('real-valid-token');
+      // Page 1 returns a nextPageToken; page 2 completes the set.
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [{ id: 'evt-1', summary: 'One', start: { dateTime: '2026-06-20T10:00:00Z' }, end: { dateTime: '2026-06-20T11:00:00Z' } }],
+          nextPageToken: 'PAGE2',
+        }),
+      });
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          items: [{ id: 'evt-2', summary: 'Two', start: { dateTime: '2026-06-21T10:00:00Z' }, end: { dateTime: '2026-06-21T11:00:00Z' } }],
+        }),
+      });
+      mockGetDocs.mockResolvedValueOnce({ docs: [] });
+      mockGetDocs.mockResolvedValueOnce({ docs: [] });
+      mockGetDoc.mockResolvedValue({ exists: () => false });
+
+      const events = await getUpcomingEvents();
+      // Two fetch calls (one per page), and both events collected.
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(mockFetch.mock.calls[0][0]).toContain('maxResults=250');
+      expect(mockFetch.mock.calls[0][0]).toContain('timeMax=');
+      expect(mockFetch.mock.calls[1][0]).toContain('pageToken=PAGE2');
+      expect(events.map((e) => e.id)).toEqual(expect.arrayContaining(['evt-1', 'evt-2']));
+    });
+
+    it('clears the Google token and logs telemetry on a 401 events response', async () => {
+      vi.mocked(getGoogleToken).mockReturnValue('expired-token');
+      mockFetch.mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({}) });
+      mockGetDocs.mockResolvedValueOnce({ docs: [] });
+      mockGetDocs.mockResolvedValueOnce({ docs: [] });
+      mockGetDoc.mockResolvedValue({ exists: () => false });
+
+      const events = await getUpcomingEvents();
+      // 401 halts paging, clears the token (surfacing reconnect), logs telemetry,
+      // and still returns the merged (empty) booking list rather than throwing.
+      expect(clearGoogleToken).toHaveBeenCalledTimes(1);
+      expect(logger.telemetry).toHaveBeenCalledWith(
+        'error',
+        'fetch_events_failure',
+        expect.objectContaining({ errorCode: 'GOOGLE_TOKEN_EXPIRED' })
+      );
+      expect(events).toEqual([]);
     });
 
     it('enriches real Google Calendar events with Firestore booking metadata if ID matches', async () => {
