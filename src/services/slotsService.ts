@@ -44,6 +44,15 @@ export const subtractBusyIntervals = (
 // coach's OWN authenticated session (their OAuth token). When recalc is triggered
 // for a different user (e.g. an admin editing someone else's profile) we return
 // an empty list and fall back to template-only availability. Exported for testing.
+//
+// KNOWN LIMITATION (all-day / OOO events): the freeBusy API reports all-day,
+// out-of-office, and "tentative"-configured events as opaque busy intervals
+// spanning a full 24h (or more), with no event metadata to distinguish them. As
+// a result a single all-day "Holiday" event removes EVERY slot that day with no
+// signal to the coach. freeBusy cannot be filtered by duration/transparency here
+// because it returns only { start, end } — distinguishing these would require
+// switching to the events endpoint and inspecting `transparency`/`eventType`.
+// This is accepted for now; documented so the behavior is not mistaken for a bug.
 export const getGoogleBusyIntervals = async (
   uid: string,
   timeMin: Date,
@@ -78,6 +87,34 @@ export const getGoogleBusyIntervals = async (
     logger.error('Error fetching Google Calendar busy intervals:', e);
     return [];
   }
+};
+
+// Padding (in days) added to the Google freeBusy query window beyond the booking
+// horizon. Availability slots are built per LOCAL calendar day, while the busy
+// window is expressed in UTC; for far-east timezones (up to UTC+14) a local
+// day's late slots can fall past a UTC-aligned horizon end. One full day of
+// padding (24h) comfortably covers the maximum ±14h UTC offset so no trailing
+// slot escapes busy-subtraction.
+const TIMEZONE_HORIZON_PADDING_DAYS = 1;
+
+// Build the coach's genuinely-bookable slot list: expand the availability
+// template over the horizon, subtract Google Calendar busy hours, then
+// deduplicate (overlapping template ranges on the same day can emit the same
+// hourly slot twice) and sort. Returns both the flat slot list and the distinct
+// UTC dates it spans. Busy subtraction is only possible on the coach's own
+// authenticated session; admin-triggered recalcs pass an empty busy list.
+// Exported for testing.
+export const computeFreeSlots = (
+  availableSlots: string[],
+  busyIntervals: { start: number; end: number }[]
+): { freeSlots: string[]; availableDatesUtc: string[] } => {
+  const freeSlots = Array.from(
+    new Set(subtractBusyIntervals(availableSlots, busyIntervals))
+  ).sort();
+  const availableDatesUtc = Array.from(
+    new Set(freeSlots.map((slotStr) => slotStr.split('T')[0]))
+  ).sort();
+  return { freeSlots, availableDatesUtc };
 };
 
 const recalcChains = new Map<string, Promise<void>>();
@@ -178,16 +215,9 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
     // admin-triggered recalcs fall back to template-only availability.
     const horizonStart = new Date();
     const horizonEnd = new Date(horizonStart);
-    horizonEnd.setDate(horizonEnd.getDate() + BOOKING_HORIZON_DAYS + 1);
+    horizonEnd.setDate(horizonEnd.getDate() + BOOKING_HORIZON_DAYS + TIMEZONE_HORIZON_PADDING_DAYS);
     const busyIntervals = await getGoogleBusyIntervals(uid, horizonStart, horizonEnd);
-    // Deduplicate: overlapping template ranges on the same day (e.g. 9-12 and
-    // 11-14) would otherwise emit the same hourly slot twice, inflating the
-    // aggregate and pushing a day's shard past its 24-slot limit.
-    const freeSlots = Array.from(new Set(subtractBusyIntervals(availableSlots, busyIntervals))).sort();
-
-    const availableDatesUtc = Array.from(
-      new Set(freeSlots.map(slotStr => slotStr.split('T')[0]))
-    ).sort();
+    const { freeSlots, availableDatesUtc } = computeFreeSlots(availableSlots, busyIntervals);
 
     // Denormalized filter fields, shared by the aggregate cache and the per-day
     // discovery shards so discovery can facet in-memory without joining users/.

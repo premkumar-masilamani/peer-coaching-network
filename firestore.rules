@@ -176,6 +176,11 @@ service cloud.firestore {
       return isMap(data)
         && isValidString(data.coachUid, 100)
         && isValidString(data.dateISO, 10)
+        // dateISO must be a real YYYY-MM-DD calendar date, not arbitrary text.
+        // (Firestore rules cannot iterate `freeSlots` to type/length-check each
+        // element; the client generator bounds those and the count is capped at
+        // 24 below. Element-level validation would require a backend.)
+        && data.dateISO.matches('[0-9]{4}-[0-9]{2}-[0-9]{2}')
         && isList(data.freeSlots)
         && data.freeSlots.size() <= 24
         && isValidString(data.lastUpdated, 100)

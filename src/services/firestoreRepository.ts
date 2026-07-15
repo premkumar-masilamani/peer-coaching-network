@@ -644,9 +644,26 @@ export const deleteClientBookingLock = async (clientUid: string, startIso: strin
 
 // ── coachAvailabilityByDate (per-coach, per-day discovery shards) ─────────────
 
-/** Availability shards for a set of UTC dates (coach discovery). */
-export const fetchCoachAvailabilityByDates = async (dateISOs: string[]): Promise<DocumentData[]> =>
-  collectDocs(await getDocs(coachAvailabilityByDatesQuery(dateISOs)));
+/**
+ * Availability shards for a set of UTC dates (coach discovery).
+ *
+ * Uses a single `dateISO in [...]` query, so the caller must pass at most
+ * FIRESTORE_IN_LIMIT (30) dates. Today's per-day discovery caller passes ≤ 2
+ * (a local day spans at most two UTC dates), so this is comfortably within
+ * bounds — but the coupling was previously undocumented and a future multi-day
+ * caller would otherwise hit the `in` limit at runtime. We guard explicitly
+ * rather than silently truncate; a caller needing more dates should chunk via
+ * chunkArray(dateISOs, FIRESTORE_IN_LIMIT) and merge, as the uid queries do.
+ */
+export const fetchCoachAvailabilityByDates = async (dateISOs: string[]): Promise<DocumentData[]> => {
+  if (dateISOs.length > FIRESTORE_IN_LIMIT) {
+    throw new Error(
+      `fetchCoachAvailabilityByDates received ${dateISOs.length} dates, exceeding the Firestore ` +
+      `'in' limit of ${FIRESTORE_IN_LIMIT}. Chunk the dates and merge the results.`
+    );
+  }
+  return collectDocs(await getDocs(coachAvailabilityByDatesQuery(dateISOs)));
+};
 
 interface ShardSyncParams {
   slotsByDate: Map<string, string[]>;
