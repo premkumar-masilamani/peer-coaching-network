@@ -16,6 +16,7 @@ export const TABS = {
   BOOKINGS:     'bookings',
   ADMIN:        'admin',
   SUPPORT:      'support',
+  DIRECTORY:    'directory',
 } as const;
 export type TabKey = (typeof TABS)[keyof typeof TABS];
 

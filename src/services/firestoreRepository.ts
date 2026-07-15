@@ -152,6 +152,10 @@ const busySlotsInStartTimeRangeQuery = (dayStart: Date, dayEnd: Date): Query<Doc
     where('startTime', '<=', Timestamp.fromDate(dayEnd))
   );
 
+// busySlots — `coachUid == x`. Single equality; no composite index.
+const busySlotsByCoachQuery = (coachUid: string): Query<DocumentData> =>
+  query(collection(db, COLLECTIONS.BUSY_SLOTS), where('coachUid', '==', coachUid));
+
 // coachAvailabilityByDate — `coachUid == x`. Single equality; no composite index.
 const coachAvailabilityByCoachQuery = (coachUid: string): Query<DocumentData> =>
   query(collection(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE), where('coachUid', '==', coachUid));
@@ -385,6 +389,10 @@ export const fetchBusySlotsInDayRange = async (
   dayStart: Date,
   dayEnd: Date
 ): Promise<DocumentData[]> => collectDocs(await getDocs(busySlotsInStartTimeRangeQuery(dayStart, dayEnd)));
+
+/** Public busy-slot documents for a single coach. */
+export const fetchBusySlotsByCoach = async (coachUid: string): Promise<DocumentData[]> =>
+  collectDocs(await getDocs(busySlotsByCoachQuery(coachUid)));
 
 /** Persist a self-healed Google Meet link onto a booking. */
 export const setBookingGoogleMeetLink = async (bookingId: string, googleMeetLink: string): Promise<void> => {
