@@ -22,6 +22,37 @@ import { BOOKING_STATUS, BOOKING_ERROR, COLLECTIONS } from '../../src/config';
 const userCount = parseInt(process.env.TEST_USER_COUNT || '3', 10);
 const isPerfRun = process.env.PERF_P95_THRESHOLD_MS !== undefined || process.env.TEST_USER_COUNT === '100';
 
+/**
+ * Publish a coach's per-day availability shards (PCN-038): booking-create rules
+ * now require the booked startIso to be a member of the coach's
+ * coachAvailabilityByDate.freeSlots. Seeded via the Admin SDK (rule-bypassing) so
+ * a booking against this coach/slot is permitted. Slots are grouped by UTC date.
+ */
+const seedCoachAvailability = async (coachUid: string, slots: string[]): Promise<void> => {
+  const byDate = new Map<string, string[]>();
+  for (const slot of slots) {
+    const dateISO = slot.split('T')[0];
+    byDate.set(dateISO, [...(byDate.get(dateISO) || []), slot]);
+  }
+  for (const [dateISO, freeSlots] of byDate) {
+    await adminDb
+      .collection(COLLECTIONS.COACH_AVAILABILITY_BY_DATE)
+      .doc(`${coachUid}_${dateISO}`)
+      .set({
+        coachUid,
+        dateISO,
+        freeSlots,
+        lastUpdated: new Date().toISOString(),
+        gender: 'Male',
+        country: 'US',
+        icf_acc: false,
+        icf_pcc: false,
+        icf_mcc: false,
+        icf_actc: false,
+      });
+  }
+};
+
 describe.runIf(!isPerfRun)('Use Case A - Functional Workflows against Firebase Emulators', () => {
   let adminUser: { uid: string; email: string };
   let pendingUser: { uid: string; email: string };
@@ -121,6 +152,10 @@ describe.runIf(!isPerfRun)('Use Case A - Functional Workflows against Firebase E
 
     const startIso = '2030-02-20T10:00:00.000Z';
     const endIso = '2030-02-20T11:00:00.000Z';
+
+    // PCN-038: the coach must have published this slot for the booking to pass
+    // the create rule.
+    await seedCoachAvailability(activeUser.uid, [startIso]);
 
     const booking = await scheduleMeeting(
       activeUser.uid,
@@ -295,6 +330,8 @@ describe.runIf(!isPerfRun)('Use Case A - Functional Workflows against Firebase E
     await signInUser(pendingUser.uid);
     const startIso = '2030-07-20T10:00:00.000Z';
     const endIso = '2030-07-20T10:30:00.000Z';
+    // PCN-038: publish the slot so the coach-availability check passes.
+    await seedCoachAvailability(activeUser.uid, [startIso]);
     const booking = await scheduleMeeting(
       activeUser.uid,
       activeUser.email,
@@ -441,5 +478,74 @@ describe.runIf(!isPerfRun)('Use Case A - Functional Workflows against Firebase E
     await expect(
       setDoc(goodRef, { coachUid: activeUser.uid, dateISO: goodDate, freeSlots: ['2031-05-10T10:00:00.000Z'], lastUpdated: new Date().toISOString(), ...filterFields })
     ).resolves.toBeUndefined();
+  });
+
+  // Build a well-formed PENDING booking document. Callers override the id/slot
+  // fields to exercise the specific PCN-038 create-rule branch under test.
+  const makeBookingDoc = (overrides: {
+    bookingId: string;
+    startIso: string;
+    endIso: string;
+    coachUid: string;
+    clientUid: string;
+    topic: string;
+  }) => ({
+    bookingId: overrides.bookingId,
+    googleEventId: '',
+    googleMeetLink: '',
+    status: BOOKING_STATUS.PENDING,
+    startTime: Timestamp.fromDate(new Date(overrides.startIso)),
+    endTime: Timestamp.fromDate(new Date(overrides.endIso)),
+    startIso: overrides.startIso,
+    topic: overrides.topic,
+    coachUid: overrides.coachUid,
+    clientUid: overrides.clientUid,
+    createdAt: Timestamp.now(),
+    expireAt: Timestamp.fromDate(new Date(Date.now() + 10 * 60 * 1000)),
+  });
+
+  it('16. PCN-038: booking a slot the coach never published is rejected', async () => {
+    // A signed-in client attempts to fabricate a booking naming activeUser as
+    // coach at a slot the coach has NOT published (no coachAvailabilityByDate
+    // shard exists for that date). The create rule must deny it.
+    await signInUser(pendingUser.uid);
+    const startIso = '2032-08-01T09:00:00.000Z';
+    const endIso = '2032-08-01T09:30:00.000Z';
+    const bookingId = `${activeUser.uid}_${startIso}`;
+    const base = { bookingId, startIso, endIso, coachUid: activeUser.uid, clientUid: pendingUser.uid };
+
+    await expect(
+      setDoc(doc(db, COLLECTIONS.BOOKINGS, bookingId), makeBookingDoc({ ...base, topic: 'Fabricated booking' }))
+    ).rejects.toThrow();
+
+    // Once the coach publishes the exact slot, the same create is permitted.
+    await seedCoachAvailability(activeUser.uid, [startIso]);
+    await expect(
+      setDoc(doc(db, COLLECTIONS.BOOKINGS, bookingId), makeBookingDoc({ ...base, topic: 'Legit booking' }))
+    ).resolves.toBeUndefined();
+  });
+
+  it('17. PCN-038: a booking whose startIso disagrees with bookingId is rejected', async () => {
+    // Even with a published slot, the docId must equal coachUid_startIso so the
+    // named slot cannot be spoofed against a different id.
+    await signInUser(pendingUser.uid);
+    const startIso = '2032-09-05T11:00:00.000Z';
+    await seedCoachAvailability(activeUser.uid, [startIso]);
+
+    // bookingId encodes a DIFFERENT instant than the startIso field.
+    const mismatchedId = `${activeUser.uid}_2032-09-05T12:00:00.000Z`;
+    await expect(
+      setDoc(
+        doc(db, COLLECTIONS.BOOKINGS, mismatchedId),
+        makeBookingDoc({
+          bookingId: mismatchedId,
+          startIso,
+          endIso: '2032-09-05T11:30:00.000Z',
+          coachUid: activeUser.uid,
+          clientUid: pendingUser.uid,
+          topic: 'Spoofed id',
+        })
+      )
+    ).rejects.toThrow();
   });
 });
