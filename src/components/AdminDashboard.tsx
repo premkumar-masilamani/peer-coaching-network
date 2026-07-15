@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { UserManagement } from './UserManagement';
 import { SystemLogs } from './SystemLogs';
 import { SupportDesk } from './SupportDesk';
+import { CoachDirectory } from './CoachDirectory';
 import { type UserStatus, type UserRole } from '../config';
 
 interface AdminDashboardProps {
@@ -13,7 +14,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   initialFilter,
   setInitialFilter
 }) => {
-  const [adminTab, setAdminTab] = useState<'users' | 'logs' | 'support'>('users');
+  const [adminTab, setAdminTab] = useState<'users' | 'logs' | 'support' | 'directory'>('users');
 
   return (
     <div style={{ padding: '24px' }}>
@@ -30,6 +31,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           style={{ padding: '8px 16px', fontSize: '0.85rem', height: '36px', borderRadius: '20px' }}
         >
           Users & Roles
+        </button>
+        <button
+          onClick={() => setAdminTab('directory')}
+          className={`btn ${adminTab === 'directory' ? 'btn-primary' : 'btn-secondary'}`}
+          style={{ padding: '8px 16px', fontSize: '0.85rem', height: '36px', borderRadius: '20px' }}
+        >
+          Find a Coach
         </button>
         <button
           onClick={() => setAdminTab('logs')}
@@ -54,6 +62,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             setInitialFilter={setInitialFilter}
           />
         )}
+        {adminTab === 'directory' && <CoachDirectory />}
         {adminTab === 'logs' && <SystemLogs />}
         {adminTab === 'support' && <SupportDesk />}
       </div>

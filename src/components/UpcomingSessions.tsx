@@ -3,9 +3,9 @@ import './UpcomingSessions.css';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
-import { useNow } from '../hooks/useNow';
-import { formatDisplayName, queryAvailableCoachesForDay, getUserBookings, getProfiles } from '../services/firebaseService';
-import { getCredentialBadgeClass, getCredentialDescription, buildDisplayCredentials } from '../utils/credentials';
+
+import { queryAvailableCoachesForDay, getUserBookings, getProfiles } from '../services/firebaseService';
+import { getCredentialDescription } from '../utils/credentials';
 import type { UserProfile, DiscoveryFilters } from '../services/firebaseService';
 import { 
   getUpcomingEvents,
@@ -16,51 +16,25 @@ import type { DocumentData } from 'firebase/firestore';
 import { ScheduleModal } from './modals/ScheduleModal';
 import { CancelModal } from './modals/CancelModal';
 import { SessionDetailsModal } from './modals/SessionDetailsModal';
+import { SlotPicker } from './SlotPicker';
 
 import { 
   Filter, 
   MapPin, 
   Award, 
   User as UserIcon, 
-  Calendar, 
   X,
-  RefreshCw,
-  Clock,
-  Info,
-  ChevronLeft,
-  ChevronRight,
   ChevronDown
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getTimezoneCode, getUtcForLocalDateTime } from '../utils/timezoneHelpers';
 import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
-import { sanitizeImageUrl } from '../utils/url';
-import { useNavigateToProfile } from '../context/UnsavedChangesContext';
-import { resolveTabNavigationIndex } from '../utils/keyboardNavigation';
-import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION, QUALIFICATION_OPTIONS, EVENT_TYPE } from '../config';
+import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE } from '../config';
 
 
 export const UpcomingSessions: React.FC = () => {
   const { user: currentUser, profile } = useAuth();
   const { showToast } = useToast();
-  const navigateToProfile = useNavigateToProfile();
-  
-  // Ref for date carousel scrolling
-  const carouselRef = React.useRef<HTMLDivElement>(null);
-
-  const scrollPrev = () => {
-    if (carouselRef.current) {
-      const containerWidth = carouselRef.current.clientWidth;
-      carouselRef.current.scrollBy({ left: -(containerWidth + 12), behavior: 'smooth' });
-    }
-  };
-
-  const scrollNext = () => {
-    if (carouselRef.current) {
-      const containerWidth = carouselRef.current.clientWidth;
-      carouselRef.current.scrollBy({ left: containerWidth + 12, behavior: 'smooth' });
-    }
-  };
   
   // List states
   const [dayAvailability, setDayAvailability] = useState<Record<string, UserProfile[]>>({});
@@ -68,9 +42,7 @@ export const UpcomingSessions: React.FC = () => {
   const [isFetchingDay, setIsFetchingDay] = useState(false);
   const [userBaseBusyEvents, setUserBaseBusyEvents] = useState<CalendarEvent[]>([]);
   const [userLiveBookings, setUserLiveBookings] = useState<DocumentData[]>([]);
-  // Updates every minute / on focus so slots that have just passed are correctly
-  // marked unavailable without a reload (previously frozen at mount).
-  const now = useNow();
+
   const [selectedDuration, setSelectedDuration] = useState<30 | 60>(60);
   const queryRequestIdRef = React.useRef(0);
   // Request-sequence guards so a slow response is discarded when a newer
@@ -125,7 +97,6 @@ export const UpcomingSessions: React.FC = () => {
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const localToday = useMemo(() => getLocalDateInTimezone(new Date(), viewerTimezone), [viewerTimezone]);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
-  const [fetchedDayIndex, setFetchedDayIndex] = useState(0);
   
   // Filter states
   const [genderFilter, setGenderFilter] = useState('');
@@ -142,18 +113,7 @@ export const UpcomingSessions: React.FC = () => {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [bookingToCancel, setBookingToCancel] = useState<CalendarEvent | null>(null);
 
-  const getBookingForSlot = useCallback((slotStart: Date) => {
-    return userBusyEvents.find(e => {
-      if (e.type !== EVENT_TYPE.PEER_COACHING) return false;
-      const bookingStart = new Date(e.start.dateTime);
-      // Match only the slot whose start time equals the booking's start time.
-      // An overlap check (slotStart < bookingEnd && slotEnd > bookingStart) causes
-      // a single 1-hour booking to appear in multiple consecutive 60-min slot rows
-      // (e.g. 8:30-9:30, 9:00-10:00, and 9:30-10:30 all overlap a 9:00-10:00 booking).
-      return slotStart.getTime() === bookingStart.getTime();
-    });
-  }, [userBusyEvents]);
-  
+
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile>>({});
 
   useEffect(() => {
@@ -196,37 +156,12 @@ export const UpcomingSessions: React.FC = () => {
     return arr;
   }, [localToday]);
 
-  // ARIA tabs, manual activation: arrow keys move focus only, and Enter/Space
-  // (native button activation) commits the day. Selecting a day fetches
-  // availability, so activating on every arrow press would fire one Firestore
-  // query per keystroke and race the responses against each other.
-  const [focusedTabIndex, setFocusedTabIndex] = useState(0);
   const idPrefix = useId();
-  const datePanelId = `${idPrefix}panel`;
-  const dateTabId = (index: number) => `${idPrefix}tab-${index}`;
   const qualsLabelId = `${idPrefix}quals-label`;
   const qualsButtonId = `${idPrefix}quals-button`;
   const durationLabelId = `${idPrefix}duration-label`;
 
-  // Roving tabindex: exactly one tab is reachable via Tab. Buttons are keyed by
-  // date and never remount, so the target is mounted and can be focused now.
-  const tabRefs = React.useRef<(HTMLButtonElement | null)[]>([]);
-
-  const handleTabKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>, index: number) => {
-    const nextIndex = resolveTabNavigationIndex(e.key, index, days.length);
-    if (nextIndex === null) return;
-    e.preventDefault();
-    setFocusedTabIndex(nextIndex);
-    tabRefs.current[nextIndex]?.focus();
-  };
-
-  const selectDay = (index: number) => {
-    setSelectedDayIndex(index);
-    setFocusedTabIndex(index);
-  };
-
   const activeDayDate = days[selectedDayIndex] || localToday;
-  const fetchedDayDate = days[fetchedDayIndex] || localToday;
 
   // Generate slots for the active day (used for querying)
   const querySlots = useMemo(() => {
@@ -248,27 +183,6 @@ export const UpcomingSessions: React.FC = () => {
     }
     return arr;
   }, [activeDayDate, viewerTimezone, selectedDuration]);
-
-  // Generate slots for the fetched day (used for UI rendering)
-  const uiSlots = useMemo(() => {
-    const arr: { startTime: Date; endTime: Date }[] = [];
-    const slotDurationMs = selectedDuration * 60 * 1000;
-    for (let i = 0; i < 48; i++) {
-      const slotHour = Math.floor(i / 2);
-      const slotMin = (i % 2) * 30;
-      const startTime = getUtcForLocalDateTime(
-        fetchedDayDate.getFullYear(),
-        fetchedDayDate.getMonth() + 1,
-        fetchedDayDate.getDate(),
-        slotHour,
-        slotMin,
-        viewerTimezone
-      );
-      const endTime = new Date(startTime.getTime() + slotDurationMs);
-      arr.push({ startTime, endTime });
-    }
-    return arr;
-  }, [fetchedDayDate, viewerTimezone, selectedDuration]);
 
   // One-shot query for the current user's confirmed bookings. Refreshed on
   // focus and date/filter changes via handleRefresh below (previously a live
@@ -327,7 +241,6 @@ export const UpcomingSessions: React.FC = () => {
       );
       if (requestId !== queryRequestIdRef.current) return;
       setDayAvailability(availability);
-      setFetchedDayIndex(selectedDayIndex);
     } catch (e) {
       if (requestId !== queryRequestIdRef.current) return;
       console.error('Error querying day availability:', e);
@@ -337,7 +250,7 @@ export const UpcomingSessions: React.FC = () => {
         setLoadingCalendar(false);
       }
     }
-  }, [activeDayDate, querySlots, genderFilter, countryFilter, selectedQuals, sessionSeed, currentUser, selectedDayIndex]);
+  }, [activeDayDate, querySlots, genderFilter, countryFilter, selectedQuals, sessionSeed, currentUser]);
 
   // Full refresh — used for explicit user actions (booking success, cancel) and
   // window-focus. Deliberately NOT wired into the day/filter effect below so that
@@ -395,15 +308,6 @@ export const UpcomingSessions: React.FC = () => {
     handleRefresh();
   };
 
-  // Check if current user is unavailable (due to template gaps, blocked dates, or google calendar events, excluding active PCN bookings)
-  const isUserUnavailable = useCallback((slotStart: Date, slotEnd: Date) => {
-    return userBusyEvents.some(e => {
-      if (e.type === EVENT_TYPE.PEER_COACHING) return false;
-      const start = new Date(e.start.dateTime);
-      const end = new Date(e.end.dateTime);
-      return slotStart < end && slotEnd > start;
-    });
-  }, [userBusyEvents]);
 
   // Handle qualification filter toggle
   const toggleQualFilter = (qual: Qualification) => {
@@ -421,23 +325,6 @@ export const UpcomingSessions: React.FC = () => {
     setSelectedDuration(60);
   };
 
-  // Formatting helpers
-  const formatTabDayName = (date: Date): string => {
-    return date.toLocaleDateString('en-US', { weekday: 'short' });
-  };
-
-  const formatTabDate = (date: Date): string => {
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  };
-
-  const formatSlotTime = (start: Date, end: Date): string => {
-    const timeOpts = { hour: '2-digit', minute: '2-digit' } as const;
-    const startStr = start.toLocaleTimeString([], { timeZone: viewerTimezone, ...timeOpts });
-    const endStr = end.toLocaleTimeString([], { timeZone: viewerTimezone, ...timeOpts });
-    return `${startStr} - ${endStr} ${getTimezoneCode(start, viewerTimezone)}`;
-  };
-
-
 
   const getFormattedDateTime = (dateTimeStr: string) => {
     const d = new Date(dateTimeStr);
@@ -446,49 +333,6 @@ export const UpcomingSessions: React.FC = () => {
     return { date, time };
   };
 
-  const truncateBio = (text?: string, limit = 90) => {
-    if (!text) return 'No biography provided yet.';
-    if (text.length <= limit) return text;
-    return text.substring(0, limit) + '...';
-  };
-
-  // Precompute, once per relevant-input change, the filtered coaches per slot —
-  // instead of calling getCoachesForSlot three times per render.
-  const slotView = useMemo(() => {
-    const enriched = uiSlots.map(slot => {
-      const isPassed = slot.endTime.getTime() < now;
-      
-      // Check if there is an active booking for this slot
-      const booking = getBookingForSlot(slot.startTime);
-      
-      // If the current user is unavailable at this slot (excluding bookings),
-      // we filter it out (hide it) unless there is a booking already!
-      const userUnavailable = isUserUnavailable(slot.startTime, slot.endTime);
-      if (userUnavailable && !booking) {
-        return { slot, isPassed: true, coaches: [], anyAvailable: false, booking: null };
-      }
-      
-      const slotIso = slot.startTime.toISOString();
-      let coachesForSlot = isPassed ? [] : (dayAvailability[slotIso] || []);
-      let anyAvailable = isPassed ? false : coachesForSlot.length > 0;
-      
-      if (booking) {
-        const otherParticipantId = booking.coachUid === currentUser?.uid ? booking.clientUid : booking.coachUid;
-        const bookedUser = otherParticipantId ? profileCache[otherParticipantId] : null;
-        if (bookedUser) {
-          coachesForSlot = coachesForSlot.filter(c => c.userId !== bookedUser.userId);
-          coachesForSlot = [bookedUser, ...coachesForSlot];
-        }
-        anyAvailable = true;
-      }
-      
-      return { slot, isPassed, coaches: coachesForSlot, anyAvailable, booking };
-    });
-    return {
-      displaySlots: enriched.filter(e => !e.isPassed && (e.coaches.length > 0 || e.booking)),
-      hasGeneralSlots: enriched.some(e => e.anyAvailable)
-    };
-  }, [uiSlots, dayAvailability, profileCache, now, currentUser, getBookingForSlot, isUserUnavailable]);
 
   return (
     <>
@@ -713,307 +557,26 @@ export const UpcomingSessions: React.FC = () => {
             </div>
           </div>
 
-          {/* Date Selector Carousel */}
-          <div className="carousel-wrapper">
-            <button 
-              onClick={scrollPrev} 
-              className="scroll-btn"
-              aria-label="Scroll left"
-            >
-              <ChevronLeft size={18} />
-            </button>
-
-            <div
-              ref={carouselRef}
-              className="date-tabs-container"
-              role="tablist"
-              aria-label="Available dates"
-            >
-              {days.map((day, index) => {
-                const isActive = index === selectedDayIndex;
-                return (
-                  <button
-                    type="button"
-                    role="tab"
-                    id={dateTabId(index)}
-                    aria-selected={isActive}
-                    aria-controls={datePanelId}
-                    tabIndex={index === focusedTabIndex ? 0 : -1}
-                    ref={(el) => {
-                      tabRefs.current[index] = el;
-                      return () => { tabRefs.current[index] = null; };
-                    }}
-                    key={day.toISOString()}
-                    onClick={() => selectDay(index)}
-                    onKeyDown={(e) => handleTabKeyDown(e, index)}
-                    className={`date-tab ${isActive ? 'active' : ''}`}
-                  >
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: isActive ? 0.9 : 0.6 }}>
-                      {formatTabDayName(day)}
-                    </span>
-                    <span style={{ fontSize: '1rem', fontWeight: 800, marginTop: '2px' }}>
-                      {formatTabDate(day)}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <button 
-              onClick={scrollNext} 
-              className="scroll-btn"
-              aria-label="Scroll right"
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
-
-          {/* Time Slot Agenda List: the panel the date tabs control. No tabIndex,
-              since the panel already holds focusable controls. */}
-          <div
-            role="tabpanel"
-            id={datePanelId}
-            aria-labelledby={dateTabId(selectedDayIndex)}
-          >
-            {isInitialLoading ? (
-              <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 32px' }}>
-                <RefreshCw size={28} className="animate-spin" style={{ color: 'hsl(var(--primary))', marginBottom: '16px' }} />
-                <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))' }}>Computing multi-timezone schedules...</p>
-              </div>
-            ) : (
-              <div style={{ 
-                opacity: isFetchingDay ? 0.5 : 1, 
-                transition: 'opacity 0.2s ease', 
-                pointerEvents: isFetchingDay ? 'none' : 'auto' 
-              }}>
-                {(() => {
-                  // Slots that are not passed and have at least one matching coach,
-                  // precomputed in `slotView`.
-                  const displaySlots = slotView.displaySlots;
-
-                  if (displaySlots.length > 0) {
-                    return displaySlots.map(({ slot, booking, coaches: slotCoaches }) => {
-                      return (
-                        <div
-                          key={slot.startTime.toISOString()}
-                          className={`slot-row ${booking ? 'has-booking' : ''}`}
-                        >
-                          <div className="slot-header">
-                            <div className="slot-time">
-                              <Clock size={16} color="hsl(var(--primary))" />
-                              <span>{formatSlotTime(slot.startTime, slot.endTime)}</span>
-                            </div>
-                          
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              {booking ? (
-                                <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>
-                                  Session Already Booked
-                                </span>
-                              ) : (
-                                <span className="badge badge-user" style={{ fontSize: '0.65rem' }}>
-                                  {slotCoaches.length} Available
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="slot-coaches-list">
-                            <div className="slot-coaches-grid">
-                              {slotCoaches.map((coach) => {
-                                // Border mapping based on highest qualification
-                                let borderCol = 'var(--border-light)';
-                                const hasMCC = !!coach.icf_mcc;
-                                const hasPCC = !!coach.icf_pcc;
-                                const hasACC = !!coach.icf_acc;
-                                const displayCredentials = buildDisplayCredentials(coach);
-                              
-                                if (hasMCC) borderCol = 'hsl(var(--mcc-platinum))';
-                                else if (hasPCC) borderCol = 'hsl(var(--pcc-silver))';
-                                else if (hasACC) borderCol = 'hsl(var(--acc-gold))';
-
-                                return (
-                                  <div key={coach.userId} className="mini-coach-card">
-                                    <div>
-                                      <div className="mini-coach-info">
-                                        {/* A mouse affordance only: it duplicates the name
-                                            button below, so keeping it out of the tab order
-                                            avoids two stops to the same destination on every
-                                            coach card. */}
-                                        <button
-                                          type="button"
-                                          className="mini-coach-avatar-button"
-                                          tabIndex={-1}
-                                          aria-hidden="true"
-                                          onClick={() => navigateToProfile(coach.userId)}
-                                        >
-                                          <img
-                                            src={sanitizeImageUrl(coach.photoURL)}
-                                            alt=""
-                                            className="mini-coach-avatar"
-                                            style={{ border: `1.5px solid ${borderCol}` }}
-                                          />
-                                        </button>
-                                        <div className="mini-coach-details">
-                                          <button
-                                            type="button"
-                                            className="mini-coach-name"
-                                            aria-label={`View ${formatDisplayName(coach) || 'coach'}'s profile`}
-                                            onClick={() => navigateToProfile(coach.userId)}
-                                          >
-                                            {formatDisplayName(coach)}
-                                          </button>
-                                          <div className="mini-coach-location">
-                                            <MapPin size={10} color="hsl(var(--primary))" />
-                                            {coach.country || 'Remote'}
-                                          </div>
-                                          <div className="mini-coach-quals">
-                                            {displayCredentials.length > 0 ? (
-                                              displayCredentials.map((qual, idx) => {
-                                                return (
-                                                  <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
-                                                    {qual}
-                                                  </span>
-                                                );
-                                              })
-                                            ) : (
-                                              <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
-                                                {QUALIFICATION.UNCERTIFIED}
-                                              </span>
-                                            )}
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      <div className="mini-coach-bio">
-                                        {truncateBio(coach.bio)}
-                                      </div>
-                                    </div>
-
-                                    {(() => {
-                                      const isThisParticipantBooked = booking && (booking.coachUid === coach.userId || booking.clientUid === coach.userId);
-                                      if (isThisParticipantBooked) {
-                                        return (
-                                          <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
-                                            <button
-                                              onClick={() => setSelectedBookingForView(booking)}
-                                              className="btn btn-secondary"
-                                              style={{
-                                                flex: 1,
-                                                padding: '6px 8px',
-                                                fontSize: '0.85rem',
-                                                borderRadius: '8px',
-                                                height: '36px',
-                                                fontWeight: 700
-                                              }}
-                                            >
-                                              View
-                                            </button>
-                                            <button
-                                              onClick={() => setBookingToCancel(booking)}
-                                              disabled={cancellingId === booking.id}
-                                              className="btn btn-danger"
-                                              style={{
-                                                flex: 1,
-                                                padding: '6px 8px',
-                                                fontSize: '0.85rem',
-                                                borderRadius: '8px',
-                                                height: '36px',
-                                                fontWeight: 700
-                                              }}
-                                            >
-                                              Cancel
-                                            </button>
-                                          </div>
-                                        );
-                                      } else {
-                                        return (
-                                          <button
-                                            onClick={() => {
-                                              setActiveBookingCoach(coach);
-                                              setActiveBookingSlot({ startTime: slot.startTime, endTime: slot.endTime });
-                                            }}
-                                            className="btn btn-primary"
-                                            style={{
-                                              width: '100%',
-                                              padding: '6px 12px',
-                                              fontSize: '0.85rem',
-                                              borderRadius: '8px',
-                                              height: '36px',
-                                              fontWeight: 700,
-                                              cursor: 'pointer'
-                                            }}
-                                          >
-                                            Book Session
-                                          </button>
-                                        );
-                                      }
-                                    })()}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    });
-                  }
-
-                  // If displaySlots is empty, check whether any slot has coaches at
-                  // all (ignoring filters), precomputed in slotView.
-                  const hasGeneralSlots = slotView.hasGeneralSlots;
-
-                  if (hasGeneralSlots) {
-                    // General slots exist, but filters filtered them all out
-                    return (
-                      <div className="glass-panel" style={{ 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        padding: '48px 24px',
-                        textAlign: 'center',
-                        background: 'rgba(239, 68, 68, 0.02)',
-                        border: '1px dashed rgba(239, 68, 68, 0.15)',
-                        borderRadius: '16px'
-                      }}>
-                        <Info size={28} style={{ color: 'hsl(var(--accent))', marginBottom: '12px', opacity: 0.8 }} />
-                        <h5 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '6px' }}>No coaches available</h5>
-                        <p style={{ fontSize: '0.825rem', color: 'hsl(var(--text-secondary))', maxWidth: '380px' }}>
-                          No coaches are available for this time slot. Try adjusting your filters or selecting a different time.
-                        </p>
-                        <button 
-                          onClick={clearFilters} 
-                          className="btn btn-secondary"
-                          style={{ marginTop: '14px', padding: '6px 14px', fontSize: '0.75rem', height: '30px' }}
-                        >
-                          Reset Filters
-                        </button>
-                      </div>
-                    );
-                  } else {
-                    // No timeslots available at all for this day
-                    return (
-                      <div className="glass-panel" style={{ 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        alignItems: 'center', 
-                        justifyContent: 'center', 
-                        padding: '48px 24px',
-                        textAlign: 'center',
-                        borderRadius: '16px'
-                      }}>
-                        <Calendar size={28} style={{ color: 'hsl(var(--text-muted))', marginBottom: '12px', opacity: 0.5 }} />
-                        <h5 style={{ fontSize: '0.95rem', fontWeight: 700, marginBottom: '6px', color: 'hsl(var(--text-secondary))' }}>No slots available</h5>
-                        <p style={{ fontSize: '0.825rem', color: 'hsl(var(--text-muted))', maxWidth: '380px' }}>
-                          There are no coaching slots available on this day (passed, outside working hours, or fully booked).
-                        </p>
-                      </div>
-                    );
-                  }
-                })()}
-              </div>
-            )}
-          </div>
+          {/* SlotPicker component */}
+          <SlotPicker
+            mode="multi"
+            dayAvailability={dayAvailability}
+            userBusyEvents={userBusyEvents}
+            onSlotSelect={(coach, slot) => {
+              setActiveBookingCoach(coach);
+              setActiveBookingSlot(slot);
+            }}
+            onViewBooking={(booking) => setSelectedBookingForView(booking)}
+            onCancelBooking={(booking) => setBookingToCancel(booking)}
+            onClearFilters={clearFilters}
+            cancellingId={cancellingId}
+            isInitialLoading={isInitialLoading}
+            isFetchingDay={isFetchingDay}
+            selectedDayIndex={selectedDayIndex}
+            onDayChange={(index) => setSelectedDayIndex(index)}
+            timezone={viewerTimezone}
+            profileCache={profileCache}
+          />
       </div>
     </div>
 

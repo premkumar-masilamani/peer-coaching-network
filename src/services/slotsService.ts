@@ -17,6 +17,7 @@ import {
   getPersonalAvailabilityCache,
   writePersonalAvailabilityCache,
   syncCoachAvailabilityShards,
+  fetchBusySlotsByCoach,
 } from './firestoreRepository';
 import { isApproved } from './profileHelpers';
 import { getGoogleToken } from './googleToken';
@@ -353,4 +354,17 @@ export const getUserAvailableSlots = async (uid: string): Promise<string[]> => {
 
   const cache = await getPersonalAvailabilityCache(uid);
   return cache ? (cache.availableSlots || []) : [];
+};
+
+export const getCoachBusySlots = async (coachUid: string): Promise<{ startTime: Date; endTime: Date }[]> => {
+  const busyDocs = await fetchBusySlotsByCoach(coachUid);
+  return busyDocs.map(doc => {
+    const startTime = doc.startTime && typeof doc.startTime.toDate === 'function'
+      ? doc.startTime.toDate()
+      : new Date(doc.startTime?.dateTime || doc.startTime);
+    const endTime = doc.endTime && typeof doc.endTime.toDate === 'function'
+      ? doc.endTime.toDate()
+      : new Date(doc.endTime?.dateTime || doc.endTime);
+    return { startTime, endTime };
+  });
 };
