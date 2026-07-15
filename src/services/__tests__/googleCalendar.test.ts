@@ -66,6 +66,7 @@ vi.mock('firebase/firestore', () => ({
     now: () => ({ toDate: () => new Date('2026-06-18T00:00:00Z'), seconds: 1776518400 }),
     fromDate: (date: Date) => ({ toDate: () => date, seconds: date.getTime() / 1000 }),
   },
+  serverTimestamp: vi.fn(() => 'mock-server-timestamp'),
 }));
 
 const configMock = vi.hoisted(() => ({

@@ -224,7 +224,7 @@ export const createUserProfile = async (
 ): Promise<void> => {
   await setDoc(doc(db, COLLECTIONS.USERS, uid), {
     ...profile,
-    createdAt: Timestamp.now(),
+    createdAt: serverTimestamp(),
   } as DocumentData);
 };
 
@@ -416,7 +416,7 @@ export const reserveBookingSlots = async (params: BookingSlotParams): Promise<vo
     topic,
     coachUid,
     clientUid,
-    createdAt: Timestamp.now(),
+    createdAt: serverTimestamp(),
     expireAt: Timestamp.fromDate(pendingExpireDate),
   };
 
@@ -515,7 +515,7 @@ export const reserveBookingSlots = async (params: BookingSlotParams): Promise<vo
           coachUid,
           bookingId,
           startIso: t0,
-          createdAt: Timestamp.now(),
+          createdAt: serverTimestamp(),
           expireAt: Timestamp.fromDate(pendingExpireDate),
         });
         if (isOneHour) {
@@ -524,7 +524,7 @@ export const reserveBookingSlots = async (params: BookingSlotParams): Promise<vo
             coachUid,
             bookingId,
             startIso: tPlus30,
-            createdAt: Timestamp.now(),
+            createdAt: serverTimestamp(),
             expireAt: Timestamp.fromDate(pendingExpireDate),
           });
         }
@@ -628,7 +628,7 @@ export const rollbackBooking = async (params: BookingRollbackParams): Promise<vo
 export const cancelBookingDoc = async (bookingId: string): Promise<void> => {
   await updateDoc(doc(db, COLLECTIONS.BOOKINGS, bookingId), {
     status: BOOKING_STATUS.CANCELLED,
-    cancelledAt: Timestamp.now(),
+    cancelledAt: serverTimestamp(),
   });
 };
 
