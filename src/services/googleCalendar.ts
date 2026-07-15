@@ -20,8 +20,8 @@ import {
   deleteClientBookingLock,
   setBookingGoogleMeetLink,
 } from './firestoreRepository';
-import { getGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION, LOG_SEVERITY, BOOKING_STATUS, EVENT_TYPE } from '../config';
+import { getGoogleToken, clearGoogleToken } from './googleToken';
+import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION, LOG_SEVERITY, BOOKING_STATUS, EVENT_TYPE, GOOGLE_EVENTS_PAGE_SIZE } from '../config';
 import { logger } from '../utils/logger';
 import { TelemetryErrors } from '../config/telemetryErrors';
 import { resolveEventTemplate, DEFAULT_EVENT_TEMPLATES } from '../templates/eventTemplates';
@@ -91,15 +91,57 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
   // Try to load from Google Calendar if a valid token is present
   if (ENABLE_GOOGLE_INTEGRATION && token) {
     try {
-      const response = await fetch(
-        'https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=' + new Date().toISOString() + '&singleEvents=true&orderBy=startTime',
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+      // Window the query to the booking horizon and page through results.
+      // Without timeMax/maxResults + nextPageToken, Google caps a list response
+      // at 250 events and silently truncates busy calendars — making a busy user
+      // look free. We bound the window to [now, now + horizon] and follow pages.
+      const timeMin = new Date().toISOString();
+      const timeMaxDate = new Date();
+      timeMaxDate.setDate(timeMaxDate.getDate() + BOOKING_HORIZON_DAYS);
+      const timeMax = timeMaxDate.toISOString();
+
+      let pageToken: string | undefined;
+      // Safety cap: bound the page count so a pathological API response that
+      // keeps returning a nextPageToken can never loop forever. Within a 30-day
+      // window at 250 events/page this ceiling is far beyond any real calendar.
+      let pagesRemaining = 40;
+      do {
+        const params = new URLSearchParams({
+          timeMin,
+          timeMax,
+          singleEvents: 'true',
+          orderBy: 'startTime',
+          maxResults: String(GOOGLE_EVENTS_PAGE_SIZE),
+        });
+        if (pageToken) params.set('pageToken', pageToken);
+
+        const response = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+
+        if (!response.ok) {
+          // Previously swallowed with no else branch: the user saw an empty
+          // calendar instead of a reason. A 401 means the token is no longer
+          // valid — clear it so the app's reconnect UI (driven by
+          // getGoogleTokenExpiryStatus) prompts a re-auth (ties into PCN-008).
+          if (response.status === 401) {
+            clearGoogleToken();
+            await logger.telemetry(LOG_SEVERITY.ERROR, 'fetch_events_failure', {
+              errorCode: TelemetryErrors.GOOGLE_TOKEN_EXPIRED.code,
+              errorMessage: TelemetryErrors.GOOGLE_TOKEN_EXPIRED.message,
+              error: `Google Calendar events request returned 401`,
+            });
+          } else {
+            await logger.telemetry(LOG_SEVERITY.ERROR, 'fetch_events_failure', {
+              errorCode: TelemetryErrors.FETCH_EVENTS_FAILURE.code,
+              errorMessage: TelemetryErrors.FETCH_EVENTS_FAILURE.message,
+              error: `Google Calendar events request returned ${response.status}`,
+            });
+          }
+          break;
         }
-      );
-      if (response.ok) {
+
         const data = await response.json();
         (data.items || []).forEach((item: GoogleCalendarEvent) => {
           seenIds.add(item.id);
@@ -113,7 +155,8 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
             attendees: item.attendees?.map((a: { email: string; displayName?: string }) => ({ email: a.email, displayName: a.displayName }))
           });
         });
-      }
+        pageToken = data.nextPageToken;
+      } while (pageToken && --pagesRemaining > 0);
     } catch (e) {
       logger.error('Error fetching real Google Calendar events:', e);
       await logger.telemetry(LOG_SEVERITY.ERROR, 'fetch_events_failure', {

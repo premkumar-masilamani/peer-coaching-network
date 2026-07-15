@@ -31,6 +31,10 @@ export const TelemetryErrors = {
     code: 'FETCH_EVENTS_FAILURE',
     message: 'Failed to fetch upcoming events from Google Calendar.'
   },
+  GOOGLE_TOKEN_EXPIRED: {
+    code: 'GOOGLE_TOKEN_EXPIRED',
+    message: 'Google Calendar access token was rejected (401); connection cleared for re-auth.'
+  },
   FREEBUSY_API_FAILURE: {
     code: 'FREEBUSY_API_FAILURE',
     message: 'Google Calendar FreeBusy API query failed.'

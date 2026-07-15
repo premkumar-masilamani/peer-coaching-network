@@ -42,6 +42,15 @@ export const queryAvailableCoachesForDay = async (
 
     // A coach can have up to two shards (local day spanning two UTC dates);
     // union their freeSlots and run the faceted filter once per coach.
+    //
+    // INVARIANT: the faceted filter below reads filter fields (gender/country/
+    // icf_*) from whichever of a coach's two shards Firestore returns FIRST; the
+    // second shard only contributes freeSlots. This is deterministic ONLY because
+    // both shards for a coach are always written together in one recalc with
+    // identical filterFields (see doRecalculateAvailableSlotsCache /
+    // syncCoachAvailabilityShards). If that invariant is ever broken, filtering
+    // would depend on Firestore's return order — read filter fields from a
+    // deterministic shard (e.g. the earliest dateISO) instead.
     const existing = cacheMap.get(uid);
     if (existing) {
       existing.push(...(data.freeSlots || []));
