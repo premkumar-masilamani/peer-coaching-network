@@ -21,13 +21,14 @@ import {
   Video,
   ExternalLink
 } from 'lucide-react';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import type { QuerySnapshot, DocumentData } from 'firebase/firestore';
 import type { CalendarEvent } from '../services/googleCalendar';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { type Qualification, QUALIFICATION, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, BOOKING_STATUS, EVENT_TYPE, COLLECTIONS, ICF_DIRECTORY_URL } from '../config';
 import { verifyIcfCredential } from '../services/icfService';
 import { updateVerifiedCredentials } from '../services/firebaseService';
+import { getProfiles } from '../services/profileService';
 
 interface UserManagementProps {
   initialFilter?: 'all' | UserStatus | UserRole;
@@ -80,19 +81,26 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
         const meetings: CalendarEvent[] = [];
         const seenIds = new Set<string>();
 
-        const profileCache = new Map<string, UserProfile>();
-        const getProfile = async (uid: string): Promise<UserProfile | null> => {
-          if (profileCache.has(uid)) return profileCache.get(uid)!;
-          const userSnap = await getDoc(doc(db, COLLECTIONS.USERS, uid));
-          if (userSnap.exists()) {
-            const profile = userSnap.data() as UserProfile;
-            profileCache.set(uid, profile);
-            return profile;
-          }
-          return null;
+        const uids = new Set<string>();
+        const collectUids = (snap: QuerySnapshot<DocumentData>) => {
+          snap.docs.forEach((d) => {
+            const data = d.data();
+            if (data.status === BOOKING_STATUS.CANCELLED) return;
+            if (data.coachUid) uids.add(data.coachUid);
+            if (data.clientUid) uids.add(data.clientUid);
+          });
         };
 
-        const processSnap = async (snap: QuerySnapshot<DocumentData>) => {
+        collectUids(snapClient);
+        collectUids(snapHost);
+
+        const profilesList = await getProfiles(Array.from(uids));
+        const profileMap = new Map<string, UserProfile>();
+        profilesList.forEach((profile) => {
+          profileMap.set(profile.userId, profile);
+        });
+
+        const processSnap = (snap: QuerySnapshot<DocumentData>) => {
           for (const docSnap of snap.docs) {
             const data = docSnap.data();
             if (data.status === BOOKING_STATUS.CANCELLED) continue;
@@ -106,8 +114,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                 ? data.endTime.toDate().toISOString()
                 : (data.endTime?.dateTime || data.endTime || '');
 
-              const coachProfile = await getProfile(data.coachUid);
-              const clientProfile = await getProfile(data.clientUid);
+              const coachProfile = profileMap.get(data.coachUid) || null;
+              const clientProfile = profileMap.get(data.clientUid) || null;
 
               const coachFirstName = coachProfile ? (coachProfile.firstName || (formatDisplayName(coachProfile) || 'Coach').split(' ')[0]) : 'Coach';
               const clientFirstName = clientProfile ? (clientProfile.firstName || (formatDisplayName(clientProfile) || 'Peer').split(' ')[0]) : 'Peer';
@@ -120,6 +128,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                 end: { dateTime: endStr },
                 meetLink: data.googleMeetLink,
                 type: EVENT_TYPE.PEER_COACHING,
+                coachUid: data.coachUid,
+                clientUid: data.clientUid,
                 attendees: [
                   { email: coachProfile?.email || '', displayName: coachProfile ? formatDisplayName(coachProfile) : '' },
                   { email: clientProfile?.email || '', displayName: clientProfile ? formatDisplayName(clientProfile) : '' }
@@ -129,8 +139,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
           }
         };
 
-        await processSnap(snapClient);
-        await processSnap(snapHost);
+        processSnap(snapClient);
+        processSnap(snapHost);
 
         meetings.sort((a, b) => new Date(a.start.dateTime).getTime() - new Date(b.start.dateTime).getTime());
         setCoachMeetings(meetings);
