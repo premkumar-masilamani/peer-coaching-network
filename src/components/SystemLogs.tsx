@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useRef } from 'react';
-import { getSystemLogs, type SystemLogEntry } from '../services/systemLogsService';
+import { getLogsPage, type SystemLogEntry } from '../services/adminService';
 import {
   AlertCircle,
   ChevronLeft,
@@ -74,7 +74,7 @@ export const SystemLogs: React.FC = () => {
       try {
         // Service owns the database access and pagination look-ahead; the cursor
         // it returns is opaque and stored for the next page.
-        const { logs: fetchedLogs, nextCursor, hasMore } = await getSystemLogs({
+        const { logs: fetchedLogs, nextCursor, hasMore } = await getLogsPage({
           severities: selectedSeverities,
           pageCursor: pageCursorsRef.current[pageIndex],
         });

@@ -1,14 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { logAnalyticsEvent } from '../services/firebaseApp';
 import {
   getAllUsers,
+  getUserBookingStats,
+  type CalendarEvent
+} from '../services/adminService';
+import {
   updateProfile,
   formatDisplayName,
   formatMemberSince,
   getEffectiveRole,
   getEffectiveStatus,
-  logAnalyticsEvent
-} from '../services/firebaseService';
-import type { UserProfile } from '../services/firebaseService';
+  updateVerifiedCredentials
+} from '../services/profileService';
+import type { UserProfile } from '../services/types';
 import { ReviewChangesModal } from './modals/ReviewChangesModal';
 import { useUnsavedChanges } from '../context/UnsavedChangesContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
@@ -20,12 +25,9 @@ import {
   Video,
   ExternalLink
 } from 'lucide-react';
-import { getCoachSessions } from '../services/googleCalendar';
-import type { CalendarEvent } from '../services/googleCalendar';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { type Qualification, QUALIFICATION, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, ICF_DIRECTORY_URL } from '../config';
 import { verifyIcfCredential } from '../services/icfService';
-import { updateVerifiedCredentials } from '../services/firebaseService';
 
 interface UserManagementProps {
   initialFilter?: 'all' | UserStatus | UserRole;
@@ -78,7 +80,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
       try {
         // Firestore access + enrichment live in the service layer; the component
         // only asks for this coach's sessions and renders them.
-        const meetings = await getCoachSessions(coach.userId);
+        const meetings = await getUserBookingStats(coach.userId);
         if (!cancelled) {
           setCoachMeetings(meetings);
         }
