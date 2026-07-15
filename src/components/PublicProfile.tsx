@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import './PublicProfile.css';
 import { useTransientState } from '../hooks/useTransientState';
 import {
@@ -17,32 +17,55 @@ import {
   type UserProfile,
   formatDisplayName,
   formatMemberSince,
-  getProfile
+  getProfile,
+  getUserAvailableSlots,
+  getCoachBusySlots,
+  getUserBookings
 } from '../services/firebaseService';
+import { getUpcomingEvents } from '../services/googleCalendar';
+import { useAuth } from '../context/AuthContext';
+import { SlotPicker } from './SlotPicker';
+import { ScheduleModal } from './modals/ScheduleModal';
 import { 
   getCredentialBadgeClass, 
   getCredentialDescription,
   buildDisplayCredentials
 } from '../utils/credentials';
 import { sanitizeImageUrl } from '../utils/url';
-import { type Qualification, QUALIFICATION } from '../config';
-
+import { type Qualification, QUALIFICATION, EVENT_TYPE, BOOKING_STATUS } from '../config';
+import type { CalendarEvent } from '../services/googleCalendar';
+import type { DocumentData } from 'firebase/firestore';
 interface PublicProfileProps {
   uid: string;
   onClose: () => void;
 }
 
 export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) => {
+  const { user: currentUser } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useTransientState(false);
   const [prevUid, setPrevUid] = useState(uid);
+
+  // Slots and booking state
+  const [availableSlots, setAvailableSlots] = useState<string[]>([]);
+  const [coachBusySlots, setCoachBusySlots] = useState<{ startTime: Date; endTime: Date }[]>([]);
+  const [userBaseBusyEvents, setUserBaseBusyEvents] = useState<CalendarEvent[]>([]);
+  const [userLiveBookings, setUserLiveBookings] = useState<DocumentData[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(true);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
+  const [activeBookingSlot, setActiveBookingSlot] = useState<{ startTime: Date; endTime: Date } | null>(null);
 
   // Adjust state during render when uid prop changes to avoid synchronous setState inside useEffect.
   if (uid !== prevUid) {
     setPrevUid(uid);
     setProfile(null);
     setLoading(true);
+    setAvailableSlots([]);
+    setCoachBusySlots([]);
+    setLoadingSlots(true);
+    setSelectedDayIndex(0);
+    setActiveBookingSlot(null);
   }
 
   useEffect(() => {
@@ -60,6 +83,83 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
     })();
     return () => { cancelled = true; };
   }, [uid]);
+
+  const fetchCoachData = useCallback(async () => {
+    setLoadingSlots(true);
+    try {
+      const [avail, busy] = await Promise.all([
+        getUserAvailableSlots(uid),
+        getCoachBusySlots(uid)
+      ]);
+      setAvailableSlots(avail);
+      setCoachBusySlots(busy);
+    } catch (err) {
+      console.error('Error fetching coach slots:', err);
+    } finally {
+      setLoadingSlots(false);
+    }
+  }, [uid]);
+
+  const fetchViewerData = useCallback(async () => {
+    if (!currentUser?.uid) return;
+    try {
+      const [baseEvents, bookings] = await Promise.all([
+        getUpcomingEvents(),
+        getUserBookings(currentUser.uid)
+      ]);
+      setUserBaseBusyEvents(baseEvents);
+      setUserLiveBookings(bookings);
+    } catch (err) {
+      console.error('Error fetching viewer busy slots:', err);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      fetchCoachData();
+    });
+  }, [fetchCoachData]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      fetchViewerData();
+    });
+  }, [fetchViewerData]);
+
+  const userBusyEvents = useMemo(() => {
+    const baseGoogleEvents = userBaseBusyEvents.filter(e => e.type !== EVENT_TYPE.PEER_COACHING);
+    const currentUid = currentUser?.uid;
+    if (!currentUid) return baseGoogleEvents;
+    
+    const liveUserEvents: CalendarEvent[] = [];
+    userLiveBookings.forEach(b => {
+      if (b.status === BOOKING_STATUS.CANCELLED) return;
+      if (b.coachUid !== currentUid && b.clientUid !== currentUid) return;
+      
+      const startStr = b.startTime && typeof b.startTime.toDate === 'function' 
+        ? b.startTime.toDate().toISOString() 
+        : (b.startTime?.dateTime || b.startTime);
+      const endStr = b.endTime && typeof b.endTime.toDate === 'function' 
+        ? b.endTime.toDate().toISOString() 
+        : (b.endTime?.dateTime || b.endTime);
+      if (!startStr || !endStr) return;
+      
+      liveUserEvents.push({
+        id: b.bookingId || `${currentUid}-${startStr}`,
+        summary: b.topic || 'Peer Coaching',
+        description: `Coaching session`,
+        start: { dateTime: startStr },
+        end: { dateTime: endStr },
+        type: EVENT_TYPE.PEER_COACHING,
+        meetLink: b.googleMeetLink,
+        coachUid: b.coachUid,
+        clientUid: b.clientUid
+      });
+    });
+    
+    return [...baseGoogleEvents, ...liveUserEvents];
+  }, [userBaseBusyEvents, userLiveBookings, currentUser]);
+
 
   const handleCopyLink = async () => {
     const profileLink = `${window.location.origin}${window.location.pathname}?profile=${uid}`;
@@ -312,7 +412,63 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
           </div>
         </div>
 
+        {/* Availability booking section */}
+        {profile.userId !== currentUser?.uid ? (
+          <div className="glass-panel" style={{ padding: '24px' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Calendar size={16} style={{ color: 'hsl(var(--primary))' }} />
+              Book a Session
+            </h3>
+            <SlotPicker
+              mode="single"
+              coach={profile}
+              availableSlots={availableSlots}
+              coachBusySlots={coachBusySlots}
+              userBusyEvents={userBusyEvents}
+              onSlotSelect={(_coach, slot) => {
+                setActiveBookingSlot(slot);
+              }}
+              isInitialLoading={loadingSlots}
+              isFetchingDay={false}
+              selectedDayIndex={selectedDayIndex}
+              onDayChange={(index) => setSelectedDayIndex(index)}
+              timezone={profile.timezone || undefined}
+            />
+          </div>
+        ) : (
+          <div className="glass-panel" style={{
+            padding: '16px 20px',
+            borderRadius: '12px',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            background: 'rgba(245, 158, 11, 0.05)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px'
+          }}>
+            <Calendar size={18} style={{ color: 'hsl(var(--accent))' }} />
+            <p style={{ fontSize: '0.875rem', color: 'hsl(var(--text-secondary))', margin: 0 }}>
+              This is your public profile. To manage your availability, go to the Availability tab.
+            </p>
+          </div>
+        )}
+
       </div>
+
+      {/* Booking confirmation modal overlay */}
+      {activeBookingSlot && (
+        <ScheduleModal 
+          coach={profile}
+          startTime={activeBookingSlot.startTime}
+          endTime={activeBookingSlot.endTime}
+          onClose={() => {
+            setActiveBookingSlot(null);
+          }}
+          onBookingSuccess={() => {
+            setActiveBookingSlot(null);
+            fetchCoachData();
+          }}
+        />
+      )}
     </div>
   );
 };
