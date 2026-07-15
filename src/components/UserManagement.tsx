@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { logAnalyticsEvent } from '../services/firebaseApp';
 import {
-  getAllUsers,
+  getUsersPage,
+  getPendingUsers,
   getUserBookingStats,
   type CalendarEvent
 } from '../services/adminService';
@@ -34,9 +35,20 @@ interface UserManagementProps {
   setInitialFilter?: (filter: 'all' | UserStatus | UserRole) => void;
 }
 
+// Roster page size. The first paint loads only this many user documents instead
+// of the whole users collection; "Load more" appends further pages.
+const USERS_PAGE_SIZE = 25;
+
 export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 'all', setInitialFilter }) => {
   const [users, setUsers] = useState<UserProfile[]>([]);
+  // Full pending (inactive) set, fetched independently of roster pagination so
+  // the pending badge/count and the "Pending Approval" filter stay complete.
+  const [pendingUsers, setPendingUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  // Opaque cursor for the next page (a Firestore snapshot); null once exhausted.
+  const nextCursorRef = useRef<unknown | null>(null);
   const [search, setSearch] = useState('');
 
   const usersRef = useRef(users);
@@ -112,18 +124,45 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     }
   >>({});
 
-  // One-shot query for all user records, refreshed on window focus and after
-  // admin mutations (approvals/role changes) in lieu of a live subscription.
+  // Load the first page of user records (bounded read), resetting the cursor.
+  // Refreshed on window focus in lieu of a live subscription. Note: because the
+  // roster is now paginated, the search box filters over loaded pages only —
+  // load more to widen the searchable set.
   const loadUsers = useCallback(async () => {
     try {
-      const usersList = await getAllUsers();
-      setUsers(usersList);
+      const [{ users: page, nextCursor, hasMore: more }, pending] = await Promise.all([
+        getUsersPage({ pageSize: USERS_PAGE_SIZE }),
+        getPendingUsers(),
+      ]);
+      setUsers(page);
+      nextCursorRef.current = nextCursor;
+      setHasMore(more);
+      setPendingUsers(pending);
     } catch (e) {
       console.error('Error loading users:', e);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  // Append the next page of user records to the currently-loaded set.
+  const loadMoreUsers = useCallback(async () => {
+    if (!nextCursorRef.current || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const { users: page, nextCursor, hasMore: more } = await getUsersPage({
+        pageSize: USERS_PAGE_SIZE,
+        pageCursor: nextCursorRef.current,
+      });
+      setUsers(prev => [...prev, ...page]);
+      nextCursorRef.current = nextCursor;
+      setHasMore(more);
+    } catch (e) {
+      console.error('Error loading more users:', e);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore]);
 
   useFocusRefresh(loadUsers);
 
@@ -209,15 +248,27 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
         return next;
       });
 
-      // Re-fetch so the mutated record reflects immediately (previously
-      // delivered by the live users subscription).
-      await loadUsers();
+      // Patch the mutated record in place so the change reflects immediately
+      // without a full reload, which would discard any additionally-loaded pages
+      // and reset the paginated roster to the first page.
+      setUsers(prev =>
+        prev.map(u =>
+          u.userId === uid ? { ...u, userRole: roleToSave, userStatus: statusToSave } : u
+        )
+      );
+      // Keep the pending set accurate: a user activated leaves it, a user
+      // deactivated joins it. Refetch the (small) pending list to stay in sync.
+      try {
+        setPendingUsers(await getPendingUsers());
+      } catch (pendingErr) {
+        console.error('Error refreshing pending users:', pendingErr);
+      }
     } catch (e) {
       console.error('Error approving user changes:', e);
     } finally {
       setSavingId(null);
     }
-  }, [users, loadUsers]);
+  }, [users]);
 
   const { setPageDirtyState } = useUnsavedChanges();
 
@@ -260,7 +311,13 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
   }, [drafts, users, setPageDirtyState, executeApproval]);
 
   // Filter logic
-  const filteredUsers = users.filter((u) => {
+  // The "Pending Approval" filter draws from the complete pending set (not the
+  // paginated roster) so no pending user is hidden on an unloaded page. Other
+  // filters operate over the loaded roster pages.
+  const isPendingView = roleFilter === USER_STATUS.INACTIVE;
+  const listSource = isPendingView ? pendingUsers : users;
+
+  const filteredUsers = listSource.filter((u) => {
     const matchesSearch =
       (u.displayName?.toLowerCase() || '').includes(search.toLowerCase()) ||
       (u.email?.toLowerCase() || '').includes(search.toLowerCase());
@@ -274,7 +331,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     return matchesSearch && matchesRole;
   });
 
-  const pendingCount = users.filter(u => getUserStatus(u) === USER_STATUS.INACTIVE).length;
+  // Accurate count of pending users, independent of roster pagination.
+  const pendingCount = pendingUsers.length;
 
   // If the selected coach vanished from the list, drop back to the list view.
   // Adjust-during-render (converges once selectedCoachUid is cleared) — avoids
@@ -765,6 +823,19 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {!loading && !isPendingView && hasMore && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={loadMoreUsers}
+              disabled={loadingMore}
+            >
+              {loadingMore ? 'Loading…' : 'Load more users'}
+            </button>
           </div>
         )}
       </div>

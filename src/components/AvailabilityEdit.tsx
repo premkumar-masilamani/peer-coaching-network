@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import './AvailabilityEdit.css';
 import { useTransientState } from '../hooks/useTransientState';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -428,119 +429,6 @@ export const AvailabilityEdit: React.FC<AvailabilityEditProps> = ({ onboardingMo
 
   return (
     <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px', width: '100%' }}>
-      <style>{`
-        .availability-layout {
-          grid-template-columns: ${onboardingMode ? '1fr' : '1fr 340px'};
-        }
-        @media (max-width: 950px) {
-          .availability-layout {
-            grid-template-columns: 1fr !important;
-          }
-        }
-        .day-row {
-          display: flex;
-          align-items: flex-start;
-          padding: 16px 0;
-          border-bottom: 1px solid var(--border-light);
-          min-height: 72px;
-        }
-        .day-row:last-child {
-          border-bottom: none;
-        }
-        .day-label-column {
-          display: flex;
-          align-items: center;
-          width: 160px;
-          flex-shrink: 0;
-          padding-top: 6px;
-        }
-        .slots-column {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          flex-grow: 1;
-        }
-        .slot-range-row {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-        .time-select {
-          background: var(--input-bg);
-          border: 1px solid var(--input-border);
-          border-radius: 8px;
-          color: hsl(var(--text-primary));
-          padding: 8px 12px;
-          font-size: 0.9rem;
-          font-weight: 500;
-          cursor: pointer;
-          outline: none;
-          transition: all 0.2s;
-          width: 140px;
-        }
-        .time-select:focus {
-          border-color: hsl(var(--primary));
-          box-shadow: 0 0 8px var(--primary-glow);
-        }
-        .time-select option {
-          background: hsl(var(--bg-surface-elevated));
-          color: hsl(var(--text-primary));
-        }
-        .action-icon-btn {
-          background: transparent;
-          border: none;
-          color: hsl(var(--text-secondary));
-          cursor: pointer;
-          padding: 6px;
-          border-radius: 50%;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          transition: all 0.2s;
-        }
-        .action-icon-btn:hover {
-          background: var(--btn-secondary-hover-bg);
-          color: hsl(var(--text-primary));
-        }
-        .action-icon-btn.remove:hover {
-          color: #f87171;
-          background: rgba(239, 68, 68, 0.1);
-        }
-        .apply-all-btn {
-          font-size: 0.75rem;
-          color: hsl(var(--primary));
-          background: transparent;
-          border: none;
-          font-weight: 600;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          gap: 4px;
-          padding: 4px 8px;
-          border-radius: 4px;
-          transition: all 0.2s;
-          margin-top: 2px;
-          align-self: flex-start;
-        }
-        .apply-all-btn:hover {
-          background: var(--primary-glow);
-          text-decoration: underline;
-        }
-        .blocked-date-item {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 8px 12px;
-          background: var(--panel-hover-bg);
-          border: 1px solid var(--border-light);
-          border-radius: 8px;
-          margin-bottom: 8px;
-          font-size: 0.85rem;
-        }
-        .blocked-date-item:hover {
-          border-color: var(--border-light);
-        }
-      `}</style>
 
       {/* Global Header */}
       {!onboardingMode && (
@@ -568,7 +456,7 @@ export const AvailabilityEdit: React.FC<AvailabilityEditProps> = ({ onboardingMo
         </div>
       )}
 
-      <div className="availability-layout" style={{ display: 'grid', gap: '24px', width: '100%', alignItems: 'start' }}>
+      <div className="availability-layout" style={{ display: 'grid', gridTemplateColumns: onboardingMode ? '1fr' : '1fr 340px', gap: '24px', width: '100%', alignItems: 'start' }}>
         {/* Main Weekly Schedule Panel */}
         <div className="glass-panel" style={{ padding: '32px', position: 'relative' }}>
           {/* Header Title with Save */}
@@ -613,6 +501,7 @@ export const AvailabilityEdit: React.FC<AvailabilityEditProps> = ({ onboardingMo
                         <div key={index} className="slot-range-row">
                           <select
                             className="time-select"
+                            aria-label={`${label} slot ${index + 1} start time`}
                             value={slot.start}
                             onChange={(e) => handleSlotTimeChange(key, index, 'start', e.target.value)}
                           >
@@ -623,6 +512,7 @@ export const AvailabilityEdit: React.FC<AvailabilityEditProps> = ({ onboardingMo
                           <span style={{ color: 'var(--text-muted)' }}>-</span>
                           <select
                             className="time-select"
+                            aria-label={`${label} slot ${index + 1} end time`}
                             value={slot.end}
                             onChange={(e) => handleSlotTimeChange(key, index, 'end', e.target.value)}
                           >

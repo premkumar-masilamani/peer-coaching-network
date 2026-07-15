@@ -9,6 +9,7 @@ import {
   getUserProfile,
   updateUserProfile,
   fetchAllUsers,
+  fetchUsersPage,
   fetchUsersByStatus,
   countUsersByStatus,
   fetchUsersByIds,
@@ -74,6 +75,15 @@ export const getAllUsers = async (): Promise<UserProfile[]> => {
   return fetchAllUsers();
 };
 
+// One page of the admin user roster with an opaque cursor for the next page,
+// bounding the first read rather than downloading the whole users collection.
+export const getUsersPage = async (
+  pageSize: number,
+  pageCursor?: unknown
+): Promise<{ users: UserProfile[]; nextCursor: unknown | null; hasMore: boolean }> => {
+  return fetchUsersPage({ pageSize, pageCursor });
+};
+
 // One-shot query for ACTIVE users only (peer coaches), avoiding a full
 // users-collection download for the dashboard. We filter on the
 // userStatus field.
@@ -85,6 +95,13 @@ export const getActiveCoaches = async (): Promise<UserProfile[]> => {
 // rather than the whole collection just to derive a badge number.
 export const getPendingUsersCount = async (): Promise<number> => {
   return countUsersByStatus(USER_STATUS.INACTIVE);
+};
+
+// Full list of pending (inactive) users. The pending set is small and transient,
+// so it is fetched in full — this keeps the admin approval workflow complete
+// even though the main roster is paginated by document id.
+export const getPendingUsers = async (): Promise<UserProfile[]> => {
+  return fetchUsersByStatus(USER_STATUS.INACTIVE);
 };
 
 export const setUserRoleAndStatus = async (

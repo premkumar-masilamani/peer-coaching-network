@@ -86,6 +86,18 @@ const allUsersCollection = () => collection(db, COLLECTIONS.USERS);
 // users — `userStatus == x`. Single equality; no composite index.
 const usersByStatusQuery = (status: UserStatus): Query<DocumentData> =>
   query(collection(db, COLLECTIONS.USERS), where('userStatus', '==', status));
+// users — page window ordered by document id (always present, so no document is
+// excluded; single-field index, no composite index required). The document id
+// gives a stable total order for `startAfter` cursor pagination.
+const usersPageQuery = (
+  pageCursor: QueryDocumentSnapshot<DocumentData> | null,
+  pageSize: number
+): Query<DocumentData> => {
+  const constraints: QueryConstraint[] = [orderBy(documentId())];
+  if (pageCursor) constraints.push(startAfter(pageCursor));
+  constraints.push(limit(pageSize));
+  return query(collection(db, COLLECTIONS.USERS), ...constraints);
+};
 // users — `documentId() in [...]`. Single `in`; no composite index.
 const usersByIdsQuery = (userIds: string[]): Query<DocumentData> =>
   query(collection(db, COLLECTIONS.USERS), where(documentId(), 'in', userIds));
@@ -242,6 +254,30 @@ export const fetchAllUsers = async (): Promise<UserProfile[]> => {
   const users: UserProfile[] = [];
   snap.forEach((d) => users.push(d.data() as UserProfile));
   return users;
+};
+
+/**
+ * Read one page of user documents (admin roster), ordered by document id.
+ * Requests one extra row internally to report whether a further page exists and
+ * returns an opaque `nextCursor` to pass back for the following page. Bounds the
+ * first-paint read instead of downloading the entire users collection.
+ */
+export const fetchUsersPage = async (options: {
+  pageCursor?: unknown;
+  pageSize: number;
+}): Promise<{ users: UserProfile[]; nextCursor: unknown | null; hasMore: boolean }> => {
+  const { pageCursor, pageSize } = options;
+  const snapshot = await getDocs(
+    usersPageQuery((pageCursor as QueryDocumentSnapshot<DocumentData>) ?? null, pageSize + 1)
+  );
+  const rows: { user: UserProfile; snap: QueryDocumentSnapshot<DocumentData> }[] = [];
+  snapshot.forEach((docSnap) => {
+    rows.push({ user: docSnap.data() as UserProfile, snap: docSnap });
+  });
+  const hasMore = rows.length > pageSize;
+  if (hasMore) rows.pop(); // drop the extra look-ahead row
+  const nextCursor = hasMore ? rows[rows.length - 1].snap : null;
+  return { users: rows.map((r) => r.user), nextCursor, hasMore };
 };
 
 /** Read all users with the given status (e.g. ACTIVE coaches). */
@@ -809,6 +845,43 @@ export const fetchSupportRequestDocsByUser = async (userId: string): Promise<Raw
 /** Raw support-request docs for every ticket (caller converts + sorts). */
 export const fetchAllSupportRequestDocs = async (): Promise<RawDoc[]> =>
   collectRawDocs(await getDocs(collection(db, COLLECTIONS.SUPPORT_REQUESTS)));
+
+// supportRequests — page window newest-first by `updatedAt` (set on create and
+// on every message append, so always present). Single-field orderBy; no
+// composite index required.
+const supportRequestsPageQuery = (
+  pageCursor: QueryDocumentSnapshot<DocumentData> | null,
+  pageSize: number
+): Query<DocumentData> => {
+  const constraints: QueryConstraint[] = [orderBy('updatedAt', 'desc')];
+  if (pageCursor) constraints.push(startAfter(pageCursor));
+  constraints.push(limit(pageSize));
+  return query(collection(db, COLLECTIONS.SUPPORT_REQUESTS), ...constraints);
+};
+
+/**
+ * Read one page of support-request docs, newest-updated first. Requests one
+ * extra row internally to report whether a further page exists and returns an
+ * opaque `nextCursor` for the following page. Bounds the admin desk's initial
+ * read instead of downloading every ticket.
+ */
+export const fetchSupportRequestsPage = async (options: {
+  pageCursor?: unknown;
+  pageSize: number;
+}): Promise<{ docs: RawDoc[]; nextCursor: unknown | null; hasMore: boolean }> => {
+  const { pageCursor, pageSize } = options;
+  const snapshot = await getDocs(
+    supportRequestsPageQuery((pageCursor as QueryDocumentSnapshot<DocumentData>) ?? null, pageSize + 1)
+  );
+  const rows: { doc: RawDoc; snap: QueryDocumentSnapshot<DocumentData> }[] = [];
+  snapshot.forEach((docSnap) => {
+    rows.push({ doc: { id: docSnap.id, data: docSnap.data() }, snap: docSnap });
+  });
+  const hasMore = rows.length > pageSize;
+  if (hasMore) rows.pop();
+  const nextCursor = hasMore ? rows[rows.length - 1].snap : null;
+  return { docs: rows.map((r) => r.doc), nextCursor, hasMore };
+};
 
 /** Raw message docs for a request, ordered oldest-first (caller converts). */
 export const fetchSupportMessageDocs = async (requestId: string): Promise<RawDoc[]> =>
