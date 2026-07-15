@@ -480,7 +480,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                         <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-secondary))' }}>
                           {dateString} at {timeString}
                         </p>
-                        {safeMeetLink && (
+                        {safeMeetLink ? (
                           <div style={{ marginTop: '12px' }}>
                             <a
                               href={safeMeetLink}
@@ -493,6 +493,11 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                               Join Google Meet
                               <ExternalLink size={10} />
                             </a>
+                          </div>
+                        ) : (
+                          <div style={{ marginTop: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: 'hsl(var(--text-muted))' }}>
+                            <Video size={12} />
+                            <span>Google Meet link pending...</span>
                           </div>
                         )}
                       </div>

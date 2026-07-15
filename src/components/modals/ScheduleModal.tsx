@@ -181,7 +181,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
               <strong>Time:</strong> {dateString} at {timeString}
             </p>
             
-            {sanitizeMeetLink(createdEvent.meetLink) && (
+            {sanitizeMeetLink(createdEvent.meetLink) ? (
               <div style={{
                 borderTop: '1px solid var(--border-light)',
                 paddingTop: '12px',
@@ -203,6 +203,28 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
                   Join Google Meet
                   <ExternalLink size={12} />
                 </a>
+              </div>
+            ) : (
+              <div style={{
+                borderTop: '1px solid var(--border-light)',
+                paddingTop: '12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.8rem', color: 'hsl(var(--text-secondary))', fontWeight: 600 }}>
+                  <Video size={14} />
+                  Google Meet Room Pending
+                </div>
+                <button
+                  type="button"
+                  disabled
+                  className="btn btn-primary"
+                  style={{ padding: '8px 16px', fontSize: '0.85rem', width: '100%', gap: '6px', opacity: 0.5, cursor: 'not-allowed' }}
+                >
+                  Join Link Pending
+                  <ExternalLink size={12} />
+                </button>
               </div>
             )}
           </div>

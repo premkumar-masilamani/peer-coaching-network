@@ -137,13 +137,20 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
             if (expireTime < Date.now()) continue; // skip expired pending bookings
           }
           
-          const existingEvent = events.find(e => e.id === data.bookingId);
+          const existingEvent = events.find(e => (data.googleEventId && e.id === data.googleEventId) || e.id === data.bookingId);
           if (existingEvent) {
             existingEvent.type = EVENT_TYPE.PEER_COACHING;
             existingEvent.coachUid = data.coachUid;
             existingEvent.clientUid = data.clientUid;
             if (data.topic) {
               existingEvent.description = `Peer Coaching Network session on the topic: ${data.topic}. Created via PCN.`;
+            }
+            if (existingEvent.meetLink && !data.googleMeetLink) {
+              updateDoc(d.ref, { googleMeetLink: existingEvent.meetLink }).catch((err) => {
+                logger.error(`Failed to self-heal googleMeetLink for booking ${data.bookingId}:`, err);
+              });
+            } else if (!existingEvent.meetLink && data.googleMeetLink) {
+              existingEvent.meetLink = data.googleMeetLink;
             }
           } else if (!seenIds.has(data.bookingId)) {
             seenIds.add(data.bookingId);
@@ -216,10 +223,13 @@ export const scheduleMeeting = async (
   topic: string
 ): Promise<CalendarEvent> => {
   const token = getGoogleToken();
-  const meetId = Math.random().toString(36).substring(2, 5) + '-' +
-                 Math.random().toString(36).substring(2, 6) + '-' +
-                 Math.random().toString(36).substring(2, 5);
-  const meetLink = `https://meet.google.com/${meetId}`;
+  let fallbackMeetLink = '';
+  if (!ENABLE_GOOGLE_INTEGRATION) {
+    const meetId = Math.random().toString(36).substring(2, 5) + '-' +
+                   Math.random().toString(36).substring(2, 6) + '-' +
+                   Math.random().toString(36).substring(2, 5);
+    fallbackMeetLink = `https://meet.google.com/${meetId}`;
+  }
 
   const currentUser = auth?.currentUser;
   const clientEmail = currentUser?.email || '';
@@ -301,7 +311,7 @@ export const scheduleMeeting = async (
   const coachAsClientAtT0Ref = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${coachUid}_${t0}`);
   const coachAsClientAtTPlus30Ref = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${coachUid}_${tPlus30}`);
 
-  let realMeetLink = meetLink;
+  let realMeetLink = fallbackMeetLink;
   let googleEventId = `mock-booking-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 
   // Step 1: Claim the slot in Firestore via Transaction
@@ -527,7 +537,38 @@ export const scheduleMeeting = async (
 
       const data = await response.json();
       googleEventId = data.id;
-      realMeetLink = data.hangoutLink || meetLink;
+      realMeetLink = data.hangoutLink || '';
+
+      if (!realMeetLink && ENABLE_GOOGLE_INTEGRATION) {
+        let retryCount = 0;
+        const maxRetries = 3;
+        let delay = 1000;
+        while (retryCount < maxRetries && !realMeetLink) {
+          logger.info(`Google hangoutLink missing. Retrying event fetch (attempt ${retryCount + 1}/${maxRetries})...`);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          try {
+            const getResponse = await fetch(
+              `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`,
+              {
+                headers: {
+                  Authorization: `Bearer ${token}`,
+                },
+              }
+            );
+            if (getResponse.ok) {
+              const getData = await getResponse.json();
+              if (getData.hangoutLink) {
+                realMeetLink = getData.hangoutLink;
+                logger.info(`Google hangoutLink fetched successfully on retry ${retryCount + 1}: ${realMeetLink}`);
+              }
+            }
+          } catch (err) {
+            logger.warn(`Failed to fetch event on retry ${retryCount + 1}:`, err);
+          }
+          retryCount++;
+          delay *= 2;
+        }
+      }
     } catch (e) {
       if ((e as ApiError).code === 'GOOGLE_TOKEN_EXPIRED' || (e as ApiError).code === 'GOOGLE_API_ERROR') {
         throw e;
