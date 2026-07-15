@@ -31,15 +31,22 @@ const missingConfig = Object.entries(requiredConfig)
   .filter(([, value]) => !value)
   .map(([key]) => `VITE_FIREBASE_${key.replace(/([A-Z])/g, '_$1').toUpperCase()}`);
 
+/**
+ * Set when required Firebase config is missing on a real (non-emulator) build.
+ * Instead of throwing at module-import time — which white-screens the whole app
+ * before React can mount — we surface the problem here so the UI can render a
+ * user-facing "configuration error" screen. `null` means config is valid.
+ */
+export let firebaseConfigError: string | null = null;
+
 if (!useEmulator && missingConfig.length > 0) {
   const message = `Missing required Firebase configuration: ${missingConfig.join(', ')}. ` +
     'Set these environment variables (see .env.prod / Firebase project settings).';
-  // Fail fast in production rather than booting with broken credentials.
-  if (import.meta.env.PROD) {
-    throw new Error(message);
-  } else {
-    logger.error(message);
-  }
+  // Record the failure so the app can render a graceful error screen. We no
+  // longer throw in production: an uncaught module-scope throw blanks the page
+  // before React mounts, leaving the user with no explanation.
+  firebaseConfigError = message;
+  logger.error(message);
 }
 
 const projectId = requiredConfig.projectId || 'peer-coaching-network-dev';
