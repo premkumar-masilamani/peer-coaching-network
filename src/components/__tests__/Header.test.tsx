@@ -2,13 +2,30 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
-import { TABS, USER_ROLE, type TabKey, type UserRole } from '../../config';
+import { TABS, USER_ROLE, type TabKey, type UserRole, GOOGLE_TOKEN_STATUS } from '../../config';
 
 // @ts-expect-error - IS_REACT_ACT_ENVIRONMENT is not typed on globalThis
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
+let mockEnableGoogleIntegration = true;
+vi.mock('../../config', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../config')>();
+  return {
+    ...actual,
+    get ENABLE_GOOGLE_INTEGRATION() {
+      return mockEnableGoogleIntegration;
+    },
+  };
+});
+
 const mockAuth = vi.hoisted(() => ({
-  value: {} as { user: unknown; profile: unknown; role: UserRole | null | undefined },
+  value: {} as {
+    user: unknown;
+    profile: unknown;
+    role: UserRole | null | undefined;
+    googleTokenStatus?: string;
+    login?: () => Promise<void>;
+  },
 }));
 
 vi.mock('../../context/AuthContext', () => ({
@@ -34,11 +51,17 @@ describe('Header logo accessibility', () => {
   let root: Root;
   let setCurrentTab: ReturnType<typeof vi.fn<(tab: TabKey) => void>>;
 
-  const renderHeader = (role: UserRole | null | undefined) => {
+  const renderHeader = (
+    role: UserRole | null | undefined,
+    googleTokenStatus: string = GOOGLE_TOKEN_STATUS.DISCONNECTED,
+    loginMock = vi.fn()
+  ) => {
     mockAuth.value = {
       user: { uid: 'u1', email: 'ada@example.com', photoURL: null },
       profile: { email: 'ada@example.com', photoURL: null },
       role,
+      googleTokenStatus,
+      login: loginMock,
     };
     act(() => {
       root.render(<Header currentTab={TABS.DASHBOARD} setCurrentTab={setCurrentTab} />);
@@ -100,4 +123,52 @@ describe('Header logo accessibility', () => {
     // A <button> may only contain phrasing content; div/h3 descendants are invalid.
     expect(logo().querySelector('div, h1, h2, h3, h4, h5, h6, p')).toBeNull();
   });
+
+  describe('Google Calendar connection status badge', () => {
+    beforeEach(() => {
+      mockEnableGoogleIntegration = true;
+    });
+
+    it('renders connected status correctly', () => {
+      renderHeader(USER_ROLE.USER, GOOGLE_TOKEN_STATUS.CONNECTED);
+      const badge = container.querySelector('button[title*="Linked"]') as HTMLButtonElement;
+      expect(badge).not.toBeNull();
+      expect(badge.textContent).toContain('Calendar Linked');
+      expect(badge.className).not.toContain('animate-pulse-warning');
+    });
+
+    it('renders expired status with pulse animation', () => {
+      renderHeader(USER_ROLE.USER, GOOGLE_TOKEN_STATUS.EXPIRED);
+      const badge = container.querySelector('button[title*="expired"]') as HTMLButtonElement;
+      expect(badge).not.toBeNull();
+      expect(badge.textContent).toContain('Calendar Expired (Reconnect)');
+      expect(badge.className).toContain('animate-pulse-warning');
+    });
+
+    it('renders disconnected status correctly', () => {
+      renderHeader(USER_ROLE.USER, GOOGLE_TOKEN_STATUS.DISCONNECTED);
+      const badge = container.querySelector('button[title*="disconnected"]') as HTMLButtonElement;
+      expect(badge).not.toBeNull();
+      expect(badge.textContent).toContain('Calendar Offline (Connect)');
+      expect(badge.className).not.toContain('animate-pulse-warning');
+    });
+
+    it('triggers login on click', () => {
+      const loginMock = vi.fn().mockResolvedValue(undefined);
+      renderHeader(USER_ROLE.USER, GOOGLE_TOKEN_STATUS.DISCONNECTED, loginMock);
+      const badge = container.querySelector('button[title*="disconnected"]') as HTMLButtonElement;
+      act(() => {
+        badge.click();
+      });
+      expect(loginMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not render the badge if ENABLE_GOOGLE_INTEGRATION is false', () => {
+      mockEnableGoogleIntegration = false;
+      renderHeader(USER_ROLE.USER, GOOGLE_TOKEN_STATUS.CONNECTED);
+      const badge = container.querySelector('button[title*="Linked"]');
+      expect(badge).toBeNull();
+    });
+  });
 });
+
