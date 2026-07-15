@@ -100,7 +100,7 @@ describe('firebaseApp', () => {
       vi.unstubAllEnvs();
     });
 
-    it('throws an error in prod mode when config is missing and emulator is disabled', async () => {
+    it('records firebaseConfigError (without throwing) in prod when config is missing and emulator is disabled', async () => {
       vi.resetModules();
       vi.stubEnv('VITE_USE_FIREBASE_EMULATOR', 'false');
       vi.stubEnv('VITE_FIRESTORE_DATABASE_ID', 'pcn-dev');
@@ -111,10 +111,17 @@ describe('firebaseApp', () => {
       vi.stubEnv('PROD', true as any);
 
       try {
-        await expect(import('../firebaseApp')).rejects.toThrow('Missing required Firebase configuration');
+        const { firebaseConfigError } = await import('../firebaseApp');
+        expect(firebaseConfigError).toContain('Missing required Firebase configuration');
       } finally {
         vi.unstubAllEnvs();
       }
+    });
+
+    it('leaves firebaseConfigError null when running against the emulator', async () => {
+      vi.resetModules();
+      const { firebaseConfigError } = await import('../firebaseApp');
+      expect(firebaseConfigError).toBeNull();
     });
   });
 
