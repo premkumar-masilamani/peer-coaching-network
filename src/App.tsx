@@ -12,7 +12,8 @@ import { LeftNav } from './components/LeftNav';
 import { MySessions } from './components/MySessions';
 import { PublicProfile } from './components/PublicProfile';
 import { SupportFeedback } from './components/SupportFeedback';
-import { isApproved, logAnalyticsEvent } from './services/firebaseService';
+import { isApproved, logAnalyticsEvent, firebaseConfigError } from './services/firebaseService';
+import { ConfigErrorScreen } from './components/ConfigErrorScreen';
 import { Sparkles, AlertTriangle, X } from 'lucide-react';
 import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, THEME } from './config';
 import { clearProfileFromUrl } from './utils/url';
@@ -304,6 +305,12 @@ const AppContent: React.FC = () => {
 };
 
 function App() {
+  // A misconfigured deployment (missing Firebase credentials) must not mount the
+  // provider tree, which would fire broken network calls. Show an explanation.
+  if (firebaseConfigError) {
+    return <ConfigErrorScreen message={firebaseConfigError} />;
+  }
+
   return (
     <AuthProvider>
       <UnsavedChangesProvider>

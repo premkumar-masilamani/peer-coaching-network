@@ -29,7 +29,7 @@ export type {
   DiscoveryFilters,
 } from './types';
 
-export { db, auth, isFirebaseConfigured, logAnalyticsEvent } from './firebaseApp';
+export { db, auth, isFirebaseConfigured, firebaseConfigError, logAnalyticsEvent } from './firebaseApp';
 
 export {
   loginWithGoogle,
