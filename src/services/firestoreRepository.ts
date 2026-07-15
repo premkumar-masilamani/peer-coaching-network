@@ -413,6 +413,10 @@ export const reserveBookingSlots = async (params: BookingSlotParams): Promise<vo
     status: BOOKING_STATUS.PENDING,
     startTime: Timestamp.fromDate(new Date(startIso)),
     endTime: Timestamp.fromDate(new Date(endIso)),
+    // startIso mirrors the slot's ISO instant as a plain string. Security rules
+    // (PCN-038) use it to pin the booking to bookingId and to the coach's
+    // published availability shard; see coachPublishedSlot() in firestore.rules.
+    startIso,
     topic,
     coachUid,
     clientUid,
