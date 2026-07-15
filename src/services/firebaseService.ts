@@ -70,6 +70,7 @@ export {
   recalculateAvailableSlotsCache,
   lazyRecalculateAvailableSlotsCache,
   getUserAvailableSlots,
+  getCoachBusySlots,
 } from './slotsService';
 
 export {
