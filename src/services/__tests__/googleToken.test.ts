@@ -1,13 +1,21 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import {
   setGoogleToken,
   getGoogleToken,
-  clearGoogleToken
+  clearGoogleToken,
+  getGoogleTokenExpiryStatus
 } from '../googleToken';
+import { GOOGLE_TOKEN_STATUS } from '../../config';
 
 describe('googleToken manager', () => {
   beforeEach(() => {
     clearGoogleToken();
+    sessionStorage.clear();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('correctly sets and gets the token', () => {
@@ -28,4 +36,36 @@ describe('googleToken manager', () => {
     setGoogleToken(null);
     expect(getGoogleToken()).toBeNull();
   });
+
+  it('restores from sessionStorage cache on page reload (losing in-memory token)', () => {
+    // Clear in-memory token (this also clears sessionStorage, which is fine as we write to it next)
+    clearGoogleToken();
+    
+    // Simulate page reload by setting cached keys in sessionStorage
+    sessionStorage.setItem('google_access_token', 'cached-token');
+    sessionStorage.setItem('google_token_obtained_at', Date.now().toString());
+
+    // We expect getGoogleToken to restore it
+    expect(getGoogleToken()).toBe('cached-token');
+  });
+
+  it('detects token expiry after 3500 seconds (safety margin threshold)', () => {
+    setGoogleToken('test-token');
+    expect(getGoogleToken()).toBe('test-token');
+
+    // Advance time by 3499 seconds - should still be valid
+    vi.advanceTimersByTime(3499 * 1000);
+    expect(getGoogleToken()).toBe('test-token');
+    expect(getGoogleTokenExpiryStatus()).toBe(GOOGLE_TOKEN_STATUS.CONNECTED);
+
+    // Advance by 2 more seconds (total 3501 seconds) - should be expired
+    vi.advanceTimersByTime(2 * 1000);
+    expect(getGoogleTokenExpiryStatus()).toBe(GOOGLE_TOKEN_STATUS.EXPIRED);
+    expect(getGoogleToken()).toBeNull();
+  });
+
+  it('returns DISCONNECTED status when no token has ever been set', () => {
+    expect(getGoogleTokenExpiryStatus()).toBe(GOOGLE_TOKEN_STATUS.DISCONNECTED);
+  });
 });
+
