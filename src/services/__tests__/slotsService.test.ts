@@ -2,6 +2,7 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import {
   subtractBusyIntervals,
+  computeFreeSlots,
   recalculateAvailableSlotsCache,
   lazyRecalculateAvailableSlotsCache,
   getUserAvailableSlots,
@@ -63,6 +64,30 @@ describe('slotsService', () => {
       const slotB = '2026-07-01T12:00:00.000Z';
       const busy = [{ start: new Date(slotB).getTime(), end: new Date(slotB).getTime() + HOUR }];
       expect(subtractBusyIntervals([slot, slotB], busy)).toEqual([slot]);
+    });
+  });
+
+  describe('computeFreeSlots', () => {
+    it('subtracts busy hours, deduplicates, sorts, and derives distinct UTC dates', () => {
+      const a = '2026-07-01T10:00:00.000Z';
+      const b = '2026-07-02T09:00:00.000Z';
+      const busyStart = new Date(a).getTime();
+      // Duplicate `b` (as overlapping template ranges would produce) and provide
+      // an unsorted, busy-overlapping input to exercise dedup + sort + subtract.
+      const { freeSlots, availableDatesUtc } = computeFreeSlots(
+        [b, a, b],
+        [{ start: busyStart, end: busyStart + 60 * 60 * 1000 }]
+      );
+      expect(freeSlots).toEqual([b]); // `a` removed (busy), `b` deduped
+      expect(availableDatesUtc).toEqual(['2026-07-02']);
+    });
+
+    it('returns empty arrays when every slot is busy', () => {
+      const a = '2026-07-01T10:00:00.000Z';
+      const start = new Date(a).getTime();
+      const { freeSlots, availableDatesUtc } = computeFreeSlots([a], [{ start, end: start + 60 * 60 * 1000 }]);
+      expect(freeSlots).toEqual([]);
+      expect(availableDatesUtc).toEqual([]);
     });
   });
 

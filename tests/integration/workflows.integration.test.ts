@@ -422,4 +422,24 @@ describe.runIf(!isPerfRun)('Use Case A - Functional Workflows against Firebase E
       addDoc(logsCol, { ...base, details: { error: 'a'.repeat(600) } })
     ).rejects.toThrow();
   });
+
+  it('15. coachAvailabilityByDate rejects a malformed dateISO', async () => {
+    await signInUser(activeUser.uid);
+    const filterFields = { gender: 'Male', country: 'US', icf_acc: false, icf_pcc: false, icf_mcc: false, icf_actc: false };
+
+    // Malformed dateISO (not YYYY-MM-DD) is rejected by the tightened validator,
+    // even though the docId is consistent with the (bad) dateISO.
+    const badDate = 'not-a-date';
+    const badRef = doc(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE, `${activeUser.uid}_${badDate}`);
+    await expect(
+      setDoc(badRef, { coachUid: activeUser.uid, dateISO: badDate, freeSlots: [], lastUpdated: new Date().toISOString(), ...filterFields })
+    ).rejects.toThrow();
+
+    // A well-formed YYYY-MM-DD shard is accepted.
+    const goodDate = '2031-05-10';
+    const goodRef = doc(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE, `${activeUser.uid}_${goodDate}`);
+    await expect(
+      setDoc(goodRef, { coachUid: activeUser.uid, dateISO: goodDate, freeSlots: ['2031-05-10T10:00:00.000Z'], lastUpdated: new Date().toISOString(), ...filterFields })
+    ).resolves.toBeUndefined();
+  });
 });
