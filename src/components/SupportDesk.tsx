@@ -79,18 +79,10 @@ export const SupportDesk: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.userRole]);
 
-  useEffect(() => {
-    const handleTabReclick = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      if (customEvent.detail === 'support-desk') {
-        setView('list');
-        setSelectedRequest(null);
-        setMessages([]);
-      }
-    };
-    window.addEventListener('tab-reclick', handleTabReclick);
-    return () => window.removeEventListener('tab-reclick', handleTabReclick);
-  }, []);
+  // Note: SupportDesk resets naturally because AdminDashboard conditionally
+  // mounts it per admin sub-tab (it unmounts/remounts on tab switches), so no
+  // re-click reset is needed here. A former window 'tab-reclick' listener for a
+  // 'support-desk' detail that nothing ever dispatched was removed as dead code.
 
   const filteredRequests = requests.filter(req => {
     if (filter === 'all') return true;

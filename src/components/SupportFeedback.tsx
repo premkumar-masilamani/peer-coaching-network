@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { 
@@ -16,7 +16,13 @@ import { MessageSquare, Plus, Send, ChevronLeft, LifeBuoy, Tag, Type, AlignLeft,
 import { activateOnEnterOrSpace } from '../utils/keyboardNavigation';
 import { collectValidationErrors, clearFieldError, type FormErrors } from '../utils/formValidation';
 
-export const SupportFeedback: React.FC = () => {
+interface SupportFeedbackProps {
+  // Incremented by the parent each time the Support tab is re-clicked while
+  // active; a change resets this view back to the ticket list.
+  reclickNonce?: number;
+}
+
+export const SupportFeedback: React.FC<SupportFeedbackProps> = ({ reclickNonce }) => {
   const { profile } = useAuth();
   const [tickets, setTickets] = useState<SupportRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,18 +91,20 @@ export const SupportFeedback: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile]);
 
+  // Reset to the ticket list when the Support tab is re-clicked while active.
+  // Driven by a parent-supplied nonce (prop) rather than a global window event.
+  // reclickNonce starts at 0 and only the parent increments it, so this never
+  // fires on initial mount.
+  const isInitialReclick = useRef(true);
   useEffect(() => {
-    const handleTabReclick = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      if (customEvent.detail === 'support') {
-        setView('list');
-        setSelectedTicket(null);
-        setMessages([]);
-      }
-    };
-    window.addEventListener('tab-reclick', handleTabReclick);
-    return () => window.removeEventListener('tab-reclick', handleTabReclick);
-  }, []);
+    if (isInitialReclick.current) {
+      isInitialReclick.current = false;
+      return;
+    }
+    setView('list');
+    setSelectedTicket(null);
+    setMessages([]);
+  }, [reclickNonce]);
 
   const handleCreateRequest = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

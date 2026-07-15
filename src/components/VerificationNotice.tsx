@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTransientState } from '../hooks/useTransientState';
 import { useAuth } from '../context/AuthContext';
 import {
   Clock,
@@ -32,7 +33,7 @@ export const VerificationNotice: React.FC = () => {
   const timezoneOptions = getTimezonesForCountry(country);
 
   const [saving, setSaving] = useState(false);
-  const [successMsg, setSuccessMsg] = useState('');
+  const [successMsg, setSuccessMsg] = useTransientState('');
   const [formErrors, setFormErrors] = useState<FormErrors>({});
 
   const dismissError = (key: string) => setFormErrors(prev => clearFieldError(prev, key));
@@ -93,8 +94,7 @@ export const VerificationNotice: React.FC = () => {
         bio,
         timezone
       });
-      setSuccessMsg('Profile updated!');
-      setTimeout(() => setSuccessMsg(''), 4000);
+      setSuccessMsg('Profile updated!', 4000);
     } catch (e) {
       console.error(e);
     } finally {
