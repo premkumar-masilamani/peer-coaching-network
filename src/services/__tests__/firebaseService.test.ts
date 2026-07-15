@@ -25,7 +25,7 @@ vi.mock('../../utils/logger', async () => (await import('./helpers/firebaseMocks
 describe('firebaseService barrel', () => {
   const expectedExports = [
     // firebaseApp
-    'db', 'auth', 'isFirebaseConfigured', 'logAnalyticsEvent',
+    'db', 'auth', 'isFirebaseConfigured', 'firebaseConfigError', 'logAnalyticsEvent',
     // authService
     'loginWithGoogle', 'handleAuthRedirect', 'logout', 'subscribeToAuth',
     // profileService
