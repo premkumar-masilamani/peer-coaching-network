@@ -129,4 +129,65 @@ describe('UpcomingSessions component', () => {
 
     expect(mockFirebaseService.getUserBookings).toHaveBeenCalledWith('client-123');
   });
+
+  it('prevents stale day availability fetches from overwriting newer selections', async () => {
+    let resolveFirstQuery: (value: Record<string, unknown[]>) => void = () => {};
+    const firstQueryPromise = new Promise<Record<string, unknown[]>>((resolve) => {
+      resolveFirstQuery = resolve;
+    });
+
+    let firstQuerySlots: any[] = [];
+    let firstCall = true;
+    mockFirebaseService.queryAvailableCoachesForDay.mockImplementation((start, end, slots) => {
+      if (firstCall) {
+        firstCall = false;
+        firstQuerySlots = slots;
+        return firstQueryPromise;
+      }
+      // Second call returns immediately with Coach Two
+      const slotIso = slots[10].startTime.toISOString();
+      return Promise.resolve({
+        [slotIso]: [
+          { userId: 'coach-2', displayName: 'Coach Two', email: 'coach2@example.com', role: 'coach', userStatus: 'active' }
+        ]
+      });
+    });
+
+    await act(async () => {
+      root.render(<UpcomingSessions />);
+    });
+    // Trigger initial render/query
+    await act(async () => { await Promise.resolve(); });
+
+    // Now query 1 is pending.
+    // Simulate selecting the next day (Day 2)
+    const dayButtons = container.querySelectorAll('.date-tab');
+    expect(dayButtons.length).toBeGreaterThan(1);
+
+    await act(async () => {
+      dayButtons[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    
+    // Clicking triggers the second query, which resolves immediately (returning Coach Two).
+    // Let's resolve the first query now (which resolves with Coach One, i.e., stale data).
+    await act(async () => {
+      // Use a slot ISO from the first query slots (which is Day 1 / tomorrow)
+      const slotIso = firstQuerySlots[10]?.startTime.toISOString() || new Date().toISOString();
+      resolveFirstQuery({
+        [slotIso]: [
+          { userId: 'coach-1', displayName: 'Coach One', email: 'coach1@example.com', role: 'coach', userStatus: 'active' }
+        ]
+      });
+      await Promise.resolve();
+    });
+
+    // Wait for any pending promises/state updates to flush
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+    });
+
+    // The UI should show "Coach Two" (newer selection) and NOT "Coach One" (stale overwrite)
+    expect(container.textContent).toContain('Coach Two');
+    expect(container.textContent).not.toContain('Coach One');
+  });
 });
