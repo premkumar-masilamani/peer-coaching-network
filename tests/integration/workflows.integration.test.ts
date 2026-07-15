@@ -289,4 +289,67 @@ describe.runIf(!isPerfRun)('Use Case A - Functional Workflows against Firebase E
 
     await expect(setDoc(cacheRef, payload)).resolves.toBeUndefined();
   });
+
+  it('12. Booking visibility security rules enforcement', async () => {
+    // 1. Create a booking between activeUser (coach) and pendingUser (client)
+    await signInUser(pendingUser.uid);
+    const startIso = '2030-07-20T10:00:00.000Z';
+    const endIso = '2030-07-20T10:30:00.000Z';
+    const booking = await scheduleMeeting(
+      activeUser.uid,
+      activeUser.email,
+      'Active Coach',
+      pendingUser.uid,
+      'Active Client',
+      startIso,
+      endIso,
+      'Visibility test coaching session'
+    );
+
+    const bookingId = booking.id;
+
+    // 2. Client (pendingUser) can read the booking
+    await signInUser(pendingUser.uid);
+    const clientBookingDoc = await getDoc(doc(db, COLLECTIONS.BOOKINGS, bookingId));
+    expect(clientBookingDoc.exists()).toBe(true);
+
+    // 3. Coach (activeUser) can read the booking
+    await signInUser(activeUser.uid);
+    const coachBookingDoc = await getDoc(doc(db, COLLECTIONS.BOOKINGS, bookingId));
+    expect(coachBookingDoc.exists()).toBe(true);
+
+    // 4. A third-party user cannot read the booking
+    const newPendingEmail = 'randomuser@example.com';
+    const userRecord = await adminAuth.createUser({
+      email: newPendingEmail,
+      password: 'password123',
+    });
+    const adminTimestamp = await import('firebase-admin/firestore');
+    await adminDb.collection('users').doc(userRecord.uid).set({
+      userId: userRecord.uid,
+      email: newPendingEmail,
+      firstName: 'Random',
+      lastName: 'User',
+      userRole: 'user',
+      userStatus: 'active',
+      createdAt: adminTimestamp.Timestamp.now(),
+      gender: 'other',
+      country: 'US',
+      bio: 'Random user',
+      timezone: 'UTC',
+      theme: 'light'
+    });
+
+    await signInUser(userRecord.uid);
+    await expect(getDoc(doc(db, COLLECTIONS.BOOKINGS, bookingId))).rejects.toThrow();
+
+    // 5. Any signed-in user (including third-party) can read the busySlots document
+    const busySlotSnap = await getDoc(doc(db, COLLECTIONS.BUSY_SLOTS, bookingId));
+    expect(busySlotSnap.exists()).toBe(true);
+    expect(busySlotSnap.data()?.coachUid).toBe(activeUser.uid);
+    
+    // Clean up
+    await signInUser(pendingUser.uid);
+    await cancelBooking(bookingId);
+  });
 });

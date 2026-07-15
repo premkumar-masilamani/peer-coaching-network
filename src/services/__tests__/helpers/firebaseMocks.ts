@@ -16,7 +16,7 @@ export interface FirestoreShared {
   mockOnSnapshot: any;
   mockDeleteDoc: any;
   mockBatchSet: any;
-  mockBatchUpdate: any;
+  mockBatchUpdate?: any;
   mockBatchDelete: any;
   mockBatchCommit: any;
 }

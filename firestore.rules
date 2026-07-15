@@ -211,6 +211,14 @@ service cloud.firestore {
         && isTimestamp(data.updatedAt);
     }
 
+    // Validation helper for public anonymized busy slots
+    function isValidBusySlotDoc(data) {
+      return isMap(data)
+        && isTimestamp(data.startTime)
+        && isTimestamp(data.endTime)
+        && isValidString(data.coachUid, 100);
+    }
+
     // Privileged fields may only be set by an admin. An owner editing their own
     // profile must leave these unchanged.
     function privilegedFieldsUnchanged() {
@@ -260,7 +268,12 @@ service cloud.firestore {
     }
 
     match /bookings/{bookingId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn()
+        && (isAdmin()
+          || (resource != null && request.auth.uid in [
+            resource.data.coachUid,
+            resource.data.clientUid
+          ]));
 
       // Only a participant may create a booking they are part of, and the
       // booking ID must match the coachUid format to prevent slot hijacking.
@@ -298,6 +311,27 @@ service cloud.firestore {
             resource.data.coachUid,
             resource.data.clientUid
           ]);
+    }
+
+    match /busySlots/{bookingId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && bookingId.matches(request.resource.data.coachUid + '_.*')
+        && isValidBusySlotDoc(request.resource.data);
+      allow update: if isSignedIn()
+        && (isAdmin()
+          || request.auth.uid == resource.data.coachUid
+          || (exists(/databases/$(database)/documents/bookings/$(bookingId))
+              && get(/databases/$(database)/documents/bookings/$(bookingId)).data.clientUid == request.auth.uid))
+        && request.resource.data.coachUid == resource.data.coachUid
+        && request.resource.data.startTime == resource.data.startTime
+        && request.resource.data.endTime == resource.data.endTime
+        && isValidBusySlotDoc(request.resource.data);
+      allow delete: if isSignedIn()
+        && (isAdmin()
+          || request.auth.uid == resource.data.coachUid
+          || (exists(/databases/$(database)/documents/bookings/$(bookingId))
+              && get(/databases/$(database)/documents/bookings/$(bookingId)).data.clientUid == request.auth.uid));
     }
 
     // Per-mentee/per-slot locks that prevent a mentee double-booking themselves

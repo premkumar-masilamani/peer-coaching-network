@@ -79,17 +79,16 @@ export const queryAvailableCoachesForDay = async (
   const candidateUids = Array.from(cacheMap.keys());
   if (candidateUids.length === 0) return {};
 
-  const bookingsQuery = query(
-    collection(db, COLLECTIONS.BOOKINGS),
+  const busySlotsQuery = query(
+    collection(db, COLLECTIONS.BUSY_SLOTS),
     where('startTime', '>=', Timestamp.fromDate(localDayStart)),
-    where('startTime', '<=', Timestamp.fromDate(localDayEnd)),
-    where('status', '==', BOOKING_STATUS.CONFIRMED)
+    where('startTime', '<=', Timestamp.fromDate(localDayEnd))
   );
 
-  const bookingsSnap = await getDocs(bookingsQuery);
+  const busySlotsSnap = await getDocs(busySlotsQuery);
   const slotBusyUsers = new Map<string, Set<string>>();
 
-  bookingsSnap.forEach((doc) => {
+  busySlotsSnap.forEach((doc) => {
     const b = doc.data();
     const startStr = b.startTime && typeof b.startTime.toDate === 'function'
       ? b.startTime.toDate().toISOString()
@@ -101,7 +100,6 @@ export const queryAvailableCoachesForDay = async (
     }
     const busySet = slotBusyUsers.get(startStr)!;
     if (b.coachUid) busySet.add(b.coachUid);
-    if (b.clientUid) busySet.add(b.clientUid);
   });
 
   // Calculate merged intervals in-memory
