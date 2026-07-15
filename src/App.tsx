@@ -33,24 +33,78 @@ const getMissingProfileFields = (profile: ReturnType<typeof useAuth>['profile'])
 const AppContent: React.FC = () => {
   const { user, role, loading, profile } = useAuth();
   const { navigateWithConfirmation } = useUnsavedChanges();
-  const [currentTab, setCurrentTab] = useState<TabKey>(TABS.DASHBOARD);
-  const [adminTabFilter, setAdminTabFilter] = useState<'all' | UserStatus | UserRole>('all');
+  const [currentTab, setCurrentTab] = useState<TabKey>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam && Object.values(TABS).includes(tabParam as TabKey)) {
+      return tabParam as TabKey;
+    }
+    return TABS.DASHBOARD;
+  });
+  const [adminTabFilter, setAdminTabFilter] = useState<'all' | UserStatus | UserRole>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return (params.get('adminFilter') as 'all' | UserStatus | UserRole) || 'all';
+  });
   const [publicProfileUid, setPublicProfileUid] = useState<string | null>(null);
 
-  const handleTabChange = (tab: TabKey) => {
+  const handleTabChange = (tab: TabKey, adminFilter?: 'all' | UserStatus | UserRole) => {
     navigateWithConfirmation(tab, () => {
-      setCurrentTab(tab);
-      clearProfileFromUrl();
+      const url = new URL(window.location.href);
+      const currentTabInUrl = url.searchParams.get('tab');
+      const currentAdminFilterInUrl = url.searchParams.get('adminFilter');
+      const hasProfile = url.searchParams.has('profile');
+
+      const nextAdminFilter = tab === TABS.ADMIN ? (adminFilter || 'all') : null;
+      
+      const isTabChanging = currentTabInUrl !== tab;
+      const isFilterChanging = tab === TABS.ADMIN && currentAdminFilterInUrl !== nextAdminFilter;
+      const isProfileClearing = hasProfile;
+
+      if (isTabChanging || isFilterChanging || isProfileClearing) {
+        url.searchParams.set('tab', tab);
+        if (tab === TABS.ADMIN) {
+          url.searchParams.set('adminFilter', nextAdminFilter!);
+        } else {
+          url.searchParams.delete('adminFilter');
+        }
+        url.searchParams.delete('profile');
+        
+        window.history.pushState({}, '', url.toString());
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
     });
   };
 
+  const handleAdminFilterChange = (filter: 'all' | UserStatus | UserRole) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('adminFilter', filter);
+    if (url.search !== window.location.search) {
+      window.history.replaceState({}, '', url.toString());
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    }
+  };
 
-  // Sync profile ID from URL search parameters on popstate / mount.
+  // Sync profile, tab, and admin filter from URL search parameters on popstate / mount.
   useEffect(() => {
     const handleUrlChange = () => {
       const params = new URLSearchParams(window.location.search);
+      
       const profileId = params.get('profile');
       setPublicProfileUid(profileId);
+
+      const tabParam = params.get('tab') as TabKey | null;
+      if (tabParam && Object.values(TABS).includes(tabParam)) {
+        setCurrentTab(tabParam);
+      } else {
+        setCurrentTab(TABS.DASHBOARD);
+      }
+
+      const filterParam = params.get('adminFilter') as 'all' | UserStatus | UserRole | null;
+      if (filterParam) {
+        setAdminTabFilter(filterParam);
+      } else {
+        setAdminTabFilter('all');
+      }
     };
 
     handleUrlChange();
@@ -114,6 +168,11 @@ const AppContent: React.FC = () => {
     setPrevApproved(approved);
     if (approved) {
       setCurrentTab(TABS.DASHBOARD);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', TABS.DASHBOARD);
+      url.searchParams.delete('profile');
+      url.searchParams.delete('adminFilter');
+      window.history.replaceState({}, '', url.toString());
     }
   }
 
@@ -179,13 +238,21 @@ const AppContent: React.FC = () => {
         <Header
           currentTab={currentTab}
           setCurrentTab={handleTabChange}
-          setAdminTabFilter={setAdminTabFilter}
         />
         <main className="content-wrapper" style={{ overflowY: 'auto', padding: '0 16px 16px 16px' }}>
           <VerificationNotice />
         </main>
       </div>
     );
+  }
+
+  // Redirect to Dashboard if they are on Admin tab but not an admin
+  if (currentTab === TABS.ADMIN && role !== USER_ROLE.ADMIN) {
+    setCurrentTab(TABS.DASHBOARD);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', TABS.DASHBOARD);
+    url.searchParams.delete('adminFilter');
+    window.history.replaceState({}, '', url.toString());
   }
 
   // Compute missing profile fields for the non-blocking banner
@@ -199,7 +266,6 @@ const AppContent: React.FC = () => {
       <Header
         currentTab={currentTab}
         setCurrentTab={handleTabChange}
-        setAdminTabFilter={setAdminTabFilter}
       />
 
       <div className="content-wrapper" style={{ overflow: 'hidden' }}>
@@ -291,7 +357,7 @@ const AppContent: React.FC = () => {
                 {currentTab === TABS.ADMIN && role === USER_ROLE.ADMIN && (
                   <AdminDashboard
                     initialFilter={adminTabFilter}
-                    setInitialFilter={setAdminTabFilter}
+                    setInitialFilter={handleAdminFilterChange}
                   />
                 )}
               </>

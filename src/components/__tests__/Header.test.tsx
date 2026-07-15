@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { Root } from 'react-dom/client';
-import { TABS, USER_ROLE, type TabKey, type UserRole, GOOGLE_TOKEN_STATUS } from '../../config';
+import { TABS, USER_ROLE, type TabKey, type UserRole, type UserStatus, GOOGLE_TOKEN_STATUS } from '../../config';
 
 // @ts-expect-error - IS_REACT_ACT_ENVIRONMENT is not typed on globalThis
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -49,7 +49,7 @@ import { Header } from '../Header';
 describe('Header logo accessibility', () => {
   let container: HTMLDivElement;
   let root: Root;
-  let setCurrentTab: ReturnType<typeof vi.fn<(tab: TabKey) => void>>;
+  let setCurrentTab: ReturnType<typeof vi.fn<(tab: TabKey, adminFilter?: 'all' | UserStatus | UserRole) => void>>;
 
   const renderHeader = (
     role: UserRole | null | undefined,
@@ -74,7 +74,7 @@ describe('Header logo accessibility', () => {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
-    setCurrentTab = vi.fn<(tab: TabKey) => void>();
+    setCurrentTab = vi.fn<(tab: TabKey, adminFilter?: 'all' | UserStatus | UserRole) => void>();
   });
 
   afterEach(() => {
