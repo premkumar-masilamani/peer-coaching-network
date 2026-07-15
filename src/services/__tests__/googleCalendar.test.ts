@@ -92,6 +92,24 @@ vi.mock('../scheduleService', () => ({
   getSchedule: vi.fn(),
 }));
 
+vi.mock('../profileService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../profileService')>();
+  return {
+    ...actual,
+    getProfiles: vi.fn(async (uids: string[]) => {
+      const profiles: any[] = [];
+      for (const uid of uids) {
+        const docRef = { path: `users/${uid}`, id: uid };
+        const snap = await mockGetDoc(docRef);
+        if (snap && snap.exists && snap.exists()) {
+          profiles.push({ userId: uid, ...snap.data() });
+        }
+      }
+      return profiles;
+    })
+  };
+});
+
 vi.mock('../../utils/logger', () => ({
   logger: {
     debug: vi.fn(),
