@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
-import { 
-  getAllSupportRequests, 
-  addMessageToSupportRequest, 
+import {
+  getSupportRequestsPage,
+  addMessageToSupportRequest,
   updateSupportRequestStatus,
   deleteSupportRequest,
   getSupportMessages,
@@ -17,10 +17,21 @@ import { activateOnEnterOrSpace } from '../utils/keyboardNavigation';
 
 type FilterType = 'all' | SupportStatus;
 
+// Number of tickets loaded per "Load more". The desk fetches a bounded window of
+// the most-recently-updated tickets rather than the entire collection; the
+// window grows by this amount each time the admin loads more. Refreshes re-read
+// the current window so a mutated ticket stays visible.
+const SUPPORT_PAGE_SIZE = 20;
+
 export const SupportDesk: React.FC = () => {
   const { profile } = useAuth();
   const [requests, setRequests] = useState<SupportRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  // Size of the currently-loaded window (kept in a ref so refreshing does not
+  // need to be recreated when it changes).
+  const loadedCountRef = useRef(SUPPORT_PAGE_SIZE);
   const [submitting, setSubmitting] = useState(false);
   const [filter, setFilter] = useState<FilterType>(SUPPORT_STATUS.OPEN);
   
@@ -44,8 +55,9 @@ export const SupportDesk: React.FC = () => {
 
   const loadRequests = useCallback(async () => {
     try {
-      const data = await getAllSupportRequests();
+      const { requests: data, hasMore: more } = await getSupportRequestsPage(loadedCountRef.current);
       setRequests(data);
+      setHasMore(more);
       if (selectedRequest) {
         const updated = data.find(t => t.id === selectedRequest.id);
         if (updated) {
@@ -63,6 +75,18 @@ export const SupportDesk: React.FC = () => {
       setLoading(false);
     }
   }, [selectedRequest, loadMessages]);
+
+  // Widen the loaded window by one page and re-read it.
+  const loadMoreRequests = useCallback(async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    loadedCountRef.current += SUPPORT_PAGE_SIZE;
+    try {
+      await loadRequests();
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadingMore, loadRequests]);
 
   useFocusRefresh(useCallback(() => {
     if (profile?.userRole === 'admin') {
@@ -342,6 +366,19 @@ export const SupportDesk: React.FC = () => {
               </div>
               );
             })
+          )}
+
+          {!loading && hasMore && (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '16px 0' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={loadMoreRequests}
+                disabled={loadingMore}
+              >
+                {loadingMore ? 'Loading…' : 'Load more tickets'}
+              </button>
+            </div>
           )}
         </div>
       )}

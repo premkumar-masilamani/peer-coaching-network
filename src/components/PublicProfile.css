@@ -1,0 +1,6 @@
+/* Extracted from the former inline <style> block in PublicProfile.tsx. */
+@media (max-width: 520px) {
+  .geo-grid {
+    grid-template-columns: 1fr !important;
+  }
+}

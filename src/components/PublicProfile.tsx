@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import './PublicProfile.css';
 import { useTransientState } from '../hooks/useTransientState';
 import {
   MapPin,
@@ -288,15 +289,6 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
 
         {/* Geography & Timezone Section */}
         <div className="glass-panel" style={{ padding: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-          {/* CSS responsive breakdown helper */}
-          <style>{`
-            @media (max-width: 520px) {
-              .geo-grid {
-                grid-template-columns: 1fr !important;
-              }
-            }
-          `}</style>
-          
           <div className="geo-grid" style={{ display: 'contents' }}>
             <div>
               <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'hsl(var(--text-muted))', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>

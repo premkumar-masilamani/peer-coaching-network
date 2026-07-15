@@ -86,6 +86,8 @@ export const buildFirestoreMock = (s: FirestoreShared) => ({
   or: vi.fn((...conditions: any[]) => ({ type: 'or', conditions })),
   and: vi.fn((...conditions: any[]) => ({ type: 'and', conditions })),
   orderBy: vi.fn((field: string, dir?: string) => ({ field, dir })),
+  limit: vi.fn((n: number) => ({ type: 'limit', value: n })),
+  startAfter: vi.fn((cursor: unknown) => ({ type: 'startAfter', cursor })),
   getDoc: s.mockGetDoc,
   setDoc: s.mockSetDoc,
   updateDoc: s.mockUpdateDoc,
