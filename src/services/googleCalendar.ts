@@ -287,13 +287,13 @@ export const scheduleMeeting = async (
 
   const bookingRef = doc(db, COLLECTIONS.BOOKINGS, bookingId);
   
-  const coachAtT0Ref = doc(db, COLLECTIONS.BOOKINGS, `${coachUid}_${t0}`);
-  const coachAtTMinus30Ref = doc(db, COLLECTIONS.BOOKINGS, `${coachUid}_${tMinus30}`);
-  const coachAtTPlus30Ref = doc(db, COLLECTIONS.BOOKINGS, `${coachUid}_${tPlus30}`);
+  const coachAtT0Ref = doc(db, COLLECTIONS.BUSY_SLOTS, `${coachUid}_${t0}`);
+  const coachAtTMinus30Ref = doc(db, COLLECTIONS.BUSY_SLOTS, `${coachUid}_${tMinus30}`);
+  const coachAtTPlus30Ref = doc(db, COLLECTIONS.BUSY_SLOTS, `${coachUid}_${tPlus30}`);
 
-  const clientAsCoachAtT0Ref = doc(db, COLLECTIONS.BOOKINGS, `${clientUid}_${t0}`);
-  const clientAsCoachAtTMinus30Ref = doc(db, COLLECTIONS.BOOKINGS, `${clientUid}_${tMinus30}`);
-  const clientAsCoachAtTPlus30Ref = doc(db, COLLECTIONS.BOOKINGS, `${clientUid}_${tPlus30}`);
+  const clientAsCoachAtT0Ref = doc(db, COLLECTIONS.BUSY_SLOTS, `${clientUid}_${t0}`);
+  const clientAsCoachAtTMinus30Ref = doc(db, COLLECTIONS.BUSY_SLOTS, `${clientUid}_${tMinus30}`);
+  const clientAsCoachAtTPlus30Ref = doc(db, COLLECTIONS.BUSY_SLOTS, `${clientUid}_${tPlus30}`);
 
   const clientBookingCacheAtT0Ref = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${clientUid}_${t0}`);
   const clientBookingCacheAtTPlus30Ref = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${clientUid}_${tPlus30}`);
@@ -428,7 +428,15 @@ export const scheduleMeeting = async (
           throw new Error(BOOKING_ERROR.BOOKED_AS_COACH);
         }
 
+        const busySlotRef = doc(db, COLLECTIONS.BUSY_SLOTS, bookingId);
         tx.set(bookingRef, bookingData);
+        tx.set(busySlotRef, {
+          startTime: Timestamp.fromDate(new Date(startIso)),
+          endTime: Timestamp.fromDate(new Date(endIso)),
+          coachUid,
+          status: BOOKING_STATUS.PENDING,
+          expireAt: Timestamp.fromDate(pendingExpireDate)
+        });
         
         tx.set(clientBookingCacheAtT0Ref, {
           clientUid,
@@ -471,14 +479,16 @@ export const scheduleMeeting = async (
     throw lastError || new Error('FAILED_TO_PERSIST');
   }
 
-  const deleteLocks = async () => {
+  const deleteLocksAndBusySlot = async () => {
     try {
-      await deleteDoc(clientBookingCacheAtT0Ref);
-      if (isOneHour) {
-        await deleteDoc(clientBookingCacheAtTPlus30Ref);
-      }
+      const busySlotRef = doc(db, COLLECTIONS.BUSY_SLOTS, bookingId);
+      await Promise.all([
+        deleteDoc(clientBookingCacheAtT0Ref),
+        ...(isOneHour ? [deleteDoc(clientBookingCacheAtTPlus30Ref)] : []),
+        deleteDoc(busySlotRef)
+      ]);
     } catch (e) {
-      logger.error('Error deleting client booking cache locks on rollback:', e);
+      logger.error('Error deleting locks or busy slot on rollback:', e);
     }
   };
 
@@ -487,7 +497,7 @@ export const scheduleMeeting = async (
     if (!token) {
       // Rollback
       await updateDoc(bookingRef, { status: BOOKING_STATUS.CANCELLED });
-      await deleteLocks();
+      await deleteLocksAndBusySlot();
       const err = new Error('Google Token Expired');
       (err as ApiError).code = 'GOOGLE_TOKEN_EXPIRED';
       throw err;
@@ -509,7 +519,7 @@ export const scheduleMeeting = async (
       if (!response.ok) {
         // Rollback Firestore
         await updateDoc(bookingRef, { status: BOOKING_STATUS.CANCELLED });
-        await deleteLocks();
+        await deleteLocksAndBusySlot();
 
         if (response.status === 401) {
           const err = new Error('Google Token Expired');
@@ -535,7 +545,7 @@ export const scheduleMeeting = async (
       
       // Rollback Firestore on unexpected fetch failure
       await updateDoc(bookingRef, { status: BOOKING_STATUS.CANCELLED });
-      await deleteLocks();
+      await deleteLocksAndBusySlot();
 
       const genericError = new Error('Network error or Google Calendar API is currently unreachable. Please try again.');
       (genericError as ApiError).code = 'GOOGLE_API_ERROR';
@@ -545,11 +555,16 @@ export const scheduleMeeting = async (
 
   // Step 3: Update Firestore with Real IDs and set status to Confirmed
   const finalExpireDate = new Date(startMs + 24 * 60 * 60 * 1000);
+  const busySlotRef = doc(db, COLLECTIONS.BUSY_SLOTS, bookingId);
 
   await Promise.all([
     updateDoc(bookingRef, {
       googleEventId,
       googleMeetLink: realMeetLink,
+      status: BOOKING_STATUS.CONFIRMED,
+      expireAt: null
+    }),
+    updateDoc(busySlotRef, {
       status: BOOKING_STATUS.CONFIRMED,
       expireAt: null
     }),
@@ -629,7 +644,13 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
   }
 
   // Step 2: Cancel in Firestore
+  const busySlotRef = doc(db, COLLECTIONS.BUSY_SLOTS, bookingId);
   await updateDoc(ref, { status: BOOKING_STATUS.CANCELLED, cancelledAt: Timestamp.now() });
+  try {
+    await deleteDoc(busySlotRef);
+  } catch (e) {
+    logger.error('Error deleting busy slot document:', e);
+  }
 
   const startIso = data.startTime && typeof data.startTime.toDate === 'function'
     ? data.startTime.toDate().toISOString()

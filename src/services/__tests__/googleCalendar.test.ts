@@ -143,7 +143,7 @@ describe('googleCalendar service', () => {
 
       expect(mockFetch).not.toHaveBeenCalled();
       expect(mockUpdateDoc).toHaveBeenCalledTimes(1); // Rollback booking status
-      expect(mockDeleteDoc).toHaveBeenCalledTimes(1); // Rollback client booking cache
+      expect(mockDeleteDoc).toHaveBeenCalledTimes(2); // Rollback client booking cache and busySlot
     });
 
     it('creates Google Calendar event and claims slot when token is valid', async () => {
@@ -238,7 +238,7 @@ describe('googleCalendar service', () => {
       mockRunTransaction.mockImplementationOnce(async (_db, callback) => {
         const mockTx = {
           get: vi.fn().mockImplementation(async (ref) => {
-            if (ref.path.includes('bookings/')) {
+            if (ref.path.includes('busySlots/')) {
               return { exists: () => true, data: () => ({ status: BOOKING_STATUS.CONFIRMED }) };
             }
             return { exists: () => false };
@@ -334,7 +334,7 @@ describe('googleCalendar service', () => {
       mockRunTransaction.mockImplementationOnce(async (_db, callback) => {
         const mockTx = {
           get: vi.fn().mockImplementation(async (ref) => {
-            if (ref.path.includes('bookings/client-123_2026-06-18T10:00:00Z')) {
+            if (ref.path.includes('busySlots/client-123_2026-06-18T10:00:00Z')) {
               return { exists: () => true, data: () => ({ status: BOOKING_STATUS.CONFIRMED }) };
             }
             return { exists: () => false };
@@ -388,7 +388,7 @@ describe('googleCalendar service', () => {
       );
 
       expect(result.id).toBe('coach-123_2026-06-18T10:00:00Z');
-      expect(mockTxSet).toHaveBeenCalledTimes(2);
+      expect(mockTxSet).toHaveBeenCalledTimes(3);
     });
 
     it('retries transaction on transient failure and eventually succeeds', async () => {
@@ -449,7 +449,7 @@ describe('googleCalendar service', () => {
       await cancelBooking('booking-123');
 
       expect(mockUpdateDoc).toHaveBeenCalledTimes(1);
-      expect(mockDeleteDoc).toHaveBeenCalledTimes(2);
+      expect(mockDeleteDoc).toHaveBeenCalledTimes(3);
       expect(mockFetch).toHaveBeenCalledTimes(1);
       expect(mockFetch.mock.calls[0][0]).toContain('gcal-event-123');
       expect(mockFetch.mock.calls[0][0]).toContain('sendUpdates=all');
@@ -753,7 +753,7 @@ describe('googleCalendar service', () => {
         'Career Development'
       );
 
-      expect(mockTx.set).toHaveBeenCalledTimes(2);
+      expect(mockTx.set).toHaveBeenCalledTimes(3);
       const pendingBookingData = mockTx.set.mock.calls[0][1];
       expect(pendingBookingData.expireAt).toBeDefined();
 

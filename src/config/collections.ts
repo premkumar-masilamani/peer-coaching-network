@@ -13,4 +13,5 @@ export const COLLECTIONS = {
   SUPPORT_REQUESTS: 'supportRequests',
   SUPPORT_MESSAGES: 'messages',
   SYSTEM_LOGS: 'systemLogs',
+  BUSY_SLOTS: 'busySlots',
 } as const;
