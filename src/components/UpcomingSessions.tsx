@@ -66,6 +66,7 @@ export const UpcomingSessions: React.FC = () => {
   const [userLiveBookings, setUserLiveBookings] = useState<DocumentData[]>([]);
   const [now] = useState(() => Date.now());
   const [selectedDuration, setSelectedDuration] = useState<30 | 60>(60);
+  const queryRequestIdRef = React.useRef(0);
 
   const [sessionSeed] = useState(() => {
     let seed = sessionStorage.getItem('coach_discovery_seed');
@@ -282,6 +283,7 @@ export const UpcomingSessions: React.FC = () => {
   }, []);
 
   const loadDayAvailability = useCallback(async () => {
+    const requestId = ++queryRequestIdRef.current;
     await Promise.resolve();
     setIsFetchingDay(true);
     try {
@@ -307,13 +309,17 @@ export const UpcomingSessions: React.FC = () => {
         sessionSeed,
         currentUser?.uid
       );
+      if (requestId !== queryRequestIdRef.current) return;
       setDayAvailability(availability);
       setFetchedDayIndex(selectedDayIndex);
     } catch (e) {
+      if (requestId !== queryRequestIdRef.current) return;
       console.error('Error querying day availability:', e);
     } finally {
-      setIsFetchingDay(false);
-      setLoadingCalendar(false);
+      if (requestId === queryRequestIdRef.current) {
+        setIsFetchingDay(false);
+        setLoadingCalendar(false);
+      }
     }
   }, [activeDayDate, querySlots, genderFilter, countryFilter, selectedQuals, sessionSeed, currentUser, selectedDayIndex]);
 
