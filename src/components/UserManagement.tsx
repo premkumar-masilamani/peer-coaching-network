@@ -27,8 +27,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
-import { type Qualification, QUALIFICATION, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, ICF_DIRECTORY_URL } from '../config';
-import { verifyIcfCredential } from '../services/icfService';
+import { type Qualification, QUALIFICATION, type UserRole, type UserStatus, USER_ROLE, USER_STATUS } from '../config';
 
 interface UserManagementProps {
   initialFilter?: 'all' | UserStatus | UserRole;
@@ -58,8 +57,6 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
   const [roleFilter, setRoleFilter] = useState<'all' | UserStatus | UserRole>(initialFilter);
   const [selectedCoachUid, setSelectedCoachUid] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [verifyingId, setVerifyingId] = useState<string | null>(null);
-  const [verifyErrorId, setVerifyErrorId] = useState<string | null>(null);
   const [approvalModalData, setApprovalModalData] = useState<{
     uid: string;
     userName: string;
@@ -406,21 +403,53 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
               <h4 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '12px' }}>
                 Credentials
               </h4>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {(() => {
-                  const displayCredentials = buildDisplayCredentials(coach);
-
-                  if (displayCredentials.length > 0) {
-                    return displayCredentials.map((qual, idx) => {
-                      return (
-                        <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                          {qual}
-                        </span>
-                      );
-                    });
-                  }
-                  return <span className="badge" style={{ fontSize: '0.75rem', padding: '4px 10px', background: 'var(--panel-bg)', color: 'hsl(var(--text-muted))', border: '1px solid var(--border-light)' }}>{QUALIFICATION.UNCERTIFIED}</span>;
-                })()}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {(['ICF ACC', 'ICF PCC', 'ICF MCC', 'ICF ACTC'] as Qualification[]).map((qual) => {
+                  const hasQual = (qual === 'ICF ACC' && coach.icf_acc) ||
+                                  (qual === 'ICF PCC' && coach.icf_pcc) ||
+                                  (qual === 'ICF MCC' && coach.icf_mcc) ||
+                                  (qual === 'ICF ACTC' && coach.icf_actc);
+                  return (
+                    <label key={qual} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={hasQual}
+                        onChange={async (e) => {
+                          const checked = e.target.checked;
+                          const currentQuals = buildDisplayCredentials(coach) as Qualification[];
+                          let newQuals: Qualification[] = [];
+                          if (checked) {
+                            newQuals = [...currentQuals, qual];
+                          } else {
+                            newQuals = currentQuals.filter(q => q !== qual);
+                          }
+                          try {
+                            await updateVerifiedCredentials(coach.userId, newQuals);
+                            setUsers(prev =>
+                              prev.map(u =>
+                                u.userId === coach.userId
+                                  ? {
+                                      ...u,
+                                      icf_acc: newQuals.includes('ICF ACC'),
+                                      icf_pcc: newQuals.includes('ICF PCC'),
+                                      icf_mcc: newQuals.includes('ICF MCC'),
+                                      icf_actc: newQuals.includes('ICF ACTC')
+                                    }
+                                  : u
+                              )
+                            );
+                          } catch (err) {
+                            console.error('Error updating credentials:', err);
+                          }
+                        }}
+                        style={{ accentColor: 'hsl(var(--primary))', width: '14px', height: '14px' }}
+                      />
+                      <span className={`badge ${getCredentialBadgeClass(qual)}`} style={{ fontSize: '0.75rem', padding: '2px 8px' }}>
+                        {qual}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -461,6 +490,15 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                 </h4>
                 <p style={{ fontSize: '0.925rem', lineHeight: '1.6', color: 'hsl(var(--text-secondary))', whiteSpace: 'pre-line' }}>
                   {coach.bio || 'This user has not written a biography yet.'}
+                </p>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '20px', marginTop: '20px' }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '10px' }}>
+                  Submitted Credential Details
+                </h4>
+                <p style={{ fontSize: '0.925rem', lineHeight: '1.6', color: 'hsl(var(--text-secondary))', whiteSpace: 'pre-line' }}>
+                  {coach.credentialDetails || 'No credential details submitted.'}
                 </p>
               </div>
             </div>
@@ -664,71 +702,21 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
 
                       {/* Credentials Column */}
                       <td>
-                        {/* Stops the row's onClick from opening the coach detail;
-                            it adds no interaction of its own, so it needs no role
-                            or key handler. The row is mouse-only, so keyboard
-                            users never trigger what this guards against. */}
-                        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
-                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                            {(() => {
-                               const displayCredentials = buildDisplayCredentials(u);
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                          {(() => {
+                             const displayCredentials = buildDisplayCredentials(u);
 
-                               if (displayCredentials.length > 0) {
-                                 return displayCredentials.map((qual, idx) => {
-                                   return (
-                                     <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                       <span className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                                         {qual}
-                                       </span>
-                                     </div>
-                                   );
-                                 });
-                               }
-                               return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>{QUALIFICATION.UNCERTIFIED}</span>;
-                             })()}
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
-                             <button
-                               onClick={async (e) => {
-                                 e.stopPropagation();
-                                 setVerifyingId(u.userId);
-                                 setVerifyErrorId(null);
-                                 try {
-                                   const newQuals = await verifyIcfCredential(u.firstName, u.lastName);
-                                   if (newQuals && newQuals.length > 0) {
-                                     await updateVerifiedCredentials(u.userId, newQuals);
-                                   } else {
-                                     setVerifyErrorId(u.userId);
-                                   }
-                                 } catch (err) {
-                                   console.error('Verification error:', err);
-                                   setVerifyErrorId(u.userId);
-                                 } finally {
-                                   setVerifyingId(null);
-                                 }
-                               }}
-                               className="btn btn-secondary"
-                               style={{ fontSize: '0.7rem', padding: '4px 8px', alignSelf: 'flex-start' }}
-                               disabled={verifyingId === u.userId}
-                             >
-                               {verifyingId === u.userId ? 'Verifying...' : 'Verify with ICF Directory'}
-                             </button>
-                             <a 
-                               href={ICF_DIRECTORY_URL.replace('{firstName}', encodeURIComponent(u.firstName || '')).replace('{lastName}', encodeURIComponent(u.lastName || ''))}
-                               target="_blank" 
-                               rel="noopener noreferrer"
-                               onClick={(e) => e.stopPropagation()}
-                               style={{ fontSize: '0.7rem', color: 'hsl(var(--primary))', textDecoration: 'none' }}
-                             >
-                               Search ICF Directory for {u.firstName} {u.lastName} <ExternalLink size={10} style={{ display: 'inline' }} />
-                             </a>
-                             {verifyErrorId === u.userId && (
-                               <span style={{ fontSize: '0.7rem', color: 'hsl(var(--error))' }}>
-                                 Error verifying credentials. Please contact admin.
-                               </span>
-                             )}
-                          </div>
+                             if (displayCredentials.length > 0) {
+                               return displayCredentials.map((qual, idx) => {
+                                 return (
+                                   <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
+                                     {qual}
+                                   </span>
+                                 );
+                               });
+                             }
+                             return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>{QUALIFICATION.UNCERTIFIED}</span>;
+                           })()}
                         </div>
                       </td>
 

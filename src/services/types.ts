@@ -44,6 +44,7 @@ export interface UserProfile {
   userStatus: UserStatus;
   theme: Theme;
   onboardingComplete?: boolean;
+  credentialDetails?: string;
   createdAt: Timestamp;
 }
 

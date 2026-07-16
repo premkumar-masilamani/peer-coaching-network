@@ -19,11 +19,8 @@ import { loadTimezonesForCountry, type TimezoneOption } from '../utils/timezones
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince, logAnalyticsEvent } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
-import { GENDER_OPTIONS, type Gender, type Qualification, QUALIFICATION, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
+import { GENDER_OPTIONS, type Gender, type Qualification, QUALIFICATION, INPUT_LIMITS } from '../config';
 import { collectValidationErrors, clearFieldError, type FormErrors } from '../utils/formValidation';
-
-import { verifyIcfCredential } from '../services/icfService';
-import { updateVerifiedCredentials } from '../services/firebaseService';
 
 
 import { useUnsavedChanges, useNavigateToProfile } from '../context/UnsavedChangesContext';
@@ -87,6 +84,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
   }, [profile]);
   const [bio, setBio] = useState(profile?.bio || '');
   const [timezone, setTimezone] = useState(profile?.timezone || '');
+  const [credentialDetails, setCredentialDetails] = useState(profile?.credentialDetails || '');
 
   // Timezone options are loaded from a lazily-imported chunk (see timezonesLazy).
   const [timezoneOptions, setTimezoneOptions] = useState<TimezoneOption[]>([]);
@@ -105,29 +103,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
 
   const dismissError = (key: string) => setFormErrors(prev => clearFieldError(prev, key));
 
-  const [verifying, setVerifying] = useState(false);
-  const [verifyMsg, setVerifyMsg] = useState('');
-
   const displayCredentials = buildDisplayCredentials(profile || {});
-  const handleVerify = async () => {
-    if (!profile) return;
-    setVerifying(true);
-    setVerifyMsg('');
-    try {
-      const newQuals = await verifyIcfCredential(profile.firstName, profile.lastName);
-      if (newQuals && newQuals.length > 0) {
-        await updateVerifiedCredentials(profile.userId, newQuals);
-        // No success message needed
-      } else {
-        setVerifyMsg('Could not find active credential in ICF Directory.');
-      }
-    } catch (e) {
-      console.error('Error verifying credentials:', e);
-      setVerifyMsg('Error verifying credentials. Please contact admin.');
-    } finally {
-      setVerifying(false);
-    }
-  };
 
   const handleDirectSave = React.useCallback(async () => {
     setSaving(true);
@@ -138,13 +114,15 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
         gender: gender === '' ? undefined : gender,
         country,
         bio,
-        timezone
+        timezone,
+        credentialDetails
       });
       logAnalyticsEvent('update_profile', {
         gender: gender === '' ? undefined : gender,
         country,
         timezone,
         hasBio: !!bio,
+        hasCredentialDetails: !!credentialDetails,
       });
       setSuccessMsg('Profile changes saved successfully!', 4000);
       if (onSaveSuccess) onSaveSuccess();
@@ -156,7 +134,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
     } finally {
       setSaving(false);
     }
-  }, [gender, country, bio, timezone, updateProfileDetails, onSaveSuccess, setSuccessMsg]);
+  }, [gender, country, bio, timezone, credentialDetails, updateProfileDetails, onSaveSuccess, setSuccessMsg]);
 
   React.useEffect(() => {
     const newChanges: string[] = [];
@@ -164,6 +142,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
     if (country !== (profile?.country || '')) newChanges.push(`Country: ${profile?.country || 'Not set'} -> ${country || 'Not set'}`);
     if (bio !== (profile?.bio || '')) newChanges.push(`Bio updated`);
     if (timezone !== (profile?.timezone || '')) newChanges.push(`Timezone: ${profile?.timezone || 'Not set'} -> ${timezone || 'Not set'}`);
+    if (credentialDetails !== (profile?.credentialDetails || '')) newChanges.push(`Credential details updated`);
 
     const isDirty = newChanges.length > 0;
     
@@ -172,7 +151,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
     return () => {
       setPageDirtyState(false, [], async () => true);
     };
-  }, [gender, country, bio, timezone, profile, qualifications, updateProfileDetails, setPageDirtyState, onSaveSuccess, handleDirectSave]);
+  }, [gender, country, bio, timezone, credentialDetails, profile, qualifications, updateProfileDetails, setPageDirtyState, onSaveSuccess, handleDirectSave]);
 
   const handleCountryChange = async (selectedCountry: string) => {
     setCountry(selectedCountry);
@@ -376,54 +355,31 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
           }}
         >
           {/* 1. Credentials */}
-          <div className="form-group">
-            {/* Not a <label>: the credentials below are read-only badges, not a form control. */}
-            <span className="form-label">
-              <Award size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-              Credentials
-            </span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
-              {displayCredentials.length > 0 ? (
-                displayCredentials.map((qual, idx) => {
-                  return (
-                    <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.8rem' }}>
-                      <Award size={14} style={{ marginRight: '6px' }} />
-                      {qual}
-                    </span>
-                  );
-                })
-              ) : (
-                <div style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>
-                  {QUALIFICATION.UNCERTIFIED}
-                </div>
-              )}
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
-                <button
-                  type="button"
-                  onClick={handleVerify}
-                  disabled={verifying}
-                  className="btn btn-secondary"
-                  style={{ fontSize: '0.8rem', padding: '6px 12px', alignSelf: 'flex-start' }}
-                >
-                  {verifying ? 'Verifying...' : 'Verify with ICF Directory'}
-                </button>
-                <a 
-                  href={ICF_DIRECTORY_URL.replace('{firstName}', encodeURIComponent(profile?.firstName || '')).replace('{lastName}', encodeURIComponent(profile?.lastName || ''))}
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  style={{ fontSize: '0.8rem', color: 'hsl(var(--primary))', textDecoration: 'none' }}
-                >
-                  Search ICF Directory for {profile?.firstName} {profile?.lastName} <ExternalLink size={10} style={{ display: 'inline' }} />
-                </a>
-                {verifyMsg && (
-                  <span style={{ fontSize: '0.8rem', color: 'hsl(var(--error))' }}>
-                    {verifyMsg}
-                  </span>
+          {!onboardingMode && (
+            <div className="form-group">
+              {/* Not a <label>: the credentials below are read-only badges, not a form control. */}
+              <span className="form-label">
+                <Award size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
+                Credentials
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
+                {displayCredentials.length > 0 ? (
+                  displayCredentials.map((qual, idx) => {
+                    return (
+                      <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.8rem' }}>
+                        <Award size={14} style={{ marginRight: '6px' }} />
+                        {qual}
+                      </span>
+                    );
+                  })
+                ) : (
+                  <div style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>
+                    {QUALIFICATION.UNCERTIFIED}
+                  </div>
                 )}
               </div>
             </div>
-          </div>
+          )}
 
           {/* 2. Gender */}
           <div className="form-group" style={{ marginTop: '12px' }}>
@@ -510,6 +466,26 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
               <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
                 {bio.length} / {INPUT_LIMITS.BIO} characters
+              </span>
+            </div>
+          </div>
+
+          {/* 6. Credential Details */}
+          <div className="form-group" style={{ marginTop: '12px' }}>
+            <label className="form-label" htmlFor="credential-details-input-edit">Credential Verification Details</label>
+            <textarea
+              id="credential-details-input-edit"
+              rows={3}
+              className="input-field"
+              placeholder="Enter your credential details (e.g. badge tier, credential number, expiration date) or provide a link to your public credential page..."
+              value={credentialDetails}
+              onChange={(e) => setCredentialDetails(e.target.value)}
+              style={{ resize: 'vertical' }}
+              maxLength={INPUT_LIMITS.CREDENTIAL_DETAILS}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
+              <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
+                {credentialDetails.length} / {INPUT_LIMITS.CREDENTIAL_DETAILS} characters
               </span>
             </div>
           </div>

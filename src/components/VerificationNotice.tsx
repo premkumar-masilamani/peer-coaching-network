@@ -8,17 +8,13 @@ import {
   CheckCircle,
   BookOpen,
   Globe,
-  LogOut,
-  Award,
-  ExternalLink
+  LogOut
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
 import { loadTimezonesForCountry, type TimezoneOption } from '../utils/timezonesLazy';
-import { formatDisplayName, updateVerifiedCredentials } from '../services/firebaseService';
-import { GENDER_OPTIONS, type Gender, type Qualification, QUALIFICATION, ICF_DIRECTORY_URL, INPUT_LIMITS } from '../config';
+import { formatDisplayName } from '../services/firebaseService';
+import { GENDER_OPTIONS, type Gender, INPUT_LIMITS } from '../config';
 
-import { getCredentialDescription, buildDisplayCredentials } from '../utils/credentials';
-import { verifyIcfCredential } from '../services/icfService';
 import { collectValidationErrors, clearFieldError, type FormErrors } from '../utils/formValidation';
 
 export const VerificationNotice: React.FC = () => {
@@ -46,30 +42,7 @@ export const VerificationNotice: React.FC = () => {
 
   const dismissError = (key: string) => setFormErrors(prev => clearFieldError(prev, key));
 
-  const [verifying, setVerifying] = useState(false);
-  const [verifyMsg, setVerifyMsg] = useState('');
 
-  const displayCredentials = buildDisplayCredentials(profile || {});
-
-  const handleVerify = async () => {
-    if (!profile) return;
-    setVerifying(true);
-    setVerifyMsg('');
-    try {
-      const newQuals = await verifyIcfCredential(profile.firstName, profile.lastName);
-      if (newQuals && newQuals.length > 0) {
-        await updateVerifiedCredentials(profile.userId, newQuals);
-        // No success message needed
-      } else {
-        setVerifyMsg('Could not find active credential in ICF Directory.');
-      }
-    } catch (e) {
-      console.error('Error verifying credentials:', e);
-      setVerifyMsg('Error verifying credentials. Please contact admin.');
-    } finally {
-      setVerifying(false);
-    }
-  };
 
   const handleCountryChange = async (selectedCountry: string) => {
     setCountry(selectedCountry);
@@ -191,52 +164,7 @@ export const VerificationNotice: React.FC = () => {
         </div>
 
         <form noValidate onSubmit={handleSave}>
-          {/* 1. Credentials */}
-          <div className="form-group">
-            {/* Not a <label>: the credentials below are read-only, not a form control. */}
-            <span className="form-label">
-              <Award size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-              Credentials
-            </span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '6px' }}>
-              {displayCredentials.length > 0 ? (
-                displayCredentials.map((qual, idx) => (
-                  <div key={idx} style={{ fontSize: '0.9rem', color: 'hsl(var(--text-primary))', fontWeight: 500, marginBottom: '4px' }}>
-                    {getCredentialDescription(qual as Qualification)}
-                  </div>
-                ))
-              ) : (
-                <div style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>
-                  {QUALIFICATION.UNCERTIFIED}
-                </div>
-              )}
-              
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
-                <button
-                  type="button"
-                  onClick={handleVerify}
-                  disabled={verifying}
-                  className="btn btn-secondary"
-                  style={{ fontSize: '0.8rem', padding: '6px 12px', alignSelf: 'flex-start' }}
-                >
-                  {verifying ? 'Verifying...' : 'Verify with ICF Directory'}
-                </button>
-                <a 
-                  href={ICF_DIRECTORY_URL.replace('{firstName}', encodeURIComponent(profile?.firstName || '')).replace('{lastName}', encodeURIComponent(profile?.lastName || ''))}
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  style={{ fontSize: '0.8rem', color: 'hsl(var(--primary))', textDecoration: 'none' }}
-                >
-                  Search ICF Directory for {profile?.firstName} {profile?.lastName} <ExternalLink size={10} style={{ display: 'inline' }} />
-                </a>
-                {verifyMsg && (
-                  <span style={{ fontSize: '0.8rem', color: 'hsl(var(--error))' }}>
-                    {verifyMsg}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
+
 
           {/* 2. Gender Select */}
           <div className="form-group" style={{ marginTop: '12px' }}>

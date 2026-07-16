@@ -2,7 +2,7 @@ const { initializeApp } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080';
 const app = initializeApp({ projectId: 'peer-coaching-network' });
-const db = getFirestore(app);
+const db = getFirestore(app, 'pcn-dev');
 async function run() {
   const users = await db.collection('users').get();
   console.log(`Found ${users.size} users`);

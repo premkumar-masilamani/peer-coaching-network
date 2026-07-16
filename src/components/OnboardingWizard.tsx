@@ -2,11 +2,10 @@ import React, { useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ProfileEdit } from './ProfileEdit';
 import { AvailabilityEdit } from './AvailabilityEdit';
-import { updateOwnProfile } from '../services/firebaseService';
 import { User, CalendarDays } from 'lucide-react';
 
 export const OnboardingWizard: React.FC = () => {
-  const { profile, user } = useAuth();
+  const { profile, user, updateProfileDetails } = useAuth();
   const [step, setStep] = useState<1 | 2>(1);
 
   const missingFields = [];
@@ -17,11 +16,11 @@ export const OnboardingWizard: React.FC = () => {
   const handleComplete = useCallback(async () => {
     if (!user) return;
     try {
-      await updateOwnProfile(user.uid, { onboardingComplete: true });
+      await updateProfileDetails({ onboardingComplete: true });
     } catch (e) {
       console.error('Failed to complete onboarding', e);
     }
-  }, [user]);
+  }, [user, updateProfileDetails]);
 
   const handleNextStep = useCallback(() => setStep(2), []);
   const handlePrevStep = useCallback(() => setStep(1), []);

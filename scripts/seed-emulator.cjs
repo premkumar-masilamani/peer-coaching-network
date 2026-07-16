@@ -65,7 +65,7 @@ const REQUIRED_USER_FIELDS = [
 
 // ── Firebase Admin initialisation (Firestore only — Auth handled via HTTP) ───
 const app = initializeApp({ projectId: PROJECT_ID });
-const db = getFirestore(app);
+const db = getFirestore(app, 'pcn-dev');
 
 // ── Emulator Google Sign-In helpers ──────────────────────────────────────────
 
@@ -317,6 +317,7 @@ async function seedUser(userData) {
   const {
     firstName, lastName, email, role, status, gender,
     country, timezone, bio,
+    credentialDetails = '',
     // Optional — add to seed-users.json to test credentialed coaches.
     // e.g. "icf_acc": true, "icf_pcc": true
     icf_acc  = false,
@@ -343,49 +344,41 @@ async function seedUser(userData) {
   const userRef  = db.collection(COLLECTIONS.USERS).doc(uid);
   const userSnap = await userRef.get();
 
-  if (userSnap.exists) {
-    console.log(`  ↳ Firestore profile already exists, skipping.`);
-  } else {
-    await userRef.set({
-      userId: uid,
-      email: normalizedEmail,
-      firstName,
-      lastName,
-      displayName,
-      photoURL: null,
-      userRole: role,
-      userStatus: status,
-      icfCredentials: [],
-      gender,
-      country,
-      bio,
-      timezone,
-      createdAt: Timestamp.now(),
-      theme: 'light',
-      icf_acc,
-      icf_pcc,
-      icf_mcc,
-      icf_actc,
-      onboardingComplete: status === 'active',
-    });
-    console.log(`  ↳ Firestore profile written.`);
-  }
+  await userRef.set({
+    userId: uid,
+    email: normalizedEmail,
+    firstName,
+    lastName,
+    displayName,
+    photoURL: null,
+    userRole: role,
+    userStatus: status,
+    icfCredentials: [],
+    gender,
+    country,
+    bio,
+    timezone,
+    credentialDetails,
+    createdAt: userSnap.exists ? (userSnap.data()?.createdAt || Timestamp.now()) : Timestamp.now(),
+    theme: 'light',
+    icf_acc,
+    icf_pcc,
+    icf_mcc,
+    icf_actc,
+    onboardingComplete: status === 'active',
+  });
+  console.log(`  ↳ Firestore profile written.`);
 
   // ── 3. Write schedule sub-documents ───────────────────────────────────────
   const scheduleBase    = db.collection(COLLECTIONS.USERS).doc(uid).collection(COLLECTIONS.SCHEDULE);
   const availDaysRef    = scheduleBase.doc(COLLECTIONS.AVAILABLE_DAYS);
   const blockedDatesRef = scheduleBase.doc(COLLECTIONS.BLOCKED_DATES);
 
-  const availDaysSnap = await availDaysRef.get();
-  if (availDaysSnap.exists) {
-    console.log(`  ↳ Schedule already exists, skipping.`);
-  } else {
-    await Promise.all([
-      availDaysRef.set(DEFAULT_AVAILABLE_DAYS),
-      blockedDatesRef.set({ blockedDates: [] }),
-    ]);
-    console.log(`  ↳ Schedule sub-documents written.`);
-  }
+  await Promise.all([
+    availDaysRef.set(DEFAULT_AVAILABLE_DAYS),
+    blockedDatesRef.set({ blockedDates: [] }),
+  ]);
+  console.log(`  ↳ Schedule sub-documents written.`);
 
   // ── 4. Compute & write availability caches (active coaches only) ───────────
   if (role !== 'user' || status !== 'active') {
@@ -399,21 +392,16 @@ async function seedUser(userData) {
 
   // personalAvailabilityCache/{uid}
   const cacheRef  = db.collection(COLLECTIONS.PERSONAL_AVAILABILITY_CACHE).doc(uid);
-  const cacheSnap = await cacheRef.get();
 
-  if (cacheSnap.exists) {
-    console.log(`  ↳ Availability cache already exists, skipping.`);
-  } else {
-    await cacheRef.set({
-      userId: uid,
-      lastUpdated,
-      availableSlots: freeSlots,
-      availableDatesUtc,
-      ...filterFields,
-      userStatus: status,
-    });
-    console.log(`  ↳ personalAvailabilityCache written (${freeSlots.length} slots across ${availableDatesUtc.length} days).`);
-  }
+  await cacheRef.set({
+    userId: uid,
+    lastUpdated,
+    availableSlots: freeSlots,
+    availableDatesUtc,
+    ...filterFields,
+    userStatus: status,
+  });
+  console.log(`  ↳ personalAvailabilityCache written (${freeSlots.length} slots across ${availableDatesUtc.length} days).`);
 
   // coachAvailabilityByDate shards — always written via batch.set() (idempotent).
   // Firestore hard limit is 500 writes per batch; 490 gives safe headroom.
