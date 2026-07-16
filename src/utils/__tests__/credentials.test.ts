@@ -48,9 +48,9 @@ describe('credentials helpers', () => {
       expect(buildDisplayCredentials({})).toEqual([]);
     });
 
-    it('prioritizes MCC over PCC and ACC', () => {
-      expect(buildDisplayCredentials({ icf_mcc: true, icf_pcc: true, icf_acc: true })).toEqual(['ICF MCC']);
-      expect(buildDisplayCredentials({ icf_pcc: true, icf_acc: true })).toEqual(['ICF PCC']);
+    it('returns all credentials without prioritization', () => {
+      expect(buildDisplayCredentials({ icf_mcc: true, icf_pcc: true, icf_acc: true })).toEqual(['ICF MCC', 'ICF PCC', 'ICF ACC']);
+      expect(buildDisplayCredentials({ icf_pcc: true, icf_acc: true })).toEqual(['ICF PCC', 'ICF ACC']);
     });
   });
 });

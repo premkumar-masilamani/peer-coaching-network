@@ -16,7 +16,7 @@ export const CoachDirectory: React.FC = () => {
   const [coaches, setCoaches] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [credentialFilter, setCredentialFilter] = useState<'all' | 'Trainee' | 'ACC' | 'PCC' | 'MCC'>('all');
+  const [credentialFilter, setCredentialFilter] = useState<'all' | Qualification>('all');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
@@ -64,17 +64,20 @@ export const CoachDirectory: React.FC = () => {
       if (!matchesSearch) return false;
 
       // 2. Credential Filter
-      if (credentialFilter === 'Trainee') {
+      if (credentialFilter === QUALIFICATION.UNCERTIFIED) {
         return !coach.icf_mcc && !coach.icf_pcc && !coach.icf_acc;
       }
-      if (credentialFilter === 'ACC') {
+      if (credentialFilter === QUALIFICATION.ACC) {
         return !!coach.icf_acc;
       }
-      if (credentialFilter === 'PCC') {
+      if (credentialFilter === QUALIFICATION.PCC) {
         return !!coach.icf_pcc;
       }
-      if (credentialFilter === 'MCC') {
+      if (credentialFilter === QUALIFICATION.MCC) {
         return !!coach.icf_mcc;
+      }
+      if (credentialFilter === QUALIFICATION.ACTC) {
+        return !!coach.icf_actc;
       }
 
       return true; // 'all'
@@ -92,7 +95,7 @@ export const CoachDirectory: React.FC = () => {
           if (c.icf_mcc) return 4;
           if (c.icf_pcc) return 3;
           if (c.icf_acc) return 2;
-          return 1; // Trainee / Uncertified
+          return 1; // Uncertified
         };
         comparison = getRank(a) - getRank(b);
       } else if (sortField === 'country') {
@@ -146,7 +149,7 @@ export const CoachDirectory: React.FC = () => {
             <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-secondary))', fontWeight: 600, marginRight: '4px' }}>
               Credential Tier:
             </span>
-            {(['all', 'Trainee', 'ACC', 'PCC', 'MCC'] as const).map((tier) => {
+            {(['all', QUALIFICATION.UNCERTIFIED, QUALIFICATION.ACC, QUALIFICATION.PCC, QUALIFICATION.MCC] as const).map((tier) => {
               const isActive = credentialFilter === tier;
               return (
                 <button
@@ -159,11 +162,10 @@ export const CoachDirectory: React.FC = () => {
                     fontSize: '0.75rem',
                     borderRadius: '16px',
                     height: '28px',
-                    fontWeight: 600,
-                    textTransform: 'capitalize'
+                    fontWeight: 600
                   }}
                 >
-                  {tier === 'all' ? 'All' : tier}
+                  {tier === 'all' ? 'All' : (tier === QUALIFICATION.UNCERTIFIED ? 'Uncertified' : tier.replace('ICF ', ''))}
                 </button>
               );
             })}
@@ -287,8 +289,8 @@ export const CoachDirectory: React.FC = () => {
                             </span>
                           ))
                         ) : (
-                          <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>
-                            {QUALIFICATION.UNCERTIFIED}
+                          <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
+                            No verified credentials
                           </span>
                         )}
                       </div>

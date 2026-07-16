@@ -1,5 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
-import type { Gender, Theme, UserRole, UserStatus, SupportCategory, SupportStatus } from '../config';
+import type { Gender, UserRole, UserStatus, SupportCategory, SupportStatus } from '../config';
 
 // ── Shared, side-effect-free domain types ─────────────────────────────────────
 // This module is intentionally free of import-time side effects (no Firebase
@@ -42,8 +42,8 @@ export interface UserProfile {
   timezone: string;
   userRole: UserRole;
   userStatus: UserStatus;
-  theme: Theme;
   onboardingComplete?: boolean;
+  credentialDetails?: string;
   createdAt: Timestamp;
 }
 
