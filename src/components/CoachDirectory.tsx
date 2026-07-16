@@ -16,7 +16,7 @@ export const CoachDirectory: React.FC = () => {
   const [coaches, setCoaches] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [credentialFilter, setCredentialFilter] = useState<'all' | 'Trainee' | 'ACC' | 'PCC' | 'MCC'>('all');
+  const [credentialFilter, setCredentialFilter] = useState<'all' | 'Uncertified' | 'ACC' | 'PCC' | 'MCC'>('all');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
@@ -64,7 +64,7 @@ export const CoachDirectory: React.FC = () => {
       if (!matchesSearch) return false;
 
       // 2. Credential Filter
-      if (credentialFilter === 'Trainee') {
+      if (credentialFilter === 'Uncertified') {
         return !coach.icf_mcc && !coach.icf_pcc && !coach.icf_acc;
       }
       if (credentialFilter === 'ACC') {
@@ -92,7 +92,7 @@ export const CoachDirectory: React.FC = () => {
           if (c.icf_mcc) return 4;
           if (c.icf_pcc) return 3;
           if (c.icf_acc) return 2;
-          return 1; // Trainee / Uncertified
+          return 1; // Uncertified
         };
         comparison = getRank(a) - getRank(b);
       } else if (sortField === 'country') {
@@ -146,7 +146,7 @@ export const CoachDirectory: React.FC = () => {
             <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-secondary))', fontWeight: 600, marginRight: '4px' }}>
               Credential Tier:
             </span>
-            {(['all', 'Trainee', 'ACC', 'PCC', 'MCC'] as const).map((tier) => {
+            {(['all', 'Uncertified', 'ACC', 'PCC', 'MCC'] as const).map((tier) => {
               const isActive = credentialFilter === tier;
               return (
                 <button

@@ -702,21 +702,68 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
 
                       {/* Credentials Column */}
                       <td>
-                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                          {(() => {
-                             const displayCredentials = buildDisplayCredentials(u);
-
-                             if (displayCredentials.length > 0) {
-                               return displayCredentials.map((qual, idx) => {
-                                 return (
-                                   <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                                     {qual}
-                                   </span>
-                                 );
-                               });
-                             }
-                              return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>No verified credentials</span>;
-                           })()}
+                        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stopPropagation guard so toggling credentials doesn't trigger row click/drawer opening; keyboard navigation is unaffected as interactive checkboxes are natively focusable and triggerable via spacebar */}
+                        <div 
+                          onClick={(e) => e.stopPropagation()} 
+                          style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}
+                        >
+                          {([
+                            { key: 'icf_acc', label: 'ACC', full: 'ICF ACC' },
+                            { key: 'icf_pcc', label: 'PCC', full: 'ICF PCC' },
+                            { key: 'icf_mcc', label: 'MCC', full: 'ICF MCC' },
+                            { key: 'icf_actc', label: 'ACTC', full: 'ICF ACTC' }
+                          ] as const).map(({ key, label, full }) => {
+                            const isChecked = !!u[key];
+                            return (
+                              <label 
+                                key={key} 
+                                style={{ 
+                                  display: 'inline-flex', 
+                                  alignItems: 'center', 
+                                  gap: '4px', 
+                                  cursor: 'pointer', 
+                                  fontSize: '0.85rem',
+                                  fontWeight: 600,
+                                  userSelect: 'none'
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={async (e) => {
+                                    const checked = e.target.checked;
+                                    const currentQuals = buildDisplayCredentials(u) as Qualification[];
+                                    let newQuals: Qualification[] = [];
+                                    if (checked) {
+                                      newQuals = [...currentQuals, full];
+                                    } else {
+                                      newQuals = currentQuals.filter(q => q !== full);
+                                    }
+                                    try {
+                                      await updateVerifiedCredentials(u.userId, newQuals);
+                                      setUsers(prev =>
+                                        prev.map(item =>
+                                          item.userId === u.userId
+                                            ? {
+                                                ...item,
+                                                icf_acc: newQuals.includes('ICF ACC'),
+                                                icf_pcc: newQuals.includes('ICF PCC'),
+                                                icf_mcc: newQuals.includes('ICF MCC'),
+                                                icf_actc: newQuals.includes('ICF ACTC')
+                                              }
+                                            : item
+                                        )
+                                      );
+                                    } catch (err) {
+                                      console.error('Error updating credentials:', err);
+                                    }
+                                  }}
+                                  style={{ accentColor: 'hsl(var(--primary))', width: '14px', height: '14px' }}
+                                />
+                                {label}
+                              </label>
+                            );
+                          })}
                         </div>
                       </td>
 

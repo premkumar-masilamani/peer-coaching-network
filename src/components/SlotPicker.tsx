@@ -74,7 +74,7 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
 
   const [now] = useState(() => Date.now());
   const [focusedTabIndex, setFocusedTabIndex] = useState(selectedDayIndex);
-  const [selectedDuration] = useState<30 | 60>(60);
+  const [selectedDuration, setSelectedDuration] = useState<30 | 60>(60);
   const carouselRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -297,6 +297,38 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
 
   return (
     <div style={{ width: '100%' }}>
+      {/* Duration Selector for Single Mode */}
+      {mode === 'single' && (
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '20px', justifyContent: 'center' }}>
+          <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', fontWeight: 600 }}>
+            Session Duration:
+          </span>
+          {([
+            { value: 30, label: '30 Mins' },
+            { value: 60, label: '1 Hour' }
+          ] as const).map((opt) => {
+            const isActive = selectedDuration === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setSelectedDuration(opt.value)}
+                className={`btn ${isActive ? 'btn-primary' : 'btn-secondary'}`}
+                style={{
+                  padding: '4px 12px',
+                  fontSize: '0.75rem',
+                  borderRadius: '16px',
+                  height: '28px',
+                  fontWeight: 600
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Date Selector Carousel */}
       <div className="carousel-wrapper">
         <button
