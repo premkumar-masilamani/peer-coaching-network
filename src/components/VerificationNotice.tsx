@@ -65,10 +65,10 @@ export const VerificationNotice: React.FC = () => {
           <img
             src={sanitizeImageUrl(profile?.photoURL || user?.photoURL)}
             alt="Profile Avatar"
-            style={{ 
-              width: '80px', 
-              height: '80px', 
-              borderRadius: '50%', 
+            style={{
+              width: '80px',
+              height: '80px',
+              borderRadius: '50%',
               border: '2px solid hsl(var(--primary))',
               objectFit: 'cover'
             }}
@@ -102,10 +102,10 @@ export const VerificationNotice: React.FC = () => {
           ) : null}
 
           {profile?.gender && (
-            <span className="badge badge-secondary" style={{ 
-              fontSize: '0.75rem', 
+            <span className="badge badge-secondary" style={{
+              fontSize: '0.75rem',
               padding: '4px 10px',
-              background: 'var(--panel-hover-bg)', 
+              background: 'var(--panel-hover-bg)',
               color: 'hsl(var(--text-secondary))',
               border: '1px solid var(--border-light)',
               textTransform: 'none'
@@ -148,14 +148,14 @@ export const VerificationNotice: React.FC = () => {
           </div>
         </div>
 
-        {/* Submitted Credential Details */}
+        {/* Coaching Credentials */}
         <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
           <h4 style={{ fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Award size={14} style={{ color: 'hsl(var(--primary))' }} />
-            Submitted Credential Details
+            Coaching Credentials
           </h4>
           <p style={{ fontSize: '0.925rem', lineHeight: '1.6', color: 'hsl(var(--text-secondary))', whiteSpace: 'pre-line' }}>
-            {profile?.credentialDetails || 'No credential details submitted.'}
+            {profile?.credentialDetails || 'No coaching credentials submitted.'}
           </p>
         </div>
 

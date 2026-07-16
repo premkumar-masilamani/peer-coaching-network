@@ -477,7 +477,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
               id="credential-details-input-edit"
               rows={3}
               className="input-field"
-              placeholder="Please provide a link to your public ICF certification or a link to the certification PDF to complete your verification. Otherwise, your profile will be marked as uncertified. You can always contact the administrator at any time to update your credentials."
+              placeholder="Please provide a link to your ICF certification (credly link or pdf link) to complete your verification. Without this, your profile will be marked as uncertified. You can always contact the administrator at any time to update your credentials."
               value={credentialDetails}
               onChange={(e) => setCredentialDetails(e.target.value)}
               style={{ resize: 'vertical' }}

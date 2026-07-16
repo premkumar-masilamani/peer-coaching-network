@@ -31,8 +31,8 @@ export const OnboardingWizard: React.FC = () => {
       <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 16px', position: 'relative', zIndex: 10 }}>
 
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <h1 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '8px' }}>Welcome to Peer Coaching!</h1>
-          <p style={{ color: 'hsl(var(--text-secondary))', fontSize: '1.1rem' }}>Let's get your account set up so you can start coaching.</p>
+          <h1 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '8px' }}>Welcome to Peer Coaching Network!</h1>
+          <p style={{ color: 'hsl(var(--text-secondary))', fontSize: '1.1rem' }}>Let's get your account set up.</p>
         </div>
 
         {/* Stepper */}
@@ -91,7 +91,7 @@ export const OnboardingWizard: React.FC = () => {
               <div style={{ marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid var(--border-light)' }}>
                 <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '8px' }}>Terms & Conditions</h2>
                 <p style={{ color: 'hsl(var(--text-secondary))', lineHeight: '1.5' }}>
-                  Welcome to Peer Coaching Network (PCN). By using this service, you agree to the following terms, to maintain a professional, ethical, and reliable community.
+                  By using this service, you agree to the following terms, to maintain a professional, ethical, and reliable community.
                 </p>
               </div>
 
@@ -135,7 +135,7 @@ export const OnboardingWizard: React.FC = () => {
                   <strong>Publicly Verifiable Link:</strong> Provide a link to your digital badge (e.g., <a href="https://www.credly.com/badges/fc25c64a-832d-4704-aee5-e96f67ee0ff4" target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>https://www.credly.com/badges/fc25c64a-832d-4704-aee5-e96f67ee0ff4</a>).
                 </p>
                 <p style={{ marginBottom: '16px' }}>
-                  <strong>Certification PDF:</strong> Provide a direct link to your certification document (e.g., <a href="https://www.premkumarmasilamani.com/downloads/profile/2026-Premkumar-Masilamani.pdf" target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>https://www.premkumarmasilamani.com/downloads/profile/2025-ICF-ACC.pdf</a>).
+                  <strong>Certification PDF:</strong> Provide a direct link to your certification document (e.g., <a href="https://www.premkumarmasilamani.com/downloads/profile/2025-ICF-ACC.pdf" target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>https://www.premkumarmasilamani.com/downloads/profile/2025-ICF-ACC.pdf</a>).
                 </p>
 
                 <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginTop: '16px', marginBottom: '8px' }}>4. Software</h4>

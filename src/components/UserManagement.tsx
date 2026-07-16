@@ -11,8 +11,7 @@ import {
   formatDisplayName,
   formatMemberSince,
   getEffectiveRole,
-  getEffectiveStatus,
-  updateVerifiedCredentials
+  getEffectiveStatus
 } from '../services/profileService';
 import type { UserProfile } from '../services/types';
 import { ReviewChangesModal } from './modals/ReviewChangesModal';
@@ -26,7 +25,7 @@ import {
   Video,
   ExternalLink
 } from 'lucide-react';
-import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
+import { getCredentialBadgeClass } from '../utils/credentials';
 import { type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS } from '../config';
 
 interface UserManagementProps {
@@ -63,6 +62,12 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     changes: string[];
     roleToSave: UserRole;
     statusToSave: UserStatus;
+    credentialsToSave?: {
+      icf_acc?: boolean;
+      icf_pcc?: boolean;
+      icf_mcc?: boolean;
+      icf_actc?: boolean;
+    };
   } | null>(null);
   const [coachMeetings, setCoachMeetings] = useState<CalendarEvent[]>([]);
 
@@ -118,6 +123,10 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     {
       userRole?: UserRole;
       userStatus?: UserStatus;
+      icf_acc?: boolean;
+      icf_pcc?: boolean;
+      icf_mcc?: boolean;
+      icf_actc?: boolean;
     }
   >>({});
 
@@ -180,26 +189,59 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     if (!userToSave) return;
 
     const draft = drafts[uid];
-    if (!draft || Object.keys(draft).length === 0) {
+    const hasRoleChange = draft?.userRole !== undefined && draft.userRole !== getUserRole(userToSave);
+    const hasStatusChange = draft?.userStatus !== undefined && draft.userStatus !== getUserStatus(userToSave);
+    const hasAccChange = draft?.icf_acc !== undefined && draft.icf_acc !== (userToSave.icf_acc || false);
+    const hasPccChange = draft?.icf_pcc !== undefined && draft.icf_pcc !== (userToSave.icf_pcc || false);
+    const hasMccChange = draft?.icf_mcc !== undefined && draft.icf_mcc !== (userToSave.icf_mcc || false);
+    const hasActcChange = draft?.icf_actc !== undefined && draft.icf_actc !== (userToSave.icf_actc || false);
+
+    const hasChanges = hasRoleChange || hasStatusChange || hasAccChange || hasPccChange || hasMccChange || hasActcChange;
+
+    if (!draft || !hasChanges) {
       setApprovalModalData({
         uid,
         userName: formatDisplayName(userToSave),
         changes: [],
         roleToSave: getUserRole(userToSave),
-        statusToSave: getUserStatus(userToSave)
+        statusToSave: getUserStatus(userToSave),
+        credentialsToSave: {
+          icf_acc: Boolean(userToSave.icf_acc),
+          icf_pcc: Boolean(userToSave.icf_pcc),
+          icf_mcc: Boolean(userToSave.icf_mcc),
+          icf_actc: Boolean(userToSave.icf_actc)
+        }
       });
       return;
     }
 
     const roleToSave = draft.userRole || getUserRole(userToSave);
     const statusToSave = draft.userStatus || getUserStatus(userToSave);
+    const credentialsToSave = {
+      icf_acc: draft.icf_acc !== undefined ? draft.icf_acc : Boolean(userToSave.icf_acc),
+      icf_pcc: draft.icf_pcc !== undefined ? draft.icf_pcc : Boolean(userToSave.icf_pcc),
+      icf_mcc: draft.icf_mcc !== undefined ? draft.icf_mcc : Boolean(userToSave.icf_mcc),
+      icf_actc: draft.icf_actc !== undefined ? draft.icf_actc : Boolean(userToSave.icf_actc)
+    };
 
     const changes: string[] = [];
-    if (draft.userRole && draft.userRole !== getUserRole(userToSave)) {
+    if (hasRoleChange) {
       changes.push(`System Role: "${getUserRole(userToSave)}" → "${draft.userRole}"`);
     }
-    if (draft.userStatus && draft.userStatus !== getUserStatus(userToSave)) {
+    if (hasStatusChange) {
       changes.push(`Status: "${getUserStatus(userToSave)}" → "${draft.userStatus}"`);
+    }
+    if (hasAccChange) {
+      changes.push(`ACC Badge: "${userToSave.icf_acc ? 'Verified' : 'Unverified'}" → "${draft.icf_acc ? 'Verified' : 'Unverified'}"`);
+    }
+    if (hasPccChange) {
+      changes.push(`PCC Badge: "${userToSave.icf_pcc ? 'Verified' : 'Unverified'}" → "${draft.icf_pcc ? 'Verified' : 'Unverified'}"`);
+    }
+    if (hasMccChange) {
+      changes.push(`MCC Badge: "${userToSave.icf_mcc ? 'Verified' : 'Unverified'}" → "${draft.icf_mcc ? 'Verified' : 'Unverified'}"`);
+    }
+    if (hasActcChange) {
+      changes.push(`ACTC Badge: "${userToSave.icf_actc ? 'Verified' : 'Unverified'}" → "${draft.icf_actc ? 'Verified' : 'Unverified'}"`);
     }
 
     setApprovalModalData({
@@ -207,14 +249,21 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
       userName: formatDisplayName(userToSave),
       changes,
       roleToSave,
-      statusToSave
+      statusToSave,
+      credentialsToSave
     });
   };
 
   const executeApproval = useCallback(async (
     uid: string,
     roleToSave: UserRole,
-    statusToSave: UserStatus
+    statusToSave: UserStatus,
+    credentialsToSave?: {
+      icf_acc?: boolean;
+      icf_pcc?: boolean;
+      icf_mcc?: boolean;
+      icf_actc?: boolean;
+    }
   ) => {
     setSavingId(uid);
     try {
@@ -222,10 +271,19 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
       const originalStatus = userToSave ? getUserStatus(userToSave) : undefined;
       const originalRole = userToSave ? getUserRole(userToSave) : undefined;
 
-      await updateProfile(uid, {
+      const profileUpdates: Partial<UserProfile> = {
         userRole: roleToSave,
         userStatus: statusToSave
-      });
+      };
+
+      if (credentialsToSave) {
+        profileUpdates.icf_acc = credentialsToSave.icf_acc;
+        profileUpdates.icf_pcc = credentialsToSave.icf_pcc;
+        profileUpdates.icf_mcc = credentialsToSave.icf_mcc;
+        profileUpdates.icf_actc = credentialsToSave.icf_actc;
+      }
+
+      await updateProfile(uid, profileUpdates);
 
       // Log analytics events for changes
       if (originalStatus !== statusToSave) {
@@ -246,11 +304,16 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
       });
 
       // Patch the mutated record in place so the change reflects immediately
-      // without a full reload, which would discard any additionally-loaded pages
-      // and reset the paginated roster to the first page.
       setUsers(prev =>
         prev.map(u =>
-          u.userId === uid ? { ...u, userRole: roleToSave, userStatus: statusToSave } : u
+          u.userId === uid
+            ? {
+                ...u,
+                userRole: roleToSave,
+                userStatus: statusToSave,
+                ...(credentialsToSave || {})
+              }
+            : u
         )
       );
       // Keep the pending set accurate: a user activated leaves it, a user
@@ -273,7 +336,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     const draftKeys = Object.keys(drafts);
     const isDirty = draftKeys.length > 0;
     const newChanges: string[] = [];
-    
+
     draftKeys.forEach(uid => {
       const userToSave = users.find(u => u.userId === uid);
       if (userToSave) {
@@ -286,12 +349,18 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
         for (const uid of draftKeys) {
           const userToSave = users.find(u => u.userId === uid);
           if (!userToSave) continue;
-          
+
           const draft = drafts[uid];
           const roleToSave = draft.userRole || getUserRole(userToSave);
           const statusToSave = draft.userStatus || getUserStatus(userToSave);
-          
-          await executeApproval(uid, roleToSave, statusToSave);
+          const credentialsToSave = {
+            icf_acc: draft.icf_acc !== undefined ? draft.icf_acc : !!userToSave.icf_acc,
+            icf_pcc: draft.icf_pcc !== undefined ? draft.icf_pcc : !!userToSave.icf_pcc,
+            icf_mcc: draft.icf_mcc !== undefined ? draft.icf_mcc : !!userToSave.icf_mcc,
+            icf_actc: draft.icf_actc !== undefined ? draft.icf_actc : !!userToSave.icf_actc
+          };
+
+          await executeApproval(uid, roleToSave, statusToSave, credentialsToSave);
         }
         return true;
       } catch (e) {
@@ -405,42 +474,25 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
               </h4>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                 {(['ICF ACC', 'ICF PCC', 'ICF MCC', 'ICF ACTC'] as Qualification[]).map((qual) => {
-                  const hasQual = (qual === 'ICF ACC' && coach.icf_acc) ||
-                                  (qual === 'ICF PCC' && coach.icf_pcc) ||
-                                  (qual === 'ICF MCC' && coach.icf_mcc) ||
-                                  (qual === 'ICF ACTC' && coach.icf_actc);
+                  const key = qual === 'ICF ACC' ? 'icf_acc' :
+                              qual === 'ICF PCC' ? 'icf_pcc' :
+                              qual === 'ICF MCC' ? 'icf_mcc' :
+                              'icf_actc';
+                  const hasQual = drafts[coach.userId]?.[key] !== undefined ? drafts[coach.userId][key] : !!coach[key];
                   return (
                     <label key={qual} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer' }}>
                       <input
                         type="checkbox"
                         checked={hasQual}
-                        onChange={async (e) => {
+                        onChange={(e) => {
                           const checked = e.target.checked;
-                          const currentQuals = buildDisplayCredentials(coach) as Qualification[];
-                          let newQuals: Qualification[] = [];
-                          if (checked) {
-                            newQuals = [...currentQuals, qual];
-                          } else {
-                            newQuals = currentQuals.filter(q => q !== qual);
-                          }
-                          try {
-                            await updateVerifiedCredentials(coach.userId, newQuals);
-                            setUsers(prev =>
-                              prev.map(u =>
-                                u.userId === coach.userId
-                                  ? {
-                                      ...u,
-                                      icf_acc: newQuals.includes('ICF ACC'),
-                                      icf_pcc: newQuals.includes('ICF PCC'),
-                                      icf_mcc: newQuals.includes('ICF MCC'),
-                                      icf_actc: newQuals.includes('ICF ACTC')
-                                    }
-                                  : u
-                              )
-                            );
-                          } catch (err) {
-                            console.error('Error updating credentials:', err);
-                          }
+                          setDrafts(prev => ({
+                            ...prev,
+                            [coach.userId]: {
+                              ...prev[coach.userId],
+                              [key]: checked
+                            }
+                          }));
                         }}
                         style={{ accentColor: 'hsl(var(--primary))', width: '14px', height: '14px' }}
                       />
@@ -495,10 +547,10 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
 
               <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '20px', marginTop: '20px' }}>
                 <h4 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '10px' }}>
-                  Submitted Credential Details
+                  Coaching Credentials
                 </h4>
                 <p style={{ fontSize: '0.925rem', lineHeight: '1.6', color: 'hsl(var(--text-secondary))', whiteSpace: 'pre-line' }}>
-                  {coach.credentialDetails || 'No credential details submitted.'}
+                  {coach.credentialDetails || 'No coaching credentials submitted.'}
                 </p>
               </div>
             </div>
@@ -703,25 +755,25 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                       {/* Credentials Column */}
                       <td>
                         {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stopPropagation guard so toggling credentials doesn't trigger row click/drawer opening; keyboard navigation is unaffected as interactive checkboxes are natively focusable and triggerable via spacebar */}
-                        <div 
-                          onClick={(e) => e.stopPropagation()} 
+                        <div
+                          onClick={(e) => e.stopPropagation()}
                           style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}
                         >
                           {([
-                            { key: 'icf_acc', label: 'ACC', full: 'ICF ACC' },
-                            { key: 'icf_pcc', label: 'PCC', full: 'ICF PCC' },
-                            { key: 'icf_mcc', label: 'MCC', full: 'ICF MCC' },
-                            { key: 'icf_actc', label: 'ACTC', full: 'ICF ACTC' }
-                          ] as const).map(({ key, label, full }) => {
-                            const isChecked = !!u[key];
+                            { key: 'icf_acc', label: 'ACC' },
+                            { key: 'icf_pcc', label: 'PCC' },
+                            { key: 'icf_mcc', label: 'MCC' },
+                            { key: 'icf_actc', label: 'ACTC' }
+                          ] as const).map(({ key, label }) => {
+                            const isChecked = drafts[u.userId]?.[key] !== undefined ? drafts[u.userId][key] : !!u[key];
                             return (
-                              <label 
-                                key={key} 
-                                style={{ 
-                                  display: 'inline-flex', 
-                                  alignItems: 'center', 
-                                  gap: '4px', 
-                                  cursor: 'pointer', 
+                              <label
+                                key={key}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  cursor: 'pointer',
                                   fontSize: '0.85rem',
                                   fontWeight: 600,
                                   userSelect: 'none'
@@ -730,33 +782,15 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                                 <input
                                   type="checkbox"
                                   checked={isChecked}
-                                  onChange={async (e) => {
+                                  onChange={(e) => {
                                     const checked = e.target.checked;
-                                    const currentQuals = buildDisplayCredentials(u) as Qualification[];
-                                    let newQuals: Qualification[] = [];
-                                    if (checked) {
-                                      newQuals = [...currentQuals, full];
-                                    } else {
-                                      newQuals = currentQuals.filter(q => q !== full);
-                                    }
-                                    try {
-                                      await updateVerifiedCredentials(u.userId, newQuals);
-                                      setUsers(prev =>
-                                        prev.map(item =>
-                                          item.userId === u.userId
-                                            ? {
-                                                ...item,
-                                                icf_acc: newQuals.includes('ICF ACC'),
-                                                icf_pcc: newQuals.includes('ICF PCC'),
-                                                icf_mcc: newQuals.includes('ICF MCC'),
-                                                icf_actc: newQuals.includes('ICF ACTC')
-                                              }
-                                            : item
-                                        )
-                                      );
-                                    } catch (err) {
-                                      console.error('Error updating credentials:', err);
-                                    }
+                                    setDrafts(prev => ({
+                                      ...prev,
+                                      [u.userId]: {
+                                        ...prev[u.userId],
+                                        [key]: checked
+                                      }
+                                    }));
                                   }}
                                   style={{ accentColor: 'hsl(var(--primary))', width: '14px', height: '14px' }}
                                 />
@@ -884,9 +918,9 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
         onClose={() => setApprovalModalData(null)}
         onConfirm={async () => {
           if (!approvalModalData) return;
-          const { uid, roleToSave, statusToSave } = approvalModalData;
+          const { uid, roleToSave, statusToSave, credentialsToSave } = approvalModalData;
           setApprovalModalData(null);
-          await executeApproval(uid, roleToSave, statusToSave);
+          await executeApproval(uid, roleToSave, statusToSave, credentialsToSave);
         }}
       />
     </div>

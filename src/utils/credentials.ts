@@ -16,8 +16,8 @@ export const getCredentialBadgeClass = (q: string): string => {
 export const buildDisplayCredentials = (profile: { icf_mcc?: boolean, icf_pcc?: boolean, icf_acc?: boolean, icf_actc?: boolean }): string[] => {
   const displayCredentials: string[] = [];
   if (profile.icf_mcc) displayCredentials.push('ICF MCC');
-  else if (profile.icf_pcc) displayCredentials.push('ICF PCC');
-  else if (profile.icf_acc) displayCredentials.push('ICF ACC');
+  if (profile.icf_pcc) displayCredentials.push('ICF PCC');
+  if (profile.icf_acc) displayCredentials.push('ICF ACC');
   
   if (profile.icf_actc) displayCredentials.push('ICF ACTC');
   return displayCredentials;
