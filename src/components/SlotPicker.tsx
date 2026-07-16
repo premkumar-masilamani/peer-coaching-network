@@ -234,7 +234,15 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
         }
         
         const slotIso = slot.startTime.toISOString();
-        const isTemplateAvailable = availableSlots.includes(slotIso);
+        let isTemplateAvailable: boolean;
+        if (selectedDuration === 30) {
+          isTemplateAvailable = availableSlots.includes(slotIso);
+        } else {
+          // For a 60-minute session, both the first and second 30-minute blocks must be available
+          const nextSlotStart = new Date(slot.startTime.getTime() + 30 * 60 * 1000);
+          isTemplateAvailable = availableSlots.includes(slotIso) && availableSlots.includes(nextSlotStart.toISOString());
+        }
+
         if (!isTemplateAvailable) {
           return { slot, isAvailable: false };
         }
@@ -263,7 +271,8 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
     isUserUnavailable,
     isCoachBusy,
     currentUser,
-    profileCache
+    profileCache,
+    selectedDuration
   ]);
 
   const hasAnyAvailabilityConfigured = useMemo(() => {
@@ -633,7 +642,9 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
                     }}>
                       {displaySlots.map(({ slot, isAvailable }) => {
                         if (!isAvailable) return null;
-                        const timeString = slot.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const startString = slot.startTime.toLocaleTimeString([], { timeZone: viewerTimezone, hour: '2-digit', minute: '2-digit' });
+                        const endString = slot.endTime.toLocaleTimeString([], { timeZone: viewerTimezone, hour: '2-digit', minute: '2-digit' });
+                        const timeRangeString = `${startString} - ${endString}`;
                         return (
                           <button
                             key={slot.startTime.toISOString()}
@@ -647,11 +658,11 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
                               justifyContent: 'center',
                               padding: '12px 16px',
                               borderRadius: '12px',
-                              height: '56px',
+                              height: '64px',
                               fontWeight: 700
                             }}
                           >
-                            <span style={{ fontSize: '0.95rem' }}>{timeString}</span>
+                            <span style={{ fontSize: '0.9rem' }}>{timeRangeString}</span>
                             <span style={{ fontSize: '0.65rem', opacity: 0.8, fontWeight: 500 }}>
                               {getTimezoneCode(slot.startTime, viewerTimezone)}
                             </span>
