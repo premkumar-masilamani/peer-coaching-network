@@ -5,9 +5,8 @@ import { AvailabilityEdit } from './AvailabilityEdit';
 import { User, CalendarDays, FileText } from 'lucide-react';
 
 export const OnboardingWizard: React.FC = () => {
-  const { profile, user, updateProfileDetails } = useAuth();
+  const { profile, user, updateProfileDetails, logout } = useAuth();
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [acceptedTC, setAcceptedTC] = useState(false);
 
   const missingFields = [];
   if (!profile?.country) missingFields.push('Country');
@@ -136,7 +135,7 @@ export const OnboardingWizard: React.FC = () => {
                   <strong>Publicly Verifiable Link:</strong> Provide a link to your digital badge (e.g., <a href="https://www.credly.com/badges/fc25c64a-832d-4704-aee5-e96f67ee0ff4" target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>https://www.credly.com/badges/fc25c64a-832d-4704-aee5-e96f67ee0ff4</a>).
                 </p>
                 <p style={{ marginBottom: '16px' }}>
-                  <strong>Certification PDF:</strong> Provide a direct link to your certification document (e.g., <a href="https://www.premkumarmasilamani.com/downloads/profile/2026-Premkumar-Masilamani.pdf" target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>https://www.premkumarmasilamani.com/downloads/profile/2026-Premkumar-Masilamani.pdf</a>).
+                  <strong>Certification PDF:</strong> Provide a direct link to your certification document (e.g., <a href="https://www.premkumarmasilamani.com/downloads/profile/2026-Premkumar-Masilamani.pdf" target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>https://www.premkumarmasilamani.com/downloads/profile/2025-ICF-ACC.pdf</a>).
                 </p>
 
                 <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginTop: '16px', marginBottom: '8px' }}>4. Software</h4>
@@ -148,28 +147,21 @@ export const OnboardingWizard: React.FC = () => {
                 </p>
               </div>
 
-              {/* Acceptance Box */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
-                <input
-                  type="checkbox"
-                  id="tc-checkbox"
-                  checked={acceptedTC}
-                  onChange={(e) => setAcceptedTC(e.target.checked)}
-                  style={{ width: '18px', height: '18px', accentColor: 'hsl(var(--primary))', cursor: 'pointer' }}
-                />
-                <label htmlFor="tc-checkbox" style={{ fontSize: '0.925rem', fontWeight: 600, color: 'hsl(var(--text-primary))', cursor: 'pointer' }}>
-                  I accept the terms and conditions
-                </label>
-              </div>
-
               {/* Buttons */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px' }}>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="btn btn-outline-danger"
+                  style={{ minWidth: '150px' }}
+                >
+                  Reject & Sign Out
+                </button>
                 <button
                   type="button"
                   onClick={handleNextStep}
-                  disabled={!acceptedTC}
                   className="btn btn-primary"
-                  style={{ minWidth: '120px' }}
+                  style={{ minWidth: '150px' }}
                 >
                   Accept & Continue
                 </button>
