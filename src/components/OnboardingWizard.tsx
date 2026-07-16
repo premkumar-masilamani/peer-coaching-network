@@ -109,29 +109,44 @@ export const OnboardingWizard: React.FC = () => {
                 color: 'hsl(var(--text-secondary))',
                 marginBottom: '24px'
               }}>
-                <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginBottom: '8px' }}>1. Confidentiality</h4>
+                Welcome to Peer Coaching Network (PCN). By using this service, you agree to the following terms, to maintain a professional, ethical, and reliable community.
+
+                <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginTop: '16px', marginBottom: '8px' }}>1. Ethics and Professionalism</h4>
+                <p style={{ marginBottom: '12px' }}>
+                  <strong>ICF Standards:</strong> All coaching sessions must adhere to the International Coaching Federation (ICF) Code of Ethics. Maintain professional boundaries and prioritize the best interests of your coaching partner.
+                </p>
+                <p style={{ marginBottom: '12px' }}>
+                  <strong>Conduct:</strong> Treat all peers with respect. Harassment, discrimination, or disrespectful behavior will result in the immediate termination of your account.
+                </p>
                 <p style={{ marginBottom: '16px' }}>
-                  All coaching conversations, materials, goals, and personal information shared between coaching partners are strictly confidential. You must not disclose any details of your coaching sessions to external parties.
+                  <strong>Confidentiality:</strong> All conversations, goals, and personal information shared during sessions are strictly confidential. You must not disclose session details to external parties.
                 </p>
 
-                <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginBottom: '8px' }}>2. Respect and Professionalism</h4>
+                <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginTop: '16px', marginBottom: '8px' }}>2. Platform Rules</h4>
+                <p style={{ marginBottom: '12px' }}>
+                  <strong>Open Access:</strong> This is an open platform. By creating an account, you acknowledge that any other registered coach may discover your profile and book a session with you.
+                </p>
                 <p style={{ marginBottom: '16px' }}>
-                  Treat your peer coaching partners with professional respect. Provide constructive, honest, and supportive feedback. Harassment, discrimination, or disrespectful behavior of any kind will result in immediate termination of platform access.
+                  <strong>Commitment:</strong> Honoring scheduled sessions is essential. You must provide at least 24 hours' notice for any cancellations or rescheduling. Chronic no-shows may lead to account suspension.
                 </p>
 
-                <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginBottom: '8px' }}>3. Commitment and Reliability</h4>
+                <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginTop: '16px', marginBottom: '8px' }}>3. Verification Process</h4>
+                <p style={{ marginBottom: '12px' }}>
+                  All coaching credentials are subject to manual administrator review. Please provide one of the following for verification:
+                </p>
+                <p style={{ marginBottom: '12px' }}>
+                  <strong>Publicly Verifiable Link:</strong> Provide a link to your digital badge (e.g., <a href="https://www.credly.com/badges/fc25c64a-832d-4704-aee5-e96f67ee0ff4" target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>https://www.credly.com/badges/fc25c64a-832d-4704-aee5-e96f67ee0ff4</a>).
+                </p>
                 <p style={{ marginBottom: '16px' }}>
-                  By scheduling a session, you commit to honoring that time. If you must reschedule or cancel, you agree to provide at least 24 hours notice to your coaching partner. Chronic cancellations or no-shows may lead to suspension.
+                  <strong>Certification PDF:</strong> Provide a direct link to your certification document (e.g., <a href="https://www.premkumarmasilamani.com/downloads/profile/2026-Premkumar-Masilamani.pdf" target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>https://www.premkumarmasilamani.com/downloads/profile/2026-Premkumar-Masilamani.pdf</a>).
                 </p>
 
-                <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginBottom: '8px' }}>4. Code of Conduct and Ethics</h4>
-                <p style={{ marginBottom: '16px' }}>
-                  All sessions should align with the ethical guidelines set by the International Coaching Federation (ICF). Coaches are responsible for maintaining a professional boundary and acting in the best interest of their coaching partners.
+                <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginTop: '16px', marginBottom: '8px' }}>4. Software</h4>
+                <p style={{ marginBottom: '12px' }}>
+                  <strong>Access & Permissions:</strong> Access is restricted to Google login (Gmail). By logging in, you grant the platform permission to access your basic profile information (name, email, profile picture) and manage events in your Google Calendar for scheduling.
                 </p>
-
-                <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginBottom: '8px' }}>5. Client-Side Architecture Disclaimer</h4>
                 <p style={{ marginBottom: '8px' }}>
-                  This is an experimental application operating strictly client-side. The network and data are managed directly in the browser via Firestore rules. All credentials and certification statuses submitted are subject to manual administrator review.
+                  <strong>Experimental Software:</strong> This software is in an experimental stage and may contain bugs. Please report any issues directly to the administrator using the built-in support system.
                 </p>
               </div>
 
