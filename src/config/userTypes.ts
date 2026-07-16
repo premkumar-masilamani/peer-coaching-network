@@ -10,13 +10,6 @@ export const GENDER = {
 export const GENDER_OPTIONS = [GENDER.FEMALE, GENDER.MALE, GENDER.OTHERS] as const;
 export type Gender = (typeof GENDER_OPTIONS)[number];
 
-export const THEME = {
-  LIGHT: 'light',
-  DARK:  'dark',
-} as const;
-export const THEME_OPTIONS = [THEME.LIGHT, THEME.DARK] as const;
-export type Theme = (typeof THEME_OPTIONS)[number];
-
 export const QUALIFICATION = {
   ACC: 'ICF ACC',
   PCC: 'ICF PCC',

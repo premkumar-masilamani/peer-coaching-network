@@ -78,8 +78,7 @@ describe.runIf(isPerfRun)('Use Case B - Performance & Concurrency tests against 
 
     const updatePromises = allUsers.map((user, index) => {
       const updates = {
-        bio: `Updated profile bio ${index + 1} at ${new Date().toISOString()}`,
-        theme: (index % 2 === 0 ? 'dark' : 'light') as 'dark' | 'light'
+        bio: `Updated profile bio ${index + 1} at ${new Date().toISOString()}`
       };
       return measure(() => updateOwnProfile(user.userId, updates));
     });

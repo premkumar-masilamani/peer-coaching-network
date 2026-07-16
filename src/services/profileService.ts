@@ -41,7 +41,7 @@ export const updateProfile = async (uid: string, updates: Partial<UserProfile>):
 // are admin-controlled and enforced server-side by Firestore rules.
 const OWN_EDITABLE_FIELDS: (keyof UserProfile)[] = [
   'displayName', 'photoURL', 'gender', 'country',
-  'bio', 'timezone', 'theme', 'onboardingComplete', 'credentialDetails'
+  'bio', 'timezone', 'onboardingComplete', 'credentialDetails'
 ];
 
 export const updateOwnProfile = async (uid: string, updates: Partial<UserProfile>): Promise<void> => {

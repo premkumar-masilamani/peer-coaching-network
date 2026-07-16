@@ -353,14 +353,12 @@ async function seedUser(userData) {
     photoURL: null,
     userRole: role,
     userStatus: status,
-    icfCredentials: [],
     gender,
     country,
     bio,
     timezone,
     credentialDetails,
     createdAt: userSnap.exists ? (userSnap.data()?.createdAt || Timestamp.now()) : Timestamp.now(),
-    theme: 'light',
     icf_acc,
     icf_pcc,
     icf_mcc,
@@ -381,8 +379,8 @@ async function seedUser(userData) {
   console.log(`  ↳ Schedule sub-documents written.`);
 
   // ── 4. Compute & write availability caches (active coaches only) ───────────
-  if (role !== 'user' || status !== 'active') {
-    console.log(`  ↳ Skipping availability cache (role=${role}, status=${status}).`);
+  if (status !== 'active') {
+    console.log(`  ↳ Skipping availability cache (status=${status}).`);
     return;
   }
 

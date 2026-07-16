@@ -1,83 +1,24 @@
-import React, { useState } from 'react';
-import { useTransientState } from '../hooks/useTransientState';
+import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   Clock,
   MapPin,
-  User,
-  CheckCircle,
   BookOpen,
   Globe,
-  LogOut
+  LogOut,
+  Mail,
+  Calendar,
+  Award,
+  FileText
 } from 'lucide-react';
-import { COUNTRIES } from '../utils/countries';
-import { loadTimezonesForCountry, type TimezoneOption } from '../utils/timezonesLazy';
-import { formatDisplayName } from '../services/firebaseService';
-import { GENDER_OPTIONS, type Gender, INPUT_LIMITS } from '../config';
-
-import { collectValidationErrors, clearFieldError, type FormErrors } from '../utils/formValidation';
+import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
+import { formatDisplayName, formatMemberSince } from '../services/profileService';
+import { sanitizeImageUrl } from '../utils/url';
+import { type Qualification, QUALIFICATION } from '../config';
 
 export const VerificationNotice: React.FC = () => {
-  const { user, profile, updateProfileDetails, logout } = useAuth();
-
-  // State for editable profile details
-  const [gender, setGender] = useState<Gender | ''>(profile?.gender || '');
-  const [country, setCountry] = useState(profile?.country || '');
-  const [bio, setBio] = useState(profile?.bio || '');
-  const [timezone, setTimezone] = useState(profile?.timezone || '');
-
-  // Timezone options are loaded from a lazily-imported chunk (see timezonesLazy).
-  const [timezoneOptions, setTimezoneOptions] = useState<TimezoneOption[]>([]);
-  React.useEffect(() => {
-    let active = true;
-    loadTimezonesForCountry(country).then((opts) => {
-      if (active) setTimezoneOptions(opts);
-    });
-    return () => { active = false; };
-  }, [country]);
-
-  const [saving, setSaving] = useState(false);
-  const [successMsg, setSuccessMsg] = useTransientState('');
-  const [formErrors, setFormErrors] = useState<FormErrors>({});
-
-  const dismissError = (key: string) => setFormErrors(prev => clearFieldError(prev, key));
-
-
-
-  const handleCountryChange = async (selectedCountry: string) => {
-    setCountry(selectedCountry);
-    if (selectedCountry) {
-      const options = await loadTimezonesForCountry(selectedCountry);
-      setTimezone(options.length > 0 ? options[0].value : '');
-    } else {
-      setTimezone('');
-    }
-  };
-
-  const handleSave = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    if (!form.checkValidity()) {
-      setFormErrors(collectValidationErrors(form));
-      return;
-    }
-    setFormErrors({});
-    setSaving(true);
-    setSuccessMsg('');
-    try {
-      await updateProfileDetails({
-        gender: gender === '' ? undefined : gender,
-        country,
-        bio,
-        timezone
-      });
-      setSuccessMsg('Profile updated!', 4000);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setSaving(false);
-    }
-  };
+  const { user, profile, logout } = useAuth();
+  const displayCredentials = buildDisplayCredentials(profile || {});
 
   return (
     <div className="animate-fade-in" style={{ maxWidth: '700px', margin: '0 auto', width: '100%' }}>
@@ -112,189 +53,136 @@ export const VerificationNotice: React.FC = () => {
         </div>
       </div>
 
-      {/* Editable details card */}
-      <div className="glass-panel" style={{ padding: '32px' }}>
-        <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <BookOpen size={18} color="hsl(var(--primary))" />
-          Your Coach Profile
+      {/* Read-Only Profile Card (similar to public profile view) */}
+      <div className="glass-panel" style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'hsl(var(--text-primary))', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <BookOpen size={20} style={{ color: 'hsl(var(--primary))' }} />
+          Your Submitted Profile
         </h3>
-        <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '24px' }}>
-          Complete your profile information to help administrators review your information.
-        </p>
 
-        {/* Prominent Name & Email Row (Read-only) */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }} className="responsive-notice-grid">
-          <style>{`
-            @media (max-width: 600px) {
-              .responsive-notice-grid {
-                grid-template-columns: 1fr !important;
-              }
-            }
-          `}</style>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            {/* Not <label>s: these display read-only account values, not form controls. */}
-            <span className="form-label">Full Name</span>
-            <div style={{
-              padding: '10px 14px',
-              background: 'var(--panel-hover-bg)',
-              border: '1px solid var(--border-light)',
-              borderRadius: '8px',
-              fontSize: '0.95rem',
-              color: 'hsl(var(--text-primary))',
-              fontWeight: 600
-            }}>
+        {/* Profile Header */}
+        <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <img
+            src={sanitizeImageUrl(profile?.photoURL || user?.photoURL)}
+            alt="Profile Avatar"
+            style={{ 
+              width: '80px', 
+              height: '80px', 
+              borderRadius: '50%', 
+              border: '2px solid hsl(var(--primary))',
+              objectFit: 'cover'
+            }}
+          />
+          <div>
+            <h4 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '4px' }}>
               {formatDisplayName(profile || user)}
-            </div>
-          </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <span className="form-label">Email Address</span>
-            <div style={{
-              padding: '10px 14px',
-              background: 'var(--panel-hover-bg)',
-              border: '1px solid var(--border-light)',
-              borderRadius: '8px',
-              fontSize: '0.95rem',
-              color: 'hsl(var(--text-primary))',
-              fontWeight: 600,
-              wordBreak: 'break-all'
-            }}>
+            </h4>
+            <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-secondary))', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+              <Mail size={14} style={{ color: 'hsl(var(--primary))' }} />
               {profile?.email || user?.email}
-            </div>
+            </p>
+            {profile?.createdAt && (
+              <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Calendar size={12} />
+                Member since {formatMemberSince(profile.createdAt)}
+              </p>
+            )}
           </div>
         </div>
 
-        <form noValidate onSubmit={handleSave}>
-
-
-          {/* 2. Gender Select */}
-          <div className="form-group" style={{ marginTop: '12px' }}>
-            <label className="form-label" htmlFor="gender-select">
-              <User size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-              Gender
-            </label>
-            <select
-              id="gender-select"
-              className="input-field"
-              value={gender}
-              onChange={(e) => setGender(e.target.value as Gender | '')}
-            >
-              <option value="">Select Gender</option>
-              {GENDER_OPTIONS.map(g => (
-                <option key={g} value={g}>{g}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* 3. Country Select */}
-          <div className="form-group" style={{ marginTop: '12px' }}>
-            <label className="form-label" htmlFor="country-select">
-              <MapPin size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-              Country
-            </label>
-            <select
-              id="country-select"
-              className={`input-field${formErrors['country-select'] ? ' input-error' : ''}`}
-              value={country}
-              onChange={(e) => { handleCountryChange(e.target.value); dismissError('country-select'); dismissError('timezone-select'); }}
-              required
-            >
-              <option value="">Select Country</option>
-              {COUNTRIES.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-            {formErrors['country-select'] && (
-              <span className="form-error-text">{formErrors['country-select']}</span>
-            )}
-          </div>
-
-          {/* 4. Timezone Select */}
-          <div className="form-group" style={{ marginTop: '12px' }}>
-            <label className="form-label" htmlFor="timezone-select">
-              <Globe size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} />
-              Timezone
-            </label>
-            <select
-              id="timezone-select"
-              className={`input-field${formErrors['timezone-select'] ? ' input-error' : ''}`}
-              value={timezone}
-              onChange={(e) => { setTimezone(e.target.value); dismissError('timezone-select'); }}
-              required
-            >
-              <option value="">Select Timezone</option>
-              {timezoneOptions.map(tz => (
-                <option key={tz.value} value={tz.value}>{tz.label}</option>
-              ))}
-            </select>
-            {formErrors['timezone-select'] && (
-              <span className="form-error-text">{formErrors['timezone-select']}</span>
-            )}
-          </div>
-
-          {/* 5. Coach Bio */}
-          <div className="form-group" style={{ marginTop: '12px' }}>
-            <label className="form-label" htmlFor="bio-input">Professional Biography</label>
-            <textarea
-              id="bio-input"
-              rows={4}
-              className={`input-field${formErrors['bio-input'] ? ' input-error' : ''}`}
-              placeholder="Tell other coaches about your coaching style, focus and ideal clients..."
-              value={bio}
-              onChange={(e) => { setBio(e.target.value); dismissError('bio-input'); }}
-              style={{ resize: 'vertical' }}
-              maxLength={INPUT_LIMITS.BIO}
-              required
-            />
-            {formErrors['bio-input'] && (
-              <span className="form-error-text">{formErrors['bio-input']}</span>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
-              <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
-                {bio.length} / {INPUT_LIMITS.BIO} characters
+        {/* Credentials and Gender Badges */}
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {displayCredentials.length > 0 ? (
+            displayCredentials.map((qual, idx) => (
+              <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
+                <Award size={12} style={{ marginRight: '4px' }} />
+                {qual}
               </span>
-            </div>
+            ))
+          ) : (
+            <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              <Award size={12} />
+              {QUALIFICATION.UNCERTIFIED}
+            </span>
+          )}
+
+          {profile?.gender && (
+            <span className="badge badge-secondary" style={{ 
+              fontSize: '0.75rem', 
+              padding: '4px 10px',
+              background: 'var(--panel-hover-bg)', 
+              color: 'hsl(var(--text-secondary))',
+              border: '1px solid var(--border-light)',
+              textTransform: 'none'
+            }}>
+              {profile.gender}
+            </span>
+          )}
+        </div>
+
+        {/* Professional Biography */}
+        <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
+          <h4 style={{ fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <FileText size={14} style={{ color: 'hsl(var(--primary))' }} />
+            Professional Biography
+          </h4>
+          <p style={{ fontSize: '0.925rem', lineHeight: '1.6', color: 'hsl(var(--text-secondary))', whiteSpace: 'pre-line' }}>
+            {profile?.bio || 'No biography submitted.'}
+          </p>
+        </div>
+
+        {/* Geography & Timezone */}
+        <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          <div>
+            <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'hsl(var(--text-muted))', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <MapPin size={13} style={{ color: 'hsl(var(--primary))' }} />
+              Country
+            </h4>
+            <p style={{ fontSize: '0.925rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              {profile?.country || 'Not specified'}
+            </p>
           </div>
-
-          {/* Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '24px' }}>
-            <button
-              type="button"
-              onClick={logout}
-              className="btn btn-outline-danger"
-              style={{
-                padding: '10px 16px',
-                borderRadius: '8px',
-              }}
-            >
-              <LogOut size={16} />
-              Sign Out
-            </button>
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              {successMsg && (
-                <div style={{
-                  color: '#34d399',
-                  fontSize: '0.875rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px'
-                }}>
-                  <CheckCircle size={15} />
-                  {successMsg}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={saving}
-                style={{ minWidth: '150px' }}
-              >
-                {saving ? 'Saving...' : 'Save Profile Info'}
-              </button>
-            </div>
+          <div>
+            <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'hsl(var(--text-muted))', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Globe size={13} style={{ color: 'hsl(var(--primary))' }} />
+              Timezone
+            </h4>
+            <p style={{ fontSize: '0.925rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              {profile?.timezone || 'Not specified'}
+            </p>
           </div>
-        </form>
+        </div>
+
+        {/* Submitted Credential Details */}
+        <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
+          <h4 style={{ fontSize: '0.9rem', fontWeight: 700, textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Award size={14} style={{ color: 'hsl(var(--primary))' }} />
+            Submitted Credential Details
+          </h4>
+          <p style={{ fontSize: '0.925rem', lineHeight: '1.6', color: 'hsl(var(--text-secondary))', whiteSpace: 'pre-line' }}>
+            {profile?.credentialDetails || 'No credential details submitted.'}
+          </p>
+        </div>
+
+        {/* Action Button: Sign Out */}
+        <div style={{ display: 'flex', justifyContent: 'center', borderTop: '1px solid var(--border-light)', paddingTop: '24px' }}>
+          <button
+            type="button"
+            onClick={logout}
+            className="btn btn-outline-danger"
+            style={{
+              padding: '10px 24px',
+              borderRadius: '8px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontWeight: 600
+            }}
+          >
+            <LogOut size={16} />
+            Sign Out
+          </button>
+        </div>
       </div>
     </div>
   );
