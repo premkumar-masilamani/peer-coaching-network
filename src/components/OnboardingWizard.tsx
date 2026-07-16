@@ -30,7 +30,7 @@ export const OnboardingWizard: React.FC = () => {
     <div className="app-container" style={{ height: 'auto', minHeight: '100vh' }}>
       <div className="bg-gradient-radial" />
       <div style={{ maxWidth: '800px', margin: '0 auto', padding: '40px 16px', position: 'relative', zIndex: 10 }}>
-        
+
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
           <h1 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '8px' }}>Welcome to Peer Coaching!</h1>
           <p style={{ color: 'hsl(var(--text-secondary))', fontSize: '1.1rem' }}>Let's get your account set up so you can start coaching.</p>
@@ -40,8 +40,8 @@ export const OnboardingWizard: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'center', gap: '24px', marginBottom: '40px', flexWrap: 'wrap' }}>
           {/* Step 1: Terms & Conditions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: step === 1 ? 1 : 0.6 }}>
-            <div style={{ 
-              width: '32px', height: '32px', borderRadius: '50%', 
+            <div style={{
+              width: '32px', height: '32px', borderRadius: '50%',
               background: step === 1 ? 'hsl(var(--primary))' : 'hsl(var(--bg-surface))',
               color: step === 1 ? 'white' : 'hsl(var(--text-secondary))',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -56,8 +56,8 @@ export const OnboardingWizard: React.FC = () => {
 
           {/* Step 2: Profile Setup */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: step === 2 ? 1 : 0.6 }}>
-            <div style={{ 
-              width: '32px', height: '32px', borderRadius: '50%', 
+            <div style={{
+              width: '32px', height: '32px', borderRadius: '50%',
               background: step === 2 ? 'hsl(var(--primary))' : 'hsl(var(--bg-surface))',
               color: step === 2 ? 'white' : 'hsl(var(--text-secondary))',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -67,13 +67,13 @@ export const OnboardingWizard: React.FC = () => {
             </div>
             <span style={{ fontWeight: 600 }}>Profile Setup</span>
           </div>
-          
+
           <div style={{ height: '2px', width: '30px', background: 'var(--border-light)', alignSelf: 'center' }} />
 
           {/* Step 3: Availability */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: step === 3 ? 1 : 0.4 }}>
-            <div style={{ 
-              width: '32px', height: '32px', borderRadius: '50%', 
+            <div style={{
+              width: '32px', height: '32px', borderRadius: '50%',
               background: step === 3 ? 'hsl(var(--primary))' : 'hsl(var(--bg-surface))',
               color: step === 3 ? 'white' : 'hsl(var(--text-secondary))',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -91,27 +91,25 @@ export const OnboardingWizard: React.FC = () => {
             <div style={{ padding: '32px' }}>
               <div style={{ marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid var(--border-light)' }}>
                 <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '8px' }}>Terms & Conditions</h2>
-                <p style={{ color: 'hsl(var(--text-secondary))' }}>
-                  Please review and accept our guidelines and code of ethics before joining the platform.
+                <p style={{ color: 'hsl(var(--text-secondary))', lineHeight: '1.5' }}>
+                  Welcome to Peer Coaching Network (PCN). By using this service, you agree to the following terms, to maintain a professional, ethical, and reliable community.
                 </p>
               </div>
 
               {/* T&C Text Container */}
-              <div style={{ 
-                maxHeight: '260px', 
-                overflowY: 'auto', 
-                padding: '16px', 
-                background: 'var(--panel-hover-bg)', 
-                border: '1px solid var(--border-light)', 
+              <div style={{
+                maxHeight: '260px',
+                overflowY: 'auto',
+                padding: '16px',
+                background: 'var(--panel-hover-bg)',
+                border: '1px solid var(--border-light)',
                 borderRadius: '8px',
                 fontSize: '0.9rem',
                 lineHeight: '1.6',
                 color: 'hsl(var(--text-secondary))',
                 marginBottom: '24px'
               }}>
-                Welcome to Peer Coaching Network (PCN). By using this service, you agree to the following terms, to maintain a professional, ethical, and reliable community.
-
-                <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginTop: '16px', marginBottom: '8px' }}>1. Ethics and Professionalism</h4>
+                <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginBottom: '8px' }}>1. Ethics and Professionalism</h4>
                 <p style={{ marginBottom: '12px' }}>
                   <strong>ICF Standards:</strong> All coaching sessions must adhere to the International Coaching Federation (ICF) Code of Ethics. Maintain professional boundaries and prioritize the best interests of your coaching partner.
                 </p>
@@ -152,15 +150,15 @@ export const OnboardingWizard: React.FC = () => {
 
               {/* Acceptance Box */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   id="tc-checkbox"
-                  checked={acceptedTC} 
+                  checked={acceptedTC}
                   onChange={(e) => setAcceptedTC(e.target.checked)}
                   style={{ width: '18px', height: '18px', accentColor: 'hsl(var(--primary))', cursor: 'pointer' }}
                 />
                 <label htmlFor="tc-checkbox" style={{ fontSize: '0.925rem', fontWeight: 600, color: 'hsl(var(--text-primary))', cursor: 'pointer' }}>
-                  I accept the Terms and Conditions and Peer Coaching guidelines
+                  I accept the terms and conditions
                 </label>
               </div>
 
@@ -190,11 +188,11 @@ export const OnboardingWizard: React.FC = () => {
                   </div>
                 )}
               </div>
-              
+
               <div style={{ margin: '0' }}>
-                <ProfileEdit 
-                  onboardingMode={true} 
-                  onSaveSuccess={handleNextStep} 
+                <ProfileEdit
+                  onboardingMode={true}
+                  onSaveSuccess={handleNextStep}
                 />
               </div>
             </div>
@@ -208,8 +206,8 @@ export const OnboardingWizard: React.FC = () => {
               </div>
 
               <div style={{ margin: '0' }}>
-                <AvailabilityEdit 
-                  onboardingMode={true} 
+                <AvailabilityEdit
+                  onboardingMode={true}
                   onSaveSuccess={handleComplete}
                   onBackClick={handlePrevStep}
                 />
