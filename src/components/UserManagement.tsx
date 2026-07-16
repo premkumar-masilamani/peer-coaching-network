@@ -11,8 +11,7 @@ import {
   formatDisplayName,
   formatMemberSince,
   getEffectiveRole,
-  getEffectiveStatus,
-  updateVerifiedCredentials
+  getEffectiveStatus
 } from '../services/profileService';
 import type { UserProfile } from '../services/types';
 import { ReviewChangesModal } from './modals/ReviewChangesModal';
@@ -26,9 +25,8 @@ import {
   Video,
   ExternalLink
 } from 'lucide-react';
-import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
-import { type Qualification, QUALIFICATION, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, ICF_DIRECTORY_URL } from '../config';
-import { verifyIcfCredential } from '../services/icfService';
+import { getCredentialBadgeClass } from '../utils/credentials';
+import { type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS } from '../config';
 
 interface UserManagementProps {
   initialFilter?: 'all' | UserStatus | UserRole;
@@ -58,14 +56,18 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
   const [roleFilter, setRoleFilter] = useState<'all' | UserStatus | UserRole>(initialFilter);
   const [selectedCoachUid, setSelectedCoachUid] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
-  const [verifyingId, setVerifyingId] = useState<string | null>(null);
-  const [verifyErrorId, setVerifyErrorId] = useState<string | null>(null);
   const [approvalModalData, setApprovalModalData] = useState<{
     uid: string;
     userName: string;
     changes: string[];
     roleToSave: UserRole;
     statusToSave: UserStatus;
+    credentialsToSave?: {
+      icf_acc?: boolean;
+      icf_pcc?: boolean;
+      icf_mcc?: boolean;
+      icf_actc?: boolean;
+    };
   } | null>(null);
   const [coachMeetings, setCoachMeetings] = useState<CalendarEvent[]>([]);
 
@@ -121,6 +123,10 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     {
       userRole?: UserRole;
       userStatus?: UserStatus;
+      icf_acc?: boolean;
+      icf_pcc?: boolean;
+      icf_mcc?: boolean;
+      icf_actc?: boolean;
     }
   >>({});
 
@@ -183,26 +189,59 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     if (!userToSave) return;
 
     const draft = drafts[uid];
-    if (!draft || Object.keys(draft).length === 0) {
+    const hasRoleChange = draft?.userRole !== undefined && draft.userRole !== getUserRole(userToSave);
+    const hasStatusChange = draft?.userStatus !== undefined && draft.userStatus !== getUserStatus(userToSave);
+    const hasAccChange = draft?.icf_acc !== undefined && draft.icf_acc !== (userToSave.icf_acc || false);
+    const hasPccChange = draft?.icf_pcc !== undefined && draft.icf_pcc !== (userToSave.icf_pcc || false);
+    const hasMccChange = draft?.icf_mcc !== undefined && draft.icf_mcc !== (userToSave.icf_mcc || false);
+    const hasActcChange = draft?.icf_actc !== undefined && draft.icf_actc !== (userToSave.icf_actc || false);
+
+    const hasChanges = hasRoleChange || hasStatusChange || hasAccChange || hasPccChange || hasMccChange || hasActcChange;
+
+    if (!draft || !hasChanges) {
       setApprovalModalData({
         uid,
         userName: formatDisplayName(userToSave),
         changes: [],
         roleToSave: getUserRole(userToSave),
-        statusToSave: getUserStatus(userToSave)
+        statusToSave: getUserStatus(userToSave),
+        credentialsToSave: {
+          icf_acc: Boolean(userToSave.icf_acc),
+          icf_pcc: Boolean(userToSave.icf_pcc),
+          icf_mcc: Boolean(userToSave.icf_mcc),
+          icf_actc: Boolean(userToSave.icf_actc)
+        }
       });
       return;
     }
 
     const roleToSave = draft.userRole || getUserRole(userToSave);
     const statusToSave = draft.userStatus || getUserStatus(userToSave);
+    const credentialsToSave = {
+      icf_acc: draft.icf_acc !== undefined ? draft.icf_acc : Boolean(userToSave.icf_acc),
+      icf_pcc: draft.icf_pcc !== undefined ? draft.icf_pcc : Boolean(userToSave.icf_pcc),
+      icf_mcc: draft.icf_mcc !== undefined ? draft.icf_mcc : Boolean(userToSave.icf_mcc),
+      icf_actc: draft.icf_actc !== undefined ? draft.icf_actc : Boolean(userToSave.icf_actc)
+    };
 
     const changes: string[] = [];
-    if (draft.userRole && draft.userRole !== getUserRole(userToSave)) {
+    if (hasRoleChange) {
       changes.push(`System Role: "${getUserRole(userToSave)}" → "${draft.userRole}"`);
     }
-    if (draft.userStatus && draft.userStatus !== getUserStatus(userToSave)) {
+    if (hasStatusChange) {
       changes.push(`Status: "${getUserStatus(userToSave)}" → "${draft.userStatus}"`);
+    }
+    if (hasAccChange) {
+      changes.push(`ACC Badge: "${userToSave.icf_acc ? 'Verified' : 'Unverified'}" → "${draft.icf_acc ? 'Verified' : 'Unverified'}"`);
+    }
+    if (hasPccChange) {
+      changes.push(`PCC Badge: "${userToSave.icf_pcc ? 'Verified' : 'Unverified'}" → "${draft.icf_pcc ? 'Verified' : 'Unverified'}"`);
+    }
+    if (hasMccChange) {
+      changes.push(`MCC Badge: "${userToSave.icf_mcc ? 'Verified' : 'Unverified'}" → "${draft.icf_mcc ? 'Verified' : 'Unverified'}"`);
+    }
+    if (hasActcChange) {
+      changes.push(`ACTC Badge: "${userToSave.icf_actc ? 'Verified' : 'Unverified'}" → "${draft.icf_actc ? 'Verified' : 'Unverified'}"`);
     }
 
     setApprovalModalData({
@@ -210,14 +249,21 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
       userName: formatDisplayName(userToSave),
       changes,
       roleToSave,
-      statusToSave
+      statusToSave,
+      credentialsToSave
     });
   };
 
   const executeApproval = useCallback(async (
     uid: string,
     roleToSave: UserRole,
-    statusToSave: UserStatus
+    statusToSave: UserStatus,
+    credentialsToSave?: {
+      icf_acc?: boolean;
+      icf_pcc?: boolean;
+      icf_mcc?: boolean;
+      icf_actc?: boolean;
+    }
   ) => {
     setSavingId(uid);
     try {
@@ -225,10 +271,19 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
       const originalStatus = userToSave ? getUserStatus(userToSave) : undefined;
       const originalRole = userToSave ? getUserRole(userToSave) : undefined;
 
-      await updateProfile(uid, {
+      const profileUpdates: Partial<UserProfile> = {
         userRole: roleToSave,
         userStatus: statusToSave
-      });
+      };
+
+      if (credentialsToSave) {
+        profileUpdates.icf_acc = credentialsToSave.icf_acc;
+        profileUpdates.icf_pcc = credentialsToSave.icf_pcc;
+        profileUpdates.icf_mcc = credentialsToSave.icf_mcc;
+        profileUpdates.icf_actc = credentialsToSave.icf_actc;
+      }
+
+      await updateProfile(uid, profileUpdates);
 
       // Log analytics events for changes
       if (originalStatus !== statusToSave) {
@@ -249,11 +304,16 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
       });
 
       // Patch the mutated record in place so the change reflects immediately
-      // without a full reload, which would discard any additionally-loaded pages
-      // and reset the paginated roster to the first page.
       setUsers(prev =>
         prev.map(u =>
-          u.userId === uid ? { ...u, userRole: roleToSave, userStatus: statusToSave } : u
+          u.userId === uid
+            ? {
+                ...u,
+                userRole: roleToSave,
+                userStatus: statusToSave,
+                ...(credentialsToSave || {})
+              }
+            : u
         )
       );
       // Keep the pending set accurate: a user activated leaves it, a user
@@ -276,7 +336,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
     const draftKeys = Object.keys(drafts);
     const isDirty = draftKeys.length > 0;
     const newChanges: string[] = [];
-    
+
     draftKeys.forEach(uid => {
       const userToSave = users.find(u => u.userId === uid);
       if (userToSave) {
@@ -289,12 +349,18 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
         for (const uid of draftKeys) {
           const userToSave = users.find(u => u.userId === uid);
           if (!userToSave) continue;
-          
+
           const draft = drafts[uid];
           const roleToSave = draft.userRole || getUserRole(userToSave);
           const statusToSave = draft.userStatus || getUserStatus(userToSave);
-          
-          await executeApproval(uid, roleToSave, statusToSave);
+          const credentialsToSave = {
+            icf_acc: draft.icf_acc !== undefined ? draft.icf_acc : !!userToSave.icf_acc,
+            icf_pcc: draft.icf_pcc !== undefined ? draft.icf_pcc : !!userToSave.icf_pcc,
+            icf_mcc: draft.icf_mcc !== undefined ? draft.icf_mcc : !!userToSave.icf_mcc,
+            icf_actc: draft.icf_actc !== undefined ? draft.icf_actc : !!userToSave.icf_actc
+          };
+
+          await executeApproval(uid, roleToSave, statusToSave, credentialsToSave);
         }
         return true;
       } catch (e) {
@@ -406,21 +472,36 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
               <h4 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '12px' }}>
                 Credentials
               </h4>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {(() => {
-                  const displayCredentials = buildDisplayCredentials(coach);
-
-                  if (displayCredentials.length > 0) {
-                    return displayCredentials.map((qual, idx) => {
-                      return (
-                        <span key={idx} className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                          {qual}
-                        </span>
-                      );
-                    });
-                  }
-                  return <span className="badge" style={{ fontSize: '0.75rem', padding: '4px 10px', background: 'var(--panel-bg)', color: 'hsl(var(--text-muted))', border: '1px solid var(--border-light)' }}>{QUALIFICATION.UNCERTIFIED}</span>;
-                })()}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {(['ICF ACC', 'ICF PCC', 'ICF MCC', 'ICF ACTC'] as Qualification[]).map((qual) => {
+                  const key = qual === 'ICF ACC' ? 'icf_acc' :
+                              qual === 'ICF PCC' ? 'icf_pcc' :
+                              qual === 'ICF MCC' ? 'icf_mcc' :
+                              'icf_actc';
+                  const hasQual = drafts[coach.userId]?.[key] !== undefined ? drafts[coach.userId][key] : !!coach[key];
+                  return (
+                    <label key={qual} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={hasQual}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setDrafts(prev => ({
+                            ...prev,
+                            [coach.userId]: {
+                              ...prev[coach.userId],
+                              [key]: checked
+                            }
+                          }));
+                        }}
+                        style={{ accentColor: 'hsl(var(--primary))', width: '14px', height: '14px' }}
+                      />
+                      <span className={`badge ${getCredentialBadgeClass(qual)}`} style={{ fontSize: '0.75rem', padding: '2px 8px' }}>
+                        {qual}
+                      </span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -461,6 +542,15 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                 </h4>
                 <p style={{ fontSize: '0.925rem', lineHeight: '1.6', color: 'hsl(var(--text-secondary))', whiteSpace: 'pre-line' }}>
                   {coach.bio || 'This user has not written a biography yet.'}
+                </p>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '20px', marginTop: '20px' }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', color: 'hsl(var(--text-muted))', marginBottom: '10px' }}>
+                  Coaching Credentials
+                </h4>
+                <p style={{ fontSize: '0.925rem', lineHeight: '1.6', color: 'hsl(var(--text-secondary))', whiteSpace: 'pre-line' }}>
+                  {coach.credentialDetails || 'No coaching credentials submitted.'}
                 </p>
               </div>
             </div>
@@ -664,71 +754,50 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
 
                       {/* Credentials Column */}
                       <td>
-                        {/* Stops the row's onClick from opening the coach detail;
-                            it adds no interaction of its own, so it needs no role
-                            or key handler. The row is mouse-only, so keyboard
-                            users never trigger what this guards against. */}
-                        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
-                          <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                            {(() => {
-                               const displayCredentials = buildDisplayCredentials(u);
-
-                               if (displayCredentials.length > 0) {
-                                 return displayCredentials.map((qual, idx) => {
-                                   return (
-                                     <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                       <span className={`badge ${getCredentialBadgeClass(qual as Qualification)}`} style={{ fontSize: '0.75rem', padding: '4px 10px' }}>
-                                         {qual}
-                                       </span>
-                                     </div>
-                                   );
-                                 });
-                               }
-                               return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>{QUALIFICATION.UNCERTIFIED}</span>;
-                             })()}
-                          </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
-                             <button
-                               onClick={async (e) => {
-                                 e.stopPropagation();
-                                 setVerifyingId(u.userId);
-                                 setVerifyErrorId(null);
-                                 try {
-                                   const newQuals = await verifyIcfCredential(u.firstName, u.lastName);
-                                   if (newQuals && newQuals.length > 0) {
-                                     await updateVerifiedCredentials(u.userId, newQuals);
-                                   } else {
-                                     setVerifyErrorId(u.userId);
-                                   }
-                                 } catch (err) {
-                                   console.error('Verification error:', err);
-                                   setVerifyErrorId(u.userId);
-                                 } finally {
-                                   setVerifyingId(null);
-                                 }
-                               }}
-                               className="btn btn-secondary"
-                               style={{ fontSize: '0.7rem', padding: '4px 8px', alignSelf: 'flex-start' }}
-                               disabled={verifyingId === u.userId}
-                             >
-                               {verifyingId === u.userId ? 'Verifying...' : 'Verify with ICF Directory'}
-                             </button>
-                             <a 
-                               href={ICF_DIRECTORY_URL.replace('{firstName}', encodeURIComponent(u.firstName || '')).replace('{lastName}', encodeURIComponent(u.lastName || ''))}
-                               target="_blank" 
-                               rel="noopener noreferrer"
-                               onClick={(e) => e.stopPropagation()}
-                               style={{ fontSize: '0.7rem', color: 'hsl(var(--primary))', textDecoration: 'none' }}
-                             >
-                               Search ICF Directory for {u.firstName} {u.lastName} <ExternalLink size={10} style={{ display: 'inline' }} />
-                             </a>
-                             {verifyErrorId === u.userId && (
-                               <span style={{ fontSize: '0.7rem', color: 'hsl(var(--error))' }}>
-                                 Error verifying credentials. Please contact admin.
-                               </span>
-                             )}
-                          </div>
+                        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- stopPropagation guard so toggling credentials doesn't trigger row click/drawer opening; keyboard navigation is unaffected as interactive checkboxes are natively focusable and triggerable via spacebar */}
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}
+                        >
+                          {([
+                            { key: 'icf_acc', label: 'ACC' },
+                            { key: 'icf_pcc', label: 'PCC' },
+                            { key: 'icf_mcc', label: 'MCC' },
+                            { key: 'icf_actc', label: 'ACTC' }
+                          ] as const).map(({ key, label }) => {
+                            const isChecked = drafts[u.userId]?.[key] !== undefined ? drafts[u.userId][key] : !!u[key];
+                            return (
+                              <label
+                                key={key}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '0.85rem',
+                                  fontWeight: 600,
+                                  userSelect: 'none'
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked;
+                                    setDrafts(prev => ({
+                                      ...prev,
+                                      [u.userId]: {
+                                        ...prev[u.userId],
+                                        [key]: checked
+                                      }
+                                    }));
+                                  }}
+                                  style={{ accentColor: 'hsl(var(--primary))', width: '14px', height: '14px' }}
+                                />
+                                {label}
+                              </label>
+                            );
+                          })}
                         </div>
                       </td>
 
@@ -849,9 +918,9 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
         onClose={() => setApprovalModalData(null)}
         onConfirm={async () => {
           if (!approvalModalData) return;
-          const { uid, roleToSave, statusToSave } = approvalModalData;
+          const { uid, roleToSave, statusToSave, credentialsToSave } = approvalModalData;
           setApprovalModalData(null);
-          await executeApproval(uid, roleToSave, statusToSave);
+          await executeApproval(uid, roleToSave, statusToSave, credentialsToSave);
         }}
       />
     </div>

@@ -121,7 +121,6 @@ erDiagram
         string bio
         string timezone
         Timestamp createdAt
-        Theme theme
         boolean icf_acc
         boolean icf_pcc
         boolean icf_mcc
@@ -171,5 +170,5 @@ erDiagram
 * **References**: `userId` → `users`
 
 ### 9. `users`
-* **Fields**: 19 (`userId`, `email`, `firstName`, `lastName`, `displayName`, `photoURL`, `userRole`, `userStatus`, `gender`, `country`, `bio`, `timezone`, `createdAt`, `theme`, `icf_acc`, `icf_pcc`, `icf_mcc`, `icf_actc`, `onboardingComplete`)
+* **Fields**: 18 (`userId`, `email`, `firstName`, `lastName`, `displayName`, `photoURL`, `userRole`, `userStatus`, `gender`, `country`, `bio`, `timezone`, `createdAt`, `icf_acc`, `icf_pcc`, `icf_mcc`, `icf_actc`, `onboardingComplete`)
 * **Primary key**: _(document-scoped / composite id)_

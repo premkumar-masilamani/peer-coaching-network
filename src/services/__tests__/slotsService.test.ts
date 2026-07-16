@@ -333,7 +333,7 @@ describe('slotsService', () => {
       H.authState.currentUser = { uid: 'coach-lazy' };
       const recentDate = new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString();
       mockGetDoc.mockImplementation(async (ref: any) => {
-        if (ref.path === 'personalAvailabilityCache/coach-lazy') return { exists: () => true, data: () => ({ availableSlots: [], lastUpdated: recentDate }) };
+        if (ref.path === 'personalAvailabilityCache/coach-lazy') return { exists: () => true, data: () => ({ availableSlots: [], lastUpdated: recentDate, lastUpdatedByOwner: true }) };
         return { exists: () => false };
       });
 
@@ -382,7 +382,7 @@ describe('slotsService', () => {
     it('lazyRecalculateAvailableSlotsCache recalculates when user status changes', async () => {
       H.authState.currentUser = { uid: 'coach-lazy' };
       mockGetDoc.mockImplementation(async (ref: any) => {
-        if (ref.path === 'personalAvailabilityCache/coach-lazy') return { exists: () => true, data: () => ({ availableSlots: [], userStatus: 'inactive', lastUpdated: new Date().toISOString() }) };
+        if (ref.path === 'personalAvailabilityCache/coach-lazy') return { exists: () => true, data: () => ({ availableSlots: [], userStatus: 'inactive', lastUpdated: new Date().toISOString(), lastUpdatedByOwner: true }) };
         if (ref.path === 'users/coach-lazy') return { exists: () => true, data: () => ({ timezone: 'UTC', userStatus: 'active' }) };
         if (ref.path === 'users/coach-lazy/schedule/availableDays') return { exists: () => true, data: () => ({}) };
         if (ref.path === 'users/coach-lazy/schedule/blockedDates') return { exists: () => true, data: () => ({ blockedDates: [] }) };
@@ -398,8 +398,24 @@ describe('slotsService', () => {
     it('lazyRecalculateAvailableSlotsCache recalculates when credentials change', async () => {
       H.authState.currentUser = { uid: 'coach-lazy' };
       mockGetDoc.mockImplementation(async (ref: any) => {
-        if (ref.path === 'personalAvailabilityCache/coach-lazy') return { exists: () => true, data: () => ({ availableSlots: [], userStatus: 'active', icf_acc: false, lastUpdated: new Date().toISOString() }) };
+        if (ref.path === 'personalAvailabilityCache/coach-lazy') return { exists: () => true, data: () => ({ availableSlots: [], userStatus: 'active', icf_acc: false, lastUpdated: new Date().toISOString(), lastUpdatedByOwner: true }) };
         if (ref.path === 'users/coach-lazy') return { exists: () => true, data: () => ({ timezone: 'UTC', userStatus: 'active', icf_acc: true }) };
+        if (ref.path === 'users/coach-lazy/schedule/availableDays') return { exists: () => true, data: () => ({}) };
+        if (ref.path === 'users/coach-lazy/schedule/blockedDates') return { exists: () => true, data: () => ({ blockedDates: [] }) };
+        return { exists: () => false };
+      });
+      mockGetDocs.mockResolvedValue({ forEach: () => {} });
+      mockSetDoc.mockResolvedValue(undefined);
+
+      await lazyRecalculateAvailableSlotsCache('coach-lazy');
+      expect(mockSetDoc.mock.calls.filter((c: any) => c[0].path === 'personalAvailabilityCache/coach-lazy')).toHaveLength(1);
+    });
+
+    it('lazyRecalculateAvailableSlotsCache recalculates when lastUpdatedByOwner is false or missing', async () => {
+      H.authState.currentUser = { uid: 'coach-lazy' };
+      mockGetDoc.mockImplementation(async (ref: any) => {
+        if (ref.path === 'personalAvailabilityCache/coach-lazy') return { exists: () => true, data: () => ({ availableSlots: [], userStatus: 'active', lastUpdated: new Date().toISOString(), lastUpdatedByOwner: false }) };
+        if (ref.path === 'users/coach-lazy') return { exists: () => true, data: () => ({ timezone: 'UTC', userStatus: 'active' }) };
         if (ref.path === 'users/coach-lazy/schedule/availableDays') return { exists: () => true, data: () => ({}) };
         if (ref.path === 'users/coach-lazy/schedule/blockedDates') return { exists: () => true, data: () => ({ blockedDates: [] }) };
         return { exists: () => false };

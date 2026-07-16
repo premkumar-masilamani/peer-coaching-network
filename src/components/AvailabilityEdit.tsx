@@ -603,7 +603,7 @@ export const AvailabilityEdit: React.FC<AvailabilityEditProps> = ({ onboardingMo
                 cursor: (saving || hasValidationError) ? 'not-allowed' : 'pointer'
               }}
             >
-              {saving ? 'Finishing...' : 'Finish Setup'}
+              {saving ? 'Finishing...' : 'Finish'}
             </button>
           </div>
         )}

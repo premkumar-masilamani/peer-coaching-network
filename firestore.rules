@@ -92,9 +92,9 @@ service cloud.firestore {
         && (data.get('icf_actc', null) == null || isBool(data.icf_actc))
         && isValidString(data.bio, 2000)
         && isValidString(data.timezone, 100)
+        && (data.get('credentialDetails', null) == null || isValidString(data.credentialDetails, 1000))
         && (data.userRole == 'user' || data.userRole == 'admin')
         && (data.userStatus == 'active' || data.userStatus == 'inactive')
-        && (data.theme == 'light' || data.theme == 'dark')
         && isTimestamp(data.createdAt);
     }
 

@@ -147,6 +147,11 @@ export const lazyRecalculateAvailableSlotsCache = async (uid: string): Promise<v
     if (data) {
       const lastUpdated = data.lastUpdated;
 
+      if (!data.lastUpdatedByOwner) {
+        shouldRecalc = true;
+        logger.info(`lazyRecalculateAvailableSlotsCache: Cache for ${uid} was not last updated by owner.`);
+      }
+
       // Compare userStatus or credentials to propagate changes
       const profile = await getUserProfile(uid);
       if (profile) {
@@ -282,6 +287,8 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
     // profile metadata may have changed even when the slots are unchanged.
     // If the coach is deactivated or not a coach, we empty their slots to prevent
     // cache leakage.
+    const isOwner = auth?.currentUser?.uid === uid;
+
     await writePersonalAvailabilityCache(uid, {
       userId: uid,
       lastUpdated,
@@ -289,6 +296,7 @@ const doRecalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
       availableDatesUtc: finalAvailableDatesUtc,
       ...filterFields,
       userStatus: targetUserStatus,
+      lastUpdatedByOwner: isOwner,
     });
 
     // Per-day discovery shards: one owned document per coach per UTC date, so
