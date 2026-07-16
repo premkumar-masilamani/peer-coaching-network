@@ -5,7 +5,7 @@ import { useNavigateToProfile } from '../context/UnsavedChangesContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { sanitizeImageUrl } from '../utils/url';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
-import { type Qualification, QUALIFICATION } from '../config';
+import { type Qualification } from '../config';
 import type { UserProfile } from '../services/types';
 
 type SortField = 'name' | 'credential' | 'country';
@@ -287,8 +287,8 @@ export const CoachDirectory: React.FC = () => {
                             </span>
                           ))
                         ) : (
-                          <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>
-                            {QUALIFICATION.UNCERTIFIED}
+                          <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
+                            No verified credentials
                           </span>
                         )}
                       </div>

@@ -14,7 +14,7 @@ import {
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince } from '../services/profileService';
 import { sanitizeImageUrl } from '../utils/url';
-import { type Qualification, QUALIFICATION } from '../config';
+import { type Qualification } from '../config';
 
 export const VerificationNotice: React.FC = () => {
   const { user, profile, logout } = useAuth();
@@ -99,12 +99,7 @@ export const VerificationNotice: React.FC = () => {
                 {qual}
               </span>
             ))
-          ) : (
-            <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-              <Award size={12} />
-              {QUALIFICATION.UNCERTIFIED}
-            </span>
-          )}
+          ) : null}
 
           {profile?.gender && (
             <span className="badge badge-secondary" style={{ 

@@ -15,7 +15,7 @@ export const QUALIFICATION = {
   PCC: 'ICF PCC',
   MCC: 'ICF MCC',
   ACTC: 'ICF ACTC',
-  UNCERTIFIED: 'Uncertified Coach',
+  UNCERTIFIED: 'No Verified Credentials',
 } as const;
 export const QUALIFICATION_OPTIONS = [QUALIFICATION.ACC, QUALIFICATION.PCC, QUALIFICATION.MCC, QUALIFICATION.ACTC, QUALIFICATION.UNCERTIFIED] as const;
 export type Qualification = (typeof QUALIFICATION_OPTIONS)[number];

@@ -32,7 +32,7 @@ import {
   buildDisplayCredentials
 } from '../utils/credentials';
 import { sanitizeImageUrl } from '../utils/url';
-import { type Qualification, QUALIFICATION, EVENT_TYPE, BOOKING_STATUS } from '../config';
+import { type Qualification, EVENT_TYPE, BOOKING_STATUS } from '../config';
 import type { CalendarEvent } from '../services/googleCalendar';
 import type { DocumentData } from 'firebase/firestore';
 interface PublicProfileProps {
@@ -313,11 +313,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
                   </span>
                 );
               })
-            ) : (
-              <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
-                {QUALIFICATION.UNCERTIFIED}
-              </span>
-            )}
+            ) : null}
 
             {profile.gender && (
               <span className="badge badge-secondary" style={{ 

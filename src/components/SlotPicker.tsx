@@ -6,7 +6,7 @@ import { sanitizeImageUrl } from '../utils/url';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { useNavigateToProfile } from '../context/UnsavedChangesContext';
 import { formatDisplayName } from '../services/profileService';
-import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, QUALIFICATION, EVENT_TYPE, type Qualification } from '../config';
+import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, EVENT_TYPE, type Qualification } from '../config';
 import { useAuth } from '../context/AuthContext';
 import type { UserProfile } from '../services/types';
 import type { CalendarEvent } from '../services/googleCalendar';
@@ -456,11 +456,7 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
                                                 </span>
                                               );
                                             })
-                                          ) : (
-                                            <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
-                                              {QUALIFICATION.UNCERTIFIED}
-                                            </span>
-                                          )}
+                                          ) : null}
                                         </div>
                                       </div>
                                     </div>

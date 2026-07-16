@@ -27,7 +27,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
-import { type Qualification, QUALIFICATION, type UserRole, type UserStatus, USER_ROLE, USER_STATUS } from '../config';
+import { type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS } from '../config';
 
 interface UserManagementProps {
   initialFilter?: 'all' | UserStatus | UserRole;
@@ -715,7 +715,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                                  );
                                });
                              }
-                             return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>{QUALIFICATION.UNCERTIFIED}</span>;
+                              return <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>No verified credentials</span>;
                            })()}
                         </div>
                       </td>

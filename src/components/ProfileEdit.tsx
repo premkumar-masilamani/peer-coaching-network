@@ -19,7 +19,7 @@ import { loadTimezonesForCountry, type TimezoneOption } from '../utils/timezones
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince, logAnalyticsEvent } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
-import { GENDER_OPTIONS, type Gender, type Qualification, QUALIFICATION, INPUT_LIMITS } from '../config';
+import { GENDER_OPTIONS, type Gender, type Qualification, INPUT_LIMITS } from '../config';
 import { collectValidationErrors, clearFieldError, type FormErrors } from '../utils/formValidation';
 
 
@@ -373,8 +373,8 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
                     );
                   })
                 ) : (
-                  <div style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))' }}>
-                    {QUALIFICATION.UNCERTIFIED}
+                  <div style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
+                    No verified credentials
                   </div>
                 )}
               </div>
