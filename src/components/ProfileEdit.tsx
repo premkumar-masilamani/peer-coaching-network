@@ -145,7 +145,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
     if (credentialDetails !== (profile?.credentialDetails || '')) newChanges.push(`Credential details updated`);
 
     const isDirty = newChanges.length > 0;
-    
+
     setPageDirtyState(isDirty, newChanges, handleDirectSave);
 
     return () => {
@@ -215,10 +215,10 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
                   type="button"
                   onClick={() => navigateToProfile(user.uid)}
                   className="btn btn-secondary"
-                  style={{ 
-                    padding: '4px 10px', 
-                    fontSize: '0.75rem', 
-                    height: '28px', 
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '0.75rem',
+                    height: '28px',
                     gap: '4px',
                     borderColor: 'var(--border-light)',
                     background: 'transparent',
@@ -240,10 +240,10 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
                     }
                   }}
                   className="btn btn-secondary"
-                  style={{ 
-                    padding: '4px 10px', 
-                    fontSize: '0.75rem', 
-                    height: '28px', 
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '0.75rem',
+                    height: '28px',
                     gap: '4px',
                     borderColor: copied ? 'hsl(var(--success) / 0.4)' : 'var(--border-light)',
                     background: copied ? 'hsl(var(--success) / 0.05)' : 'transparent',
@@ -472,12 +472,12 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
 
           {/* 6. Credential Details */}
           <div className="form-group" style={{ marginTop: '12px' }}>
-            <label className="form-label" htmlFor="credential-details-input-edit">Credential Verification Details</label>
+            <label className="form-label" htmlFor="credential-details-input-edit">Coaching Credentials</label>
             <textarea
               id="credential-details-input-edit"
               rows={3}
               className="input-field"
-              placeholder="Enter your credential details (e.g. badge tier, credential number, expiration date) or provide a link to your public credential page..."
+              placeholder="Please provide a link to your public ICF certification or a link to the certification PDF to complete your verification. Otherwise, your profile will be marked as uncertified. You can always contact the administrator at any time to update your credentials."
               value={credentialDetails}
               onChange={(e) => setCredentialDetails(e.target.value)}
               style={{ resize: 'vertical' }}
@@ -512,7 +512,7 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
               disabled={saving || (onboardingMode && !isComplete)}
               title={onboardingMode && !isComplete ? 'Please fill out all required fields' : undefined}
             >
-              {saving ? (onboardingMode ? 'Continuing...' : 'Saving...') : (onboardingMode ? 'Continue Setup' : 'Save Profile')}
+              {saving ? (onboardingMode ? 'Continuing...' : 'Saving...') : (onboardingMode ? 'Continue' : 'Save Profile')}
             </button>
           </div>
 
