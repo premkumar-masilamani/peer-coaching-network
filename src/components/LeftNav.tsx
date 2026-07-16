@@ -8,12 +8,10 @@ import {
   User, 
   ChevronLeft, 
   ChevronRight,
-  Sun,
-  Moon,
   LogOut,
   LifeBuoy
 } from 'lucide-react';
-import { type Theme, TABS, type TabKey, USER_ROLE, USER_STATUS, THEME } from '../config';
+import { TABS, type TabKey, USER_ROLE, USER_STATUS } from '../config';
 
 interface LeftNavProps {
   currentTab: TabKey;
@@ -32,7 +30,7 @@ export const LeftNav: React.FC<LeftNavProps> = ({
   setCollapsed,
   onTabReclick
 }) => {
-  const { profile, role, logout, updateProfileDetails } = useAuth();
+  const { profile, role, logout } = useAuth();
   const isAdmin = role === USER_ROLE.ADMIN && profile?.userStatus === USER_STATUS.ACTIVE;
 
   const toggleCollapse = () => {
@@ -130,33 +128,8 @@ export const LeftNav: React.FC<LeftNavProps> = ({
             </button>
           </div>
         )}
-
         <div className="sidebar-footer">
-          {/* Theme Toggle */}
-        <button
-          onClick={async () => {
-            // Treat any value other than 'light' (incl. legacy 'system') as 'dark'
-            const currentTheme: Theme = profile?.theme === THEME.LIGHT ? THEME.LIGHT : THEME.DARK;
-            const nextTheme: Theme = currentTheme === THEME.LIGHT ? THEME.DARK : THEME.LIGHT;
-            try {
-              await updateProfileDetails({ theme: nextTheme });
-            } catch (err) {
-              console.error('Failed to toggle theme:', err);
-            }
-          }}
-          className="sidebar-nav-item"
-          style={{ cursor: 'pointer' }}
-          title={collapsed ? (profile?.theme === THEME.LIGHT ? 'Switch to Dark Mode' : 'Switch to Light Mode') : undefined}
-        >
-          <span className="nav-icon">
-            {profile?.theme === THEME.LIGHT ? <Moon size={18} /> : <Sun size={18} />}
-          </span>
-          <span className="nav-text">
-            {profile?.theme === THEME.LIGHT ? 'Dark Mode' : 'Light Mode'}
-          </span>
-        </button>
-
-        {/* Sign Out */}
+          {/* Sign Out */}
         <button
           onClick={async () => {
             await logout();

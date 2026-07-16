@@ -222,8 +222,7 @@ describe.runIf(!isPerfRun)('Use Case A - Functional Workflows against Firebase E
       gender: 'other',
       country: 'US',
       bio: 'Pending user',
-      timezone: 'UTC',
-      theme: 'light'
+      timezone: 'UTC'
     });
 
     await signInUser(userRecord.uid);
@@ -373,8 +372,7 @@ describe.runIf(!isPerfRun)('Use Case A - Functional Workflows against Firebase E
       gender: 'other',
       country: 'US',
       bio: 'Random user',
-      timezone: 'UTC',
-      theme: 'light'
+      timezone: 'UTC'
     });
 
     await signInUser(userRecord.uid);
@@ -421,7 +419,7 @@ describe.runIf(!isPerfRun)('Use Case A - Functional Workflows against Firebase E
     await adminDb.collection('users').doc(outsider.uid).set({
       userId: outsider.uid, email: 'cacheoutsider@example.com', firstName: 'Cache', lastName: 'Outsider',
       userRole: 'user', userStatus: 'active', createdAt: adminTs.Timestamp.now(),
-      gender: 'other', country: 'US', bio: 'x', timezone: 'UTC', theme: 'light',
+      gender: 'other', country: 'US', bio: 'x', timezone: 'UTC',
     });
     await signInUser(outsider.uid);
     await expect(getDoc(cacheRef)).rejects.toThrow();

@@ -19,7 +19,7 @@ import { SupportFeedback } from './components/SupportFeedback';
 import { isApproved, logAnalyticsEvent, firebaseConfigError } from './services/firebaseService';
 import { ConfigErrorScreen } from './components/ConfigErrorScreen';
 import { Sparkles, AlertTriangle, X } from 'lucide-react';
-import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, THEME } from './config';
+import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE } from './config';
 import { clearProfileFromUrl } from './utils/url';
 import { UnsavedChangesProvider, useUnsavedChanges } from './context/UnsavedChangesContext';
 import { ToastProvider } from './context/ToastContext';
@@ -141,15 +141,7 @@ const AppContent: React.FC = () => {
 
   const approved = isApproved(profile) && (role === USER_ROLE.ADMIN || role === USER_ROLE.USER);
 
-  // Sync theme with document class — only 'light' and 'dark' are supported.
-  // Legacy 'system' values stored in Firestore are treated as 'dark'.
-  useEffect(() => {
-    if (profile?.theme === THEME.LIGHT) {
-      document.documentElement.classList.add('light-theme');
-    } else {
-      document.documentElement.classList.remove('light-theme');
-    }
-  }, [profile?.theme]);
+
 
   // Track page/screen views on transitions
   useEffect(() => {

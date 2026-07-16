@@ -6,7 +6,7 @@ import { sanitizeImageUrl } from '../utils/url';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { useNavigateToProfile } from '../context/UnsavedChangesContext';
 import { formatDisplayName } from '../services/profileService';
-import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, QUALIFICATION, EVENT_TYPE, type Qualification } from '../config';
+import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, EVENT_TYPE, type Qualification } from '../config';
 import { useAuth } from '../context/AuthContext';
 import type { UserProfile } from '../services/types';
 import type { CalendarEvent } from '../services/googleCalendar';
@@ -74,7 +74,7 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
 
   const [now] = useState(() => Date.now());
   const [focusedTabIndex, setFocusedTabIndex] = useState(selectedDayIndex);
-  const [selectedDuration] = useState<30 | 60>(60);
+  const [selectedDuration, setSelectedDuration] = useState<30 | 60>(60);
   const carouselRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -234,7 +234,15 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
         }
         
         const slotIso = slot.startTime.toISOString();
-        const isTemplateAvailable = availableSlots.includes(slotIso);
+        let isTemplateAvailable: boolean;
+        if (selectedDuration === 30) {
+          isTemplateAvailable = availableSlots.includes(slotIso);
+        } else {
+          // For a 60-minute session, both the first and second 30-minute blocks must be available
+          const nextSlotStart = new Date(slot.startTime.getTime() + 30 * 60 * 1000);
+          isTemplateAvailable = availableSlots.includes(slotIso) && availableSlots.includes(nextSlotStart.toISOString());
+        }
+
         if (!isTemplateAvailable) {
           return { slot, isAvailable: false };
         }
@@ -263,7 +271,8 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
     isUserUnavailable,
     isCoachBusy,
     currentUser,
-    profileCache
+    profileCache,
+    selectedDuration
   ]);
 
   const hasAnyAvailabilityConfigured = useMemo(() => {
@@ -297,6 +306,38 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
 
   return (
     <div style={{ width: '100%' }}>
+      {/* Duration Selector for Single Mode */}
+      {mode === 'single' && (
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '20px', justifyContent: 'center' }}>
+          <span style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', fontWeight: 600 }}>
+            Session Duration:
+          </span>
+          {([
+            { value: 30, label: '30 Mins' },
+            { value: 60, label: '1 Hour' }
+          ] as const).map((opt) => {
+            const isActive = selectedDuration === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setSelectedDuration(opt.value)}
+                className={`btn ${isActive ? 'btn-primary' : 'btn-secondary'}`}
+                style={{
+                  padding: '4px 12px',
+                  fontSize: '0.75rem',
+                  borderRadius: '16px',
+                  height: '28px',
+                  fontWeight: 600
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Date Selector Carousel */}
       <div className="carousel-wrapper">
         <button
@@ -456,11 +497,7 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
                                                 </span>
                                               );
                                             })
-                                          ) : (
-                                            <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))', fontStyle: 'italic' }}>
-                                              {QUALIFICATION.UNCERTIFIED}
-                                            </span>
-                                          )}
+                                          ) : null}
                                         </div>
                                       </div>
                                     </div>
@@ -605,7 +642,9 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
                     }}>
                       {displaySlots.map(({ slot, isAvailable }) => {
                         if (!isAvailable) return null;
-                        const timeString = slot.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                        const startString = slot.startTime.toLocaleTimeString([], { timeZone: viewerTimezone, hour: '2-digit', minute: '2-digit' });
+                        const endString = slot.endTime.toLocaleTimeString([], { timeZone: viewerTimezone, hour: '2-digit', minute: '2-digit' });
+                        const timeRangeString = `${startString} - ${endString}`;
                         return (
                           <button
                             key={slot.startTime.toISOString()}
@@ -619,11 +658,11 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
                               justifyContent: 'center',
                               padding: '12px 16px',
                               borderRadius: '12px',
-                              height: '56px',
+                              height: '64px',
                               fontWeight: 700
                             }}
                           >
-                            <span style={{ fontSize: '0.95rem' }}>{timeString}</span>
+                            <span style={{ fontSize: '0.9rem' }}>{timeRangeString}</span>
                             <span style={{ fontSize: '0.65rem', opacity: 0.8, fontWeight: 500 }}>
                               {getTimezoneCode(slot.startTime, viewerTimezone)}
                             </span>

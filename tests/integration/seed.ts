@@ -88,7 +88,6 @@ export async function seedDatabase() {
       timezone: 'UTC',
       userRole: role,
       userStatus: status,
-      theme: 'light',
       createdAt: Timestamp.now(),
     };
 

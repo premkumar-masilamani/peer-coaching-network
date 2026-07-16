@@ -12,7 +12,6 @@ import {
   type UserStatus,
   USER_ROLE,
   USER_STATUS,
-  THEME,
 } from '../config';
 import { auth, db } from './firebaseApp';
 import {
@@ -67,7 +66,6 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
       country: '',
       bio: '',
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
-      theme: THEME.LIGHT,
       icf_acc: false,
       icf_pcc: false,
       icf_mcc: false,

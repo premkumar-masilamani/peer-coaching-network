@@ -80,7 +80,6 @@ const makeProfile = (overrides: PartialProfile): any => ({
   timezone: 'UTC',
   userRole: 'coachee',
   userStatus: 'inactive',
-  theme: 'light',
   ...overrides,
 });
 

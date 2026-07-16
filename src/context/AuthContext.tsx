@@ -79,8 +79,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const roleVal = getEffectiveRole(prof);
       setRole(status === USER_STATUS.ACTIVE ? roleVal : null);
 
-      // If the user is an active coach, trigger lazy available slots cache recalculation
-      if (status === USER_STATUS.ACTIVE && roleVal === USER_ROLE.USER) {
+      // If the user is active (coach or admin), trigger lazy available slots cache recalculation
+      if (status === USER_STATUS.ACTIVE && (roleVal === USER_ROLE.USER || roleVal === USER_ROLE.ADMIN)) {
         lazyRecalculateAvailableSlotsCache(uid);
       }
     } else {
