@@ -1,7 +1,7 @@
 import React from 'react';
-import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, USER_STATUS, ENABLE_GOOGLE_INTEGRATION, GOOGLE_TOKEN_STATUS } from '../config';
+import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, USER_STATUS } from '../config';
 import { useAuth } from '../context/AuthContext';
-import { Sparkles, Shield, CalendarCheck, CalendarX } from 'lucide-react';
+import { Sparkles, Shield } from 'lucide-react';
 import { formatDisplayName, formatMemberSince, isApproved, getPendingUsersCount } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
@@ -12,7 +12,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ setCurrentTab }) => {
-  const { user, profile, role, googleTokenStatus, login } = useAuth();
+  const { user, profile, role } = useAuth();
   const [pendingCount, setPendingCount] = React.useState(0);
 
   const isActive = isApproved(profile);
@@ -109,64 +109,6 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab }) => {
 
         {/* User Badge and Menu */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* Google Calendar Connection Status Badge */}
-          {ENABLE_GOOGLE_INTEGRATION && (
-            <button
-              type="button"
-              onClick={login}
-              className={googleTokenStatus === GOOGLE_TOKEN_STATUS.EXPIRED ? 'animate-pulse-warning' : ''}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '0.75rem',
-                padding: '6px 10px',
-                borderRadius: '20px',
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                border: '1px solid transparent',
-                transition: 'all 0.2s ease',
-                ...(googleTokenStatus === GOOGLE_TOKEN_STATUS.CONNECTED
-                  ? {
-                      background: 'rgba(16, 185, 129, 0.08)',
-                      borderColor: 'rgba(16, 185, 129, 0.2)',
-                      color: '#10b981',
-                    }
-                  : googleTokenStatus === GOOGLE_TOKEN_STATUS.EXPIRED
-                  ? {
-                      background: 'rgba(245, 158, 11, 0.08)',
-                      borderColor: 'rgba(245, 158, 11, 0.2)',
-                      color: '#f59e0b',
-                    }
-                  : {
-                      background: 'rgba(156, 163, 175, 0.08)',
-                      borderColor: 'rgba(156, 163, 175, 0.2)',
-                      color: 'hsl(var(--text-muted))',
-                    }),
-              }}
-              title={
-                googleTokenStatus === GOOGLE_TOKEN_STATUS.CONNECTED
-                  ? 'Google Calendar Linked. Click to reconnect/change account.'
-                  : googleTokenStatus === GOOGLE_TOKEN_STATUS.EXPIRED
-                  ? 'Your Google Calendar connection has expired. Click to reconnect.'
-                  : 'Google Calendar is disconnected. Click to link your account.'
-              }
-            >
-              {googleTokenStatus === GOOGLE_TOKEN_STATUS.CONNECTED ? (
-                <CalendarCheck size={13} />
-              ) : (
-                <CalendarX size={13} />
-              )}
-              <span>
-                {googleTokenStatus === GOOGLE_TOKEN_STATUS.CONNECTED
-                  ? 'Calendar Linked'
-                  : googleTokenStatus === GOOGLE_TOKEN_STATUS.EXPIRED
-                  ? 'Calendar Expired (Reconnect)'
-                  : 'Calendar Offline (Connect)'}
-              </span>
-            </button>
-          )}
-
           {/* Member Requests link for Admin */}
           {isActiveAdmin && pendingCount > 0 && (
             <button
