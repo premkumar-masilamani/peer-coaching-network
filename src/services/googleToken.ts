@@ -1,5 +1,3 @@
-import { GOOGLE_TOKEN_STATUS, type GoogleTokenStatus } from '../config';
-
 // In-memory holder for the Google OAuth access token.
 //
 // The token is deliberately NOT persisted to localStorage so it cannot be
@@ -57,19 +55,22 @@ export const clearGoogleToken = (): void => {
   sessionStorage.removeItem('google_token_obtained_at');
 };
 
-export const getGoogleTokenExpiryStatus = (): GoogleTokenStatus => {
+// True only when a token was obtained in this session AND it has since crossed
+// the expiry threshold. Used to decide whether to force a fresh Google OAuth
+// redirect when the user next touches the Calendar. Deliberately requires the
+// obtained-at marker to be present so a user who never connected (or who
+// declined the Calendar scope, leaving no marker) is not bounced into an
+// endless redirect loop.
+export const hasExpiredGoogleToken = (): boolean => {
   const token = sessionStorage.getItem('google_access_token');
   const obtainedAtStr = sessionStorage.getItem('google_token_obtained_at');
   if (!token || !obtainedAtStr) {
-    return GOOGLE_TOKEN_STATUS.DISCONNECTED;
+    return false;
   }
   const obtainedAt = parseInt(obtainedAtStr, 10);
   if (isNaN(obtainedAt)) {
-    return GOOGLE_TOKEN_STATUS.DISCONNECTED;
+    return false;
   }
-  if (Date.now() - obtainedAt > EXPIRY_THRESHOLD_MS) {
-    return GOOGLE_TOKEN_STATUS.EXPIRED;
-  }
-  return GOOGLE_TOKEN_STATUS.CONNECTED;
+  return Date.now() - obtainedAt > EXPIRY_THRESHOLD_MS;
 };
 

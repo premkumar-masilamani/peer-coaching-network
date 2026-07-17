@@ -123,8 +123,9 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
         if (!response.ok) {
           // Previously swallowed with no else branch: the user saw an empty
           // calendar instead of a reason. A 401 means the token is no longer
-          // valid — clear it so the app's reconnect UI (driven by
-          // getGoogleTokenExpiryStatus) prompts a re-auth (ties into PCN-008).
+          // valid — clear it and record the telemetry. A subsequent booking or
+          // cancel then hits the null-token path and forces a fresh OAuth
+          // redirect.
           if (response.status === 401) {
             clearGoogleToken();
             await logger.telemetry(LOG_SEVERITY.ERROR, 'fetch_events_failure', {

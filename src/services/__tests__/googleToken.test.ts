@@ -3,9 +3,8 @@ import {
   setGoogleToken,
   getGoogleToken,
   clearGoogleToken,
-  getGoogleTokenExpiryStatus
+  hasExpiredGoogleToken
 } from '../googleToken';
-import { GOOGLE_TOKEN_STATUS } from '../../config';
 
 describe('googleToken manager', () => {
   beforeEach(() => {
@@ -56,16 +55,29 @@ describe('googleToken manager', () => {
     // Advance time by 3499 seconds - should still be valid
     vi.advanceTimersByTime(3499 * 1000);
     expect(getGoogleToken()).toBe('test-token');
-    expect(getGoogleTokenExpiryStatus()).toBe(GOOGLE_TOKEN_STATUS.CONNECTED);
+    expect(hasExpiredGoogleToken()).toBe(false);
 
     // Advance by 2 more seconds (total 3501 seconds) - should be expired
     vi.advanceTimersByTime(2 * 1000);
-    expect(getGoogleTokenExpiryStatus()).toBe(GOOGLE_TOKEN_STATUS.EXPIRED);
+    expect(hasExpiredGoogleToken()).toBe(true);
     expect(getGoogleToken()).toBeNull();
   });
 
-  it('returns DISCONNECTED status when no token has ever been set', () => {
-    expect(getGoogleTokenExpiryStatus()).toBe(GOOGLE_TOKEN_STATUS.DISCONNECTED);
+  it('hasExpiredGoogleToken is false when no token has ever been set', () => {
+    expect(hasExpiredGoogleToken()).toBe(false);
+  });
+
+  it('hasExpiredGoogleToken is false right after a token is obtained', () => {
+    setGoogleToken('test-token');
+    expect(hasExpiredGoogleToken()).toBe(false);
+  });
+
+  it('hasExpiredGoogleToken stays false after the token is cleared', () => {
+    setGoogleToken('test-token');
+    vi.advanceTimersByTime(3600 * 1000);
+    clearGoogleToken();
+    // No obtained-at marker remains, so no forced-reauth redirect is triggered.
+    expect(hasExpiredGoogleToken()).toBe(false);
   });
 });
 

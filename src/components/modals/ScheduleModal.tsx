@@ -126,15 +126,17 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         } else if (err.message === BOOKING_ERROR.BOOKED_AS_CLIENT || err.message === BOOKING_ERROR.BOOKED_AS_COACH) {
           message = BOOKING_ERROR_MESSAGES[BOOKING_ERROR.BOOKED_AS_CLIENT];
         } else if (errCode === BOOKING_ERROR.GOOGLE_TOKEN_EXPIRED) {
-          message = BOOKING_ERROR_MESSAGES[BOOKING_ERROR.GOOGLE_TOKEN_EXPIRED];
-          setBookingStatus(SCHEDULE_MODAL_STATUS.TOKEN_EXPIRED);
-          setErrorMsg(message);
+          // The Google token has expired. Rather than surface a reconnect
+          // prompt, send the user straight through the OAuth redirect for a
+          // fresh token; the in-progress booking is abandoned and can be retried
+          // after they return.
           logAnalyticsEvent('booking_failure', {
             coachUid: coach.userId,
             startTime: startTime.toISOString(),
-            error: message,
+            error: 'google_token_expired_reauth',
             code: errCode,
           });
+          login().catch((e) => logger.error('Re-authentication redirect failed:', e));
           return;
         } else if ((err as { code?: string }).code === BOOKING_ERROR.GOOGLE_API_ERROR) {
           message = err.message;
@@ -301,7 +303,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
 
 
           {/* Error message (e.g. slot just taken) */}
-          {(bookingStatus === SCHEDULE_MODAL_STATUS.ERROR || bookingStatus === SCHEDULE_MODAL_STATUS.TOKEN_EXPIRED) && errorMsg && (
+          {bookingStatus === SCHEDULE_MODAL_STATUS.ERROR && errorMsg && (
             <div style={{
               display: 'flex',
               gap: '8px',
@@ -323,22 +325,13 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
             <button type="button" onClick={onClose} className="btn btn-secondary" style={{ flex: 1 }}>
               Cancel
             </button>
-            <button 
-              type={bookingStatus === SCHEDULE_MODAL_STATUS.TOKEN_EXPIRED ? 'button' : 'submit'}
-              onClick={bookingStatus === SCHEDULE_MODAL_STATUS.TOKEN_EXPIRED ? async () => {
-                try {
-                  await login();
-                  setBookingStatus(SCHEDULE_MODAL_STATUS.IDLE);
-                  setErrorMsg('');
-                } catch (e) {
-                  logger.error('Re-login failed', e);
-                }
-              } : undefined}
+            <button
+              type="submit"
               className="btn btn-primary"
               disabled={bookingStatus === SCHEDULE_MODAL_STATUS.BOOKING}
               style={{ flex: 2 }}
             >
-              {bookingStatus === SCHEDULE_MODAL_STATUS.BOOKING ? 'Scheduling...' : bookingStatus === SCHEDULE_MODAL_STATUS.TOKEN_EXPIRED ? 'Reconnect Google' : 'Confirm Session'}
+              {bookingStatus === SCHEDULE_MODAL_STATUS.BOOKING ? 'Scheduling...' : 'Confirm Session'}
             </button>
           </div>
         </form>
