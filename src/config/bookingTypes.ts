@@ -38,6 +38,5 @@ export const SCHEDULE_MODAL_STATUS = {
   BOOKING: 'booking',
   SUCCESS: 'success',
   ERROR: 'error',
-  TOKEN_EXPIRED: 'token_expired',
 } as const;
 export type ScheduleModalStatus = (typeof SCHEDULE_MODAL_STATUS)[keyof typeof SCHEDULE_MODAL_STATUS];

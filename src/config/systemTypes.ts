@@ -35,15 +35,3 @@ export const SUPPORT_CATEGORY = {
 export const SUPPORT_CATEGORIES = [SUPPORT_CATEGORY.BUG, SUPPORT_CATEGORY.FEATURE, SUPPORT_CATEGORY.INQUIRY] as const;
 export type SupportCategory = (typeof SUPPORT_CATEGORIES)[number];
 
-export const GOOGLE_TOKEN_STATUS = {
-  CONNECTED: 'connected',
-  EXPIRED: 'expired',
-  DISCONNECTED: 'disconnected',
-} as const;
-export const GOOGLE_TOKEN_STATUSES = [
-  GOOGLE_TOKEN_STATUS.CONNECTED,
-  GOOGLE_TOKEN_STATUS.EXPIRED,
-  GOOGLE_TOKEN_STATUS.DISCONNECTED,
-] as const;
-export type GoogleTokenStatus = (typeof GOOGLE_TOKEN_STATUSES)[number];
-
