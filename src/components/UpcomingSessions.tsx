@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
 
 import { queryAvailableCoachesForDay, getUserBookings, getProfiles } from '../services/firebaseService';
+import { hasExpiredGoogleToken } from '../services/googleToken';
 import { getCredentialDescription } from '../utils/credentials';
 import type { UserProfile, DiscoveryFilters } from '../services/firebaseService';
 import { 
@@ -29,11 +30,11 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getTimezoneCode, getUtcForLocalDateTime } from '../utils/timezoneHelpers';
 import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
-import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE } from '../config';
+import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE, ENABLE_GOOGLE_INTEGRATION, BOOKING_ERROR } from '../config';
 
 
 export const UpcomingSessions: React.FC = () => {
-  const { user: currentUser, profile } = useAuth();
+  const { user: currentUser, profile, login } = useAuth();
   const { showToast } = useToast();
   
   // List states
@@ -201,6 +202,14 @@ export const UpcomingSessions: React.FC = () => {
   }, [currentUser]);
 
   const loadGoogleCalendarEvents = useCallback(async () => {
+    // If a Google token was obtained earlier this session but has since expired,
+    // force a fresh OAuth redirect rather than loading the dashboard with a
+    // silently-empty calendar. The redirect guard in loginWithGoogle keeps this
+    // from firing more than once even if several loaders detect expiry at once.
+    if (ENABLE_GOOGLE_INTEGRATION && hasExpiredGoogleToken()) {
+      login().catch((e) => console.error('Re-authentication redirect failed:', e));
+      return;
+    }
     const requestId = ++gcalRequestIdRef.current;
     try {
       const allEvents = await getUpcomingEvents();
@@ -210,7 +219,7 @@ export const UpcomingSessions: React.FC = () => {
       if (requestId !== gcalRequestIdRef.current) return;
       console.error('Error loading Google Calendar events:', e);
     }
-  }, []);
+  }, [login]);
 
   const loadDayAvailability = useCallback(async () => {
     const requestId = ++queryRequestIdRef.current;
@@ -622,6 +631,12 @@ export const UpcomingSessions: React.FC = () => {
             await handleRefresh();
           } catch (err) {
             console.error('Failed to cancel booking:', err);
+            if ((err as { code?: string }).code === BOOKING_ERROR.GOOGLE_TOKEN_EXPIRED) {
+              // Expired Google token: send the user through a fresh OAuth
+              // redirect instead of a generic failure toast.
+              login().catch((e) => console.error('Re-authentication redirect failed:', e));
+              return;
+            }
             showToast('Failed to cancel booking. Please try again.');
           } finally {
             setCancellingId(null);

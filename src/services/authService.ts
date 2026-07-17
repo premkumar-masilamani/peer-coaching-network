@@ -105,7 +105,16 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
   }
 };
 
+// Guard against firing signInWithRedirect more than once before the browser
+// actually navigates away. Expiry can be detected from several places at nearly
+// the same time (dashboard load, a window-focus refresh, a booking attempt);
+// without this, each could kick off its own redirect.
+let redirectInFlight = false;
+
 export const loginWithGoogle = async (): Promise<void> => {
+  if (redirectInFlight) return;
+  redirectInFlight = true;
+
   const provider = new GoogleAuthProvider();
   // Request Google Calendar access. Only the events scope is needed: every
   // Calendar API call in this app is event CRUD on the user's primary calendar
@@ -116,7 +125,13 @@ export const loginWithGoogle = async (): Promise<void> => {
   // Force Google to prompt the user to select an account on login
   provider.setCustomParameters({ prompt: 'select_account' });
 
-  await signInWithRedirect(auth, provider);
+  try {
+    await signInWithRedirect(auth, provider);
+  } catch (e) {
+    // Navigation never happened, so allow a later retry.
+    redirectInFlight = false;
+    throw e;
+  }
 };
 
 export const handleAuthRedirect = async (): Promise<boolean> => {
