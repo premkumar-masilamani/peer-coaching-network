@@ -36,25 +36,11 @@ const PROJECT_ID = 'peer-coaching-network-dev';
 /** Auth emulator base URL. */
 const AUTH_EMULATOR_URL = 'http://127.0.0.1:9099';
 
-/** Number of future days for which availability is pre-computed. */
-const BOOKING_HORIZON_DAYS = 30;
-
-/**
- * The booking UI starts from tomorrow, not today.
- * Mirrors BOOKING_START_OFFSET_DAYS in src/config/constants.ts.
- */
-const BOOKING_START_OFFSET_DAYS = 1;
-
-/** Slot duration in minutes — must match SLOT_DURATION_MS / 60000 in src/config. */
-const SLOT_DURATION_MINUTES = 30;
-
 const COLLECTIONS = {
   USERS: 'users',
   SCHEDULE: 'schedule',
   AVAILABLE_DAYS: 'availableDays',
   BLOCKED_DATES: 'blockedDates',
-  PERSONAL_AVAILABILITY_CACHE: 'personalAvailabilityCache',
-  COACH_AVAILABILITY_BY_DATE: 'coachAvailabilityByDate',
 };
 
 /** Required fields every entry in seed-users.json must have. */
@@ -132,79 +118,10 @@ async function signInWithGoogleEmulator(email, displayName) {
   return data.localId;
 }
 
-// ── Timezone helpers (faithfully ported from src/utils/timezoneHelpers.ts) ────
-
-/** Return the 24-hour value from Intl.DateTimeFormat parts. */
-function getHour24(parts) {
-  let hour = parseInt(parts.find(p => p.type === 'hour').value, 10);
-  const dayPeriod = parts.find(p => p.type === 'dayPeriod')?.value;
-  if (dayPeriod) {
-    const dp = dayPeriod.toLowerCase();
-    if ((dp.includes('pm') || dp === 'pm') && hour < 12) hour += 12;
-    else if ((dp.includes('am') || dp === 'am') && hour === 12) hour = 0;
-  }
-  return hour;
-}
-
-/**
- * Fixed-point UTC ↔ local time conversion.
- * Mirrors getUtcForLocalDateTime from src/utils/timezoneHelpers.ts exactly,
- * including the DST convergence loop and day-diff calculation.
- */
-function getUtcForLocalDateTime(year, month, day, hour, minute, timeZone) {
-  let utcGuess = new Date(Date.UTC(year, month - 1, day, hour, minute));
-
-  for (let i = 0; i < 5; i++) {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      timeZone,
-      year: 'numeric', month: 'numeric', day: 'numeric',
-      hour: 'numeric', minute: 'numeric', hourCycle: 'h23',
-    }).formatToParts(utcGuess);
-
-    const tzYear   = parseInt(parts.find(p => p.type === 'year').value, 10);
-    const tzMonth  = parseInt(parts.find(p => p.type === 'month').value, 10);
-    const tzDay    = parseInt(parts.find(p => p.type === 'day').value, 10);
-    const tzHour   = getHour24(parts);
-    const tzMinute = parseInt(parts.find(p => p.type === 'minute').value, 10);
-
-    const targetMinutes  = hour * 60 + minute;
-    const currentMinutes = tzHour * 60 + tzMinute;
-
-    const targetDate  = new Date(Date.UTC(year, month - 1, day, 0, 0));
-    const currentDate = new Date(Date.UTC(tzYear, tzMonth - 1, tzDay, 0, 0));
-    const dayDiff     = (targetDate.getTime() - currentDate.getTime()) / (24 * 60 * 60 * 1000);
-
-    const diffMinutes = dayDiff * 24 * 60 + (targetMinutes - currentMinutes);
-    if (diffMinutes === 0) break;
-
-    utcGuess = new Date(utcGuess.getTime() + diffMinutes * 60 * 1000);
-  }
-
-  return utcGuess;
-}
-
-/**
- * Return the local calendar date (plain Date, time zeroed) for a given UTC
- * instant in the specified timezone. Mirrors getLocalDateInTimezone.
- */
-function getLocalDateInTimezone(date, timeZone) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone, year: 'numeric', month: 'numeric', day: 'numeric',
-  }).formatToParts(date);
-
-  const y = parseInt(parts.find(p => p.type === 'year').value, 10);
-  const m = parseInt(parts.find(p => p.type === 'month').value, 10);
-  const d = parseInt(parts.find(p => p.type === 'day').value, 10);
-
-  return new Date(y, m - 1, d);
-}
-
 // ── Default available days (mirrors DEFAULT_AVAILABLE_DAYS in slotsService.ts) ─
 function makeTimeTimestamp(utcHour, utcMinute) {
   return Timestamp.fromDate(new Date(Date.UTC(1970, 0, 1, utcHour, utcMinute, 0, 0)));
 }
-
-const DAYS_OF_WEEK = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
 const DEFAULT_AVAILABLE_DAYS = {
   monday:    { enabled: true,  slots: [{ startTime: makeTimeTimestamp(9, 0), endTime: makeTimeTimestamp(17, 0) }] },
@@ -215,74 +132,6 @@ const DEFAULT_AVAILABLE_DAYS = {
   saturday:  { enabled: false, slots: [{ startTime: makeTimeTimestamp(9, 0), endTime: makeTimeTimestamp(17, 0) }] },
   sunday:    { enabled: false, slots: [{ startTime: makeTimeTimestamp(9, 0), endTime: makeTimeTimestamp(17, 0) }] },
 };
-
-/** Convert a stored time Timestamp (epoch-based, UTC) to { hour, minute }. */
-function timestampToUtcHourMinute(ts) {
-  const d = ts.toDate();
-  return { hour: d.getUTCHours(), minute: d.getUTCMinutes() };
-}
-
-/**
- * Generate available slot ISO strings for a single calendar date.
- * Faithfully mirrors generateSlotsForDate from src/services/slotsService.ts,
- * using 30-minute increments to match SLOT_DURATION_MINUTES.
- */
-function generateSlotsForDate(date, availableDays, blockedDates, timezone) {
-  const year  = date.getFullYear();
-  const month = date.getMonth() + 1;
-  const day   = date.getDate();
-
-  const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-  if (blockedDates.includes(dateStr)) return [];
-
-  const dayName  = DAYS_OF_WEEK[date.getDay()];
-  const daySched = availableDays[dayName] || { enabled: false, slots: [] };
-
-  if (!daySched.enabled || !daySched.slots || daySched.slots.length === 0) return [];
-
-  const slots = [];
-  for (const slot of daySched.slots) {
-    const { hour: startHour, minute: startMinute } = timestampToUtcHourMinute(slot.startTime);
-    const { hour: endHour,   minute: endMinute }   = timestampToUtcHourMinute(slot.endTime);
-
-    const startTotalMinutes = startHour * 60 + startMinute;
-    const endTotalMinutes   = endHour   * 60 + endMinute;
-
-    for (let min = startTotalMinutes; min < endTotalMinutes; min += SLOT_DURATION_MINUTES) {
-      const slotHour   = Math.floor(min / 60);
-      const slotMinute = min % 60;
-      slots.push(getUtcForLocalDateTime(year, month, day, slotHour, slotMinute, timezone).toISOString());
-    }
-  }
-  return slots;
-}
-
-/**
- * Compute availability for the booking horizon.
- * Starts at BOOKING_START_OFFSET_DAYS (tomorrow) — matches the booking UI.
- */
-function computeAvailability(timezone) {
-  const localToday = getLocalDateInTimezone(new Date(), timezone);
-  const allSlots = [];
-
-  for (let i = BOOKING_START_OFFSET_DAYS; i <= BOOKING_HORIZON_DAYS; i++) {
-    const currentDate = new Date(localToday);
-    currentDate.setDate(localToday.getDate() + i);
-    allSlots.push(...generateSlotsForDate(currentDate, DEFAULT_AVAILABLE_DAYS, [], timezone));
-  }
-
-  const freeSlots = [...new Set(allSlots)].sort();
-  const availableDatesUtc = [...new Set(freeSlots.map(s => s.split('T')[0]))].sort();
-
-  const slotsByDate = new Map();
-  for (const iso of freeSlots) {
-    const dateISO = iso.split('T')[0];
-    if (!slotsByDate.has(dateISO)) slotsByDate.set(dateISO, []);
-    slotsByDate.get(dateISO).push(iso);
-  }
-
-  return { freeSlots, availableDatesUtc, slotsByDate };
-}
 
 // ── Input validation ──────────────────────────────────────────────────────────
 
@@ -377,48 +226,6 @@ async function seedUser(userData) {
     blockedDatesRef.set({ blockedDates: [] }),
   ]);
   console.log(`  ↳ Schedule sub-documents written.`);
-
-  // ── 4. Compute & write availability caches (active coaches only) ───────────
-  if (status !== 'active') {
-    console.log(`  ↳ Skipping availability cache (status=${status}).`);
-    return;
-  }
-
-  const filterFields = { gender, country, icf_acc, icf_pcc, icf_mcc, icf_actc };
-  const { freeSlots, availableDatesUtc, slotsByDate } = computeAvailability(timezone);
-  const lastUpdated = new Date().toISOString();
-
-  // personalAvailabilityCache/{uid}
-  const cacheRef  = db.collection(COLLECTIONS.PERSONAL_AVAILABILITY_CACHE).doc(uid);
-
-  await cacheRef.set({
-    userId: uid,
-    lastUpdated,
-    availableSlots: freeSlots,
-    availableDatesUtc,
-    ...filterFields,
-    userStatus: status,
-  });
-  console.log(`  ↳ personalAvailabilityCache written (${freeSlots.length} slots across ${availableDatesUtc.length} days).`);
-
-  // coachAvailabilityByDate shards — always written via batch.set() (idempotent).
-  // Firestore hard limit is 500 writes per batch; 490 gives safe headroom.
-  const BATCH_LIMIT = 490;
-  const entries = [...slotsByDate.entries()];
-  let shardsWritten = 0;
-
-  for (let i = 0; i < entries.length; i += BATCH_LIMIT) {
-    const batch = db.batch();
-    const chunk = entries.slice(i, i + BATCH_LIMIT);
-    for (const [dateISO, slots] of chunk) {
-      const shardRef = db.collection(COLLECTIONS.COACH_AVAILABILITY_BY_DATE).doc(`${uid}_${dateISO}`);
-      batch.set(shardRef, { coachUid: uid, dateISO, freeSlots: slots, lastUpdated, ...filterFields });
-    }
-    await batch.commit();
-    shardsWritten += chunk.length;
-  }
-
-  console.log(`  ↳ coachAvailabilityByDate shards written (${shardsWritten} date shards).`);
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────────

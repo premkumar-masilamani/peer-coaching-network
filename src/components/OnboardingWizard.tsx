@@ -121,29 +121,33 @@ export const OnboardingWizard: React.FC = () => {
 
                 <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginTop: '16px', marginBottom: '8px' }}>2. Platform Rules</h4>
                 <p style={{ marginBottom: '12px' }}>
+                  <strong>Access & Permissions:</strong> Access is restricted to Google login (Gmail). By logging in, you grant the platform permission to access your basic profile information (name, email, profile picture) and manage events in your Google Calendar for scheduling.
+                </p>
+                <p style={{ marginBottom: '12px' }}>
                   <strong>Open Access:</strong> This is an open platform. By creating an account, you acknowledge that any other registered coach may discover your profile and book a session with you.
                 </p>
-                <p style={{ marginBottom: '16px' }}>
-                  <strong>Commitment:</strong> Honoring scheduled sessions is essential. You must provide at least 24 hours' notice for any cancellations or rescheduling. Chronic no-shows may lead to account suspension.
+                <p style={{ marginBottom: '12px' }}>
+                  <strong>Session Bookings:</strong> You would be able to book the sessions from the next day, all the way to 30 days in the future. No bookings are permitted for the current day.
                 </p>
-
+                <p style={{ marginBottom: '16px' }}>
+                  <strong>Commitment:</strong> Honoring scheduled sessions is essential. You must provide at least 24 hours notice for any cancellations or rescheduling. Chronic no-shows may lead to account suspension.
+                </p>
                 <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginTop: '16px', marginBottom: '8px' }}>3. Verification Process</h4>
                 <p style={{ marginBottom: '12px' }}>
                   All coaching credentials are subject to manual administrator review. Please provide one of the following for verification:
                 </p>
                 <p style={{ marginBottom: '12px' }}>
-                  <strong>Publicly Verifiable Link:</strong> Provide a link to your digital badge (e.g., <a href="https://www.credly.com/badges/fc25c64a-832d-4704-aee5-e96f67ee0ff4" target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>https://www.credly.com/badges/fc25c64a-832d-4704-aee5-e96f67ee0ff4</a>).
+                  <strong>Publicly Verifiable Link:</strong> Provide a link to your ICF digital badge. Sample badge: <a href="https://www.credly.com/badges/fc25c64a-832d-4704-aee5-e96f67ee0ff4" target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>https://www.credly.com/badges/fc25c64a-832d-4704-aee5-e96f67ee0ff4</a>
                 </p>
                 <p style={{ marginBottom: '16px' }}>
-                  <strong>Certification PDF:</strong> Provide a direct link to your certification document (e.g., <a href="https://www.premkumarmasilamani.com/downloads/profile/2025-ICF-ACC.pdf" target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>https://www.premkumarmasilamani.com/downloads/profile/2025-ICF-ACC.pdf</a>).
+                  <strong>Certification PDF:</strong> Provide a direct link to your certification pdf document. Sample pdf: <a href="https://www.premkumarmasilamani.com/downloads/profile/2025-ICF-ACC.pdf" target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>https://www.premkumarmasilamani.com/downloads/profile/2025-ICF-ACC.pdf</a>
                 </p>
-
-                <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginTop: '16px', marginBottom: '8px' }}>4. Software</h4>
-                <p style={{ marginBottom: '12px' }}>
-                  <strong>Access & Permissions:</strong> Access is restricted to Google login (Gmail). By logging in, you grant the platform permission to access your basic profile information (name, email, profile picture) and manage events in your Google Calendar for scheduling.
+                <p style={{ marginBottom: '16px' }}>
+                  <strong>Contact Admin:</strong> If you dont have these publicly verifiable documents, you will be tagged as uncertified coach. Please feel free to contact the administrator to verify in any other way.
                 </p>
+                <h4 style={{ fontWeight: 700, color: 'hsl(var(--text-primary))', marginTop: '16px', marginBottom: '8px' }}>4. Experimental Software</h4>
                 <p style={{ marginBottom: '8px' }}>
-                  <strong>Experimental Software:</strong> This software is in an experimental stage and may contain bugs. Please report any issues directly to the administrator using the built-in support system.
+                  This software is in an experimental stage and may contain bugs. Please report any issues directly to the administrator using the built-in support system.
                 </p>
               </div>
 
