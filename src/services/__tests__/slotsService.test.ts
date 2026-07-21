@@ -137,12 +137,16 @@ describe('slotsService', () => {
       expect(mockBatchCommit).toHaveBeenCalledTimes(1);
     });
 
-    it('skips the day-shard rebuild when recalc runs on another user\'s session (admin)', async () => {
-      H.authState.currentUser = { uid: 'admin-1' };
-      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ timezone: 'UTC', gender: 'female', country: 'IN', userStatus: 'active' }) });
-      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => allDaysEnabled });
-      mockGetDoc.mockResolvedValueOnce({ exists: () => true, data: () => ({ blockedDates: [] }) });
-      mockGetDoc.mockResolvedValueOnce({ exists: () => false }); // existing cache is missing
+    it('skips the day-shard rebuild when recalc runs on another user\'s session who is not an admin', async () => {
+      H.authState.currentUser = { uid: 'non-admin-1' };
+      mockGetDoc.mockImplementation(async (ref: any) => {
+        if (ref.path === 'users/coach-x') return { exists: () => true, data: () => ({ timezone: 'UTC', gender: 'female', country: 'IN', userStatus: 'active', userRole: 'user' }) };
+        if (ref.path === 'users/coach-x/schedule/availableDays') return { exists: () => true, data: () => allDaysEnabled };
+        if (ref.path === 'users/coach-x/schedule/blockedDates') return { exists: () => true, data: () => ({ blockedDates: [] }) };
+        if (ref.path === 'personalAvailabilityCache/coach-x') return { exists: () => false };
+        if (ref.path === 'users/non-admin-1') return { exists: () => true, data: () => ({ userRole: 'user', userStatus: 'active' }) };
+        return { exists: () => false };
+      });
       mockSetDoc.mockResolvedValue(undefined);
 
       await recalculateAvailableSlotsCache('coach-x');
@@ -152,6 +156,27 @@ describe('slotsService', () => {
       expect(mockGetDocs).not.toHaveBeenCalled();
       expect(mockBatchSet).not.toHaveBeenCalled();
       expect(mockBatchCommit).not.toHaveBeenCalled();
+    });
+
+    it('does not skip the day-shard rebuild when recalc runs on another user\'s session who is an admin', async () => {
+      H.authState.currentUser = { uid: 'admin-1' };
+      mockGetDoc.mockImplementation(async (ref: any) => {
+        if (ref.path === 'users/coach-x') return { exists: () => true, data: () => ({ timezone: 'UTC', gender: 'female', country: 'IN', userStatus: 'active', userRole: 'user' }) };
+        if (ref.path === 'users/coach-x/schedule/availableDays') return { exists: () => true, data: () => allDaysEnabled };
+        if (ref.path === 'users/coach-x/schedule/blockedDates') return { exists: () => true, data: () => ({ blockedDates: [] }) };
+        if (ref.path === 'personalAvailabilityCache/coach-x') return { exists: () => false };
+        if (ref.path === 'users/admin-1') return { exists: () => true, data: () => ({ userRole: 'admin', userStatus: 'active' }) };
+        return { exists: () => false };
+      });
+      mockGetDocs.mockResolvedValueOnce({ forEach: () => {} });
+      mockSetDoc.mockResolvedValue(undefined);
+
+      await recalculateAvailableSlotsCache('coach-x');
+
+      const aggCall = mockSetDoc.mock.calls.find((c: any) => c[0].path?.startsWith('personalAvailabilityCache'));
+      expect(aggCall).toBeDefined();
+      expect(mockBatchSet).toHaveBeenCalled();
+      expect(mockBatchCommit).toHaveBeenCalled();
     });
 
     it('deduplicates hourly slots produced by overlapping template ranges', async () => {
