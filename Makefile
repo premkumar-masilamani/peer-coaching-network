@@ -21,7 +21,7 @@ dev:
 
 .PHONY: local
 local:
-	npm run emulator:seed && npm run vite -- --mode development
+	npm run emulator:seed && npm run vite -- --mode local
 
 .PHONY: lint
 lint:
