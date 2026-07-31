@@ -1,48 +1,56 @@
-.PHONY: install build-dev build-prod dev lint test test-int test-perf emulator local erd deploy-dev deploy-prod
-
 # Default variables for dynamic overrides
 N ?= 3
 P95 ?= 3000
 
+.PHONY: install
 install:
 	npm install
 	git config core.hooksPath .githooks
 
-build-dev:
+.PHONY: build_dev
+build_dev:
 	set -a && . ./.env.development && set +a && npm run tsc && npm run vite -- build --mode production
 
-build-prod:
+.PHONY: build_prod
+build_prod:
 	set -a && . ./.env.production && set +a && npm run tsc && npm run vite -- build --mode production
 
-
+.PHONY: dev
 dev:
 	npm run vite -- --mode development
 
+.PHONY: local
 local:
-	npm run emulator:seed && npm run vite -- --mode emulator
+	npm run emulator:seed && npm run vite -- --mode local
 
+.PHONY: lint
 lint:
 	npm run tsc && npm run eslint
 
-# Tests: Unit & Integration run with coverage by default
-test:
+.PHONY: unit_test
+unit_test:
 	npm run vitest -- --project=unit --coverage
 
-test-int:
+.PHONY: integration_test
+integration_test:
 	TEST_USER_COUNT=$(N) npm run vitest -- --project=integration --coverage
 
-# Performance: Explicitly runs without coverage
-test-perf:
+.PHONY: performance_test
+performance_test:
 	TEST_USER_COUNT=$(or $(N),100) PERF_P95_THRESHOLD_MS=$(P95) npm run vitest -- --project=integration --reporter=verbose
 
+.PHONY: emulator
 emulator:
 	firebase emulators:start
 
+.PHONY: erd
 erd:
 	node scripts/generate-erd.js
 
-deploy-dev: build-dev
+.PHONY: deploy_dev
+deploy_dev: build_dev
 	. ./.env.development && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
 
-deploy-prod: build-prod
+.PHONY: deploy_prod
+deploy_prod: build_prod
 	. ./.env.production && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
