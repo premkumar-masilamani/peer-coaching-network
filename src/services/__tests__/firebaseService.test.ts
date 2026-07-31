@@ -31,7 +31,7 @@ describe('firebaseService barrel', () => {
     // profileService
     'getProfile', 'updateProfile', 'updateOwnProfile', 'getEffectiveStatus',
     'getEffectiveRole', 'isApproved', 'formatMemberSince', 'getAllUsers',
-    'getActiveCoaches', 'getPendingUsersCount', 'setUserRoleAndStatus',
+    'getPendingUsersCount', 'setUserRoleAndStatus',
     'formatDisplayName', 'updateVerifiedCredentials', 'getProfiles',
     // scheduleService
     'timeStringToTimestamp', 'timestampToTimeString', 'DEFAULT_AVAILABLE_DAYS',

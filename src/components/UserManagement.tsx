@@ -15,7 +15,7 @@ import {
 } from '../services/profileService';
 import type { UserProfile } from '../services/types';
 import { ReviewChangesModal } from './modals/ReviewChangesModal';
-import { useUnsavedChanges } from '../context/UnsavedChangesContext';
+import { useUnsavedChanges, useNavigateToProfile } from '../context/UnsavedChangesContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { sanitizeImageUrl, sanitizeMeetLink } from '../utils/url';
 import {
@@ -23,7 +23,8 @@ import {
   UserCheck,
   Info,
   Video,
-  ExternalLink
+  ExternalLink,
+  Calendar
 } from 'lucide-react';
 import { getCredentialBadgeClass } from '../utils/credentials';
 import { type Qualification, type UserRole, type UserStatus, USER_ROLE, USER_STATUS } from '../config';
@@ -38,6 +39,7 @@ interface UserManagementProps {
 const USERS_PAGE_SIZE = 25;
 
 export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 'all', setInitialFilter }) => {
+  const navigateProfile = useNavigateToProfile();
   const [users, setUsers] = useState<UserProfile[]>([]);
   // Full pending (inactive) set, fetched independently of roster pagination so
   // the pending badge/count and the "Pending Approval" filter stay complete.
@@ -466,6 +468,26 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                 {getUserRole(coach)}
               </span>
             </div>
+
+            {getUserStatus(coach) === USER_STATUS.ACTIVE && (
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => navigateProfile(coach.userId)}
+                style={{
+                  marginBottom: '20px',
+                  width: '100%',
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Calendar size={14} />
+                Book Session
+              </button>
+            )}
 
             {/* Coach Qualifications display */}
             <div style={{ width: '100%', borderTop: '1px solid var(--border-light)', paddingTop: '20px', textAlign: 'left' }}>

@@ -48,7 +48,6 @@ export {
   formatMemberSince,
   getAllUsers,
   getUsersPage,
-  getActiveCoaches,
   getPendingUsersCount,
   setUserRoleAndStatus,
   formatDisplayName,
