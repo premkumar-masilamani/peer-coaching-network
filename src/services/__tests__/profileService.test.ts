@@ -9,7 +9,6 @@ import {
   getProfile,
   getAllUsers,
   getUsersPage,
-  getActiveCoaches,
   getPendingUsersCount,
   setUserRoleAndStatus,
   updateVerifiedCredentials,
@@ -164,13 +163,6 @@ describe('profileService', () => {
       expect(result.users).toEqual([{ userId: 'u1' }]);
       expect(result.hasMore).toBe(false);
       expect(result.nextCursor).toBeNull();
-    });
-  });
-
-  describe('getActiveCoaches', () => {
-    it('returns active coaches', async () => {
-      mockGetDocs.mockResolvedValueOnce({ forEach: (f: any) => f({ data: () => ({ userId: 'active' }) }) });
-      expect(await getActiveCoaches()).toEqual([{ userId: 'active' }]);
     });
   });
 
