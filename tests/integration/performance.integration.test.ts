@@ -55,6 +55,31 @@ describe.runIf(isPerfRun)('Use Case B - Performance & Concurrency tests against 
     adminUser = admins[0];
     coachUser = clients[0]; // Coach is just an active user
     clientUser = clients[1]; // Client is another active user
+
+    // Seed coachAvailabilityByDate so bookings pass the PCN-038 security rule
+    const slotsToPublish = [
+      '2030-05-15T09:00:00.000Z',
+    ];
+    for (let index = 0; index < 20; index++) {
+      const hour = String(9 + (index % 8)).padStart(2, '0');
+      const day = String(1 + Math.floor(index / 8)).padStart(2, '0');
+      slotsToPublish.push(`2030-06-${day}T${hour}:00:00.000Z`);
+    }
+
+    const shards: Record<string, string[]> = {};
+    for (const startIso of slotsToPublish) {
+      const dateIso = startIso.split('T')[0];
+      if (!shards[dateIso]) shards[dateIso] = [];
+      shards[dateIso].push(startIso);
+    }
+    for (const [dateIso, freeSlots] of Object.entries(shards)) {
+      await adminDb.collection('coachAvailabilityByDate').doc(`${coachUser.userId}_${dateIso}`).set({
+        coachUid: coachUser.userId,
+        dateISO: dateIso,
+        freeSlots,
+        lastUpdated: new Date().toISOString()
+      });
+    }
   });
 
   afterAll(async () => {
@@ -144,10 +169,9 @@ describe.runIf(isPerfRun)('Use Case B - Performance & Concurrency tests against 
     }
 
     // Assert no orphaned client booking cache documents
-    const cacheSnapshot = await getDocs(collection(db, COLLECTIONS.CLIENT_BOOKING_CACHE));
     // Should contain exactly 1 cache document for this client/time
-    const matches = cacheSnapshot.docs.filter(d => d.id === `${clientUser.userId}_${startIso}`);
-    expect(matches).toHaveLength(1);
+    const cacheDoc = await getDoc(doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${clientUser.userId}_${startIso}`));
+    expect(cacheDoc.exists()).toBe(true);
   });
 
   it('3. Concurrent bookings, different slots', async () => {

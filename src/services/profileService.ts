@@ -84,12 +84,6 @@ export const getUsersPage = async (
   return fetchUsersPage({ pageSize, pageCursor });
 };
 
-// One-shot query for ACTIVE users only (peer coaches), avoiding a full
-// users-collection download for the dashboard. We filter on the
-// userStatus field.
-export const getActiveCoaches = async (): Promise<UserProfile[]> => {
-  return fetchUsersByStatus(USER_STATUS.ACTIVE);
-};
 
 // Count of pending (inactive) users — transfers only pending documents
 // rather than the whole collection just to derive a badge number.
