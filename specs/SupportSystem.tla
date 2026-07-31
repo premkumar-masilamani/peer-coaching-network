@@ -19,78 +19,76 @@ VARIABLES
     requests,   \* Set of active support requests: [id: Tickets, owner: Users, status: {"open", "closed"}]
     messages    \* Set of all messages ever written: [id: MsgIds, ticket: Tickets, sender: Users, content: Values]
 
-vars == <<requests, messages>>
+(* --algorithm SupportSystem
+variables
+    requests = {},
+    messages = {};
 
------------------------------------------------------------------------------
-(* Initial State *)
-Init == 
-    /\ requests = {}
-    /\ messages = {}
+macro CreateRequest(u, t, m, v) begin
+    if t \notin {req.id : req \in requests} /\ m \notin {msg.id : msg \in messages} then
+        requests := requests \cup {[id |-> t, owner |-> u, status |-> "open"]};
+        messages := messages \cup {[id |-> m, ticket |-> t, sender |-> u, content |-> v]};
+    end if;
+end macro;
 
------------------------------------------------------------------------------
-(* Actions *)
+macro AddMessage(u, t, m, v) begin
+    if \E req \in requests : req.id = t /\ (u = req.owner \/ u \in Admins) then
+        if m \notin {msg.id : msg \in messages} then
+            messages := messages \cup {[id |-> m, ticket |-> t, sender |-> u, content |-> v]};
+        end if;
+    end if;
+end macro;
 
-\* A user creates a new support request.
-CreateRequest(u, t, m, v) ==
-    /\ t \notin {req.id : req \in requests}
-    /\ m \notin {msg.id : msg \in messages}
-    /\ requests' = requests \cup {[id |-> t, owner |-> u, status |-> "open"]}
-    /\ messages' = messages \cup {[id |-> m, ticket |-> t, sender |-> u, content |-> v]}
+macro SpoofMessage(attacker, victim, t, m, v) begin
+    if attacker # victim /\ \E req \in requests : req.id = t then
+        if m \notin {msg.id : msg \in messages} then
+            \* Firestore rule blocks this because senderId != request.auth.uid
+            skip;
+        end if;
+    end if;
+end macro;
 
-\* A user (or admin) adds a message to an existing ticket.
-\* Matches firestore.rules: senderId == auth.uid AND (isAdmin OR owner == auth.uid)
-AddMessage(u, t, m, v) ==
-    /\ \E req \in requests : 
-        /\ req.id = t
-        /\ (u = req.owner \/ u \in Admins)
-    /\ m \notin {msg.id : msg \in messages}
-    /\ messages' = messages \cup {[id |-> m, ticket |-> t, sender |-> u, content |-> v]}
-    /\ UNCHANGED <<requests>>
+macro UpdateMessage(u, m, newV) begin
+    if \E msg \in messages : msg.id = m then
+        \* Firestore rule blocks this unconditionally: allow update: if false;
+        skip;
+    end if;
+end macro;
 
-\* An attacker tries to spoof a message (pretending to be someone else).
-\* Simulates the rule `request.resource.data.senderId == request.auth.uid`
-SpoofMessage(attacker, victim, t, m, v) ==
-    /\ attacker # victim
-    /\ \E req \in requests : req.id = t
-    /\ m \notin {msg.id : msg \in messages}
-    \* Guard: The firestore rule blocks this because attacker != victim
-    \* If we enforced it, the transition is impossible. We model the rejected state as UNCHANGED.
-    \* Actually, in TLA+, we define valid transitions. If it's blocked, we just don't add it to messages.
-    /\ FALSE 
-    /\ UNCHANGED vars
+macro CloseRequest(admin, t) begin
+    if admin \in Admins /\ \E req \in requests : req.id = t /\ req.status = "open" then
+        requests := { IF req.id = t THEN [req EXCEPT !.status = "closed"] ELSE req : req \in requests };
+    end if;
+end macro;
 
-\* An attacker tries to modify an existing message.
-\* Simulates the rule `allow update: if false;`
-UpdateMessage(u, m, newV) ==
-    /\ \E msg \in messages : msg.id = m
-    \* Guard: The firestore rule blocks this unconditionally.
-    /\ FALSE
-    /\ UNCHANGED vars
+macro DeleteRequest(admin, t) begin
+    if admin \in Admins /\ \E req \in requests : req.id = t then
+        requests := {req \in requests : req.id # t};
+        messages := {msg \in messages : msg.ticket # t};
+    end if;
+end macro;
 
-\* An admin closes a ticket.
-CloseRequest(admin, t) ==
-    /\ admin \in Admins
-    /\ \E req \in requests : req.id = t /\ req.status = "open"
-    /\ requests' = { IF req.id = t THEN [req EXCEPT !.status = "closed"] ELSE req : req \in requests }
-    /\ UNCHANGED <<messages>>
-
-\* An admin deletes a ticket (cascades messages).
-DeleteRequest(admin, t) ==
-    /\ admin \in Admins
-    /\ \E req \in requests : req.id = t
-    /\ requests' = {req \in requests : req.id # t}
-    /\ messages' = {msg \in messages : msg.ticket # t}
-
------------------------------------------------------------------------------
-(* Next State Relation *)
-Next == 
-    \E u \in Users, a \in Admins, t \in Tickets, m \in MsgIds, v \in Values :
-        \/ CreateRequest(u, t, m, v)
-        \/ AddMessage(u, t, m, v)
-        \/ SpoofMessage(u, a, t, m, v) \* Where attacker=u, victim=a
-        \/ UpdateMessage(u, m, v)
-        \/ CloseRequest(a, t)
-        \/ DeleteRequest(a, t)
+process UserActions \in Users
+variables a \in Admins, t \in Tickets, m \in MsgIds, v \in Values;
+begin
+UserLoop:
+    while TRUE do
+        either
+            CreateRequest(self, t, m, v);
+        or
+            AddMessage(self, t, m, v);
+        or
+            SpoofMessage(self, a, t, m, v);
+        or
+            UpdateMessage(self, m, v);
+        or
+            CloseRequest(a, t);
+        or
+            DeleteRequest(a, t);
+        end either;
+    end while;
+end process;
+end algorithm; *)
 
 -----------------------------------------------------------------------------
 (* Invariants *)
@@ -101,14 +99,10 @@ TypeOK ==
 
 \* Immutability: If a message exists in the current state, and the ticket hasn't been deleted,
 \* the message's content and sender can never change in future states.
-\* In TLA+, this is verified because the `UpdateMessage` transition is logically `FALSE`.
 MessageImmutability ==
-    \* This invariant states that no two messages can have the same ID but different contents or senders.
-    \* (Since MsgIds are unique per assignment in our transitions).
     \A m1, m2 \in messages : (m1.id = m2.id) => (m1 = m2)
 
 \* Anti-Spoofing: A message on a ticket is ONLY ever authored by the ticket owner OR an admin.
-\* This proves that a random user cannot inject messages into another user's ticket.
 NoCrossTicketSpoofing ==
     \A msg \in messages :
         \A req \in requests :

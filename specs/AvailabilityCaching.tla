@@ -19,48 +19,47 @@ VARIABLES
     queue,         \* The JS promise chain queue (recalcChains)
     inFlight       \* The version currently being read/processed by the active promise
 
-vars == <<dbSchedule, cacheSchedule, queue, inFlight>>
+(* --algorithm AvailabilityCaching
+variables
+    dbSchedule = 0,
+    cacheSchedule = 0,
+    queue = 0,
+    inFlight = -1;
 
------------------------------------------------------------------------------
-(* Initial State *)
-Init == 
-    /\ dbSchedule = 0
-    /\ cacheSchedule = 0
-    /\ queue = 0     \* Number of queued recalculation requests
-    /\ inFlight = -1 \* -1 means nothing is currently executing
+macro UpdateSchedule(v) begin
+    dbSchedule := v;
+    queue := queue + 1;
+end macro;
 
------------------------------------------------------------------------------
-(* Actions *)
+macro StartRecalc() begin
+    if queue > 0 /\ inFlight = -1 then
+        inFlight := dbSchedule;
+        queue := queue - 1;
+    end if;
+end macro;
 
-\* A user updates their schedule. In JS, this synchronously updates the DB
-\* and then synchronously appends a promise to `recalcChains` (queueing a recalc).
-UpdateSchedule(v) ==
-    /\ dbSchedule' = v
-    /\ queue' = queue + 1
-    /\ UNCHANGED <<cacheSchedule, inFlight>>
+macro FinishRecalc() begin
+    if inFlight # -1 then
+        cacheSchedule := inFlight;
+        inFlight := -1;
+    end if;
+end macro;
 
-\* The event loop starts the next queued promise.
-\* It reads the CURRENT dbSchedule (which might be newer than the one that triggered it!)
-StartRecalc ==
-    /\ queue > 0
-    /\ inFlight = -1
-    /\ inFlight' = dbSchedule  \* Simulates `getSchedule(uid)`
-    /\ queue' = queue - 1
-    /\ UNCHANGED <<dbSchedule, cacheSchedule>>
-
-\* The promise finishes its async work (slotGeneration) and writes the cache.
-FinishRecalc ==
-    /\ inFlight # -1
-    /\ cacheSchedule' = inFlight \* Simulates `writePersonalAvailabilityCache` / `syncCoachAvailabilityShards`
-    /\ inFlight' = -1            \* Frees the lock/chain for the next promise
-    /\ UNCHANGED <<dbSchedule, queue>>
-
------------------------------------------------------------------------------
-(* Next State Relation *)
-Next == 
-    \/ (\E v \in Versions : UpdateSchedule(v))
-    \/ StartRecalc
-    \/ FinishRecalc
+process SystemLoop = 1
+variables v \in Versions;
+begin
+Loop:
+    while TRUE do
+        either
+            UpdateSchedule(v);
+        or
+            StartRecalc();
+        or
+            FinishRecalc();
+        end either;
+    end while;
+end process;
+end algorithm; *)
 
 -----------------------------------------------------------------------------
 (* Invariants *)

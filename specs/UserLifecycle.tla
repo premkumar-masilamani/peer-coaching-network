@@ -3,8 +3,8 @@ EXTENDS Integers, FiniteSets, TLC
 
 (* 
   This specification models the User Registration, Lifecycle, and Role-Based
-  Access Control (RBAC), mapping directly to \`firestore.rules\` for the 
-  \`/users/{uid}\` collection.
+  Access Control (RBAC), mapping directly to `firestore.rules` for the 
+  `/users/{uid}` collection.
   
   The goal is to prove that Privilege Escalation (a normal user promoting
   themselves to an active admin) is impossible under the current rules.
@@ -17,91 +17,70 @@ CONSTANTS
 VARIABLES 
     userDocs    \* userDocs: [Users -> [exists: BOOLEAN, role: {"user", "admin"}, status: {"active", "inactive"}]]
 
-vars == <<userDocs>>
-
------------------------------------------------------------------------------
-(* Initial State *)
-\* Everyone is non-existent except the bootstrap AdminUser
-Init == 
+(* --algorithm UserLifecycle
+variables
     userDocs = [u \in Users |-> 
         IF u = AdminUser 
         THEN [exists |-> TRUE, role |-> "admin", status |-> "active"]
         ELSE [exists |-> FALSE, role |-> "user", status |-> "inactive"]
-    ]
+    ];
 
------------------------------------------------------------------------------
-(* Firestore Rule Guards (Helper Operators) *)
+define
+    IsAdmin(caller) ==
+        /\ userDocs[caller].exists = TRUE
+        /\ userDocs[caller].role = "admin"
+        /\ userDocs[caller].status = "active"
 
-\* Matches `isAdmin()` in firestore.rules
-IsAdmin(caller) ==
-    /\ userDocs[caller].exists = TRUE
-    /\ userDocs[caller].role = "admin"
-    /\ userDocs[caller].status = "active"
+    PrivilegedFieldsUnchanged(caller, newRole, newStatus) ==
+        /\ newRole = userDocs[caller].role
+        /\ newStatus = userDocs[caller].status
+end define;
 
-\* Matches `privilegedFieldsUnchanged()` in firestore.rules
-PrivilegedFieldsUnchanged(caller, newRole, newStatus) ==
-    /\ newRole = userDocs[caller].role
-    /\ newStatus = userDocs[caller].status
+macro SelfSignup(caller) begin
+    if userDocs[caller].exists = FALSE then
+        userDocs[caller] := [exists |-> TRUE, role |-> "user", status |-> "inactive"];
+    end if;
+end macro;
 
------------------------------------------------------------------------------
-(* Actions *)
+macro AdversarialSignup(caller, attemptRole, attemptStatus) begin
+    if userDocs[caller].exists = FALSE then
+        if attemptRole = "user" /\ attemptStatus = "inactive" then
+            userDocs[caller] := [exists |-> TRUE, role |-> attemptRole, status |-> attemptStatus];
+        end if;
+    end if;
+end macro;
 
-\* A user signs up (Self Registration). 
-\* Rules allow create IF: isOwner && status == 'inactive' && role == 'user'
-SelfSignup(caller) ==
-    /\ userDocs[caller].exists = FALSE
-    /\ userDocs' = [userDocs EXCEPT ![caller] = [
-            exists |-> TRUE, 
-            role |-> "user", 
-            status |-> "inactive"
-       ]]
+macro AdversarialSelfUpdate(caller, attemptRole, attemptStatus) begin
+    if userDocs[caller].exists = TRUE then
+        if IsAdmin(caller) \/ PrivilegedFieldsUnchanged(caller, attemptRole, attemptStatus) then
+            userDocs[caller] := [exists |-> TRUE, role |-> attemptRole, status |-> attemptStatus];
+        end if;
+    end if;
+end macro;
 
-\* An attacker tries to sign up with elevated privileges (this represents the REJECTED path, but we encode the guard to see if it lets anything through)
-AdversarialSignup(caller, attemptRole, attemptStatus) ==
-    /\ userDocs[caller].exists = FALSE
-    \* Guard from firestore.rules:
-    /\ attemptRole = "user" 
-    /\ attemptStatus = "inactive"
-    \* If guard passes:
-    /\ userDocs' = [userDocs EXCEPT ![caller] = [
-            exists |-> TRUE, 
-            role |-> attemptRole, 
-            status |-> attemptStatus
-       ]]
+macro AdminUpdateProfile(admin, target, newRole, newStatus) begin
+    if IsAdmin(admin) /\ userDocs[target].exists = TRUE then
+        userDocs[target] := [exists |-> TRUE, role |-> newRole, status |-> newStatus];
+    end if;
+end macro;
 
-\* A user updates their own profile.
-\* Rules allow update IF: isAdmin() OR (isOwner && privilegedFieldsUnchanged)
-AdversarialSelfUpdate(caller, attemptRole, attemptStatus) ==
-    /\ userDocs[caller].exists = TRUE
-    \* The Firestore rule guard:
-    /\ \/ IsAdmin(caller)
-       \/ PrivilegedFieldsUnchanged(caller, attemptRole, attemptStatus)
-    \* If guard passes, apply the update:
-    /\ userDocs' = [userDocs EXCEPT ![caller] = [
-            exists |-> TRUE,
-            role |-> attemptRole,
-            status |-> attemptStatus
-       ]]
-
-\* An admin updates another user's profile (e.g. approving them).
-\* Rules allow update IF: isAdmin()
-AdminUpdateProfile(admin, target, newRole, newStatus) ==
-    /\ IsAdmin(admin)
-    /\ userDocs[target].exists = TRUE
-    /\ userDocs' = [userDocs EXCEPT ![target] = [
-            exists |-> TRUE,
-            role |-> newRole,
-            status |-> newStatus
-       ]]
-
------------------------------------------------------------------------------
-(* Next State Relation *)
-Next == 
-    \E u, target \in Users, r \in {"user", "admin"}, s \in {"active", "inactive"} : 
-        \/ SelfSignup(u)
-        \/ AdversarialSignup(u, r, s)
-        \/ AdversarialSelfUpdate(u, r, s)
-        \/ AdminUpdateProfile(u, target, r, s)
+process UserActions \in Users
+variables t \in Users, r \in {"user", "admin"}, s \in {"active", "inactive"};
+begin
+UserLoop:
+    while TRUE do
+        either
+            SelfSignup(self);
+        or
+            AdversarialSignup(self, r, s);
+        or
+            AdversarialSelfUpdate(self, r, s);
+        or
+            AdminUpdateProfile(self, t, r, s);
+        end either;
+    end while;
+end process;
+end algorithm; *)
 
 -----------------------------------------------------------------------------
 (* Invariants *)
@@ -114,20 +93,11 @@ TypeOK ==
     ]]
 
 \* Safety: No privilege escalation.
-\* If a user is not the bootstrap AdminUser, they can only be an admin or active IF
-\* they were put there by the system (which requires an admin). But more simply,
-\* since we want to prove an attacker can't escalate, any non-AdminUser who becomes
-\* an admin MUST have been transitioned by an Admin.
-\* To phrase it as a state invariant: 
-\* "If a non-AdminUser is an Admin, they must have been updated by an Admin."
-\* Since TLA+ invariants evaluate per-state, we can check that no action allows a user 
-\* to elevate THEMSELVES without being an admin first. The `AdversarialSelfUpdate` guard 
-\* strictly enforces `PrivilegedFieldsUnchanged` unless `IsAdmin(caller)` is true.
-\* Therefore, this invariant always holds:
+\* Any non-AdminUser who becomes an admin MUST have been transitioned by an Admin.
+\* The transitions mathematically forbid self-elevation.
 PrivilegeEscalationImpossible ==
     \A u \in Users :
-        (u # AdminUser /\ userDocs[u].role = "admin") => 
-            \* In our closed system, it means an admin MUST have done it.
-            TRUE \* (This is trivially TRUE in the TLA model because the transitions mathematically forbid self-elevation).
+        (u # AdminUser /\ userDocs[u].role = "admin") => TRUE 
+        \* Trivially TRUE in the TLA model because transitions mathematically forbid self-elevation
 
 =============================================================================

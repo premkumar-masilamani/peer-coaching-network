@@ -17,69 +17,65 @@ VARIABLES
     busySlots,          \* busySlots: [Users x Slots -> BOOLEAN]
     clientCache         \* clientBookingCache: [Users x Slots -> BOOLEAN]
 
-vars == <<coachAvailability, bookings, busySlots, clientCache>>
+(* --algorithm BookingProtocol
+variables
+    \* Initialize state
+    coachAvailability = [u \in Users |-> {}],
+    bookings = [u \in Users, s \in Slots |-> [client |-> u, status |-> "NONE"]],
+    busySlots = [u \in Users, s \in Slots |-> FALSE],
+    clientCache = [u \in Users, s \in Slots |-> FALSE];
 
------------------------------------------------------------------------------
-(* Initial State *)
-Init == 
-    /\ coachAvailability = [u \in Users |-> {}]
-    /\ bookings = [u \in Users, s \in Slots |-> [client |-> u, status |-> "NONE"]]
-    /\ busySlots = [u \in Users, s \in Slots |-> FALSE]
-    /\ clientCache = [u \in Users, s \in Slots |-> FALSE]
+macro PublishSlot(coach, slot) begin
+    coachAvailability[coach] := coachAvailability[coach] \cup {slot};
+end macro;
 
------------------------------------------------------------------------------
-(* Actions *)
+macro UnpublishSlot(coach, slot) begin
+    coachAvailability[coach] := coachAvailability[coach] \ {slot};
+end macro;
 
-\* A coach publishes availability for a slot (handled by slotsService / syncCoachAvailabilityShards)
-PublishSlot(coach, slot) ==
-    /\ coachAvailability' = [coachAvailability EXCEPT ![coach] = coachAvailability[coach] \cup {slot}]
-    /\ UNCHANGED <<bookings, busySlots, clientCache>>
+macro ReserveBooking(client, coach, slot) begin
+    if client # coach /\ slot \in coachAvailability[coach] then
+        if ~busySlots[coach, slot] /\ ~clientCache[coach, slot] /\ ~clientCache[client, slot] /\ ~busySlots[client, slot] then
+            bookings[coach, slot] := [client |-> client, status |-> "PENDING"];
+            busySlots[coach, slot] := TRUE;
+            clientCache[client, slot] := TRUE;
+        end if;
+    end if;
+end macro;
 
-\* A coach removes availability for a slot
-UnpublishSlot(coach, slot) ==
-    /\ coachAvailability' = [coachAvailability EXCEPT ![coach] = coachAvailability[coach] \ {slot}]
-    /\ UNCHANGED <<bookings, busySlots, clientCache>>
+macro ConfirmBooking(coach, slot) begin
+    if bookings[coach, slot].status = "PENDING" then
+        bookings[coach, slot].status := "CONFIRMED";
+    end if;
+end macro;
 
-\* A client reserves a slot with a coach (matches `reserveBookingSlots`)
-ReserveBooking(client, coach, slot) ==
-    /\ client # coach  \* Cannot book yourself
-    \* PCN-038: Rules ensure the slot is actually published by the coach
-    /\ slot \in coachAvailability[coach]
-    \* Transaction Checks (1-4 in `reserveBookingSlots`)
-    /\ ~busySlots[coach, slot]      \* 1. Coach availability check (not already booked as coach)
-    /\ ~clientCache[coach, slot]    \* 2. Coach-as-client check (coach isn't busy being a client)
-    /\ ~clientCache[client, slot]   \* 3. Client-as-client check (client isn't already booking another coach)
-    /\ ~busySlots[client, slot]     \* 4. Client-as-coach check (client isn't already booked as a coach)
-    \* Effects
-    /\ bookings' = [bookings EXCEPT ![coach, slot] = [client |-> client, status |-> "PENDING"]]
-    /\ busySlots' = [busySlots EXCEPT ![coach, slot] = TRUE]
-    /\ clientCache' = [clientCache EXCEPT ![client, slot] = TRUE]
-    /\ UNCHANGED <<coachAvailability>>
+macro CancelBooking(coach, slot) begin
+    if bookings[coach, slot].status \in {"PENDING", "CONFIRMED"} then
+        clientCache[bookings[coach, slot].client, slot] := FALSE;
+        bookings[coach, slot].status := "CANCELLED";
+        busySlots[coach, slot] := FALSE;
+    end if;
+end macro;
 
-\* Confirm a pending booking (matches `confirmBooking`)
-ConfirmBooking(coach, slot) ==
-    /\ bookings[coach, slot].status = "PENDING"
-    /\ bookings' = [bookings EXCEPT ![coach, slot] = [client |-> bookings[coach, slot].client, status |-> "CONFIRMED"]]
-    \* TTLs are extended in actual code, but boolean state remains TRUE
-    /\ UNCHANGED <<coachAvailability, busySlots, clientCache>>
-
-\* Cancel or rollback a booking (matches `cancelBookingDoc` and `rollbackBooking`)
-CancelBooking(coach, slot) ==
-    /\ bookings[coach, slot].status \in {"PENDING", "CONFIRMED"}
-    /\ bookings' = [bookings EXCEPT ![coach, slot] = [client |-> bookings[coach, slot].client, status |-> "CANCELLED"]]
-    /\ busySlots' = [busySlots EXCEPT ![coach, slot] = FALSE]
-    /\ clientCache' = [clientCache EXCEPT ![bookings[coach, slot].client, slot] = FALSE]
-    /\ UNCHANGED <<coachAvailability>>
-
------------------------------------------------------------------------------
-(* Next State Relation *)
-Next == 
-    \E c, u \in Users, s \in Slots : 
-        \/ PublishSlot(c, s)
-        \/ UnpublishSlot(c, s)
-        \/ ReserveBooking(u, c, s)
-        \/ ConfirmBooking(c, s)
-        \/ CancelBooking(c, s)
+process ClientAction \in Users
+variables c \in Users, s \in Slots;
+begin
+ClientLoop:
+    while TRUE do
+        either
+            PublishSlot(self, s);
+        or
+            UnpublishSlot(self, s);
+        or
+            ReserveBooking(self, c, s);
+        or
+            ConfirmBooking(self, s);
+        or
+            CancelBooking(self, s);
+        end either;
+    end while;
+end process;
+end algorithm; *)
 
 -----------------------------------------------------------------------------
 (* Invariants *)
@@ -105,8 +101,5 @@ SingleActiveBookingPerCoachSlot ==
 SingleActiveBookingPerClientSlot == 
     \A c \in Users, s \in Slots : 
         (bookings[c, s].status \in {"PENDING", "CONFIRMED"}) => clientCache[bookings[c, s].client, s]
-
------------------------------------------------------------------------------
-Spec == Init /\ [][Next]_vars
 
 =============================================================================
