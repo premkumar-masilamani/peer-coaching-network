@@ -500,6 +500,18 @@ export const reserveBookingSlots = async (params: BookingSlotParams): Promise<vo
     return end - start > SLOT_HALF_MS;
   };
 
+  // A conflicting coach slot is either a still-live PENDING hold (someone is
+  // mid-booking but has not confirmed yet) or a CONFIRMED booking (the slot is
+  // genuinely taken). The two get different, more truthful UI messages: the hold
+  // is transient and worth retrying, the confirmed booking is not.
+  const isPendingHold = (docSnap: DocumentSnapshot): boolean => {
+    if (!isBookingActive(docSnap)) return false;
+    const data = typeof docSnap.data === 'function' ? docSnap.data() : undefined;
+    return data?.status === BOOKING_STATUS.PENDING;
+  };
+  const coachSlotConflictError = (docSnap: DocumentSnapshot): Error =>
+    new Error(isPendingHold(docSnap) ? BOOKING_ERROR.SLOT_ON_HOLD : BOOKING_ERROR.SLOT_TAKEN);
+
   let transactionSuccess = false;
   let attempts = 0;
   let lastError: Error | null = null;
@@ -532,10 +544,12 @@ export const reserveBookingSlots = async (params: BookingSlotParams): Promise<vo
           tx.get(coachAsClientAtTPlus30Ref),
         ]);
 
-        // 1. Coach availability checks
-        if (isBookingActive(coachAtT0)) throw new Error(BOOKING_ERROR.SLOT_TAKEN);
-        if (isOneHourBooking(coachAtTMinus30)) throw new Error(BOOKING_ERROR.SLOT_TAKEN);
-        if (isOneHour && isBookingActive(coachAtTPlus30)) throw new Error(BOOKING_ERROR.SLOT_TAKEN);
+        // 1. Coach availability checks. Distinguish an in-flight PENDING hold
+        //    (SLOT_ON_HOLD) from a CONFIRMED booking (SLOT_TAKEN) so the loser of
+        //    the race gets the right message.
+        if (isBookingActive(coachAtT0)) throw coachSlotConflictError(coachAtT0);
+        if (isOneHourBooking(coachAtTMinus30)) throw coachSlotConflictError(coachAtTMinus30);
+        if (isOneHour && isBookingActive(coachAtTPlus30)) throw coachSlotConflictError(coachAtTPlus30);
 
         // 2. Coach-as-client checks
         if (isCacheActive(coachAsClientAtT0)) throw new Error(BOOKING_ERROR.SLOT_TAKEN);
@@ -583,6 +597,7 @@ export const reserveBookingSlots = async (params: BookingSlotParams): Promise<vo
       if (
         err instanceof Error &&
         (err.message === BOOKING_ERROR.SLOT_TAKEN ||
+          err.message === BOOKING_ERROR.SLOT_ON_HOLD ||
           err.message === BOOKING_ERROR.BOOKED_AS_CLIENT ||
           err.message === BOOKING_ERROR.BOOKED_AS_COACH)
       ) {
