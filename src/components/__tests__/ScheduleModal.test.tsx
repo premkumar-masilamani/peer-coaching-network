@@ -185,4 +185,36 @@ describe('ScheduleModal component', () => {
     expect(container.textContent).toContain('Confirm Session');
     expect(mockGoogleCalendar.scheduleMeeting).toHaveBeenCalled();
   });
+
+  it('shows the hold-contention message when another mentee grabbed the hold first', async () => {
+    const err = new Error('SLOT_ON_HOLD') as Error & { code?: string };
+    err.code = 'SLOT_ON_HOLD';
+    mockGoogleCalendar.scheduleMeeting.mockRejectedValueOnce(err);
+
+    act(() => {
+      root.render(
+        <ScheduleModal
+          coach={mockCoach}
+          startTime={mockStartTime}
+          endTime={mockEndTime}
+          onClose={mockOnClose}
+          onBookingSuccess={mockOnBookingSuccess}
+        />
+      );
+    });
+
+    const textarea = container.querySelector('textarea#topic-input') as HTMLTextAreaElement;
+    act(() => {
+      Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')!.set!.call(textarea, 'Leadership coaching');
+      textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    const form = container.querySelector('form') as HTMLFormElement;
+    await act(async () => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    });
+
+    expect(container.textContent).toContain('Someone is currently booking this slot. Please pick another time.');
+    expect(mockOnBookingSuccess).not.toHaveBeenCalled();
+  });
 });
