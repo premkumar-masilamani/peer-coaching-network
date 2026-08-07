@@ -121,7 +121,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       let errCode: BookingError = BOOKING_ERROR.UNKNOWN;
       if (err instanceof Error) {
         errCode = ((err as { code?: string }).code || BOOKING_ERROR.UNKNOWN) as keyof typeof BOOKING_ERROR;
-        if (err.message === BOOKING_ERROR.SLOT_TAKEN) {
+        if (err.message === BOOKING_ERROR.SLOT_ON_HOLD) {
+          message = BOOKING_ERROR_MESSAGES[BOOKING_ERROR.SLOT_ON_HOLD];
+        } else if (err.message === BOOKING_ERROR.SLOT_TAKEN) {
           message = BOOKING_ERROR_MESSAGES[BOOKING_ERROR.SLOT_TAKEN];
         } else if (err.message === BOOKING_ERROR.BOOKED_AS_CLIENT || err.message === BOOKING_ERROR.BOOKED_AS_COACH) {
           message = BOOKING_ERROR_MESSAGES[BOOKING_ERROR.BOOKED_AS_CLIENT];

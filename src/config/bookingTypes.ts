@@ -16,6 +16,7 @@ export type EventType = (typeof EVENT_TYPE)[keyof typeof EVENT_TYPE];
 
 export const BOOKING_ERROR = {
   SLOT_TAKEN: 'SLOT_TAKEN',
+  SLOT_ON_HOLD: 'SLOT_ON_HOLD',
   BOOKED_AS_CLIENT: 'BOOKED_AS_CLIENT',
   BOOKED_AS_COACH: 'BOOKED_AS_COACH',
   GOOGLE_TOKEN_EXPIRED: 'GOOGLE_TOKEN_EXPIRED',
@@ -25,7 +26,13 @@ export const BOOKING_ERROR = {
 export type BookingError = (typeof BOOKING_ERROR)[keyof typeof BOOKING_ERROR];
 
 export const BOOKING_ERROR_MESSAGES: Record<BookingError, string> = {
+  // SLOT_TAKEN is the *confirmed* conflict: the slot already belongs to a
+  // completed booking. SLOT_ON_HOLD is the softer, transient race — another
+  // mentee grabbed the PENDING hold on this coach's slot first but has not yet
+  // confirmed it. The hold expires (see PENDING_TTL_MS), so "try again shortly"
+  // is genuinely different advice from "it's gone."
   [BOOKING_ERROR.SLOT_TAKEN]: 'Sorry, this slot was just scheduled by someone else. Please pick another time.',
+  [BOOKING_ERROR.SLOT_ON_HOLD]: 'Someone is currently booking this slot. Please pick another time.',
   [BOOKING_ERROR.BOOKED_AS_CLIENT]: 'You already have a session scheduled at this time. Please pick another slot.',
   [BOOKING_ERROR.BOOKED_AS_COACH]: 'You already have a session scheduled at this time. Please pick another slot.',
   [BOOKING_ERROR.GOOGLE_TOKEN_EXPIRED]: 'Your Google Calendar connection has expired. Please reconnect your account to schedule sessions.',

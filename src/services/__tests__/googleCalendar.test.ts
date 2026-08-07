@@ -283,6 +283,37 @@ describe('googleCalendar service', () => {
       ).rejects.toThrow('SLOT_TAKEN');
     });
 
+    it('executes transaction and throws SLOT_ON_HOLD if a PENDING hold exists on the coach slot', async () => {
+      mockRunTransaction.mockImplementationOnce(async (_db, callback) => {
+        const mockTx = {
+          get: vi.fn().mockImplementation(async (ref) => {
+            // A live PENDING hold (no/future expireAt) — someone is mid-booking.
+            if (ref.path.includes('busySlots/')) {
+              return { exists: () => true, data: () => ({ status: BOOKING_STATUS.PENDING }) };
+            }
+            return { exists: () => false };
+          }),
+          set: vi.fn(),
+          update: vi.fn(),
+          delete: vi.fn(),
+        };
+        return callback(mockTx);
+      });
+
+      await expect(
+        scheduleMeeting(
+          'coach-123',
+          'coach@example.com',
+          'John Coach',
+          'client-123',
+          'Mock Client',
+          '2026-06-18T10:00:00Z',
+          '2026-06-18T10:30:00Z',
+          'Career Development'
+        )
+      ).rejects.toThrow(BOOKING_ERROR.SLOT_ON_HOLD);
+    });
+
     it('executes transaction and throws BOOKED_AS_CLIENT if clientBookingCache exists', async () => {
       
 
