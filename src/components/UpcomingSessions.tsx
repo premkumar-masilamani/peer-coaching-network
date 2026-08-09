@@ -4,10 +4,10 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
 
-import { queryAvailableCoachesForDay, getUserBookings, getProfiles } from '../services/firebaseService';
+import { subscribeAvailableCoachesForDay, getUserBookings, getProfiles } from '../services/firebaseService';
 import { hasExpiredGoogleToken } from '../services/googleToken';
 import { getCredentialDescription } from '../utils/credentials';
-import type { UserProfile, DiscoveryFilters } from '../services/firebaseService';
+import type { UserProfile } from '../services/firebaseService';
 import { 
   getUpcomingEvents,
   cancelBooking
@@ -221,45 +221,7 @@ export const UpcomingSessions: React.FC = () => {
     }
   }, [login]);
 
-  const loadDayAvailability = useCallback(async () => {
-    const requestId = ++queryRequestIdRef.current;
-    await Promise.resolve();
-    setIsFetchingDay(true);
-    try {
-      const localDayStart = new Date(activeDayDate);
-      localDayStart.setHours(0, 0, 0, 0);
-      const localDayEnd = new Date(activeDayDate);
-      localDayEnd.setHours(23, 59, 59, 999);
 
-      const filters: DiscoveryFilters = {
-        gender: genderFilter || undefined,
-        country: countryFilter || undefined,
-        icf_acc: selectedQuals.includes('ICF ACC') ? true : undefined,
-        icf_pcc: selectedQuals.includes('ICF PCC') ? true : undefined,
-        icf_mcc: selectedQuals.includes('ICF MCC') ? true : undefined,
-        icf_actc: selectedQuals.includes('ICF ACTC') ? true : undefined,
-      };
-
-      const availability = await queryAvailableCoachesForDay(
-        localDayStart,
-        localDayEnd,
-        querySlots,
-        filters,
-        sessionSeed,
-        currentUser?.uid
-      );
-      if (requestId !== queryRequestIdRef.current) return;
-      setDayAvailability(availability);
-    } catch (e) {
-      if (requestId !== queryRequestIdRef.current) return;
-      console.error('Error querying day availability:', e);
-    } finally {
-      if (requestId === queryRequestIdRef.current) {
-        setIsFetchingDay(false);
-        setLoadingCalendar(false);
-      }
-    }
-  }, [activeDayDate, querySlots, genderFilter, countryFilter, selectedQuals, sessionSeed, currentUser]);
 
   // Full refresh — used for explicit user actions (booking success, cancel) and
   // window-focus. Deliberately NOT wired into the day/filter effect below so that
@@ -269,9 +231,9 @@ export const UpcomingSessions: React.FC = () => {
     await Promise.all([
       loadUserBookings(),
       loadGoogleCalendarEvents(),
-      loadDayAvailability()
+      Promise.resolve()
     ]);
-  }, [loadUserBookings, loadGoogleCalendarEvents, loadDayAvailability]);
+  }, [loadUserBookings, loadGoogleCalendarEvents]);
 
   // Refresh everything on window focus (own-slots may have changed in another tab).
   useFocusRefresh(handleRefresh);
@@ -286,15 +248,58 @@ export const UpcomingSessions: React.FC = () => {
     })();
   }, [loadUserBookings, loadGoogleCalendarEvents]);
 
-  // Day/filter-scoped effect: re-query available coaches for the active day
-  // whenever the day or a filter changes. loadDayAvailability carries its own
-  // request-sequence guard (queryRequestIdRef), so stale responses are dropped.
+  // Day/filter-scoped effect: subscribe to available coaches for the active day
   useEffect(() => {
-    void (async () => {
-      await loadDayAvailability();
-    })();
-  }, [loadDayAvailability]);
+    const requestId = ++queryRequestIdRef.current;
+    
+    void Promise.resolve().then(() => setIsFetchingDay(true));
 
+    const localDayStart = new Date(activeDayDate);
+    localDayStart.setHours(0, 0, 0, 0);
+    const localDayEnd = new Date(activeDayDate);
+    localDayEnd.setHours(23, 59, 59, 999);
+
+    const filters = {
+      gender: genderFilter || undefined,
+      country: countryFilter || undefined,
+      icf_acc: selectedQuals.includes('ICF ACC') ? true : undefined,
+      icf_pcc: selectedQuals.includes('ICF PCC') ? true : undefined,
+      icf_mcc: selectedQuals.includes('ICF MCC') ? true : undefined,
+      icf_actc: selectedQuals.includes('ICF ACTC') ? true : undefined,
+    };
+
+    let unsubscribe = () => {};
+
+    subscribeAvailableCoachesForDay(
+      localDayStart,
+      localDayEnd,
+      querySlots,
+      filters,
+      sessionSeed,
+      currentUser?.uid,
+      (availability) => {
+        if (requestId !== queryRequestIdRef.current) return;
+        setDayAvailability(availability);
+        setIsFetchingDay(false);
+        setLoadingCalendar(false);
+      }
+    ).then(unsub => {
+      if (requestId !== queryRequestIdRef.current) {
+        unsub();
+      } else {
+        unsubscribe = unsub;
+      }
+    }).catch(e => {
+      if (requestId !== queryRequestIdRef.current) return;
+      console.error('Error subscribing to day availability:', e);
+      setIsFetchingDay(false);
+      setLoadingCalendar(false);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [activeDayDate, querySlots, genderFilter, countryFilter, selectedQuals, sessionSeed, currentUser]);
   // Handle booking success with optimistic updates
   const handleBookingSuccess = (newEvent: CalendarEvent) => {
     if (activeBookingCoach && newEvent.start.dateTime) {

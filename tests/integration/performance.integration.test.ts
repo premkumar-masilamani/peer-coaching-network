@@ -9,7 +9,7 @@ import {
 import {
   scheduleMeeting
 } from '../../src/services/googleCalendar';
-import { doc, getDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../src/services/firebaseService';
 import { BOOKING_ERROR, COLLECTIONS } from '../../src/config';
 

@@ -21,8 +21,10 @@ import {
   writeSchedule,
 } from './firestoreRepository';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
+import { syncCalendar } from './googleCalendar';
 import { DEFAULT_AVAILABLE_DAYS } from './scheduleService';
 import type { UserProfile } from './types';
+import { logger } from '../utils/logger';
 
 // Standardized Auth Actions
 const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: string): Promise<void> => {
@@ -141,7 +143,13 @@ export const handleAuthRedirect = async (): Promise<boolean> => {
   }
 
   const credential = GoogleAuthProvider.credentialFromResult(result);
-  await registerOrSyncGoogleUser(result.user, credential?.accessToken || undefined);
+  const token = credential?.accessToken || undefined;
+  await registerOrSyncGoogleUser(result.user, token);
+  
+  if (token) {
+    syncCalendar().catch(err => logger.error('Failed to sync calendar after login:', err));
+  }
+  
   return true;
 };
 

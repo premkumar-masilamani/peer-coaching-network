@@ -1,5 +1,5 @@
-import type { Timestamp } from 'firebase/firestore';
-import type { Gender, UserRole, UserStatus, SupportCategory, SupportStatus } from '../config';
+import type { Timestamp } from 'firebase-admin/firestore';
+import type { Gender, UserRole, UserStatus, SupportCategory, SupportStatus } from './config';
 
 // ── Shared, side-effect-free domain types ─────────────────────────────────────
 // This module is intentionally free of import-time side effects (no Firebase

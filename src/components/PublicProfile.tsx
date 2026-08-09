@@ -19,8 +19,7 @@ import {
   formatMemberSince,
   getProfile,
   getUserAvailableSlots,
-  getCoachBusySlots,
-  getUserBookings
+    getUserBookings
 } from '../services/firebaseService';
 import { getUpcomingEvents } from '../services/googleCalendar';
 import { useAuth } from '../context/AuthContext';
@@ -49,8 +48,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
 
   // Slots and booking state
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
-  const [coachBusySlots, setCoachBusySlots] = useState<{ startTime: Date; endTime: Date }[]>([]);
-  const [userBaseBusyEvents, setUserBaseBusyEvents] = useState<CalendarEvent[]>([]);
+    const [userBaseBusyEvents, setUserBaseBusyEvents] = useState<CalendarEvent[]>([]);
   const [userLiveBookings, setUserLiveBookings] = useState<DocumentData[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(true);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
@@ -62,7 +60,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
     setProfile(null);
     setLoading(true);
     setAvailableSlots([]);
-    setCoachBusySlots([]);
+    // setCoachBusySlots([]); // cache removed
     setLoadingSlots(true);
     setSelectedDayIndex(0);
     setActiveBookingSlot(null);
@@ -87,13 +85,9 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
   const fetchCoachData = useCallback(async () => {
     setLoadingSlots(true);
     try {
-      const [avail, busy] = await Promise.all([
-        getUserAvailableSlots(uid),
-        getCoachBusySlots(uid)
-      ]);
+      const avail = await getUserAvailableSlots(uid);
       setAvailableSlots(avail);
-      setCoachBusySlots(busy);
-    } catch (err) {
+          } catch (err) {
       console.error('Error fetching coach slots:', err);
     } finally {
       setLoadingSlots(false);
@@ -419,8 +413,7 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
               mode="single"
               coach={profile}
               availableSlots={availableSlots}
-              coachBusySlots={coachBusySlots}
-              userBusyEvents={userBusyEvents}
+                            userBusyEvents={userBusyEvents}
               onSlotSelect={(_coach, slot) => {
                 setActiveBookingSlot(slot);
               }}

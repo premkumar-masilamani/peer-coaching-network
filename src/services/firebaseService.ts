@@ -69,7 +69,7 @@ export {
   recalculateAvailableSlotsCache,
   lazyRecalculateAvailableSlotsCache,
   getUserAvailableSlots,
-  getCoachBusySlots,
+
 } from './slotsService';
 
 export {
@@ -85,5 +85,6 @@ export {
 
 export {
   queryAvailableCoachesForDay,
+  subscribeAvailableCoachesForDay,
   getUserBookings,
 } from './discoveryService';

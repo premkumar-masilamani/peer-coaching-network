@@ -2,22 +2,13 @@ import type { UserProfile, AvailableDays } from './types';
 import { db, auth } from './firebaseApp';
 import { getSchedule } from './scheduleService';
 import { formatDisplayName, getProfiles } from './profileService';
-import { chunkArray } from '../utils/chunkArray';
 import { generateTemplateSlots } from '../utils/slotGeneration';
 import type { DocumentData } from 'firebase/firestore';
 import {
-  getBooking,
   fetchUpcomingBookingsByClient,
   fetchUpcomingBookingsByCoach,
   fetchBookingsByClient,
   fetchBookingsByCoach,
-  fetchPersonalAvailabilityCacheChunk,
-  reserveBookingSlots,
-  confirmBooking,
-  rollbackBooking,
-  cancelBookingDoc,
-  deleteBusySlot,
-  deleteClientBookingLock,
   setBookingGoogleMeetLink,
 } from './firestoreRepository';
 import { getGoogleToken, clearGoogleToken } from './googleToken';
@@ -206,7 +197,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
             }
             if (existingEvent.meetLink && !data.googleMeetLink) {
               // Self-heal a booking that is missing its stored meet link.
-              setBookingGoogleMeetLink(data.bookingId, existingEvent.meetLink).catch((err) => {
+              setBookingGoogleMeetLink(data.bookingId, existingEvent.meetLink).catch((err: unknown) => {
                 logger.error(`Failed to self-heal googleMeetLink for booking ${data.bookingId}:`, err);
               });
             } else if (!existingEvent.meetLink && data.googleMeetLink) {
@@ -322,15 +313,8 @@ export const getCoachSessions = async (coachUid: string): Promise<CalendarEvent[
   return meetings;
 };
 
-const getDeterministicRequestId = (id: string): string => {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) {
-    const chr = id.charCodeAt(i);
-    hash = ((hash << 5) - hash) + chr;
-    hash |= 0;
-  }
-  return 'req-' + Math.abs(hash).toString(36) + id.replace(/[^a-zA-Z0-9]/g, '').substring(0, 20);
-};
+import { httpsCallable } from 'firebase/functions';
+import { functions } from './firebaseApp';
 
 export const scheduleMeeting = async (
   coachUid: string,
@@ -343,57 +327,14 @@ export const scheduleMeeting = async (
   topic: string
 ): Promise<CalendarEvent> => {
   const token = getGoogleToken();
-  let fallbackMeetLink = '';
-  if (!ENABLE_GOOGLE_INTEGRATION) {
-    const meetId = Math.random().toString(36).substring(2, 5) + '-' +
-                   Math.random().toString(36).substring(2, 6) + '-' +
-                   Math.random().toString(36).substring(2, 5);
-    fallbackMeetLink = `https://meet.google.com/${meetId}`;
-  }
-
+  
   const currentUser = auth?.currentUser;
   const clientEmail = currentUser?.email || '';
   const resolvedClientName = currentUser?.displayName || clientName;
 
-  const resolvedSummary = resolveEventTemplate(DEFAULT_EVENT_TEMPLATES.summary, {
-    coachName,
-    coachEmail,
-    clientName: resolvedClientName,
-    clientEmail,
-    topic,
-  });
+  const sanitizedStartIso = startIso.replace(/[^a-zA-Z0-9]/g, '_');
+  const bookingId = `${coachUid}_${sanitizedStartIso}`;
 
-  const resolvedDescription = resolveEventTemplate(DEFAULT_EVENT_TEMPLATES.description, {
-    coachName,
-    coachEmail,
-    clientName: resolvedClientName,
-    clientEmail,
-    topic,
-  });
-
-  const bookingId = `${coachUid}_${startIso}`;
-
-  const eventPayload = {
-    summary: resolvedSummary,
-    description: resolvedDescription,
-    start: {
-      dateTime: startIso,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    },
-    end: {
-      dateTime: endIso,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    },
-    attendees: [{ email: coachEmail }],
-    conferenceData: {
-      createRequest: {
-        requestId: getDeterministicRequestId(bookingId),
-        conferenceSolutionKey: {
-          type: 'hangoutsMeet',
-        },
-      },
-    },
-  };
   logger.info(`Attempting to book session for client ${clientUid} with coach ${coachUid} at ${startIso}`);
   await logger.telemetry(LOG_SEVERITY.INFO, 'booking_attempt', {
     clientUid,
@@ -403,120 +344,47 @@ export const scheduleMeeting = async (
     clientBookingCacheId: `${clientUid}_${startIso}`
   });
 
-  if (!db) {
-    throw new Error('Database not initialized');
-  }
+  const manageBooking = httpsCallable<any, any>(functions, 'manageBooking');
+  
+  const result = await manageBooking({
+    action: 'book',
+    bookingId,
+    coachUid,
+    startIso,
+    endIso,
+    topic,
+    googleAccessToken: token || '',
+    clientName: resolvedClientName,
+    coachName,
+    coachEmail
+  });
 
-  let realMeetLink = fallbackMeetLink;
-  let googleEventId = `mock-booking-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-
-  // Step 1: Atomically claim the slot (booking + busy slot + client locks).
-  await reserveBookingSlots({ bookingId, coachUid, clientUid, startIso, endIso, topic });
-
-  // Rollback helper for the Google Calendar failure paths below.
-  const rollback = () =>
-    rollbackBooking({ bookingId, clientUid, startIso, endIso }).catch((e) =>
-      logger.error('Error rolling back booking after Google Calendar failure:', e)
-    );
-
-  // Step 2: Attempt Google Calendar Event Creation if integration enabled
-  if (ENABLE_GOOGLE_INTEGRATION) {
-    if (!token) {
-      await rollback();
-      const err = new Error('Google Token Expired');
-      (err as ApiError).code = 'GOOGLE_TOKEN_EXPIRED';
-      throw err;
-    }
-
-    try {
-      const response = await fetch(
-        'https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all',
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(eventPayload),
-        }
-      );
-
-      if (!response.ok) {
-        await rollback();
-
-        if (response.status === 401) {
-          const err = new Error('Google Token Expired');
-          (err as ApiError).code = 'GOOGLE_TOKEN_EXPIRED';
-          throw err;
-        }
-
-        const errorText = await response.text();
-        logger.error(`Google Calendar API Error: ${response.status} ${errorText}`);
-        const apiError = new Error('Failed to create Google Calendar event.');
-        (apiError as ApiError).code = 'GOOGLE_API_ERROR';
-        (apiError as ApiError).status = response.status;
-        throw apiError;
-      }
-
-      const data = await response.json();
-      googleEventId = data.id;
-      realMeetLink = data.hangoutLink || '';
-
-      if (!realMeetLink && ENABLE_GOOGLE_INTEGRATION) {
-        let retryCount = 0;
-        const maxRetries = 3;
-        let delay = 1000;
-        while (retryCount < maxRetries && !realMeetLink) {
-          logger.info(`Google hangoutLink missing. Retrying event fetch (attempt ${retryCount + 1}/${maxRetries})...`);
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          try {
-            const getResponse = await fetch(
-              `https://www.googleapis.com/calendar/v3/calendars/primary/events/${googleEventId}`,
-              {
-                headers: {
-                  Authorization: `Bearer ${token}`,
-                },
-              }
-            );
-            if (getResponse.ok) {
-              const getData = await getResponse.json();
-              if (getData.hangoutLink) {
-                realMeetLink = getData.hangoutLink;
-                logger.info(`Google hangoutLink fetched successfully on retry ${retryCount + 1}: ${realMeetLink}`);
-              }
-            }
-          } catch (err) {
-            logger.warn(`Failed to fetch event on retry ${retryCount + 1}:`, err);
-          }
-          retryCount++;
-          delay *= 2;
-        }
-      }
-    } catch (e) {
-      if ((e as ApiError).code === 'GOOGLE_TOKEN_EXPIRED' || (e as ApiError).code === 'GOOGLE_API_ERROR') {
-        throw e;
-      }
-
-      await rollback();
-
-      const genericError = new Error('Network error or Google Calendar API is currently unreachable. Please try again.');
-      (genericError as ApiError).code = 'GOOGLE_API_ERROR';
-      throw genericError;
-    }
-  }
-
-  // Step 3: Confirm the booking with real IDs and extend the client-cache locks.
-  await confirmBooking({ bookingId, clientUid, startIso, endIso, googleEventId, googleMeetLink: realMeetLink });
-
+  const { googleMeetLink } = result.data;
+  
   logger.info(`Successfully booked session. Booking ID: ${bookingId}`);
+
+  const resolvedSummary = resolveEventTemplate(DEFAULT_EVENT_TEMPLATES.summary, {
+    coachName,
+    coachEmail,
+    clientName: resolvedClientName,
+    clientEmail,
+    topic,
+  });
+  const resolvedDescription = resolveEventTemplate(DEFAULT_EVENT_TEMPLATES.description, {
+    coachName,
+    coachEmail,
+    clientName: resolvedClientName,
+    clientEmail,
+    topic,
+  });
 
   const newBooking: CalendarEvent = {
     id: bookingId,
-    summary: eventPayload.summary,
-    description: eventPayload.description,
+    summary: resolvedSummary,
+    description: resolvedDescription,
     start: { dateTime: startIso },
     end: { dateTime: endIso },
-    meetLink: realMeetLink,
+    meetLink: googleMeetLink,
     type: EVENT_TYPE.PEER_COACHING,
     attendees: [
       { email: coachEmail, displayName: coachName },
@@ -528,74 +396,24 @@ export const scheduleMeeting = async (
 };
 
 export const cancelBooking = async (bookingId: string): Promise<void> => {
-  if (!db) return;
-  const data = await getBooking(bookingId);
-  if (!data) return;
-
   const token = getGoogleToken();
-
-  // Step 1: Cancel in Google Calendar FIRST
-  if (ENABLE_GOOGLE_INTEGRATION && data.googleEventId) {
-    if (!token) {
-      const err = new Error('Google Token Expired');
-      (err as ApiError).code = 'GOOGLE_TOKEN_EXPIRED';
-      throw err;
-    }
-
-    try {
-      const response = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/primary/events/${data.googleEventId}?sendUpdates=all`,
-        {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-
-      if (!response.ok && response.status !== 404) {
-        if (response.status === 401) {
-          const err = new Error('Google Token Expired');
-          (err as ApiError).code = 'GOOGLE_TOKEN_EXPIRED';
-          throw err;
-        }
-        const apiError = new Error('Failed to delete Google Calendar event.');
-        (apiError as ApiError).code = 'GOOGLE_API_ERROR';
-        throw apiError;
-      }
-    } catch (e) {
-      if ((e as ApiError).code === 'GOOGLE_TOKEN_EXPIRED' || (e as ApiError).code === 'GOOGLE_API_ERROR') {
-        throw e;
-      }
-      const genericError = new Error('Network error or Google Calendar API is currently unreachable. Please try again.');
-      (genericError as ApiError).code = 'GOOGLE_API_ERROR';
-      throw genericError;
-    }
-  }
-
-  // Step 2: Cancel in Firestore (booking + public busy slot) and release locks.
-  await cancelBookingDoc(bookingId);
-  try {
-    await deleteBusySlot(bookingId);
-  } catch (e) {
-    logger.error('Error deleting busy slot document:', e);
-  }
-
-  const startIso = data.startTime && typeof data.startTime.toDate === 'function'
-    ? data.startTime.toDate().toISOString()
-    : (data.startTime?.dateTime || data.startTime);
-  if (data.clientUid && startIso) {
-    try {
-      await deleteClientBookingLock(data.clientUid, startIso);
-      const durationMs = data.endTime.toDate().getTime() - data.startTime.toDate().getTime();
-      if (durationMs > 30 * 60 * 1000) {
-        const nextStartIso = new Date(data.startTime.toDate().getTime() + 30 * 60 * 1000).toISOString();
-        await deleteClientBookingLock(data.clientUid, nextStartIso);
-      }
-    } catch (e) {
-      logger.error('Error releasing client booking cache:', e);
-    }
-  }
+  const manageBooking = httpsCallable<any, any>(functions, 'manageBooking');
+  
+  await manageBooking({
+    action: 'cancel',
+    bookingId,
+    googleAccessToken: token || ''
+  });
 
   logger.info(`Successfully cancelled booking. Booking ID: ${bookingId}`);
+};
+
+export const syncCalendar = async (): Promise<void> => {
+  const token = getGoogleToken();
+  if (!token) return;
+  const syncMyCalendarFn = httpsCallable<any, any>(functions, 'syncMyCalendar');
+  await syncMyCalendarFn({ googleAccessToken: token });
+  logger.info('Successfully synced Google Calendar to availability cache.');
 };
 
 // Template-only availability used when a coach has no precomputed cache document.
@@ -633,43 +451,15 @@ export const getCoachesAvailability = async (
   });
 
   if (db) {
-    const uids = coaches.map(c => c.userId);
-    const uidChunks = chunkArray(uids, 30);
-
-    const foundUids = new Set<string>();
-    // Read the aggregate availability cache chunk-by-chunk (each chunk is a single
-    // repository read) so a partial outage still yields the chunks that succeeded.
-    const personalAvailabilityCacheResults = await Promise.allSettled(
-      uidChunks.map(c => fetchPersonalAvailabilityCacheChunk(c))
-    );
-
-    personalAvailabilityCacheResults.forEach((res, index) => {
-      if (res.status !== 'fulfilled') {
-        logger.error('Error fetching available slots cache chunk:', res.reason);
-        logger.telemetry(LOG_SEVERITY.ERROR, 'cache_query_failure', {
-          uids: uidChunks[index],
-          errorCode: TelemetryErrors.CACHE_QUERY_FAILURE.code,
-          errorMessage: TelemetryErrors.CACHE_QUERY_FAILURE.message,
-          error: res.reason instanceof Error ? res.reason.message : String(res.reason)
-        }).catch(err => logger.error('Failed to log cache query failure:', err));
-        return;
-      }
-      res.value.forEach((data, uid) => {
-        if (!(uid in coachesAvailability)) return;
-        foundUids.add(uid);
-        coachesAvailability[uid] = data.availableSlots || [];
-      });
-    });
+    // No op - cache removed
 
     for (const coach of coaches) {
-      if (!foundUids.has(coach.userId)) {
-        try {
-          const schedule = await getSchedule(coach.userId);
-          const fallbackSlots = generateFallbackAvailableSlots(coach, schedule, timeMin, timeMax);
-          coachesAvailability[coach.userId] = fallbackSlots;
-        } catch (e) {
-          logger.error(`Error generating fallback slots for ${coach.userId}:`, e);
-        }
+      try {
+        const schedule = await getSchedule(coach.userId);
+        const fallbackSlots = generateFallbackAvailableSlots(coach, schedule, timeMin, timeMax);
+        coachesAvailability[coach.userId] = fallbackSlots;
+      } catch (e) {
+        logger.error(`Error generating fallback slots for ${coach.userId}:`, e);
       }
     }
   }
