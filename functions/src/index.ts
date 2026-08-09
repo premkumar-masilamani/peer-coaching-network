@@ -1,5 +1,6 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
+import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { generateTemplateSlots } from "./slotGeneration";
 
 admin.initializeApp();
@@ -66,7 +67,7 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
       }
       
       t.update(availabilityRef, {
-        availableSlotsUtc: admin.firestore.FieldValue.arrayRemove(startIso)
+        availableSlotsUtc: FieldValue.arrayRemove(startIso)
       });
       
       t.set(bookingRef, {
@@ -75,11 +76,11 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
         clientUid,
         startIso,
         endIso,
-        startTime: admin.firestore.Timestamp.fromDate(new Date(startIso)),
-        endTime: admin.firestore.Timestamp.fromDate(new Date(endIso)),
+        startTime: Timestamp.fromDate(new Date(startIso)),
+        endTime: Timestamp.fromDate(new Date(endIso)),
         topic,
         status: "CONFIRMED",
-        createdAt: admin.firestore.FieldValue.serverTimestamp()
+        createdAt: FieldValue.serverTimestamp()
       });
     });
 
@@ -132,9 +133,9 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
     
     await db.runTransaction(async (t) => {
       const availRef = db.collection("availability").doc(docData.coachUid);
-      t.update(bookingRef, { status: "CANCELLED", updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      t.update(bookingRef, { status: "CANCELLED", updatedAt: FieldValue.serverTimestamp() });
       t.update(availRef, {
-        availableSlotsUtc: admin.firestore.FieldValue.arrayUnion(docData.startIso)
+        availableSlotsUtc: FieldValue.arrayUnion(docData.startIso)
       });
     });
     
@@ -165,7 +166,7 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
     const mergedProfile = { ...existingProfile, ...(profileData || {}) };
     
     if (profileData) {
-      t.set(userRef, { ...profileData, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+      t.set(userRef, { ...profileData, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
     
     let effectiveAvailableDays = availableDays;
@@ -181,7 +182,7 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
         effectiveBlockedDates = [];
       }
     } else {
-      t.set(schedRef, { availableDays, blockedDates, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+      t.set(schedRef, { availableDays, blockedDates, updatedAt: FieldValue.serverTimestamp() });
     }
     
     const now = new Date();
@@ -198,7 +199,7 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
     t.set(availRef, {
       coachUid: uid,
       availableSlotsUtc: slots,
-      lastUpdated: admin.firestore.FieldValue.serverTimestamp(),
+      lastUpdated: FieldValue.serverTimestamp(),
       userStatus: mergedProfile.userStatus || null,
       gender: mergedProfile.gender || null,
       country: mergedProfile.country || null,
@@ -250,7 +251,7 @@ export const syncMyCalendar = functions.https.onCall(async (data, context) => {
         }
         return true;
       });
-      await availRef.update({ availableSlotsUtc: slots, lastUpdated: admin.firestore.FieldValue.serverTimestamp() });
+      await availRef.update({ availableSlotsUtc: slots, lastUpdated: FieldValue.serverTimestamp() });
     }
   } catch (err) {
     console.error("syncMyCalendar error:", err);
@@ -285,20 +286,20 @@ export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone
     
     await db.collection("availability").doc(uid).set({
       availableSlotsUtc: slots,
-      lastUpdated: admin.firestore.FieldValue.serverTimestamp()
+      lastUpdated: FieldValue.serverTimestamp()
     }, { merge: true });
   }
   
   const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
   const pendingSnap = await db.collection("bookings")
     .where("status", "==", "PENDING")
-    .where("createdAt", "<", admin.firestore.Timestamp.fromDate(fifteenMinsAgo))
+    .where("createdAt", "<", Timestamp.fromDate(fifteenMinsAgo))
     .get();
     
   for (const doc of pendingSnap.docs) {
     const data = doc.data();
     await db.collection("availability").doc(data.coachUid).update({
-      availableSlotsUtc: admin.firestore.FieldValue.arrayUnion(data.startIso)
+      availableSlotsUtc: FieldValue.arrayUnion(data.startIso)
     });
     await doc.ref.delete();
   }
