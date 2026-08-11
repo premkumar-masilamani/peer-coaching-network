@@ -4,21 +4,21 @@ exports.dailyHousekeeping = exports.syncMyCalendar = exports.updateUserProfileAn
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const firestore_1 = require("firebase-admin/firestore");
-const slotGeneration_1 = require("./slotGeneration");
-const config_1 = require("./config");
+const shared_1 = require("@pcn/shared");
 admin.initializeApp();
 const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID;
 const db = databaseId ? (0, firestore_1.getFirestore)(admin.app(), databaseId) : (0, firestore_1.getFirestore)();
 // Google API helpers
-const createGoogleEvent = async (token, eventPayload) => {
+const getGoogleApiBase = () => {
     if (process.env.VITE_USE_FIREBASE_EMULATOR === "true" || process.env.FUNCTIONS_EMULATOR === "true") {
-        console.log("Mocking createGoogleEvent in local emulator mode.");
-        return {
-            id: "mock-google-event-id",
-            hangoutLink: "https://meet.google.com/mock-meet-link"
-        };
+        // Under local emulation, point to the mockGoogleCalendar endpoint running on port 5001.
+        return "http://localhost:5001/peer-coaching-network/us-central1/mockGoogleCalendar";
     }
-    const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all', {
+    return "https://www.googleapis.com";
+};
+const createGoogleEvent = async (token, eventPayload) => {
+    const apiBase = getGoogleApiBase();
+    const response = await fetch(`${apiBase}/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(eventPayload)
@@ -28,11 +28,8 @@ const createGoogleEvent = async (token, eventPayload) => {
     return response.json();
 };
 const deleteGoogleEvent = async (token, eventId) => {
-    if (process.env.VITE_USE_FIREBASE_EMULATOR === "true" || process.env.FUNCTIONS_EMULATOR === "true") {
-        console.log("Mocking deleteGoogleEvent in local emulator mode.");
-        return;
-    }
-    const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}?sendUpdates=all`, {
+    const apiBase = getGoogleApiBase();
+    const response = await fetch(`${apiBase}/calendar/v3/calendars/primary/events/${eventId}?sendUpdates=all`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
     });
@@ -40,17 +37,8 @@ const deleteGoogleEvent = async (token, eventId) => {
         throw new Error(`Google API Error: ${response.status}`);
 };
 const getGoogleFreeBusy = async (token, timeMin, timeMax) => {
-    if (process.env.VITE_USE_FIREBASE_EMULATOR === "true" || process.env.FUNCTIONS_EMULATOR === "true") {
-        console.log("Mocking getGoogleFreeBusy in local emulator mode.");
-        return {
-            calendars: {
-                primary: {
-                    busy: []
-                }
-            }
-        };
-    }
-    const response = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
+    const apiBase = getGoogleApiBase();
+    const response = await fetch(`${apiBase}/calendar/v3/freeBusy`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -89,10 +77,10 @@ exports.manageBooking = functions.https.onCall(async (data, context) => {
             // Check for client double-booking conflicts (overlapping sessions in either client or coach role)
             const clientBookingsQuery = db.collection("bookings")
                 .where("clientUid", "==", clientUid)
-                .where("status", "==", config_1.BOOKING_STATUS.CONFIRMED);
+                .where("status", "==", shared_1.BOOKING_STATUS.CONFIRMED);
             const clientCoachBookingsQuery = db.collection("bookings")
                 .where("coachUid", "==", clientUid)
-                .where("status", "==", config_1.BOOKING_STATUS.CONFIRMED);
+                .where("status", "==", shared_1.BOOKING_STATUS.CONFIRMED);
             const [clientBookingsSnap, clientCoachBookingsSnap] = await Promise.all([
                 t.get(clientBookingsQuery),
                 t.get(clientCoachBookingsQuery)
@@ -104,7 +92,7 @@ exports.manageBooking = functions.https.onCall(async (data, context) => {
                 const bStart = docData.startTime.toDate().getTime();
                 const bEnd = docData.endTime.toDate().getTime();
                 if (reqStart < bEnd && reqEnd > bStart) {
-                    throw new functions.https.HttpsError("failed-precondition", config_1.BOOKING_ERROR.BOOKED_AS_CLIENT);
+                    throw new functions.https.HttpsError("failed-precondition", shared_1.BOOKING_ERROR.BOOKED_AS_CLIENT);
                 }
             }
             for (const docSnap of clientCoachBookingsSnap.docs) {
@@ -112,7 +100,7 @@ exports.manageBooking = functions.https.onCall(async (data, context) => {
                 const bStart = docData.startTime.toDate().getTime();
                 const bEnd = docData.endTime.toDate().getTime();
                 if (reqStart < bEnd && reqEnd > bStart) {
-                    throw new functions.https.HttpsError("failed-precondition", config_1.BOOKING_ERROR.BOOKED_AS_COACH);
+                    throw new functions.https.HttpsError("failed-precondition", shared_1.BOOKING_ERROR.BOOKED_AS_COACH);
                 }
             }
             t.update(availabilityRef, {
@@ -127,7 +115,7 @@ exports.manageBooking = functions.https.onCall(async (data, context) => {
                 startTime: firestore_1.Timestamp.fromDate(new Date(startIso)),
                 endTime: firestore_1.Timestamp.fromDate(new Date(endIso)),
                 topic,
-                status: config_1.BOOKING_STATUS.CONFIRMED,
+                status: shared_1.BOOKING_STATUS.CONFIRMED,
                 createdAt: firestore_1.FieldValue.serverTimestamp()
             });
         });
@@ -178,7 +166,7 @@ exports.manageBooking = functions.https.onCall(async (data, context) => {
         }
         await db.runTransaction(async (t) => {
             const availRef = db.collection("availability").doc(docData.coachUid);
-            t.update(bookingRef, { status: config_1.BOOKING_STATUS.CANCELLED, updatedAt: firestore_1.FieldValue.serverTimestamp() });
+            t.update(bookingRef, { status: shared_1.BOOKING_STATUS.CANCELLED, updatedAt: firestore_1.FieldValue.serverTimestamp() });
             t.update(availRef, {
                 availableSlotsUtc: firestore_1.FieldValue.arrayUnion(docData.startIso)
             });
@@ -282,8 +270,8 @@ exports.updateUserProfileAndSchedule = functions.https.onCall(async (data, conte
             t.set(blockedDatesRef, { blockedDates: effectiveBlockedDates });
         }
         const now = new Date();
-        const horizonDays = config_1.BOOKING_HORIZON_DAYS + 1;
-        const slots = (0, slotGeneration_1.generateTemplateSlots)({
+        const horizonDays = shared_1.BOOKING_HORIZON_DAYS + 1;
+        const slots = (0, shared_1.generateTemplateSlots)({
             availableDays: effectiveAvailableDays,
             blockedDates: effectiveBlockedDates,
             timezone: mergedProfile.timezone || "UTC",
@@ -366,12 +354,12 @@ exports.dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone("UTC
             continue;
         const daysData = daysDoc.data();
         const datesData = datesDoc.exists ? datesDoc.data() : {};
-        const slots = (0, slotGeneration_1.generateTemplateSlots)({
+        const slots = (0, shared_1.generateTemplateSlots)({
             availableDays: parseAvailableDays(daysData),
             blockedDates: datesData.blockedDates || [],
             timezone: userData.timezone || "UTC",
             anchorDate: now,
-            horizonDays: config_1.BOOKING_HORIZON_DAYS + 1
+            horizonDays: shared_1.BOOKING_HORIZON_DAYS + 1
         });
         await db.collection("availability").doc(uid).set({
             availableSlotsUtc: slots,
@@ -419,4 +407,39 @@ exports.dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone("UTC
     console.log("Housekeeping task executed successfully");
     return null;
 });
+if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.VITE_USE_FIREBASE_EMULATOR === "true") {
+    exports.mockGoogleCalendar = functions.https.onRequest(async (req, res) => {
+        // Enable CORS
+        res.set("Access-Control-Allow-Origin", "*");
+        res.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+        res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+        if (req.method === "OPTIONS") {
+            res.status(204).send("");
+            return;
+        }
+        console.log(`Mock Google Calendar request received. Method: ${req.method}, Path: ${req.path}`);
+        if (req.path.includes("/freeBusy")) {
+            res.json({
+                calendars: {
+                    primary: {
+                        busy: []
+                    }
+                }
+            });
+            return;
+        }
+        if (req.method === "POST" && req.path.includes("/events")) {
+            res.json({
+                id: "mock-google-event-id",
+                hangoutLink: "https://meet.google.com/mock-meet-link"
+            });
+            return;
+        }
+        if (req.method === "DELETE" && req.path.includes("/events/")) {
+            res.status(204).send("");
+            return;
+        }
+        res.status(404).json({ error: "Not found" });
+    });
+}
 //# sourceMappingURL=index.js.map

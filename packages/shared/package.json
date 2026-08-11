@@ -1,0 +1,17 @@
+{
+  "name": "@pcn/shared",
+  "version": "1.0.0",
+  "description": "Shared configurations, types, and constants for Peer Coaching Network",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.2"
+  },
+  "private": true
+}

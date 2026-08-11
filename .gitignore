@@ -2,6 +2,9 @@
 node_modules/
 dist/
 coverage/
+packages/shared/lib/
+web/dist/
+functions/lib/
 
 # --- Logs ---
 *.log

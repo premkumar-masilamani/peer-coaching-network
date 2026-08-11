@@ -1,24 +1,30 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
-import { generateTemplateSlots } from "./slotGeneration";
-import { type AvailableDays } from "./types";
-import { BOOKING_STATUS, BOOKING_ERROR, BOOKING_HORIZON_DAYS } from "./config";
+import { 
+  generateTemplateSlots, 
+  type AvailableDays,
+  BOOKING_STATUS, 
+  BOOKING_ERROR, 
+  BOOKING_HORIZON_DAYS,
+} from "@pcn/shared";
 
 admin.initializeApp();
 const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID;
 const db = databaseId ? getFirestore(admin.app(), databaseId) : getFirestore();
 
 // Google API helpers
-const createGoogleEvent = async (token: string, eventPayload: unknown) => {
+const getGoogleApiBase = () => {
   if (process.env.VITE_USE_FIREBASE_EMULATOR === "true" || process.env.FUNCTIONS_EMULATOR === "true") {
-    console.log("Mocking createGoogleEvent in local emulator mode.");
-    return {
-      id: "mock-google-event-id",
-      hangoutLink: "https://meet.google.com/mock-meet-link"
-    };
+    // Under local emulation, point to the mockGoogleCalendar endpoint running on port 5001.
+    return "http://localhost:5001/peer-coaching-network/us-central1/mockGoogleCalendar";
   }
-  const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all', {
+  return "https://www.googleapis.com";
+};
+
+const createGoogleEvent = async (token: string, eventPayload: unknown) => {
+  const apiBase = getGoogleApiBase();
+  const response = await fetch(`${apiBase}/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(eventPayload)
@@ -28,11 +34,8 @@ const createGoogleEvent = async (token: string, eventPayload: unknown) => {
 };
 
 const deleteGoogleEvent = async (token: string, eventId: string) => {
-  if (process.env.VITE_USE_FIREBASE_EMULATOR === "true" || process.env.FUNCTIONS_EMULATOR === "true") {
-    console.log("Mocking deleteGoogleEvent in local emulator mode.");
-    return;
-  }
-  const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}?sendUpdates=all`, {
+  const apiBase = getGoogleApiBase();
+  const response = await fetch(`${apiBase}/calendar/v3/calendars/primary/events/${eventId}?sendUpdates=all`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -40,17 +43,8 @@ const deleteGoogleEvent = async (token: string, eventId: string) => {
 };
 
 const getGoogleFreeBusy = async (token: string, timeMin: string, timeMax: string) => {
-  if (process.env.VITE_USE_FIREBASE_EMULATOR === "true" || process.env.FUNCTIONS_EMULATOR === "true") {
-    console.log("Mocking getGoogleFreeBusy in local emulator mode.");
-    return {
-      calendars: {
-        primary: {
-          busy: []
-        }
-      }
-    };
-  }
-  const response = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
+  const apiBase = getGoogleApiBase();
+  const response = await fetch(`${apiBase}/calendar/v3/freeBusy`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -488,3 +482,46 @@ export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone
   console.log("Housekeeping task executed successfully");
   return null;
 });
+
+if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.VITE_USE_FIREBASE_EMULATOR === "true") {
+  exports.mockGoogleCalendar = functions.https.onRequest(async (req, res) => {
+    // Enable CORS
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    
+    if (req.method === "OPTIONS") {
+      res.status(204).send("");
+      return;
+    }
+    
+    console.log(`Mock Google Calendar request received. Method: ${req.method}, Path: ${req.path}`);
+    
+    if (req.path.includes("/freeBusy")) {
+      res.json({
+        calendars: {
+          primary: {
+            busy: []
+          }
+        }
+      });
+      return;
+    }
+    
+    if (req.method === "POST" && req.path.includes("/events")) {
+      res.json({
+        id: "mock-google-event-id",
+        hangoutLink: "https://meet.google.com/mock-meet-link"
+      });
+      return;
+    }
+    
+    if (req.method === "DELETE" && req.path.includes("/events/")) {
+      res.status(204).send("");
+      return;
+    }
+    
+    res.status(404).json({ error: "Not found" });
+  });
+}
+

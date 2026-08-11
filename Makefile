@@ -9,23 +9,29 @@ install:
 
 .PHONY: build_emulator
 build_emulator:
-	set -a && . ./.env.local && set +a && npm run tsc && npm run vite -- build --mode production
+	npm run build:shared
+	npm run build:functions
+	set -a && . ./web/.env.local && set +a && npm run build --workspace=web -- --mode production
 
 .PHONY: build_dev
 build_dev:
-	set -a && . ./.env.development && set +a && npm run tsc && npm run vite -- build --mode production
+	npm run build:shared
+	npm run build:functions
+	set -a && . ./web/.env.development && set +a && npm run build --workspace=web -- --mode production
 
 .PHONY: build_prod
 build_prod:
-	set -a && . ./.env.production && set +a && npm run tsc && npm run vite -- build --mode production
+	npm run build:shared
+	npm run build:functions
+	set -a && . ./web/.env.production && set +a && npm run build --workspace=web -- --mode production
 
 .PHONY: dev
 dev:
-	npm run vite -- --mode development
+	npm run dev --workspace=web -- --mode development
 
 .PHONY: local
 local:
-	npm run emulator:seed && npm run vite -- --mode development
+	npm run emulator:seed && npm run dev --workspace=web -- --mode development
 
 .PHONY: lint
 lint:
@@ -34,7 +40,6 @@ lint:
 .PHONY: emulator
 emulator:
 	$(MAKE) build_emulator
-	npm --prefix functions run build
 	firebase emulators:start
 
 .PHONY: erd
@@ -43,8 +48,8 @@ erd:
 
 .PHONY: deploy_dev
 deploy_dev: build_dev
-	. ./.env.development && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
+	. ./web/.env.development && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
 
 .PHONY: deploy_prod
 deploy_prod: build_prod
-	. ./.env.production && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
+	. ./web/.env.production && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
