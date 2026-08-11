@@ -2,13 +2,21 @@
   "name": "@pcn/shared",
   "version": "1.0.0",
   "description": "Shared configurations, types, and constants for Peer Coaching Network",
-  "main": "lib/index.js",
-  "types": "lib/index.d.ts",
+  "main": "./lib/cjs/index.js",
+  "module": "./lib/esm/index.js",
+  "types": "./lib/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./lib/esm/index.js",
+      "require": "./lib/cjs/index.js",
+      "types": "./lib/esm/index.d.ts"
+    }
+  },
   "files": [
     "lib"
   ],
   "scripts": {
-    "build": "tsc"
+    "build": "tsc && tsc -p tsconfig.cjs.json"
   },
   "devDependencies": {
     "typescript": "~6.0.2"
