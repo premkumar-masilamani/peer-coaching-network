@@ -1,9 +1,4 @@
-import { fetchScheduleRaw, writeSchedule } from './firestoreRepository';
-// Lazy import cycle with slotsService (it reads getSchedule from here). Only
-// referenced inside updateSchedule below (call-time), so module evaluation order
-// is irrelevant — do not hoist this call to module top level.
-import { recalculateAvailableSlotsCache } from './slotsService';
-import { logger } from '../utils/logger';
+import { fetchScheduleRaw } from './firestoreRepository';
 import { timeStringToTimestamp, timestampToTimeString } from '../utils/slotGeneration';
 import type { AvailableDays } from './types';
 
@@ -29,13 +24,14 @@ export const getSchedule = async (userId: string): Promise<{ availableDays: Avai
   };
 };
 
+import { httpsCallable } from 'firebase/functions';
+import { functions } from './firebaseApp';
+
 export const updateSchedule = async (
-  userId: string,
+  uid: string,
   availableDays: AvailableDays,
   blockedDates: string[]
 ): Promise<void> => {
-  await writeSchedule(userId, availableDays, blockedDates);
-
-  // Schedule changed, update the available slots cache
-  recalculateAvailableSlotsCache(userId).catch((err) => logger.error(`Error recalculating slots cache for ${userId}:`, err));
+  const updateUserProfileAndSchedule = httpsCallable(functions, 'updateUserProfileAndSchedule');
+  await updateUserProfileAndSchedule({ userId: uid, availableDays, blockedDates });
 };

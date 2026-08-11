@@ -3,6 +3,7 @@ import { getAnalytics, logEvent } from 'firebase/analytics';
 import type { Analytics } from 'firebase/analytics';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
+import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 import { logger } from '../utils/logger';
 
 declare global {
@@ -65,6 +66,7 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const databaseId = import.meta.env.VITE_FIRESTORE_DATABASE_ID;
 export const db = getFirestore(app, databaseId);
+export const functions = getFunctions(app);
 
 // Safe-initialize Google Analytics
 let analytics: Analytics | null = null;
@@ -102,7 +104,8 @@ if (useEmulator) {
     try {
       connectAuthEmulator(auth, `http://${host}:9099`, { disableWarnings: true });
       connectFirestoreEmulator(db, host, 8080);
-      logger.info(`Connected to Auth and Firestore Emulators on ${host}`);
+      connectFunctionsEmulator(functions, host, 5001);
+      logger.info(`Connected to Auth, Firestore, and Functions Emulators on ${host}`);
     } catch (e) {
       logger.error('Failed to connect to emulators:', e);
     }

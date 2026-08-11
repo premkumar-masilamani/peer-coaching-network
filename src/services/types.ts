@@ -76,3 +76,17 @@ export interface DiscoveryFilters {
   icf_mcc?: boolean;
   icf_actc?: boolean;
 }
+
+export interface Availability {
+  coachUid: string;
+  availableSlotsUtc: string[];
+  lastUpdated: Timestamp;
+  // Denormalized user profile fields
+  gender?: string;
+  country?: string;
+  icf_acc?: boolean;
+  icf_pcc?: boolean;
+  icf_mcc?: boolean;
+  icf_actc?: boolean;
+  userStatus?: UserStatus;
+}

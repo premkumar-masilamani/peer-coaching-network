@@ -78,9 +78,18 @@
     "ui": {
       "enabled": true
     },
-    "singleProjectMode": true
+    "singleProjectMode": true,
+    "functions": {
+      "port": 5001
+    },
+    "pubsub": {
+      "port": 8085
+    }
   },
   "auth": {
     "providers": {}
+  },
+  "functions": {
+    "source": "functions"
   }
 }

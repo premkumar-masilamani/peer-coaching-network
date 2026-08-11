@@ -64,12 +64,9 @@ export {
 } from './scheduleService';
 
 export {
-  subtractBusyIntervals,
-  getGoogleBusyIntervals,
   recalculateAvailableSlotsCache,
   lazyRecalculateAvailableSlotsCache,
   getUserAvailableSlots,
-  getCoachBusySlots,
 } from './slotsService';
 
 export {
@@ -85,5 +82,6 @@ export {
 
 export {
   queryAvailableCoachesForDay,
+  subscribeAvailableCoachesForDay,
   getUserBookings,
 } from './discoveryService';

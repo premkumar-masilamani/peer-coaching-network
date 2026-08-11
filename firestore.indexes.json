@@ -24,19 +24,5 @@
         { "fieldPath": "endTime", "order": "ASCENDING" }
       ]
     }
-  ],
-  "fieldOverrides": [
-    {
-      "collectionGroup": "clientBookingCache",
-      "fieldPath": "expireAt",
-      "ttl": true,
-      "indexes": []
-    },
-    {
-      "collectionGroup": "systemLogs",
-      "fieldPath": "expireAt",
-      "ttl": true,
-      "indexes": []
-    }
   ]
 }

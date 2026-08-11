@@ -35,25 +35,20 @@ import {
   getDocs,
   setDoc,
   updateDoc,
-  deleteDoc,
   addDoc,
   writeBatch,
-  runTransaction,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
 import type {
   Query,
   DocumentData,
-  DocumentReference,
   QueryConstraint,
   QueryDocumentSnapshot,
-  DocumentSnapshot,
 } from 'firebase/firestore';
 import {
   COLLECTIONS,
   BOOKING_STATUS,
-  BOOKING_ERROR,
   SUPPORT_STATUS,
   USER_STATUS,
   type UserStatus,
@@ -61,8 +56,7 @@ import {
 } from '../config';
 import { db, auth } from './firebaseApp';
 import { chunkArray } from '../utils/chunkArray';
-import { logger } from '../utils/logger';
-import type { UserProfile, AvailableDays } from './types';
+import type { UserProfile, Availability, AvailableDays } from './types';
 
 // The `in` operator (and documentId `in`) accepts at most 30 values per query.
 const FIRESTORE_IN_LIMIT = 30;
@@ -143,29 +137,7 @@ const confirmedBookingsByParticipantQuery = (uid: string): Query<DocumentData> =
     )
   );
 
-// busySlots — `startTime >= a AND startTime <= b` (single-field range; no
-// composite index). Public busy intervals used by coach discovery.
-const busySlotsInStartTimeRangeQuery = (dayStart: Date, dayEnd: Date): Query<DocumentData> =>
-  query(
-    collection(db, COLLECTIONS.BUSY_SLOTS),
-    where('startTime', '>=', Timestamp.fromDate(dayStart)),
-    where('startTime', '<=', Timestamp.fromDate(dayEnd))
-  );
 
-// busySlots — `coachUid == x`. Single equality; no composite index.
-const busySlotsByCoachQuery = (coachUid: string): Query<DocumentData> =>
-  query(collection(db, COLLECTIONS.BUSY_SLOTS), where('coachUid', '==', coachUid));
-
-// coachAvailabilityByDate — `coachUid == x`. Single equality; no composite index.
-const coachAvailabilityByCoachQuery = (coachUid: string): Query<DocumentData> =>
-  query(collection(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE), where('coachUid', '==', coachUid));
-// coachAvailabilityByDate — `dateISO in [...]`. Single `in`; no composite index.
-const coachAvailabilityByDatesQuery = (dateISOs: string[]): Query<DocumentData> =>
-  query(collection(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE), where('dateISO', 'in', dateISOs));
-
-// personalAvailabilityCache — `documentId() in [...]`. Single `in`; no composite index.
-const personalAvailabilityCacheByIdsQuery = (coachIds: string[]): Query<DocumentData> =>
-  query(collection(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE), where(documentId(), 'in', coachIds));
 
 // supportRequests — `userId == x`. Single equality; no composite index. (Callers
 // sort by updatedAt in memory.)
@@ -384,438 +356,61 @@ export const fetchUpcomingBookingsByCoach = async (coachUid: string): Promise<Do
 export const fetchConfirmedBookingsByParticipant = async (uid: string): Promise<DocumentData[]> =>
   collectDocs(await getDocs(confirmedBookingsByParticipantQuery(uid)));
 
-/** Public busy-slot documents whose start time falls in the given day window. */
-export const fetchBusySlotsInDayRange = async (
-  dayStart: Date,
-  dayEnd: Date
-): Promise<DocumentData[]> => collectDocs(await getDocs(busySlotsInStartTimeRangeQuery(dayStart, dayEnd)));
-
-/** Public busy-slot documents for a single coach. */
-export const fetchBusySlotsByCoach = async (coachUid: string): Promise<DocumentData[]> =>
-  collectDocs(await getDocs(busySlotsByCoachQuery(coachUid)));
 
 /** Persist a self-healed Google Meet link onto a booking. */
 export const setBookingGoogleMeetLink = async (bookingId: string, googleMeetLink: string): Promise<void> => {
   await updateDoc(doc(db, COLLECTIONS.BOOKINGS, bookingId), { googleMeetLink });
 };
 
-// Booking lifecycle (transaction + confirm/rollback/cancel). These own all
-// Firestore reference and Timestamp construction; the calling service passes
-// only primitives (ids and ISO strings). Coach/client-as-coach conflicts are
-// tracked in the public `busySlots` collection; client/coach-as-client locks in
-// `clientBookingCache`.
+// Booking lifecycle methods have been migrated to the manageBooking Cloud Function.
 
-const SLOT_HALF_MS = 30 * 60 * 1000;
-const PENDING_TTL_MS = 10 * 60 * 1000;
-const CONFIRMED_TTL_MS = 24 * 60 * 60 * 1000;
-const RESERVE_MAX_ATTEMPTS = 3;
+// ── availability ─────────────────────────────────────────────────────────────
 
-interface BookingSlotParams {
-  bookingId: string;
-  coachUid: string;
-  clientUid: string;
-  startIso: string;
-  endIso: string;
-  topic: string;
-}
-
-/**
- * Atomically claim a booking slot (and its adjacent-30-minute guards) for both
- * the coach and the client via a Firestore transaction, writing the PENDING
- * booking, its public busy-slot doc, and the client-side booking-cache locks.
- * Throws a BOOKING_ERROR.* message when the slot conflicts; retries transient
- * failures.
- */
-export const reserveBookingSlots = async (params: BookingSlotParams): Promise<void> => {
-  const { bookingId, coachUid, clientUid, startIso, endIso, topic } = params;
-  const startMs = new Date(startIso).getTime();
-  const endMs = new Date(endIso).getTime();
-  const isOneHour = endMs - startMs > SLOT_HALF_MS;
-
-  const t0 = startIso;
-  const tMinus30 = new Date(startMs - SLOT_HALF_MS).toISOString();
-  const tPlus30 = new Date(startMs + SLOT_HALF_MS).toISOString();
-
-  const bookingRef = doc(db, COLLECTIONS.BOOKINGS, bookingId);
-  const busySlotRef = doc(db, COLLECTIONS.BUSY_SLOTS, bookingId);
-  const coachAtT0Ref = doc(db, COLLECTIONS.BUSY_SLOTS, `${coachUid}_${t0}`);
-  const coachAtTMinus30Ref = doc(db, COLLECTIONS.BUSY_SLOTS, `${coachUid}_${tMinus30}`);
-  const coachAtTPlus30Ref = doc(db, COLLECTIONS.BUSY_SLOTS, `${coachUid}_${tPlus30}`);
-  const clientAsCoachAtT0Ref = doc(db, COLLECTIONS.BUSY_SLOTS, `${clientUid}_${t0}`);
-  const clientAsCoachAtTMinus30Ref = doc(db, COLLECTIONS.BUSY_SLOTS, `${clientUid}_${tMinus30}`);
-  const clientAsCoachAtTPlus30Ref = doc(db, COLLECTIONS.BUSY_SLOTS, `${clientUid}_${tPlus30}`);
-  const clientBookingCacheAtT0Ref = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${clientUid}_${t0}`);
-  const clientBookingCacheAtTPlus30Ref = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${clientUid}_${tPlus30}`);
-  const coachAsClientAtT0Ref = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${coachUid}_${t0}`);
-  const coachAsClientAtTPlus30Ref = doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${coachUid}_${tPlus30}`);
-
-  const pendingExpireDate = new Date(Date.now() + PENDING_TTL_MS);
-  const bookingData = {
-    bookingId,
-    googleEventId: '',
-    googleMeetLink: '',
-    status: BOOKING_STATUS.PENDING,
-    startTime: Timestamp.fromDate(new Date(startIso)),
-    endTime: Timestamp.fromDate(new Date(endIso)),
-    // startIso mirrors the slot's ISO instant as a plain string. Security rules
-    // (PCN-038) use it to pin the booking to bookingId and to the coach's
-    // published availability shard; see coachPublishedSlot() in firestore.rules.
-    startIso,
-    topic,
-    coachUid,
-    clientUid,
-    createdAt: serverTimestamp(),
-    expireAt: Timestamp.fromDate(pendingExpireDate),
-  };
-
-  const isBookingActive = (docSnap: DocumentSnapshot) => {
-    if (!docSnap.exists()) return false;
-    const data = typeof docSnap.data === 'function' ? docSnap.data() : undefined;
-    if (!data) return true;
-    if (data.status === BOOKING_STATUS.CANCELLED) return false;
-    if (data.status === BOOKING_STATUS.PENDING && data.expireAt) {
-      const expireAt = data.expireAt?.toDate ? data.expireAt.toDate() : new Date(data.expireAt);
-      if (expireAt < new Date()) return false;
-    }
-    return true;
-  };
-
-  const isCacheActive = (docSnap: DocumentSnapshot) => {
-    if (!docSnap.exists()) return false;
-    const data = typeof docSnap.data === 'function' ? docSnap.data() : undefined;
-    if (!data) return true;
-    if (data.expireAt) {
-      const expireAt = data.expireAt?.toDate ? data.expireAt.toDate() : new Date(data.expireAt);
-      if (expireAt < new Date()) return false;
-    }
-    return true;
-  };
-
-  const isOneHourBooking = (docSnap: DocumentSnapshot) => {
-    if (!isBookingActive(docSnap)) return false;
-    const data = docSnap.data();
-    if (!data) return false;
-    const start = data.startTime.toDate().getTime();
-    const end = data.endTime.toDate().getTime();
-    return end - start > SLOT_HALF_MS;
-  };
-
-  // A conflicting coach slot is either a still-live PENDING hold (someone is
-  // mid-booking but has not confirmed yet) or a CONFIRMED booking (the slot is
-  // genuinely taken). The two get different, more truthful UI messages: the hold
-  // is transient and worth retrying, the confirmed booking is not.
-  const isPendingHold = (docSnap: DocumentSnapshot): boolean => {
-    if (!isBookingActive(docSnap)) return false;
-    const data = typeof docSnap.data === 'function' ? docSnap.data() : undefined;
-    return data?.status === BOOKING_STATUS.PENDING;
-  };
-  const coachSlotConflictError = (docSnap: DocumentSnapshot): Error =>
-    new Error(isPendingHold(docSnap) ? BOOKING_ERROR.SLOT_ON_HOLD : BOOKING_ERROR.SLOT_TAKEN);
-
-  let transactionSuccess = false;
-  let attempts = 0;
-  let lastError: Error | null = null;
-
-  while (attempts < RESERVE_MAX_ATTEMPTS && !transactionSuccess) {
-    attempts++;
-    try {
-      await runTransaction(db, async (tx) => {
-        const [
-          coachAtT0,
-          coachAtTMinus30,
-          coachAtTPlus30,
-          clientAsCoachAtT0,
-          clientAsCoachAtTMinus30,
-          clientAsCoachAtTPlus30,
-          clientBookingCacheAtT0,
-          clientBookingCacheAtTPlus30,
-          coachAsClientAtT0,
-          coachAsClientAtTPlus30,
-        ] = await Promise.all([
-          tx.get(coachAtT0Ref),
-          tx.get(coachAtTMinus30Ref),
-          tx.get(coachAtTPlus30Ref),
-          tx.get(clientAsCoachAtT0Ref),
-          tx.get(clientAsCoachAtTMinus30Ref),
-          tx.get(clientAsCoachAtTPlus30Ref),
-          tx.get(clientBookingCacheAtT0Ref),
-          tx.get(clientBookingCacheAtTPlus30Ref),
-          tx.get(coachAsClientAtT0Ref),
-          tx.get(coachAsClientAtTPlus30Ref),
-        ]);
-
-        // 1. Coach availability checks. Distinguish an in-flight PENDING hold
-        //    (SLOT_ON_HOLD) from a CONFIRMED booking (SLOT_TAKEN) so the loser of
-        //    the race gets the right message.
-        if (isBookingActive(coachAtT0)) throw coachSlotConflictError(coachAtT0);
-        if (isOneHourBooking(coachAtTMinus30)) throw coachSlotConflictError(coachAtTMinus30);
-        if (isOneHour && isBookingActive(coachAtTPlus30)) throw coachSlotConflictError(coachAtTPlus30);
-
-        // 2. Coach-as-client checks
-        if (isCacheActive(coachAsClientAtT0)) throw new Error(BOOKING_ERROR.SLOT_TAKEN);
-        if (isOneHour && isCacheActive(coachAsClientAtTPlus30)) throw new Error(BOOKING_ERROR.SLOT_TAKEN);
-
-        // 3. Client-as-client checks
-        if (isCacheActive(clientBookingCacheAtT0)) throw new Error(BOOKING_ERROR.BOOKED_AS_CLIENT);
-        if (isOneHour && isCacheActive(clientBookingCacheAtTPlus30)) throw new Error(BOOKING_ERROR.BOOKED_AS_CLIENT);
-
-        // 4. Client-as-coach checks
-        if (isBookingActive(clientAsCoachAtT0)) throw new Error(BOOKING_ERROR.BOOKED_AS_COACH);
-        if (isOneHourBooking(clientAsCoachAtTMinus30)) throw new Error(BOOKING_ERROR.BOOKED_AS_COACH);
-        if (isOneHour && isBookingActive(clientAsCoachAtTPlus30)) throw new Error(BOOKING_ERROR.BOOKED_AS_COACH);
-
-        tx.set(bookingRef, bookingData);
-        tx.set(busySlotRef, {
-          startTime: Timestamp.fromDate(new Date(startIso)),
-          endTime: Timestamp.fromDate(new Date(endIso)),
-          coachUid,
-          status: BOOKING_STATUS.PENDING,
-          expireAt: Timestamp.fromDate(pendingExpireDate),
-        });
-        tx.set(clientBookingCacheAtT0Ref, {
-          clientUid,
-          coachUid,
-          bookingId,
-          startIso: t0,
-          createdAt: serverTimestamp(),
-          expireAt: Timestamp.fromDate(pendingExpireDate),
-        });
-        if (isOneHour) {
-          tx.set(clientBookingCacheAtTPlus30Ref, {
-            clientUid,
-            coachUid,
-            bookingId,
-            startIso: tPlus30,
-            createdAt: serverTimestamp(),
-            expireAt: Timestamp.fromDate(pendingExpireDate),
-          });
-        }
-      });
-      transactionSuccess = true;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      if (
-        err instanceof Error &&
-        (err.message === BOOKING_ERROR.SLOT_TAKEN ||
-          err.message === BOOKING_ERROR.SLOT_ON_HOLD ||
-          err.message === BOOKING_ERROR.BOOKED_AS_CLIENT ||
-          err.message === BOOKING_ERROR.BOOKED_AS_COACH)
-      ) {
-        break;
-      }
-      logger.warn(`Firestore transaction attempt ${attempts} failed:`, err);
-      if (attempts < RESERVE_MAX_ATTEMPTS) {
-        await new Promise((resolve) => setTimeout(resolve, 500 * attempts));
-      }
-    }
-  }
-
-  if (!transactionSuccess) {
-    throw lastError || new Error('FAILED_TO_PERSIST');
-  }
-};
-
-interface BookingConfirmParams {
-  bookingId: string;
-  clientUid: string;
-  startIso: string;
-  endIso: string;
-  googleEventId: string;
-  googleMeetLink: string;
-}
-
-/**
- * Mark a reserved booking CONFIRMED, confirm its busy-slot doc, and extend the
- * client-cache lock TTLs.
- */
-export const confirmBooking = async (params: BookingConfirmParams): Promise<void> => {
-  const { bookingId, clientUid, startIso, endIso, googleEventId, googleMeetLink } = params;
-  const startMs = new Date(startIso).getTime();
-  const isOneHour = new Date(endIso).getTime() - startMs > SLOT_HALF_MS;
-  const finalExpireDate = new Date(startMs + CONFIRMED_TTL_MS);
-  const tPlus30 = new Date(startMs + SLOT_HALF_MS).toISOString();
-
-  await Promise.all([
-    updateDoc(doc(db, COLLECTIONS.BOOKINGS, bookingId), {
-      googleEventId,
-      googleMeetLink,
-      status: BOOKING_STATUS.CONFIRMED,
-      expireAt: null,
-    }),
-    updateDoc(doc(db, COLLECTIONS.BUSY_SLOTS, bookingId), {
-      status: BOOKING_STATUS.CONFIRMED,
-      expireAt: null,
-    }),
-    updateDoc(doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${clientUid}_${startIso}`), {
-      expireAt: Timestamp.fromDate(finalExpireDate),
-    }),
-    ...(isOneHour
-      ? [
-          updateDoc(doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${clientUid}_${tPlus30}`), {
-            expireAt: Timestamp.fromDate(finalExpireDate),
-          }),
-        ]
-      : []),
-  ]);
-};
-
-interface BookingRollbackParams {
-  bookingId: string;
-  clientUid: string;
-  startIso: string;
-  endIso: string;
-}
-
-/**
- * Cancel a reserved booking, release its client-cache locks, and delete its
- * busy-slot doc (rollback path). Best-effort cleanup — lock/busy-slot deletion
- * errors are swallowed and logged.
- */
-export const rollbackBooking = async (params: BookingRollbackParams): Promise<void> => {
-  const { bookingId, clientUid, startIso, endIso } = params;
-  const isOneHour = new Date(endIso).getTime() - new Date(startIso).getTime() > SLOT_HALF_MS;
-  await updateDoc(doc(db, COLLECTIONS.BOOKINGS, bookingId), { status: BOOKING_STATUS.CANCELLED });
-  try {
-    const tPlus30 = new Date(new Date(startIso).getTime() + SLOT_HALF_MS).toISOString();
-    await Promise.all([
-      deleteDoc(doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${clientUid}_${startIso}`)),
-      ...(isOneHour ? [deleteDoc(doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${clientUid}_${tPlus30}`))] : []),
-      deleteDoc(doc(db, COLLECTIONS.BUSY_SLOTS, bookingId)),
-    ]);
-  } catch (e) {
-    logger.error('Error deleting locks or busy slot on rollback:', e);
-  }
-};
-
-/** Mark a booking CANCELLED (user-initiated cancellation). */
-export const cancelBookingDoc = async (bookingId: string): Promise<void> => {
-  await updateDoc(doc(db, COLLECTIONS.BOOKINGS, bookingId), {
-    status: BOOKING_STATUS.CANCELLED,
-    cancelledAt: serverTimestamp(),
-  });
-};
-
-/** Delete a booking's public busy-slot document. */
-export const deleteBusySlot = async (bookingId: string): Promise<void> => {
-  await deleteDoc(doc(db, COLLECTIONS.BUSY_SLOTS, bookingId));
-};
-
-/** Delete a single client-booking-cache lock document. */
-export const deleteClientBookingLock = async (clientUid: string, startIso: string): Promise<void> => {
-  await deleteDoc(doc(db, COLLECTIONS.CLIENT_BOOKING_CACHE, `${clientUid}_${startIso}`));
-};
-
-// ── coachAvailabilityByDate (per-coach, per-day discovery shards) ─────────────
-
-/**
- * Availability shards for a set of UTC dates (coach discovery).
- *
- * Uses a single `dateISO in [...]` query, so the caller must pass at most
- * FIRESTORE_IN_LIMIT (30) dates. Today's per-day discovery caller passes ≤ 2
- * (a local day spans at most two UTC dates), so this is comfortably within
- * bounds — but the coupling was previously undocumented and a future multi-day
- * caller would otherwise hit the `in` limit at runtime. We guard explicitly
- * rather than silently truncate; a caller needing more dates should chunk via
- * chunkArray(dateISOs, FIRESTORE_IN_LIMIT) and merge, as the uid queries do.
- */
-export const fetchCoachAvailabilityByDates = async (dateISOs: string[]): Promise<DocumentData[]> => {
-  if (dateISOs.length > FIRESTORE_IN_LIMIT) {
-    throw new Error(
-      `fetchCoachAvailabilityByDates received ${dateISOs.length} dates, exceeding the Firestore ` +
-      `'in' limit of ${FIRESTORE_IN_LIMIT}. Chunk the dates and merge the results.`
-    );
-  }
-  return collectDocs(await getDocs(coachAvailabilityByDatesQuery(dateISOs)));
-};
-
-interface ShardSyncParams {
-  slotsByDate: Map<string, string[]>;
-  existingSlotsByDate: Map<string, string[]>;
+export interface SyncAvailabilityParams {
+  availableSlotsUtc: string[];
   filterFields: DocumentData;
   areFilterFieldsEqual: boolean;
-  lastUpdated: string;
 }
 
 /**
- * Reconcile a coach's per-day availability shards in one batch: write a shard for
- * each date whose slots (or denormalized filter fields) changed, and delete
- * shards for dates that lost all availability. The existing-shards read is only
- * performed when there are stale dates to delete, and the batch is committed only
- * when it has operations.
+ * Reconcile a coach's availability single-document cache.
  */
-export const syncCoachAvailabilityShards = async (
+export const syncAvailability = async (
   coachUid: string,
-  params: ShardSyncParams
+  params: SyncAvailabilityParams
 ): Promise<void> => {
-  const { slotsByDate, existingSlotsByDate, filterFields, areFilterFieldsEqual, lastUpdated } = params;
+  const { availableSlotsUtc, filterFields } = params;
 
-  const oldDates = Array.from(existingSlotsByDate.keys());
-  const hasStaleDates = oldDates.some((d) => !slotsByDate.has(d));
-
-  const existingShards: { dateISO: string; ref: DocumentReference }[] = [];
-  if (hasStaleDates) {
-    const existingShardsSnap = await getDocs(coachAvailabilityByCoachQuery(coachUid));
-    existingShardsSnap.forEach((shardDoc) => {
-      existingShards.push({ dateISO: shardDoc.data().dateISO, ref: shardDoc.ref });
-    });
-  }
-
-  const batch = writeBatch(db);
-  let batchOpsCount = 0;
-
-  for (const [dateISO, slots] of slotsByDate) {
-    const existingSlots = existingSlotsByDate.get(dateISO);
-    const slotsEqual =
-      existingSlots &&
-      existingSlots.length === slots.length &&
-      existingSlots.every((val, index) => val === slots[index]);
-
-    if (!slotsEqual || !areFilterFieldsEqual) {
-      const shardRef = doc(db, COLLECTIONS.COACH_AVAILABILITY_BY_DATE, `${coachUid}_${dateISO}`);
-      batch.set(shardRef, { coachUid, dateISO, freeSlots: slots, lastUpdated, ...filterFields });
-      batchOpsCount++;
-    }
-  }
-
-  if (hasStaleDates) {
-    existingShards.forEach((shard) => {
-      if (!slotsByDate.has(shard.dateISO)) {
-        batch.delete(shard.ref);
-        batchOpsCount++;
-      }
-    });
-  }
-
-  if (batchOpsCount > 0) {
-    await batch.commit();
-  }
+  const availabilityRef = doc(db, COLLECTIONS.AVAILABILITY, coachUid);
+  
+  await setDoc(availabilityRef, {
+    coachUid,
+    availableSlotsUtc,
+    lastUpdated: serverTimestamp(),
+    ...filterFields
+  }, { merge: true });
 };
 
-// ── personalAvailabilityCache (per-coach aggregate availability) ──────────────
-
-/** Read a coach's aggregate availability-cache document, or null if absent. */
-export const getPersonalAvailabilityCache = async (uid: string): Promise<DocumentData | null> => {
-  const snap = await getDoc(doc(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE, uid));
+/** Read a coach's availability document, or null if absent. */
+export const getAvailability = async (uid: string): Promise<DocumentData | null> => {
+  const snap = await getDoc(doc(db, COLLECTIONS.AVAILABILITY, uid));
   return snap.exists() ? snap.data() : null;
 };
 
-/** Write a coach's aggregate availability-cache document. */
-export const writePersonalAvailabilityCache = async (uid: string, data: DocumentData): Promise<void> => {
-  await setDoc(doc(db, COLLECTIONS.PERSONAL_AVAILABILITY_CACHE, uid), data);
-};
-
 /**
- * Read aggregate availability-cache documents for a single chunk of coach UIDs
- * (<= 30). Returns a map of uid → cache data. Callers chunk and handle per-chunk
- * failures (so a partial outage still yields the chunks that succeeded).
+ * Fetch availability documents for a batch of UIDs.
  */
-export const fetchPersonalAvailabilityCacheChunk = async (
-  coachIds: string[]
-): Promise<Map<string, DocumentData>> => {
-  const result = new Map<string, DocumentData>();
-  const snap = await getDocs(personalAvailabilityCacheByIdsQuery(coachIds));
-  snap.forEach((d) => result.set(d.id, d.data()));
-  return result;
+export const fetchAvailabilityByIds = async (uids: string[]): Promise<DocumentData[]> => {
+  if (uids.length === 0) return [];
+  const chunks = chunkArray(uids, FIRESTORE_IN_LIMIT);
+  const availability: DocumentData[] = [];
+  const snaps = await Promise.all(
+    chunks.map((c) =>
+      getDocs(query(collection(db, COLLECTIONS.AVAILABILITY), where(documentId(), 'in', c)))
+    )
+  );
+  snaps.forEach((snap) => snap.forEach((d) => availability.push(d.data())));
+  return availability;
 };
 
 // ── supportRequests (+ messages subcollection) ────────────────────────────────
@@ -1028,4 +623,40 @@ export const fetchSystemLogsPage = async (options: {
   if (hasMore) rows.pop(); // drop the extra look-ahead row
   const nextCursor = hasMore ? rows[rows.length - 1].snap : null;
   return { logs: rows.map((r) => r.record), nextCursor, hasMore };
+};
+
+import { onSnapshot } from 'firebase/firestore';
+
+export const subscribeToAvailability = (
+  coachIds: string[],
+  onUpdate: (data: Availability[]) => void
+): (() => void) => {
+  if (coachIds.length === 0) return () => {};
+  // Assuming a reasonable number of coachIds for a small app.
+  // We chunk if there are more than 30 because of Firestore limits on `in` clauses.
+  const chunks: string[][] = [];
+  for (let i = 0; i < coachIds.length; i += 30) {
+    chunks.push(coachIds.slice(i, i + 30));
+  }
+
+  let allData: Availability[] = [];
+  const chunkDataMap = new Map<number, Availability[]>();
+
+  const unsubscribes = chunks.map((chunk, index) => {
+    const q = query(collection(db, COLLECTIONS.AVAILABILITY), where(documentId(), 'in', chunk));
+    return onSnapshot(q, (snapshot) => {
+      const chunkAvail: Availability[] = [];
+      snapshot.forEach(docSnap => chunkAvail.push(docSnap.data() as Availability));
+      chunkDataMap.set(index, chunkAvail);
+      allData = [];
+      for (const vals of chunkDataMap.values()) {
+        allData.push(...vals);
+      }
+      onUpdate(allData);
+    });
+  });
+
+  return () => {
+    unsubscribes.forEach(unsub => unsub());
+  };
 };

@@ -7,6 +7,10 @@ install:
 	npm install
 	git config core.hooksPath .githooks
 
+.PHONY: build_emulator
+build_emulator:
+	set -a && . ./.env.local && set +a && npm run tsc && npm run vite -- build --mode production
+
 .PHONY: build_dev
 build_dev:
 	set -a && . ./.env.development && set +a && npm run tsc && npm run vite -- build --mode production
@@ -27,20 +31,10 @@ local:
 lint:
 	npm run tsc && npm run eslint
 
-.PHONY: unit_test
-unit_test:
-	npm run vitest -- --project=unit --coverage
-
-.PHONY: integration_test
-integration_test:
-	TEST_USER_COUNT=$(N) npm run vitest -- --project=integration --coverage
-
-.PHONY: performance_test
-performance_test:
-	TEST_USER_COUNT=$(or $(N),100) PERF_P95_THRESHOLD_MS=$(P95) npm run vitest -- --project=integration --reporter=verbose
-
 .PHONY: emulator
 emulator:
+	$(MAKE) build_emulator
+	npm --prefix functions run build
 	firebase emulators:start
 
 .PHONY: erd
