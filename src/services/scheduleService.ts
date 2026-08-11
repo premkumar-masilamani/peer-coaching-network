@@ -28,10 +28,10 @@ import { httpsCallable } from 'firebase/functions';
 import { functions } from './firebaseApp';
 
 export const updateSchedule = async (
-  _: string,
+  uid: string,
   availableDays: AvailableDays,
   blockedDates: string[]
 ): Promise<void> => {
   const updateUserProfileAndSchedule = httpsCallable(functions, 'updateUserProfileAndSchedule');
-  await updateUserProfileAndSchedule({ availableDays, blockedDates });
+  await updateUserProfileAndSchedule({ userId: uid, availableDays, blockedDates });
 };

@@ -242,8 +242,18 @@ exports.updateUserProfileAndSchedule = functions.https.onCall(async (data, conte
     if (!context.auth) {
         throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
     }
-    const { profileData, availableDays, blockedDates } = data;
-    const uid = context.auth.uid;
+    const { profileData, availableDays, blockedDates, userId } = data;
+    const callerUid = context.auth.uid;
+    let uid = callerUid;
+    if (userId && userId !== callerUid) {
+        // Check if caller is admin
+        const callerDoc = await db.collection("users").doc(callerUid).get();
+        const isAdmin = callerDoc.exists && callerDoc.data()?.userRole === "admin";
+        if (!isAdmin) {
+            throw new functions.https.HttpsError("permission-denied", "Only admins can update other users' profiles.");
+        }
+        uid = userId;
+    }
     const userRef = db.collection("users").doc(uid);
     const schedRef = userRef.collection("schedule").doc("default");
     const availRef = db.collection("availability").doc(uid);

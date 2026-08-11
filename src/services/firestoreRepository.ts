@@ -305,12 +305,15 @@ export const fetchActiveUsersByIds = async (uids: string[]): Promise<UserProfile
 export const fetchScheduleRaw = async (
   uid: string
 ): Promise<{ availableDays: AvailableDays | null; blockedDates: string[] | null }> => {
-  const availableDaysRef = doc(db, COLLECTIONS.USERS, uid, COLLECTIONS.SCHEDULE, COLLECTIONS.AVAILABLE_DAYS);
-  const blockedDatesRef = doc(db, COLLECTIONS.USERS, uid, COLLECTIONS.SCHEDULE, COLLECTIONS.BLOCKED_DATES);
-  const [daysSnap, datesSnap] = await Promise.all([getDoc(availableDaysRef), getDoc(blockedDatesRef)]);
+  const schedRef = doc(db, COLLECTIONS.USERS, uid, COLLECTIONS.SCHEDULE, 'default');
+  const snap = await getDoc(schedRef);
+  if (!snap.exists()) {
+    return { availableDays: null, blockedDates: null };
+  }
+  const data = snap.data();
   return {
-    availableDays: daysSnap.exists() ? (daysSnap.data() as AvailableDays) : null,
-    blockedDates: datesSnap.exists() ? (datesSnap.data().blockedDates as string[]) : null,
+    availableDays: data.availableDays || null,
+    blockedDates: data.blockedDates || null,
   };
 };
 
@@ -320,12 +323,12 @@ export const writeSchedule = async (
   availableDays: AvailableDays,
   blockedDates: string[]
 ): Promise<void> => {
-  const availableDaysRef = doc(db, COLLECTIONS.USERS, uid, COLLECTIONS.SCHEDULE, COLLECTIONS.AVAILABLE_DAYS);
-  const blockedDatesRef = doc(db, COLLECTIONS.USERS, uid, COLLECTIONS.SCHEDULE, COLLECTIONS.BLOCKED_DATES);
-  await Promise.all([
-    setDoc(availableDaysRef, availableDays),
-    setDoc(blockedDatesRef, { blockedDates }),
-  ]);
+  const schedRef = doc(db, COLLECTIONS.USERS, uid, COLLECTIONS.SCHEDULE, 'default');
+  await setDoc(schedRef, {
+    availableDays,
+    blockedDates,
+    updatedAt: serverTimestamp()
+  }, { merge: true });
 };
 
 // ── bookings + busySlots ──────────────────────────────────────────────────────

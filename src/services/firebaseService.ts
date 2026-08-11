@@ -64,12 +64,9 @@ export {
 } from './scheduleService';
 
 export {
-  subtractBusyIntervals,
-  getGoogleBusyIntervals,
   recalculateAvailableSlotsCache,
   lazyRecalculateAvailableSlotsCache,
   getUserAvailableSlots,
-
 } from './slotsService';
 
 export {
