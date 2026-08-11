@@ -9,7 +9,7 @@ exports.BOOKING_HORIZON_DAYS = 30;
 exports.COACH_DISCOVERY_LIMIT = 5;
 /** Duration of a single bookable availability slot, in milliseconds (30 minutes). */
 exports.SLOT_DURATION_MS = 30 * 60 * 1000;
-const isEmulator = process.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+const isEmulator = process.env.VITE_USE_FIREBASE_EMULATOR === 'true' || process.env.FUNCTIONS_EMULATOR === 'true';
 exports.ENABLE_GOOGLE_INTEGRATION = !isEmulator && process.env.VITE_ENABLE_GOOGLE_INTEGRATION !== 'false';
 exports.DEV_API_URL = 'http://localhost:5000/api';
 exports.PROD_API_URL = 'https://app.peercoachingnetwork.com';

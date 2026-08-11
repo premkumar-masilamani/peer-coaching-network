@@ -10,7 +10,7 @@ const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID;
 const db = databaseId ? (0, firestore_1.getFirestore)(admin.app(), databaseId) : (0, firestore_1.getFirestore)();
 // Google API helpers
 const createGoogleEvent = async (token, eventPayload) => {
-    if (process.env.VITE_USE_FIREBASE_EMULATOR === "true") {
+    if (process.env.VITE_USE_FIREBASE_EMULATOR === "true" || process.env.FUNCTIONS_EMULATOR === "true") {
         console.log("Mocking createGoogleEvent in local emulator mode.");
         return {
             id: "mock-google-event-id",
@@ -27,7 +27,7 @@ const createGoogleEvent = async (token, eventPayload) => {
     return response.json();
 };
 const deleteGoogleEvent = async (token, eventId) => {
-    if (process.env.VITE_USE_FIREBASE_EMULATOR === "true") {
+    if (process.env.VITE_USE_FIREBASE_EMULATOR === "true" || process.env.FUNCTIONS_EMULATOR === "true") {
         console.log("Mocking deleteGoogleEvent in local emulator mode.");
         return;
     }
@@ -39,7 +39,7 @@ const deleteGoogleEvent = async (token, eventId) => {
         throw new Error(`Google API Error: ${response.status}`);
 };
 const getGoogleFreeBusy = async (token, timeMin, timeMax) => {
-    if (process.env.VITE_USE_FIREBASE_EMULATOR === "true") {
+    if (process.env.VITE_USE_FIREBASE_EMULATOR === "true" || process.env.FUNCTIONS_EMULATOR === "true") {
         console.log("Mocking getGoogleFreeBusy in local emulator mode.");
         return {
             calendars: {

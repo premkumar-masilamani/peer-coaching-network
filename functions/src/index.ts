@@ -10,7 +10,7 @@ const db = databaseId ? getFirestore(admin.app(), databaseId) : getFirestore();
 
 // Google API helpers
 const createGoogleEvent = async (token: string, eventPayload: unknown) => {
-  if (process.env.VITE_USE_FIREBASE_EMULATOR === "true") {
+  if (process.env.VITE_USE_FIREBASE_EMULATOR === "true" || process.env.FUNCTIONS_EMULATOR === "true") {
     console.log("Mocking createGoogleEvent in local emulator mode.");
     return {
       id: "mock-google-event-id",
@@ -27,7 +27,7 @@ const createGoogleEvent = async (token: string, eventPayload: unknown) => {
 };
 
 const deleteGoogleEvent = async (token: string, eventId: string) => {
-  if (process.env.VITE_USE_FIREBASE_EMULATOR === "true") {
+  if (process.env.VITE_USE_FIREBASE_EMULATOR === "true" || process.env.FUNCTIONS_EMULATOR === "true") {
     console.log("Mocking deleteGoogleEvent in local emulator mode.");
     return;
   }
@@ -39,7 +39,7 @@ const deleteGoogleEvent = async (token: string, eventId: string) => {
 };
 
 const getGoogleFreeBusy = async (token: string, timeMin: string, timeMax: string) => {
-  if (process.env.VITE_USE_FIREBASE_EMULATOR === "true") {
+  if (process.env.VITE_USE_FIREBASE_EMULATOR === "true" || process.env.FUNCTIONS_EMULATOR === "true") {
     console.log("Mocking getGoogleFreeBusy in local emulator mode.");
     return {
       calendars: {
