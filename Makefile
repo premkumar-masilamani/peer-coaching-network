@@ -11,19 +11,19 @@ install:
 build_emulator:
 	npm run build:shared
 	npm run build:functions
-	set -a && . ./web/.env.local && set +a && npm run build --workspace=web -- --mode production
+	set -a && . ./.env.local && set +a && npm run build --workspace=web -- --mode production
 
 .PHONY: build_dev
 build_dev:
 	npm run build:shared
 	npm run build:functions
-	set -a && . ./web/.env.development && set +a && npm run build --workspace=web -- --mode production
+	set -a && . ./.env.development && set +a && npm run build --workspace=web -- --mode production
 
 .PHONY: build_prod
 build_prod:
 	npm run build:shared
 	npm run build:functions
-	set -a && . ./web/.env.production && set +a && npm run build --workspace=web -- --mode production
+	set -a && . ./.env.production && set +a && npm run build --workspace=web -- --mode production
 
 .PHONY: dev
 dev:
@@ -48,8 +48,8 @@ erd:
 
 .PHONY: deploy_dev
 deploy_dev: build_dev
-	. ./web/.env.development && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
+	. ./.env.development && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
 
 .PHONY: deploy_prod
 deploy_prod: build_prod
-	. ./web/.env.production && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug
+	. ./.env.production && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting --project $$VITE_FIREBASE_PROJECT_ID --debug

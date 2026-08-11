@@ -1,4 +1,5 @@
-import type { DocumentData, Timestamp } from 'firebase/firestore';
+import type { DocumentData } from 'firebase/firestore';
+import { type UserProfile, type FirestoreTimestamp } from './types';
 import {
   type Qualification,
   type UserRole,
@@ -16,7 +17,6 @@ import {
 } from './firestoreRepository';
 import { recalculateAvailableSlotsCache } from './slotsService';
 import { logger } from '../utils/logger';
-import type { UserProfile } from './types';
 
 // Canonical approval/role helpers live in a dependency-free module so
 // infrastructure services can reuse them without an import cycle; re-exported
@@ -59,10 +59,10 @@ export const updateOwnProfile = async (uid: string, updates: Partial<UserProfile
 };
 
 // Format a stored createdAt for display, accepting both Firestore Timestamps and legacy ISO strings.
-export const formatMemberSince = (createdAt?: Timestamp | string | null): string => {
+export const formatMemberSince = (createdAt?: FirestoreTimestamp | string | null): string => {
   if (!createdAt) return '';
-  const date = (createdAt && typeof createdAt === 'object' && 'toDate' in createdAt && typeof (createdAt as Timestamp).toDate === 'function')
-    ? (createdAt as Timestamp).toDate()
+  const date = (createdAt && typeof createdAt === 'object' && 'toDate' in createdAt && typeof (createdAt as FirestoreTimestamp).toDate === 'function')
+    ? (createdAt as FirestoreTimestamp).toDate()
     : new Date(createdAt as string);
   if (!isNaN(date.getTime())) {
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
