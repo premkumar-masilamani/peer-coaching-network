@@ -7,7 +7,7 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist', 'coverage', '.claude']),
+  globalIgnores(['dist', 'coverage', '.claude', 'packages/shared/lib', 'web/dist']),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
@@ -26,9 +26,9 @@ export default defineConfig([
   },
   {
     files: [
-      'src/components/**/*.{ts,tsx}',
-      'src/context/**/*.{ts,tsx}',
-      'src/hooks/**/*.{ts,tsx}',
+      'web/src/components/**/*.{ts,tsx}',
+      'web/src/context/**/*.{ts,tsx}',
+      'web/src/hooks/**/*.{ts,tsx}',
     ],
     rules: {
       'no-restricted-imports': [
@@ -45,7 +45,7 @@ export default defineConfig([
               message: 'Components/contexts/hooks must not import from firestoreRepository. Use services instead.',
             },
             {
-              name: 'src/services/firestoreRepository',
+              name: 'web/src/services/firestoreRepository',
               message: 'Components/contexts/hooks must not import from firestoreRepository. Use services instead.',
             },
           ],

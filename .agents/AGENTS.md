@@ -19,6 +19,10 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Deployments**: 
   - `firebase.json` uses an array of database configurations (`firestore: [{ database: "pcn-dev", ... }, { database: "pcn-prod", ... }]`).
   - Deploy using dynamic targets: `firebase deploy --only firestore:${VITE_FIRESTORE_DATABASE_ID},hosting`
+- **Monorepo Workspaces Layout**: The repository uses npm workspaces (`packages/shared`, `functions`, `web`). Common static configs, interfaces/schemas, and timezone/slot generation logic live under the `@pcn/shared` package.
+- **Shared Package Environment Separation**: The `@pcn/shared` package is environment-agnostic. Do not write environment variable references (`process.env` or `import.meta.env`) inside `@pcn/shared`. Define runtime checks inside entry points (like `web/src/config/env.ts`).
+- **Dynamic Google API Mock Base**: Avoid branching `if (isEmulator)` inline checks within Google Calendar fetch queries. Point queries to a dynamic `GOOGLE_API_BASE` URL. In development, point this to an emulator-only HTTP mock function, and in production to `googleapis.com`.
+- **Local-Only Mock Functions Guard**: Export local emulator mock HTTP functions conditionally by checking `process.env.FUNCTIONS_EMULATOR === "true" || process.env.VITE_USE_FIREBASE_EMULATOR === "true"`, preventing them from ever being registered or deployed to production.
 
 ## 2. Architecture & State Flow
 - **Service Layer**: Keep UI components strictly decoupled from storage and Google APIs.
@@ -50,6 +54,7 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Message Spoofing and Role Validation**: In multi-party or collaborative collections (such as support ticket messages, chats, etc.), the `firestore.rules` file must explicitly validate that for non-admin creates and updates, the newly appended message's `senderId` matches `request.auth.uid` and `senderRole` matches the client's actual role (e.g., `'user'`) to prevent identity spoofing or role escalation.
 - **Write-Batch and Transaction Security Rules limitation**: During transactions or write batches, security rule helper calls `exists()` and `get()` inspect the state of the database *before* the batch/transaction began. They do not see the pending writes from the same batch.
 - **Short-Circuiting in Firestore Rules to Prevent Null Evaluation Errors**: When querying or fetching a document that might not exist, always safeguard checks against its fields (e.g., `resource.data.someField`) with `resource != null` first to prevent rules from throwing `Null value error` and returning permission-denied.
+- **Structural Casts for Shared Package Types**: To share timezone/slot generation logic inside `@pcn/shared` without dragging in Firebase SDK client or admin dependency conflicts, represent all Firestore `Timestamp` objects using a structural `FirestoreTimestamp` type (containing `.toDate()`, `.seconds`, `.nanoseconds`, and `.toMillis()`). The consuming frontend or backend applications can pass their native Firestore/admin `Timestamp` objects directly.
 
 ## 4. React & Rendering Constraints
 - **Avoid Cascading Renders (`react-hooks/set-state-in-effect`)**: Do not call `setState` synchronously within a `useEffect`.
