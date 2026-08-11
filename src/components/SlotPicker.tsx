@@ -179,7 +179,6 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
 
   const isUserUnavailable = useCallback((slotStart: Date, slotEnd: Date) => {
     return userBusyEvents.some(e => {
-      if (e.type === EVENT_TYPE.PEER_COACHING) return false;
       const start = new Date(e.start.dateTime);
       const end = new Date(e.end.dateTime);
       return slotStart < end && slotEnd > start;

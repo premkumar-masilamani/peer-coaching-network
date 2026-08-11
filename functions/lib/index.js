@@ -86,6 +86,35 @@ exports.manageBooking = functions.https.onCall(async (data, context) => {
             if (!slots.includes(startIso)) {
                 throw new functions.https.HttpsError("failed-precondition", "Slot is no longer available.");
             }
+            // Check for client double-booking conflicts (overlapping sessions in either client or coach role)
+            const clientBookingsQuery = db.collection("bookings")
+                .where("clientUid", "==", clientUid)
+                .where("status", "==", config_1.BOOKING_STATUS.CONFIRMED);
+            const clientCoachBookingsQuery = db.collection("bookings")
+                .where("coachUid", "==", clientUid)
+                .where("status", "==", config_1.BOOKING_STATUS.CONFIRMED);
+            const [clientBookingsSnap, clientCoachBookingsSnap] = await Promise.all([
+                t.get(clientBookingsQuery),
+                t.get(clientCoachBookingsQuery)
+            ]);
+            const reqStart = new Date(startIso).getTime();
+            const reqEnd = new Date(endIso).getTime();
+            for (const docSnap of clientBookingsSnap.docs) {
+                const docData = docSnap.data();
+                const bStart = docData.startTime.toDate().getTime();
+                const bEnd = docData.endTime.toDate().getTime();
+                if (reqStart < bEnd && reqEnd > bStart) {
+                    throw new functions.https.HttpsError("failed-precondition", config_1.BOOKING_ERROR.BOOKED_AS_CLIENT);
+                }
+            }
+            for (const docSnap of clientCoachBookingsSnap.docs) {
+                const docData = docSnap.data();
+                const bStart = docData.startTime.toDate().getTime();
+                const bEnd = docData.endTime.toDate().getTime();
+                if (reqStart < bEnd && reqEnd > bStart) {
+                    throw new functions.https.HttpsError("failed-precondition", config_1.BOOKING_ERROR.BOOKED_AS_COACH);
+                }
+            }
             t.update(availabilityRef, {
                 availableSlotsUtc: firestore_1.FieldValue.arrayRemove(startIso)
             });
@@ -314,7 +343,7 @@ exports.syncMyCalendar = functions.https.onCall(async (data, context) => {
  * dailyHousekeeping
  * Nightly cron job to replenish 30-day slot window, delete expired pending bookings, and delete subcollections.
  */
-exports.dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone("UTC").onRun(async (context) => {
+exports.dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone("UTC").onRun(async () => {
     const usersSnap = await db.collection("users").where("userStatus", "==", "active").get();
     const now = new Date();
     for (const userDoc of usersSnap.docs) {

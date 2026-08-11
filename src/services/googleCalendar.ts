@@ -344,7 +344,7 @@ export const scheduleMeeting = async (
     clientBookingCacheId: `${clientUid}_${startIso}`
   });
 
-  const manageBooking = httpsCallable<any, any>(functions, 'manageBooking');
+  const manageBooking = httpsCallable<unknown, { googleMeetLink?: string }>(functions, 'manageBooking');
   
   const result = await manageBooking({
     action: 'book',
@@ -397,7 +397,7 @@ export const scheduleMeeting = async (
 
 export const cancelBooking = async (bookingId: string): Promise<void> => {
   const token = getGoogleToken();
-  const manageBooking = httpsCallable<any, any>(functions, 'manageBooking');
+  const manageBooking = httpsCallable<unknown, void>(functions, 'manageBooking');
   
   await manageBooking({
     action: 'cancel',
@@ -411,7 +411,7 @@ export const cancelBooking = async (bookingId: string): Promise<void> => {
 export const syncCalendar = async (): Promise<void> => {
   const token = getGoogleToken();
   if (!token) return;
-  const syncMyCalendarFn = httpsCallable<any, any>(functions, 'syncMyCalendar');
+  const syncMyCalendarFn = httpsCallable<unknown, void>(functions, 'syncMyCalendar');
   await syncMyCalendarFn({ googleAccessToken: token });
   logger.info('Successfully synced Google Calendar to availability cache.');
 };

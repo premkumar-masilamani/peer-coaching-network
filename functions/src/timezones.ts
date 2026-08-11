@@ -1907,7 +1907,7 @@ export const getTimezoneCode = (date: Date, timeZone: string): string => {
 export const getFormattedTimezones = (): TimezoneOption[] => {
   let timezones: string[];
   try {
-    timezones = (Intl as any).supportedValuesOf('timeZone');
+    timezones = (Intl as unknown as { supportedValuesOf: (key: string) => string[] }).supportedValuesOf('timeZone');
   } catch {
     timezones = [
       'UTC',
