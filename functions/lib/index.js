@@ -255,7 +255,8 @@ exports.updateUserProfileAndSchedule = functions.https.onCall(async (data, conte
         uid = userId;
     }
     const userRef = db.collection("users").doc(uid);
-    const schedRef = userRef.collection("schedule").doc("default");
+    const availableDaysRef = userRef.collection("schedule").doc("availableDays");
+    const blockedDatesRef = userRef.collection("schedule").doc("blockedDates");
     const availRef = db.collection("availability").doc(uid);
     await db.runTransaction(async (t) => {
         const userDoc = await t.get(userRef);
@@ -265,21 +266,20 @@ exports.updateUserProfileAndSchedule = functions.https.onCall(async (data, conte
             t.set(userRef, { ...profileData, updatedAt: firestore_1.FieldValue.serverTimestamp() }, { merge: true });
         }
         let effectiveAvailableDays;
-        let effectiveBlockedDates = blockedDates;
+        let effectiveBlockedDates;
         if (!availableDays) {
-            const schedDoc = await t.get(schedRef);
-            if (schedDoc.exists) {
-                effectiveAvailableDays = parseAvailableDays(schedDoc.data().availableDays);
-                effectiveBlockedDates = schedDoc.data().blockedDates || [];
-            }
-            else {
-                effectiveAvailableDays = parseAvailableDays({});
-                effectiveBlockedDates = [];
-            }
+            const [daysSnap, datesSnap] = await Promise.all([
+                t.get(availableDaysRef),
+                t.get(blockedDatesRef)
+            ]);
+            effectiveAvailableDays = daysSnap.exists ? parseAvailableDays(daysSnap.data()) : parseAvailableDays({});
+            effectiveBlockedDates = datesSnap.exists ? (datesSnap.data().blockedDates || []) : [];
         }
         else {
             effectiveAvailableDays = parseAvailableDays(availableDays);
-            t.set(schedRef, { availableDays: effectiveAvailableDays, blockedDates, updatedAt: firestore_1.FieldValue.serverTimestamp() });
+            effectiveBlockedDates = blockedDates || [];
+            t.set(availableDaysRef, effectiveAvailableDays);
+            t.set(blockedDatesRef, { blockedDates: effectiveBlockedDates });
         }
         const now = new Date();
         const horizonDays = 30;
@@ -359,14 +359,16 @@ exports.dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone("UTC
     for (const userDoc of usersSnap.docs) {
         const uid = userDoc.id;
         const userData = userDoc.data();
-        const schedRef = db.collection("users").doc(uid).collection("schedule").doc("default");
-        const schedDoc = await schedRef.get();
-        if (!schedDoc.exists)
+        const availableDaysRef = db.collection("users").doc(uid).collection("schedule").doc("availableDays");
+        const blockedDatesRef = db.collection("users").doc(uid).collection("schedule").doc("blockedDates");
+        const [daysDoc, datesDoc] = await Promise.all([availableDaysRef.get(), blockedDatesRef.get()]);
+        if (!daysDoc.exists)
             continue;
-        const schedData = schedDoc.data();
+        const daysData = daysDoc.data();
+        const datesData = datesDoc.exists ? datesDoc.data() : {};
         const slots = (0, slotGeneration_1.generateTemplateSlots)({
-            availableDays: parseAvailableDays(schedData.availableDays),
-            blockedDates: schedData.blockedDates || [],
+            availableDays: parseAvailableDays(daysData),
+            blockedDates: datesData.blockedDates || [],
             timezone: userData.timezone || "UTC",
             anchorDate: now,
             horizonDays: 30
