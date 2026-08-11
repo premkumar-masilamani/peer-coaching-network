@@ -378,7 +378,7 @@ export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone
     const schedData = schedDoc.data()!;
     
     const slots = generateTemplateSlots({
-      availableDays: schedData.availableDays || {},
+      availableDays: parseAvailableDays(schedData.availableDays),
       blockedDates: schedData.blockedDates || [],
       timezone: userData.timezone || "UTC",
       anchorDate: now,

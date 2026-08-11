@@ -325,7 +325,7 @@ exports.dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone("UTC
             continue;
         const schedData = schedDoc.data();
         const slots = (0, slotGeneration_1.generateTemplateSlots)({
-            availableDays: schedData.availableDays || {},
+            availableDays: parseAvailableDays(schedData.availableDays),
             blockedDates: schedData.blockedDates || [],
             timezone: userData.timezone || "UTC",
             anchorDate: now,
