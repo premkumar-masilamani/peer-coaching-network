@@ -37,7 +37,6 @@ import {
   updateDoc,
   addDoc,
   writeBatch,
-  runTransaction,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
@@ -50,7 +49,6 @@ import type {
 import {
   COLLECTIONS,
   BOOKING_STATUS,
-  BOOKING_ERROR,
   SUPPORT_STATUS,
   USER_STATUS,
   type UserStatus,

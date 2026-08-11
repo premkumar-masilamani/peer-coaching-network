@@ -23,15 +23,22 @@
 // These must be set before the first require('firebase-admin/…') call.
 process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080';
 process.env.FIREBASE_AUTH_EMULATOR_HOST = '127.0.0.1:9099';
+process.env.VITE_FIRESTORE_DATABASE_ID = 'pcn-dev';
+process.env.GCLOUD_PROJECT = 'peer-coaching-network-dev';
 
 const path = require('path');
 const fs   = require('fs');
 
-const { initializeApp } = require('firebase-admin/app');
+const { updateUserProfileAndSchedule } = require('../functions/lib/index.js');
+const { initializeApp, getApps } = require('firebase-admin/app');
 const { getFirestore, Timestamp, FieldValue } = require('firebase-admin/firestore');
 
 // ── Constants (mirrors src/config) ───────────────────────────────────────────
 const PROJECT_ID = 'peer-coaching-network-dev';
+
+if (getApps().length === 0) {
+  initializeApp({ projectId: PROJECT_ID });
+}
 
 /** Auth emulator base URL. */
 const AUTH_EMULATOR_URL = 'http://127.0.0.1:9099';
@@ -49,9 +56,8 @@ const REQUIRED_USER_FIELDS = [
   'gender', 'country', 'timezone', 'bio',
 ];
 
-// ── Firebase Admin initialisation (Firestore only — Auth handled via HTTP) ───
-const app = initializeApp({ projectId: PROJECT_ID });
-const db = getFirestore(app, 'pcn-dev');
+// Get the firestore instance
+const db = getFirestore(undefined, 'pcn-dev');
 
 // ── Emulator Google Sign-In helpers ──────────────────────────────────────────
 
@@ -167,8 +173,6 @@ async function seedUser(userData) {
     firstName, lastName, email, role, status, gender,
     country, timezone, bio,
     credentialDetails = '',
-    // Optional — add to seed-users.json to test credentialed coaches.
-    // e.g. "icf_acc": true, "icf_pcc": true
     icf_acc  = false,
     icf_pcc  = false,
     icf_mcc  = false,
@@ -179,53 +183,44 @@ async function seedUser(userData) {
   const normalizedEmail = email.toLowerCase();
 
   // ── 1. Sign in via the emulator's Google provider API ─────────────────────
-  // Uses accounts:signInWithIdp — the same endpoint the emulator's own
-  // "Sign in with Google.com" button calls. This is the only approach that
-  // makes accounts appear in the emulator's Google account picker.
-  //
-  // The call is inherently idempotent: using the same Google `sub` (email)
-  // always resolves to the same Firebase UID regardless of how many times
-  // the script is run.
   const uid = await signInWithGoogleEmulator(normalizedEmail, displayName);
   console.log(`  ↳ Google Sign-In via emulator API (uid: ${uid})`);
 
-  // ── 2. Write users/{uid} Firestore document ────────────────────────────────
+  // ── 2. Ensure user profile document exists with a correct createdAt ───────
   const userRef  = db.collection(COLLECTIONS.USERS).doc(uid);
   const userSnap = await userRef.get();
+  const createdAt = userSnap.exists ? (userSnap.data()?.createdAt || Timestamp.now()) : Timestamp.now();
+  await userRef.set({ createdAt }, { merge: true });
 
-  await userRef.set({
-    userId: uid,
-    email: normalizedEmail,
-    firstName,
-    lastName,
-    displayName,
-    photoURL: null,
-    userRole: role,
-    userStatus: status,
-    gender,
-    country,
-    bio,
-    timezone,
-    credentialDetails,
-    createdAt: userSnap.exists ? (userSnap.data()?.createdAt || Timestamp.now()) : Timestamp.now(),
-    icf_acc,
-    icf_pcc,
-    icf_mcc,
-    icf_actc,
-    onboardingComplete: status === 'active',
-  });
-  console.log(`  ↳ Firestore profile written.`);
+  // ── 3. Call updateUserProfileAndSchedule Cloud Function logic ─────────────
+  const data = {
+    profileData: {
+      userId: uid,
+      email: normalizedEmail,
+      firstName,
+      lastName,
+      displayName,
+      photoURL: null,
+      userRole: role,
+      userStatus: status,
+      gender,
+      country,
+      bio,
+      timezone,
+      credentialDetails,
+      icf_acc,
+      icf_pcc,
+      icf_mcc,
+      icf_actc,
+      onboardingComplete: status === 'active',
+    },
+    availableDays: DEFAULT_AVAILABLE_DAYS,
+    blockedDates: []
+  };
+  const context = { auth: { uid } };
 
-  // ── 3. Write schedule sub-documents ───────────────────────────────────────
-  const scheduleBase    = db.collection(COLLECTIONS.USERS).doc(uid).collection(COLLECTIONS.SCHEDULE);
-  const availDaysRef    = scheduleBase.doc(COLLECTIONS.AVAILABLE_DAYS);
-  const blockedDatesRef = scheduleBase.doc(COLLECTIONS.BLOCKED_DATES);
-
-  await Promise.all([
-    availDaysRef.set(DEFAULT_AVAILABLE_DAYS),
-    blockedDatesRef.set({ blockedDates: [] }),
-  ]);
-  console.log(`  ↳ Schedule sub-documents written.`);
+  await updateUserProfileAndSchedule.run(data, context);
+  console.log(`  ↳ Firestore profile, schedule and availability cache created via Cloud Function.`);
 }
 
 // ── Main entry point ──────────────────────────────────────────────────────────

@@ -1,13 +1,22 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { generateTemplateSlots } from "./slotGeneration";
+import { type AvailableDays } from "./types";
 
 admin.initializeApp();
-const db = admin.firestore();
+const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID;
+const db = databaseId ? getFirestore(admin.app(), databaseId) : getFirestore();
 
 // Google API helpers
-const createGoogleEvent = async (token: string, eventPayload: any) => {
+const createGoogleEvent = async (token: string, eventPayload: unknown) => {
+  if (process.env.VITE_USE_FIREBASE_EMULATOR === "true") {
+    console.log("Mocking createGoogleEvent in local emulator mode.");
+    return {
+      id: "mock-google-event-id",
+      hangoutLink: "https://meet.google.com/mock-meet-link"
+    };
+  }
   const response = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?conferenceDataVersion=1&sendUpdates=all', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -18,6 +27,10 @@ const createGoogleEvent = async (token: string, eventPayload: any) => {
 };
 
 const deleteGoogleEvent = async (token: string, eventId: string) => {
+  if (process.env.VITE_USE_FIREBASE_EMULATOR === "true") {
+    console.log("Mocking deleteGoogleEvent in local emulator mode.");
+    return;
+  }
   const response = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${eventId}?sendUpdates=all`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` }
@@ -26,6 +39,16 @@ const deleteGoogleEvent = async (token: string, eventId: string) => {
 };
 
 const getGoogleFreeBusy = async (token: string, timeMin: string, timeMax: string) => {
+  if (process.env.VITE_USE_FIREBASE_EMULATOR === "true") {
+    console.log("Mocking getGoogleFreeBusy in local emulator mode.");
+    return {
+      calendars: {
+        primary: {
+          busy: []
+        }
+      }
+    };
+  }
   const response = await fetch('https://www.googleapis.com/calendar/v3/freeBusy', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -145,6 +168,83 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
   throw new functions.https.HttpsError("invalid-argument", "Action must be book or cancel");
 });
 
+interface RawTimestamp {
+  seconds?: number;
+  nanoseconds?: number;
+  _seconds?: number;
+  _nanoseconds?: number;
+  toDate?: () => Date;
+}
+
+interface RawSlot {
+  startTime?: RawTimestamp;
+  endTime?: RawTimestamp;
+}
+
+interface RawDayAvailability {
+  enabled?: boolean;
+  slots?: RawSlot[];
+}
+
+interface RawAvailableDays {
+  monday?: RawDayAvailability;
+  tuesday?: RawDayAvailability;
+  wednesday?: RawDayAvailability;
+  thursday?: RawDayAvailability;
+  friday?: RawDayAvailability;
+  saturday?: RawDayAvailability;
+  sunday?: RawDayAvailability;
+}
+
+function parseTimestamp(val: Timestamp | RawTimestamp | undefined | null): Timestamp {
+  if (!val) {
+    return Timestamp.now();
+  }
+  if (val instanceof Timestamp) {
+    return val;
+  }
+  if (typeof val === "object") {
+    if (typeof val.seconds === "number" && typeof val.nanoseconds === "number") {
+      return new Timestamp(val.seconds, val.nanoseconds);
+    }
+    if (typeof val._seconds === "number" && typeof val._nanoseconds === "number") {
+      return new Timestamp(val._seconds, val._nanoseconds);
+    }
+    if (typeof val.toDate === "function") {
+      return Timestamp.fromDate(val.toDate());
+    }
+  }
+  return Timestamp.now();
+}
+
+function parseAvailableDays(availableDays: RawAvailableDays | undefined | null): AvailableDays {
+  const result: AvailableDays = {
+    monday: { enabled: false, slots: [] },
+    tuesday: { enabled: false, slots: [] },
+    wednesday: { enabled: false, slots: [] },
+    thursday: { enabled: false, slots: [] },
+    friday: { enabled: false, slots: [] },
+    saturday: { enabled: false, slots: [] },
+    sunday: { enabled: false, slots: [] },
+  };
+  const days: (keyof AvailableDays)[] = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
+  for (const day of days) {
+    const dayData = availableDays && availableDays[day];
+    if (dayData) {
+      result[day] = {
+        enabled: !!dayData.enabled,
+        slots: Array.isArray(dayData.slots)
+          ? dayData.slots.map((slot) => ({
+              startTime: parseTimestamp(slot.startTime),
+              endTime: parseTimestamp(slot.endTime)
+            }))
+          : []
+      };
+    }
+  }
+  return result;
+}
+
 /**
  * updateUserProfileAndSchedule
  * Unified profile and schedule metadata synchronization.
@@ -169,20 +269,21 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
       t.set(userRef, { ...profileData, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
     
-    let effectiveAvailableDays = availableDays;
+    let effectiveAvailableDays: AvailableDays;
     let effectiveBlockedDates = blockedDates;
     
-    if (!effectiveAvailableDays) {
+    if (!availableDays) {
       const schedDoc = await t.get(schedRef);
       if (schedDoc.exists) {
-        effectiveAvailableDays = schedDoc.data()!.availableDays || {};
+        effectiveAvailableDays = parseAvailableDays(schedDoc.data()!.availableDays);
         effectiveBlockedDates = schedDoc.data()!.blockedDates || [];
       } else {
-        effectiveAvailableDays = {};
+        effectiveAvailableDays = parseAvailableDays({});
         effectiveBlockedDates = [];
       }
     } else {
-      t.set(schedRef, { availableDays, blockedDates, updatedAt: FieldValue.serverTimestamp() });
+      effectiveAvailableDays = parseAvailableDays(availableDays);
+      t.set(schedRef, { availableDays: effectiveAvailableDays, blockedDates, updatedAt: FieldValue.serverTimestamp() });
     }
     
     const now = new Date();

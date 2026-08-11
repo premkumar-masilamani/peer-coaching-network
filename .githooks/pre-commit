@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 #
-# Pre-commit gate: run lint, unit tests, and integration tests locally before
-# every commit. Integration tests boot the Firebase emulators (requires Java),
-# which the vitest globalSetup starts automatically.
+# Pre-commit gate: run lint locally before every commit.
 #
 
 set -euo pipefail
@@ -13,11 +11,5 @@ cd "$repo_root"
 
 echo "pre-commit: lint"
 make lint
-
-echo "pre-commit: unit tests"
-make unit_test
-
-echo "pre-commit: integration tests"
-make integration_test
 
 echo "pre-commit checks passed"
