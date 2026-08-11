@@ -7,6 +7,10 @@ install:
 	npm install
 	git config core.hooksPath .githooks
 
+.PHONY: build_emulator
+build_emulator:
+	set -a && . ./.env.local && set +a && npm run tsc && npm run vite -- build --mode production
+
 .PHONY: build_dev
 build_dev:
 	set -a && . ./.env.development && set +a && npm run tsc && npm run vite -- build --mode production
@@ -29,7 +33,7 @@ lint:
 
 .PHONY: emulator
 emulator:
-	$(MAKE) build_dev
+	$(MAKE) build_emulator
 	npm --prefix functions run build
 	firebase emulators:start
 
