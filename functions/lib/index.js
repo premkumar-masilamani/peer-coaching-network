@@ -12,7 +12,8 @@ const db = databaseId ? (0, firestore_1.getFirestore)(admin.app(), databaseId) :
 const getGoogleApiBase = () => {
     if (process.env.VITE_USE_FIREBASE_EMULATOR === "true" || process.env.FUNCTIONS_EMULATOR === "true") {
         // Under local emulation, point to the mockGoogleCalendar endpoint running on port 5001.
-        return "http://localhost:5001/peer-coaching-network/us-central1/mockGoogleCalendar";
+        const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || "peer-coaching-network";
+        return `http://localhost:5001/${projectId}/us-central1/mockGoogleCalendar`;
     }
     return "https://www.googleapis.com";
 };

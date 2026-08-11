@@ -1,11 +1,11 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
-import { 
-  generateTemplateSlots, 
+import {
+  generateTemplateSlots,
   type AvailableDays,
-  BOOKING_STATUS, 
-  BOOKING_ERROR, 
+  BOOKING_STATUS,
+  BOOKING_ERROR,
   BOOKING_HORIZON_DAYS,
 } from "@pcn/shared";
 
@@ -17,7 +17,7 @@ const db = databaseId ? getFirestore(admin.app(), databaseId) : getFirestore();
 const getGoogleApiBase = () => {
   if (process.env.VITE_USE_FIREBASE_EMULATOR === "true" || process.env.FUNCTIONS_EMULATOR === "true") {
     // Under local emulation, point to the mockGoogleCalendar endpoint running on port 5001.
-    const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || "peer-coaching-network";
+    const projectId = process.env.VITE_FIREBASE_PROJECT_ID || "peer-coaching-network";
     return `http://localhost:5001/${projectId}/us-central1/mockGoogleCalendar`;
   }
   return "https://www.googleapis.com";
@@ -74,11 +74,11 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
   if (action === "book") {
     const bookingRef = db.collection("bookings").doc(bookingId);
     const availabilityRef = db.collection("availability").doc(coachUid);
-    
+
     await db.runTransaction(async (t) => {
       const availSnap = await t.get(availabilityRef);
       if (!availSnap.exists) throw new functions.https.HttpsError("failed-precondition", "Coach availability not found.");
-      
+
       const availData = availSnap.data()!;
       const slots: string[] = availData.availableSlotsUtc || [];
       if (!slots.includes(startIso)) {
@@ -89,7 +89,7 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
       const clientBookingsQuery = db.collection("bookings")
         .where("clientUid", "==", clientUid)
         .where("status", "==", BOOKING_STATUS.CONFIRMED);
-      
+
       const clientCoachBookingsQuery = db.collection("bookings")
         .where("coachUid", "==", clientUid)
         .where("status", "==", BOOKING_STATUS.CONFIRMED);
@@ -119,11 +119,11 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
           throw new functions.https.HttpsError("failed-precondition", BOOKING_ERROR.BOOKED_AS_COACH);
         }
       }
-      
+
       t.update(availabilityRef, {
         availableSlotsUtc: FieldValue.arrayRemove(startIso)
       });
-      
+
       t.set(bookingRef, {
         bookingId,
         coachUid,
@@ -140,7 +140,7 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
 
     let meetLink = "";
     let eventId = "";
-    
+
     if (googleAccessToken) {
        const eventPayload = {
          summary: `${coachName} / ${clientName} - Peer Coaching Session`,
@@ -164,7 +164,7 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
          console.error("Google Calendar Error:", err);
        }
     }
-    
+
     return { success: true, bookingId, googleEventId: eventId, googleMeetLink: meetLink };
 
   } else if (action === "cancel") {
@@ -172,11 +172,11 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
     const doc = await bookingRef.get();
     if (!doc.exists) return { success: true };
     const docData = doc.data()!;
-    
+
     if (docData.clientUid !== clientUid && docData.coachUid !== clientUid) {
       throw new functions.https.HttpsError("permission-denied", "Not authorized to cancel this booking.");
     }
-    
+
     if (googleAccessToken && docData.googleEventId) {
       try {
         await deleteGoogleEvent(googleAccessToken, docData.googleEventId);
@@ -184,7 +184,7 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
         console.error("Google Calendar Error:", err);
       }
     }
-    
+
     await db.runTransaction(async (t) => {
       const availRef = db.collection("availability").doc(docData.coachUid);
       t.update(bookingRef, { status: BOOKING_STATUS.CANCELLED, updatedAt: FieldValue.serverTimestamp() });
@@ -192,7 +192,7 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
         availableSlotsUtc: FieldValue.arrayUnion(docData.startIso)
       });
     });
-    
+
     return { success: true };
   }
 
@@ -287,7 +287,7 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
   const { profileData, availableDays, blockedDates, userId } = data;
   const callerUid = context.auth.uid;
   let uid = callerUid;
-  
+
   if (userId && userId !== callerUid) {
     // Check if caller is admin
     const callerDoc = await db.collection("users").doc(callerUid).get();
@@ -297,24 +297,24 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
     }
     uid = userId;
   }
-  
+
   const userRef = db.collection("users").doc(uid);
   const availableDaysRef = userRef.collection("schedule").doc("availableDays");
   const blockedDatesRef = userRef.collection("schedule").doc("blockedDates");
   const availRef = db.collection("availability").doc(uid);
-  
+
   await db.runTransaction(async (t) => {
     const userDoc = await t.get(userRef);
     const existingProfile = userDoc.exists ? userDoc.data() : {};
     const mergedProfile = { ...existingProfile, ...(profileData || {}) };
-    
+
     if (profileData) {
       t.set(userRef, { ...profileData, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
-    
+
     let effectiveAvailableDays: AvailableDays;
     let effectiveBlockedDates: string[];
-    
+
     if (!availableDays) {
       const [daysSnap, datesSnap] = await Promise.all([
         t.get(availableDaysRef),
@@ -328,10 +328,10 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
       t.set(availableDaysRef, effectiveAvailableDays);
       t.set(blockedDatesRef, { blockedDates: effectiveBlockedDates });
     }
-    
+
     const now = new Date();
     const horizonDays = BOOKING_HORIZON_DAYS + 1;
-    
+
     const slots = generateTemplateSlots({
       availableDays: effectiveAvailableDays,
       blockedDates: effectiveBlockedDates,
@@ -339,7 +339,7 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
       anchorDate: now,
       horizonDays
     });
-    
+
     t.set(availRef, {
       coachUid: uid,
       availableSlotsUtc: slots,
@@ -353,7 +353,7 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
       icf_actc: mergedProfile.icf_actc || null,
     }, { merge: true });
   });
-  
+
   return { success: true };
 });
 
@@ -367,18 +367,18 @@ export const syncMyCalendar = functions.https.onCall(async (data, context) => {
   }
   const { googleAccessToken } = data;
   if (!googleAccessToken) return { success: true };
-  
+
   const uid = context.auth.uid;
   const now = new Date();
   const timeMin = now.toISOString();
   const timeMaxDate = new Date(now);
   timeMaxDate.setDate(now.getDate() + 30);
   const timeMax = timeMaxDate.toISOString();
-  
+
   try {
     const freeBusy = await getGoogleFreeBusy(googleAccessToken, timeMin, timeMax);
     const busyTimes = freeBusy.calendars?.primary?.busy || [];
-    
+
     const availRef = db.collection("availability").doc(uid);
     const availDoc = await availRef.get();
     if (availDoc.exists) {
@@ -400,7 +400,7 @@ export const syncMyCalendar = functions.https.onCall(async (data, context) => {
   } catch (err) {
     console.error("syncMyCalendar error:", err);
   }
-  
+
   return { success: true };
 });
 
@@ -411,19 +411,19 @@ export const syncMyCalendar = functions.https.onCall(async (data, context) => {
 export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone("UTC").onRun(async () => {
   const usersSnap = await db.collection("users").where("userStatus", "==", "active").get();
   const now = new Date();
-  
+
   for (const userDoc of usersSnap.docs) {
     const uid = userDoc.id;
     const userData = userDoc.data();
     const availableDaysRef = db.collection("users").doc(uid).collection("schedule").doc("availableDays");
     const blockedDatesRef = db.collection("users").doc(uid).collection("schedule").doc("blockedDates");
     const [daysDoc, datesDoc] = await Promise.all([availableDaysRef.get(), blockedDatesRef.get()]);
-    
+
     if (!daysDoc.exists) continue;
-    
+
     const daysData = daysDoc.data()!;
     const datesData = datesDoc.exists ? datesDoc.data()! : {};
-    
+
     const slots = generateTemplateSlots({
       availableDays: parseAvailableDays(daysData),
       blockedDates: datesData.blockedDates || [],
@@ -431,19 +431,19 @@ export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone
       anchorDate: now,
       horizonDays: BOOKING_HORIZON_DAYS + 1
     });
-    
+
     await db.collection("availability").doc(uid).set({
       availableSlotsUtc: slots,
       lastUpdated: FieldValue.serverTimestamp()
     }, { merge: true });
   }
-  
+
   const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
   const pendingSnap = await db.collection("bookings")
     .where("status", "==", "PENDING")
     .where("createdAt", "<", Timestamp.fromDate(fifteenMinsAgo))
     .get();
-    
+
   for (const doc of pendingSnap.docs) {
     const data = doc.data();
     await db.collection("availability").doc(data.coachUid).update({
@@ -451,13 +451,13 @@ export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone
     });
     await doc.ref.delete();
   }
-  
+
   // Clean up supportRequests > 7 days old
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const supportSnap = await db.collection("supportRequests")
     .where("status", "==", "closed")
     .get();
-    
+
   for (const doc of supportSnap.docs) {
     const data = doc.data();
     let isOld = false;
@@ -468,7 +468,7 @@ export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone
          isOld = data.updatedAt.toDate() < sevenDaysAgo;
       }
     }
-    
+
     if (isOld) {
       const messagesSnap = await doc.ref.collection("messages").get();
       const batch = db.batch();
@@ -479,7 +479,7 @@ export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone
       await batch.commit();
     }
   }
-  
+
   console.log("Housekeeping task executed successfully");
   return null;
 });
@@ -490,14 +490,14 @@ if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.VITE_USE_FIREBASE_E
     res.set("Access-Control-Allow-Origin", "*");
     res.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
     res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    
+
     if (req.method === "OPTIONS") {
       res.status(204).send("");
       return;
     }
-    
+
     console.log(`Mock Google Calendar request received. Method: ${req.method}, Path: ${req.path}`);
-    
+
     if (req.path.includes("/freeBusy")) {
       res.json({
         calendars: {
@@ -508,7 +508,7 @@ if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.VITE_USE_FIREBASE_E
       });
       return;
     }
-    
+
     if (req.method === "POST" && req.path.includes("/events")) {
       res.json({
         id: "mock-google-event-id",
@@ -516,13 +516,12 @@ if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.VITE_USE_FIREBASE_E
       });
       return;
     }
-    
+
     if (req.method === "DELETE" && req.path.includes("/events/")) {
       res.status(204).send("");
       return;
     }
-    
+
     res.status(404).json({ error: "Not found" });
   });
 }
-
