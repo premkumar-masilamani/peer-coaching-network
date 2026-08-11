@@ -3,7 +3,7 @@ import * as admin from "firebase-admin";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { generateTemplateSlots } from "./slotGeneration";
 import { type AvailableDays } from "./types";
-import { BOOKING_STATUS, BOOKING_ERROR } from "./config";
+import { BOOKING_STATUS, BOOKING_ERROR, BOOKING_HORIZON_DAYS } from "./config";
 
 admin.initializeApp();
 const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID;
@@ -335,7 +335,7 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
     }
     
     const now = new Date();
-    const horizonDays = 30;
+    const horizonDays = BOOKING_HORIZON_DAYS + 1;
     
     const slots = generateTemplateSlots({
       availableDays: effectiveAvailableDays,
@@ -434,7 +434,7 @@ export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone
       blockedDates: datesData.blockedDates || [],
       timezone: userData.timezone || "UTC",
       anchorDate: now,
-      horizonDays: 30
+      horizonDays: BOOKING_HORIZON_DAYS + 1
     });
     
     await db.collection("availability").doc(uid).set({

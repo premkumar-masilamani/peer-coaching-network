@@ -282,7 +282,7 @@ exports.updateUserProfileAndSchedule = functions.https.onCall(async (data, conte
             t.set(blockedDatesRef, { blockedDates: effectiveBlockedDates });
         }
         const now = new Date();
-        const horizonDays = 30;
+        const horizonDays = config_1.BOOKING_HORIZON_DAYS + 1;
         const slots = (0, slotGeneration_1.generateTemplateSlots)({
             availableDays: effectiveAvailableDays,
             blockedDates: effectiveBlockedDates,
@@ -371,7 +371,7 @@ exports.dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone("UTC
             blockedDates: datesData.blockedDates || [],
             timezone: userData.timezone || "UTC",
             anchorDate: now,
-            horizonDays: 30
+            horizonDays: config_1.BOOKING_HORIZON_DAYS + 1
         });
         await db.collection("availability").doc(uid).set({
             availableSlotsUtc: slots,
