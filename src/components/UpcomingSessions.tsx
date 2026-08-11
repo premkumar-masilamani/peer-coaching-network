@@ -590,6 +590,7 @@ export const UpcomingSessions: React.FC = () => {
             onDayChange={(index) => setSelectedDayIndex(index)}
             timezone={viewerTimezone}
             profileCache={profileCache}
+            selectedDuration={selectedDuration}
           />
       </div>
     </div>
