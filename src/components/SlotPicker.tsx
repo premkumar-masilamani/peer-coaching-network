@@ -29,6 +29,7 @@ interface SlotPickerProps {
   selectedDayIndex: number;
   onDayChange: (index: number) => void;
   profileCache?: Record<string, UserProfile>;
+  selectedDuration?: 30 | 60;
 }
 
 interface MultiSlot {
@@ -60,7 +61,8 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
   timezone,
   selectedDayIndex,
   onDayChange,
-  profileCache = {}
+  profileCache = {},
+  selectedDuration: propDuration
 }) => {
   const { user: currentUser } = useAuth();
   const navigateProfile = useNavigateToProfile();
@@ -74,7 +76,8 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
 
   const [now] = useState(() => Date.now());
   const [focusedTabIndex, setFocusedTabIndex] = useState(selectedDayIndex);
-  const [selectedDuration, setSelectedDuration] = useState<30 | 60>(60);
+  const [localDuration, setLocalDuration] = useState<30 | 60>(60);
+  const selectedDuration = propDuration !== undefined ? propDuration : localDuration;
   const carouselRef = useRef<HTMLDivElement>(null);
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
@@ -179,7 +182,6 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
 
   const isUserUnavailable = useCallback((slotStart: Date, slotEnd: Date) => {
     return userBusyEvents.some(e => {
-      if (e.type === EVENT_TYPE.PEER_COACHING) return false;
       const start = new Date(e.start.dateTime);
       const end = new Date(e.end.dateTime);
       return slotStart < end && slotEnd > start;
@@ -321,7 +323,7 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => setSelectedDuration(opt.value)}
+                onClick={() => setLocalDuration(opt.value)}
                 className={`btn ${isActive ? 'btn-primary' : 'btn-secondary'}`}
                 style={{
                   padding: '4px 12px',

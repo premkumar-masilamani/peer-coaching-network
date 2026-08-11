@@ -10,15 +10,22 @@ This document contains the Entity-Relationship Diagram (ERD) for the Peer Coachi
 
 ```mermaid
 erDiagram
-    bookings ||--o{ clientBookingCache : "bookingId"
-    users ||--o{ bookings : "clientUid"
-    users ||--o{ bookings : "coachUid"
-    users ||--o{ busySlots : "coachUid"
-    users ||--o{ clientBookingCache : "clientUid"
-    users ||--o{ clientBookingCache : "coachUid"
-    users ||--o{ coachAvailabilityByDate : "coachUid"
+    users ||--o{ availability : "coachUid"
     users ||--o{ supportRequests : "userId"
     users ||--o{ systemLogs : "userId"
+
+    availability {
+        string coachUid FK
+        string_array availableSlotsUtc
+        Timestamp lastUpdated
+        string gender
+        string country
+        boolean icf_acc
+        boolean icf_pcc
+        boolean icf_mcc
+        boolean icf_actc
+        UserStatus userStatus
+    }
 
     availableDays {
         DayAvailability monday
@@ -36,47 +43,6 @@ erDiagram
 
     bookings {
         string googleMeetLink
-        string bookingId FK
-        string googleEventId FK
-        string status
-        Timestamp startTime
-        Timestamp endTime
-        string topic
-        string coachUid FK
-        string clientUid FK
-        Timestamp createdAt
-        Timestamp expireAt
-        Timestamp cancelledAt
-    }
-
-    busySlots {
-        Timestamp startTime
-        Timestamp endTime
-        string coachUid FK
-        string status
-        Timestamp expireAt
-    }
-
-    clientBookingCache {
-        string clientUid FK
-        string coachUid FK
-        string bookingId FK
-        string startIso
-        Timestamp createdAt
-        Timestamp expireAt
-    }
-
-    coachAvailabilityByDate {
-        string coachUid FK
-        string dateISO
-        string_array freeSlots
-        Timestamp lastUpdated
-        string gender
-        string country
-        boolean icf_acc
-        boolean icf_pcc
-        boolean icf_mcc
-        boolean icf_actc
     }
 
     supportRequests {
@@ -125,44 +91,33 @@ erDiagram
 
 ## Collection Descriptions
 
-### 1. `availableDays`
+### 1. `availability`
+* **Fields**: 10 (`coachUid`, `availableSlotsUtc`, `lastUpdated`, `gender`, `country`, `icf_acc`, `icf_pcc`, `icf_mcc`, `icf_actc`, `userStatus`)
+* **Primary key**: _(document-scoped / composite id)_
+* **References**: `coachUid` → `users`
+
+### 2. `availableDays`
 * **Fields**: 7 (`monday`, `tuesday`, `wednesday`, `thursday`, `friday`, `saturday`, `sunday`)
 * **Primary key**: _(document-scoped / composite id)_
 
-### 2. `blockedDates`
+### 3. `blockedDates`
 * **Fields**: 1 (`blockedDates`)
 * **Primary key**: _(document-scoped / composite id)_
 
-### 3. `bookings`
-* **Fields**: 12 (`googleMeetLink`, `bookingId`, `googleEventId`, `status`, `startTime`, `endTime`, `topic`, `coachUid`, `clientUid`, `createdAt`, `expireAt`, `cancelledAt`)
+### 4. `bookings`
+* **Fields**: 1 (`googleMeetLink`)
 * **Primary key**: _(document-scoped / composite id)_
-* **References**: `coachUid` → `users`, `clientUid` → `users`
 
-### 4. `busySlots`
-* **Fields**: 5 (`startTime`, `endTime`, `coachUid`, `status`, `expireAt`)
-* **Primary key**: _(document-scoped / composite id)_
-* **References**: `coachUid` → `users`
-
-### 5. `clientBookingCache`
-* **Fields**: 6 (`clientUid`, `coachUid`, `bookingId`, `startIso`, `createdAt`, `expireAt`)
-* **Primary key**: _(document-scoped / composite id)_
-* **References**: `clientUid` → `users`, `coachUid` → `users`, `bookingId` → `bookings`
-
-### 6. `coachAvailabilityByDate`
-* **Fields**: 10 (`coachUid`, `dateISO`, `freeSlots`, `lastUpdated`, `gender`, `country`, `icf_acc`, `icf_pcc`, `icf_mcc`, `icf_actc`)
-* **Primary key**: _(document-scoped / composite id)_
-* **References**: `coachUid` → `users`
-
-### 7. `supportRequests`
+### 5. `supportRequests`
 * **Fields**: 9 (`status`, `updatedAt`, `id`, `userId`, `userDisplayName`, `userEmail`, `category`, `subject`, `createdAt`)
 * **Primary key**: `id`
 * **References**: `userId` → `users`
 
-### 8. `systemLogs`
+### 6. `systemLogs`
 * **Fields**: 6 (`type`, `event`, `userId`, `details`, `timestamp`, `expireAt`)
 * **Primary key**: _(document-scoped / composite id)_
 * **References**: `userId` → `users`
 
-### 9. `users`
+### 7. `users`
 * **Fields**: 19 (`userId`, `email`, `firstName`, `lastName`, `displayName`, `photoURL`, `gender`, `country`, `icf_acc`, `icf_pcc`, `icf_mcc`, `icf_actc`, `bio`, `timezone`, `userRole`, `userStatus`, `onboardingComplete`, `credentialDetails`, `createdAt`)
 * **Primary key**: _(document-scoped / composite id)_
