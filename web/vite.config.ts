@@ -21,6 +21,10 @@ export default defineConfig(({ mode }) => {
     build: {
       chunkSizeWarningLimit: 1000,
       rollupOptions: {
+        onwarn(warning, warn) {
+          if (warning.code === 'INEFFECTIVE_DYNAMIC_IMPORT') return;
+          warn(warning);
+        },
         output: {
           manualChunks(id) {
             if (id.includes('node_modules')) {
