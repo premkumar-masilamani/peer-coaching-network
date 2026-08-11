@@ -5,6 +5,7 @@ const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const firestore_1 = require("firebase-admin/firestore");
 const slotGeneration_1 = require("./slotGeneration");
+const config_1 = require("./config");
 admin.initializeApp();
 const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID;
 const db = databaseId ? (0, firestore_1.getFirestore)(admin.app(), databaseId) : (0, firestore_1.getFirestore)();
@@ -97,7 +98,7 @@ exports.manageBooking = functions.https.onCall(async (data, context) => {
                 startTime: firestore_1.Timestamp.fromDate(new Date(startIso)),
                 endTime: firestore_1.Timestamp.fromDate(new Date(endIso)),
                 topic,
-                status: "CONFIRMED",
+                status: config_1.BOOKING_STATUS.CONFIRMED,
                 createdAt: firestore_1.FieldValue.serverTimestamp()
             });
         });
@@ -148,7 +149,7 @@ exports.manageBooking = functions.https.onCall(async (data, context) => {
         }
         await db.runTransaction(async (t) => {
             const availRef = db.collection("availability").doc(docData.coachUid);
-            t.update(bookingRef, { status: "CANCELLED", updatedAt: firestore_1.FieldValue.serverTimestamp() });
+            t.update(bookingRef, { status: config_1.BOOKING_STATUS.CANCELLED, updatedAt: firestore_1.FieldValue.serverTimestamp() });
             t.update(availRef, {
                 availableSlotsUtc: firestore_1.FieldValue.arrayUnion(docData.startIso)
             });

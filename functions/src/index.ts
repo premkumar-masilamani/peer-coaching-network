@@ -3,6 +3,7 @@ import * as admin from "firebase-admin";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import { generateTemplateSlots } from "./slotGeneration";
 import { type AvailableDays } from "./types";
+import { BOOKING_STATUS } from "./config";
 
 admin.initializeApp();
 const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID;
@@ -102,7 +103,7 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
         startTime: Timestamp.fromDate(new Date(startIso)),
         endTime: Timestamp.fromDate(new Date(endIso)),
         topic,
-        status: "CONFIRMED",
+        status: BOOKING_STATUS.CONFIRMED,
         createdAt: FieldValue.serverTimestamp()
       });
     });
@@ -156,7 +157,7 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
     
     await db.runTransaction(async (t) => {
       const availRef = db.collection("availability").doc(docData.coachUid);
-      t.update(bookingRef, { status: "CANCELLED", updatedAt: FieldValue.serverTimestamp() });
+      t.update(bookingRef, { status: BOOKING_STATUS.CANCELLED, updatedAt: FieldValue.serverTimestamp() });
       t.update(availRef, {
         availableSlotsUtc: FieldValue.arrayUnion(docData.startIso)
       });
