@@ -20,7 +20,7 @@ emulator:
 
 .PHONY: local
 local:
-	npm run emulator:seed && npm run dev --workspace=web -- --mode development
+	set -a && . ./.env.local && set +a && npm run emulator:seed && npm run dev --workspace=web -- --mode development
 
 .PHONY: build_dev
 build_dev:

@@ -9,7 +9,7 @@ import {
   BOOKING_HORIZON_DAYS,
 } from "@pcn/shared";
 
-admin.initializeApp();
+admin.initializeApp(process.env.VITE_FIREBASE_PROJECT_ID ? { projectId: process.env.VITE_FIREBASE_PROJECT_ID } : undefined);
 const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID;
 const db = databaseId ? getFirestore(admin.app(), databaseId) : getFirestore();
 
