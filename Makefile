@@ -32,6 +32,9 @@ build_dev:
 dev:
 	npm run dev --workspace=web -- --mode development
 
+.PHONY: build
+build: build_emulator
+
 .PHONY: deploy_dev
 deploy_dev: build_dev
 	. ./.env.development && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project $$VITE_FIREBASE_PROJECT_ID --debug
