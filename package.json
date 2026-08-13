@@ -27,9 +27,9 @@
       "eslint": "$eslint"
     }
   },
-  "dependencies": {},
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@mermaid-js/mermaid-cli": "^11.16.0",
     "@types/node": "^24.12.3",
     "eslint": "^10.3.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
