@@ -11,30 +11,32 @@ This document contains the Entity-Relationship Diagram (ERD) for the Peer Coachi
 ```mermaid
 erDiagram
     users ||--o{ availability : "coachUid"
+    users ||--o{ bookings : "clientUid"
+    users ||--o{ bookings : "coachUid"
     users ||--o{ supportRequests : "userId"
     users ||--o{ systemLogs : "userId"
 
     availability {
-        string coachUid FK
         string_array availableSlotsUtc
+        string coachUid FK
         Timestamp lastUpdated
+        UserStatus userStatus
         string gender
         string country
         boolean icf_acc
         boolean icf_pcc
         boolean icf_mcc
         boolean icf_actc
-        UserStatus userStatus
     }
 
     availableDays {
-        object monday
-        object tuesday
-        object wednesday
-        object thursday
-        object friday
-        object saturday
-        object sunday
+        DayAvailability monday
+        DayAvailability tuesday
+        DayAvailability wednesday
+        DayAvailability thursday
+        DayAvailability friday
+        DayAvailability saturday
+        DayAvailability sunday
     }
 
     blockedDates {
@@ -42,19 +44,31 @@ erDiagram
     }
 
     bookings {
+        string bookingId FK
+        string coachUid FK
+        string clientUid FK
+        string startIso
+        string endIso
+        Timestamp startTime
+        Timestamp endTime
+        string topic
+        string status
+        Timestamp createdAt
+        string googleEventId FK
         string googleMeetLink
+        Timestamp updatedAt
     }
 
     supportRequests {
-        SupportStatus status
-        Timestamp updatedAt
         string id PK
         string userId FK
         string userDisplayName
         string userEmail
         SupportCategory category
         string subject
-        string createdAt
+        SupportStatus status
+        Timestamp createdAt
+        Timestamp updatedAt
     }
 
     systemLogs {
@@ -67,6 +81,7 @@ erDiagram
     }
 
     users {
+        Timestamp updatedAt
         string userId FK
         string email
         string firstName
@@ -92,7 +107,7 @@ erDiagram
 ## Collection Descriptions
 
 ### 1. `availability`
-* **Fields**: 10 (`coachUid`, `availableSlotsUtc`, `lastUpdated`, `gender`, `country`, `icf_acc`, `icf_pcc`, `icf_mcc`, `icf_actc`, `userStatus`)
+* **Fields**: 10 (`availableSlotsUtc`, `coachUid`, `lastUpdated`, `userStatus`, `gender`, `country`, `icf_acc`, `icf_pcc`, `icf_mcc`, `icf_actc`)
 * **Primary key**: _(document-scoped / composite id)_
 * **References**: `coachUid` → `users`
 
@@ -105,11 +120,12 @@ erDiagram
 * **Primary key**: _(document-scoped / composite id)_
 
 ### 4. `bookings`
-* **Fields**: 1 (`googleMeetLink`)
+* **Fields**: 13 (`bookingId`, `coachUid`, `clientUid`, `startIso`, `endIso`, `startTime`, `endTime`, `topic`, `status`, `createdAt`, `googleEventId`, `googleMeetLink`, `updatedAt`)
 * **Primary key**: _(document-scoped / composite id)_
+* **References**: `coachUid` → `users`, `clientUid` → `users`
 
 ### 5. `supportRequests`
-* **Fields**: 9 (`status`, `updatedAt`, `id`, `userId`, `userDisplayName`, `userEmail`, `category`, `subject`, `createdAt`)
+* **Fields**: 9 (`id`, `userId`, `userDisplayName`, `userEmail`, `category`, `subject`, `status`, `createdAt`, `updatedAt`)
 * **Primary key**: `id`
 * **References**: `userId` → `users`
 
@@ -119,5 +135,5 @@ erDiagram
 * **References**: `userId` → `users`
 
 ### 7. `users`
-* **Fields**: 19 (`userId`, `email`, `firstName`, `lastName`, `displayName`, `photoURL`, `gender`, `country`, `icf_acc`, `icf_pcc`, `icf_mcc`, `icf_actc`, `bio`, `timezone`, `userRole`, `userStatus`, `onboardingComplete`, `credentialDetails`, `createdAt`)
+* **Fields**: 20 (`updatedAt`, `userId`, `email`, `firstName`, `lastName`, `displayName`, `photoURL`, `gender`, `country`, `icf_acc`, `icf_pcc`, `icf_mcc`, `icf_actc`, `bio`, `timezone`, `userRole`, `userStatus`, `onboardingComplete`, `credentialDetails`, `createdAt`)
 * **Primary key**: _(document-scoped / composite id)_

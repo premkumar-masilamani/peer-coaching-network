@@ -98,16 +98,59 @@ function lastCollectionToken(args, keyToName) {
   return found;
 }
 
+/** Resolve a string to find any canonical collection/subcollection name referenced within. */
+function extractCollectionFromAssignment(expr, keyToName) {
+  const matches = [];
+  
+  // Match COLLECTIONS.X
+  const collRegex = /COLLECTIONS\.(\w+)/g;
+  let m;
+  while ((m = collRegex.exec(expr)) !== null) {
+    const colName = keyToName[m[1]];
+    if (colName) matches.push(colName);
+  }
+  
+  // Match literal strings like "bookings" or 'availableDays'
+  const litRegex = /['"]([^'"]+)['"]/g;
+  while ((m = litRegex.exec(expr)) !== null) {
+    const val = m[1];
+    if (Object.values(keyToName).includes(val)) {
+      matches.push(val);
+    }
+  }
+  
+  return matches.length > 0 ? matches[matches.length - 1] : null;
+}
+
+/** Helper to extract target expression preceding a dot method call on the same line. */
+function getPrecedingExpression(content, dotIdx) {
+  let idx = dotIdx - 1;
+  let expr = '';
+  while (idx >= 0) {
+    const char = content[idx];
+    if (char === ';' || char === '{' || char === '}' || char === '(' || char === '\n') {
+      break;
+    }
+    expr = char + expr;
+    idx--;
+  }
+  return expr.replace(/\bawait\b/g, '').trim();
+}
+
 /** Map a reference variable (const x = doc/collection(...)) to its collection. */
 function findRefVars(content, keyToName) {
   const map = {};
-  const declRegex = /\b(?:const|let|var)\s+(\w+)\s*=\s*(?:doc|collection)\s*\(/g;
+  const declRegex = /\b(?:const|let|var)\s+(\w+)\s*=\s*([^;]+)/g;
   let m;
   while ((m = declRegex.exec(content)) !== null) {
-    const parenIdx = content.indexOf('(', m.index + m[0].length - 1);
-    const { args } = readArgs(content, parenIdx);
-    const col = lastCollectionToken(args, keyToName);
-    if (col) map[m[1]] = col;
+    const varName = m[1];
+    const expr = m[2];
+    if (expr.includes('collection') || expr.includes('doc')) {
+      const col = extractCollectionFromAssignment(expr, keyToName);
+      if (col) {
+        map[varName] = col;
+      }
+    }
   }
   return map;
 }
@@ -121,19 +164,36 @@ function resolveWriteTarget(target, refVarMap, keyToName) {
   }
   const ident = t.match(/^([A-Za-z_$][\w$]*)/);
   if (ident && refVarMap[ident[1]]) return refVarMap[ident[1]];
-  return null;
+  return extractCollectionFromAssignment(t, keyToName);
 }
 
-/** Find every Firestore write (setDoc/updateDoc/addDoc/*.set) as {target, payload}. */
+/** Find every Firestore write (setDoc/updateDoc/addDoc/set/update/add) as {target, payload}. */
 function findWrites(content) {
   const writes = [];
-  const verbRegex = /\b(?:setDoc|updateDoc|addDoc|\w+\.set)\s*\(/g;
+  const verbRegex = /\b(setDoc|updateDoc|addDoc)\s*\(|\.(set|update|add)\s*\(/g;
   let m;
   while ((m = verbRegex.exec(content)) !== null) {
+    const verb = m[1] || m[2];
     const parenIdx = content.indexOf('(', m.index);
     const { args, end } = readArgs(content, parenIdx);
     verbRegex.lastIndex = end;
-    if (args.length >= 1) writes.push({ target: args[0], payload: args[1] || null });
+    
+    if (verb === 'setDoc' || verb === 'updateDoc' || verb === 'addDoc') {
+      if (args.length >= 2) {
+        writes.push({ target: args[0], payload: args[1] });
+      }
+    } else {
+      const preceding = getPrecedingExpression(content, m.index);
+      if (preceding === 't' || preceding === 'batch') {
+        if (args.length >= 2) {
+          writes.push({ target: args[0], payload: args[1] });
+        }
+      } else if (preceding !== 'res' && preceding !== 'response' && preceding !== 'router' && preceding !== 'express') {
+        if (args.length >= 1) {
+          writes.push({ target: preceding, payload: args[0] });
+        }
+      }
+    }
   }
   return writes;
 }
