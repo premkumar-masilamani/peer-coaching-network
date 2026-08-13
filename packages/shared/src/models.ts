@@ -77,6 +77,7 @@ export interface DiscoveryFilters {
   icf_pcc?: boolean;
   icf_mcc?: boolean;
   icf_actc?: boolean;
+  icf_uncertified?: boolean;
 }
 
 export interface Availability {

@@ -37,6 +37,8 @@ export const queryAvailableCoachesForDay = async (
     if (filters.gender && doc.gender !== filters.gender) return;
     if (filters.country && doc.country !== filters.country) return;
 
+    if (filters.icf_uncertified && (doc.icf_acc || doc.icf_pcc || doc.icf_mcc || doc.icf_actc)) return;
+
     const hasAnyRequestedCredential =
       (filters.icf_acc && doc.icf_acc) ||
       (filters.icf_pcc && doc.icf_pcc) ||
@@ -105,6 +107,8 @@ export const subscribeAvailableCoachesForDay = async (
       // Filter
       if (filters.gender && doc.gender !== filters.gender) return;
       if (filters.country && doc.country !== filters.country) return;
+
+      if (filters.icf_uncertified && (doc.icf_acc || doc.icf_pcc || doc.icf_mcc || doc.icf_actc)) return;
 
       const hasAnyRequestedCredential =
         (filters.icf_acc && doc.icf_acc) ||

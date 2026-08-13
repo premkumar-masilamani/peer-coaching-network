@@ -6,7 +6,6 @@ import { useFocusRefresh } from '../hooks/useFocusRefresh';
 
 import { subscribeAvailableCoachesForDay, getUserBookings, getProfiles } from '../services/firebaseService';
 import { hasExpiredGoogleToken } from '../services/googleToken';
-import { getCredentialDescription } from '../utils/credentials';
 import type { UserProfile } from '../services/firebaseService';
 import { 
   getUpcomingEvents,
@@ -24,8 +23,7 @@ import {
   MapPin, 
   Award, 
   User as UserIcon, 
-  X,
-  ChevronDown
+  X
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getTimezoneCode, getUtcForLocalDateTime } from '../utils/timezoneHelpers';
@@ -102,8 +100,7 @@ export const UpcomingSessions: React.FC = () => {
   // Filter states
   const [genderFilter, setGenderFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
-  const [selectedQuals, setSelectedQuals] = useState<Qualification[]>([]);
-  const [qualsDropdownOpen, setQualsDropdownOpen] = useState(false);
+  const [qualFilter, setQualFilter] = useState<Qualification | ''>('');
   
   // Booking flow state
   const [activeBookingCoach, setActiveBookingCoach] = useState<UserProfile | null>(null);
@@ -158,8 +155,7 @@ export const UpcomingSessions: React.FC = () => {
   }, [localToday]);
 
   const idPrefix = useId();
-  const qualsLabelId = `${idPrefix}quals-label`;
-  const qualsButtonId = `${idPrefix}quals-button`;
+  const qualSelectId = `${idPrefix}qual-select`;
   const durationLabelId = `${idPrefix}duration-label`;
 
   const activeDayDate = days[selectedDayIndex] || localToday;
@@ -262,10 +258,11 @@ export const UpcomingSessions: React.FC = () => {
     const filters = {
       gender: genderFilter || undefined,
       country: countryFilter || undefined,
-      icf_acc: selectedQuals.includes('ICF ACC') ? true : undefined,
-      icf_pcc: selectedQuals.includes('ICF PCC') ? true : undefined,
-      icf_mcc: selectedQuals.includes('ICF MCC') ? true : undefined,
-      icf_actc: selectedQuals.includes('ICF ACTC') ? true : undefined,
+      icf_acc: qualFilter === 'ICF ACC' ? true : undefined,
+      icf_pcc: qualFilter === 'ICF PCC' ? true : undefined,
+      icf_mcc: qualFilter === 'ICF MCC' ? true : undefined,
+      icf_actc: qualFilter === 'ICF ACTC' ? true : undefined,
+      icf_uncertified: qualFilter === 'No Verified Credentials' ? true : undefined,
     };
 
     let unsubscribe = () => {};
@@ -299,7 +296,7 @@ export const UpcomingSessions: React.FC = () => {
     return () => {
       unsubscribe();
     };
-  }, [activeDayDate, querySlots, genderFilter, countryFilter, selectedQuals, sessionSeed, currentUser]);
+  }, [activeDayDate, querySlots, genderFilter, countryFilter, qualFilter, sessionSeed, currentUser]);
   // Handle booking success with optimistic updates
   const handleBookingSuccess = (newEvent: CalendarEvent) => {
     if (activeBookingCoach && newEvent.start.dateTime) {
@@ -323,19 +320,10 @@ export const UpcomingSessions: React.FC = () => {
   };
 
 
-  // Handle qualification filter toggle
-  const toggleQualFilter = (qual: Qualification) => {
-    if (selectedQuals.includes(qual)) {
-      setSelectedQuals(selectedQuals.filter(q => q !== qual));
-    } else {
-      setSelectedQuals([...selectedQuals, qual]);
-    }
-  };
-
   const clearFilters = () => {
     setGenderFilter('');
     setCountryFilter('');
-    setSelectedQuals([]);
+    setQualFilter('');
     setSelectedDuration(60);
   };
 
@@ -363,116 +351,23 @@ export const UpcomingSessions: React.FC = () => {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
-              {/* Qualifications Custom Dropdown */}
-              <div className="form-group" style={{ marginBottom: 0, position: 'relative', zIndex: qualsDropdownOpen ? 100 : 1 }}>
-                {/* Not a <label>: it names a custom dropdown button, not a form
-                    control, so it associates via aria-labelledby. */}
-                <span className="form-label" id={qualsLabelId}>Qualifications</span>
+              {/* Qualifications */}
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label" htmlFor={qualSelectId}>Qualifications</label>
                 <div style={{ position: 'relative' }}>
-                  <Award size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))', zIndex: 10 }} />
-                  <button
-                    type="button"
-                    id={qualsButtonId}
-                    onClick={() => setQualsDropdownOpen(!qualsDropdownOpen)}
+                  <Award size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'hsl(var(--text-muted))', pointerEvents: 'none' }} />
+                  <select
+                    id={qualSelectId}
                     className="input-field"
-                    // Names the button "Qualifications, <current selection>". The
-                    // disclosed panel is a checkbox group, not a listbox, so
-                    // aria-expanded alone describes it; no aria-haspopup.
-                    aria-labelledby={`${qualsLabelId} ${qualsButtonId}`}
-                    aria-expanded={qualsDropdownOpen}
-                    style={{
-                      paddingLeft: '34px',
-                      fontSize: '0.85rem',
-                      textAlign: 'left',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      width: '100%',
-                      cursor: 'pointer'
-                    }}
+                    value={qualFilter}
+                    onChange={(e) => setQualFilter(e.target.value as Qualification | '')}
+                    style={{ paddingLeft: '34px', fontSize: '0.85rem' }}
                   >
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {selectedQuals.length === 0 
-                        ? 'All Qualifications' 
-                        : selectedQuals.join(', ')}
-                    </span>
-                    <ChevronDown size={14} style={{ color: 'hsl(var(--text-muted))' }} />
-                  </button>
-                  {qualsDropdownOpen && (
-                    <>
-                      {/* Invisible click-catcher that closes the dropdown on an
-                          outside click. It is not a control and must stay out of
-                          the tab order; keyboard users close the dropdown by
-                          re-activating the button above or tabbing past it. */}
-                      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
-                      <div
-                        style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 90 }}
-                        onClick={() => setQualsDropdownOpen(false)}
-                      />
-                      <div style={{
-                        position: 'absolute',
-                        top: '105%',
-                        left: 0,
-                        right: 0,
-                        background: 'hsl(var(--bg-surface-elevated))',
-                        border: '1px solid var(--border-light)',
-                        borderRadius: '12px',
-                        padding: '8px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '6px',
-                        zIndex: 100,
-                        boxShadow: 'var(--glass-shadow)'
-                      }}>
-                        {QUALIFICATION_OPTIONS.map(q => {
-                          const isChecked = selectedQuals.includes(q);
-                          return (
-                            <label
-                              key={q}
-                              style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '8px',
-                                padding: '6px 8px',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '0.8rem',
-                                color: 'hsl(var(--text-primary))',
-                                transition: 'background 0.2s ease'
-                              }}
-                              className="dropdown-item-label"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => toggleQualFilter(q)}
-                                style={{ accentColor: 'hsl(var(--primary))' }}
-                              />
-                              {q as string}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </>
-                  )}
-                  {selectedQuals.length > 0 && (
-                    <div style={{
-                      marginTop: '8px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '6px',
-                      fontSize: '0.8rem',
-                      color: 'hsl(var(--text-secondary))',
-                      paddingLeft: '4px'
-                    }}>
-                      {selectedQuals.map(q => (
-                        <div key={q} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Award size={12} style={{ color: 'hsl(var(--primary))', flexShrink: 0 }} />
-                          <span>{getCredentialDescription(q)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                    <option value="">All Qualifications</option>
+                    {QUALIFICATION_OPTIONS.map(q => (
+                      <option key={q} value={q}>{q}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
@@ -551,7 +446,7 @@ export const UpcomingSessions: React.FC = () => {
               marginTop: '16px'
             }}>
               {/* Clear Filters action */}
-              {(genderFilter || countryFilter || selectedQuals.length > 0 || selectedDuration !== 60) && (
+              {(genderFilter || countryFilter || qualFilter || selectedDuration !== 60) && (
                 <button
                   onClick={clearFilters}
                   className="btn btn-secondary"
