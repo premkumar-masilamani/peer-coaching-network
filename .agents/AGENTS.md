@@ -23,6 +23,8 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Shared Package Environment Separation**: The `@pcn/shared` package is environment-agnostic. Do not write environment variable references (`process.env` or `import.meta.env`) inside `@pcn/shared`. Define runtime checks inside entry points (like `web/src/config/env.ts`).
 - **Dynamic Google API Mock Base**: Avoid branching `if (isEmulator)` inline checks within Google Calendar fetch queries. Point queries to a dynamic `GOOGLE_API_BASE` URL. In development, point this to an emulator-only HTTP mock function, and in production to `googleapis.com`.
 - **Local-Only Mock Functions Guard**: Export local emulator mock HTTP functions conditionally by checking `process.env.FUNCTIONS_EMULATOR === "true" || process.env.VITE_USE_FIREBASE_EMULATOR === "true"`, preventing them from ever being registered or deployed to production.
+- **Google Calendar API Base Endpoint Mapping**: When requesting Google Calendar resources or scheduling meetings in development/test mode, developers should avoid hardcoding the Google API endpoint base URL (`https://www.googleapis.com`). Instead, import and query using the dynamic `GOOGLE_API_BASE` configuration, which resolves to local emulator functions under emulation mode.
+- **Node.js Engines Compatibility on GCF Gen1**: Target engines in `functions/package.json` should specify `"node": "20"` (or another supported Gen1 version). Specifying unsupported node versions (like `nodejs24`) will cause GCF Gen1 deployments to fail with unsupported runtime errors.
 
 ## 2. Architecture & State Flow
 - **Service Layer**: Keep UI components strictly decoupled from storage and Google APIs.
@@ -84,6 +86,7 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Profile Banners**: Never block access to the dashboard or other tabs over an incomplete profile. Advisory banners only.
 - **Inline Error Feedback**: Avoid intrusive success or error popups (like alerts) for background verification actions. Use subtle inline text directly below or beside action buttons for errors, and quietly revert to a normal state on success for a frictionless experience.
 - **Background Action Buttons**: Always provide visual feedback on action buttons when waiting for async external requests by disabling the button and changing the text (e.g., "Verifying..."). Stack buttons and related links vertically for consistent, clean UI layouts.
+- **Stretching Buttons Without Inline Styles**: To stretch interactive button controls to full width in flexbox/centered layouts (like a glass card) without violating the "no inline style for buttons" rules, wrap the button in a container `div` set with `display: grid`.
 
 ## 6. Unsaved State Tracking
 - **Global Tracking**: Any form that mutates local state without persisting to Firestore must integrate the `useUnsavedChanges` hook to intercept and block accidental cross-tab navigation.
