@@ -1,14 +1,19 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const ROOT_DIR = path.resolve(__dirname, '..');
-const SRC_DIR = path.join(ROOT_DIR, 'src');
-const COLLECTIONS_PATH = path.join(ROOT_DIR, 'src/config/collections.ts');
-const OUTPUT_PATH = path.join(ROOT_DIR, 'docs/schema-erd.md');
+const COLLECTIONS_PATH = path.join(ROOT_DIR, 'packages/shared/src/config/collections.ts');
+const OUTPUT_PATH = path.join(ROOT_DIR, 'architecture/schema.png');
+const SRC_DIRS = [
+  path.join(ROOT_DIR, 'packages/shared/src'),
+  path.join(ROOT_DIR, 'functions/src'),
+  path.join(ROOT_DIR, 'web/src'),
+];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Generic source scanning
@@ -16,7 +21,7 @@ const OUTPUT_PATH = path.join(ROOT_DIR, 'docs/schema-erd.md');
 // The schema is inferred, not hardcoded, so any future collection or field is
 // picked up automatically:
 //   1. Collections come from the canonical `COLLECTIONS` map in collections.ts.
-//   2. Every non-test file under src/ is scanned for Firestore writes.
+//   2. Every non-test file under the workspaces' src/ folders is scanned for Firestore writes.
 //   3. Write targets are resolved through `COLLECTIONS.*`, reference variables,
 //      and inline `doc()/collection()` calls (last collection segment wins, so
 //      subcollections resolve correctly).
@@ -94,16 +99,59 @@ function lastCollectionToken(args, keyToName) {
   return found;
 }
 
+/** Resolve a string to find any canonical collection/subcollection name referenced within. */
+function extractCollectionFromAssignment(expr, keyToName) {
+  const matches = [];
+  
+  // Match COLLECTIONS.X
+  const collRegex = /COLLECTIONS\.(\w+)/g;
+  let m;
+  while ((m = collRegex.exec(expr)) !== null) {
+    const colName = keyToName[m[1]];
+    if (colName) matches.push(colName);
+  }
+  
+  // Match literal strings like "bookings" or 'availableDays'
+  const litRegex = /['"]([^'"]+)['"]/g;
+  while ((m = litRegex.exec(expr)) !== null) {
+    const val = m[1];
+    if (Object.values(keyToName).includes(val)) {
+      matches.push(val);
+    }
+  }
+  
+  return matches.length > 0 ? matches[matches.length - 1] : null;
+}
+
+/** Helper to extract target expression preceding a dot method call on the same line. */
+function getPrecedingExpression(content, dotIdx) {
+  let idx = dotIdx - 1;
+  let expr = '';
+  while (idx >= 0) {
+    const char = content[idx];
+    if (char === ';' || char === '{' || char === '}' || char === '(' || char === '\n') {
+      break;
+    }
+    expr = char + expr;
+    idx--;
+  }
+  return expr.replace(/\bawait\b/g, '').trim();
+}
+
 /** Map a reference variable (const x = doc/collection(...)) to its collection. */
 function findRefVars(content, keyToName) {
   const map = {};
-  const declRegex = /\b(?:const|let|var)\s+(\w+)\s*=\s*(?:doc|collection)\s*\(/g;
+  const declRegex = /\b(?:const|let|var)\s+(\w+)\s*=\s*([^;]+)/g;
   let m;
   while ((m = declRegex.exec(content)) !== null) {
-    const parenIdx = content.indexOf('(', m.index + m[0].length - 1);
-    const { args } = readArgs(content, parenIdx);
-    const col = lastCollectionToken(args, keyToName);
-    if (col) map[m[1]] = col;
+    const varName = m[1];
+    const expr = m[2];
+    if (expr.includes('collection') || expr.includes('doc')) {
+      const col = extractCollectionFromAssignment(expr, keyToName);
+      if (col) {
+        map[varName] = col;
+      }
+    }
   }
   return map;
 }
@@ -117,19 +165,36 @@ function resolveWriteTarget(target, refVarMap, keyToName) {
   }
   const ident = t.match(/^([A-Za-z_$][\w$]*)/);
   if (ident && refVarMap[ident[1]]) return refVarMap[ident[1]];
-  return null;
+  return extractCollectionFromAssignment(t, keyToName);
 }
 
-/** Find every Firestore write (setDoc/updateDoc/addDoc/*.set) as {target, payload}. */
+/** Find every Firestore write (setDoc/updateDoc/addDoc/set/update/add) as {target, payload}. */
 function findWrites(content) {
   const writes = [];
-  const verbRegex = /\b(?:setDoc|updateDoc|addDoc|\w+\.set)\s*\(/g;
+  const verbRegex = /\b(setDoc|updateDoc|addDoc)\s*\(|\.(set|update|add)\s*\(/g;
   let m;
   while ((m = verbRegex.exec(content)) !== null) {
+    const verb = m[1] || m[2];
     const parenIdx = content.indexOf('(', m.index);
     const { args, end } = readArgs(content, parenIdx);
     verbRegex.lastIndex = end;
-    if (args.length >= 1) writes.push({ target: args[0], payload: args[1] || null });
+    
+    if (verb === 'setDoc' || verb === 'updateDoc' || verb === 'addDoc') {
+      if (args.length >= 2) {
+        writes.push({ target: args[0], payload: args[1] });
+      }
+    } else {
+      const preceding = getPrecedingExpression(content, m.index);
+      if (preceding === 't' || preceding === 'batch') {
+        if (args.length >= 2) {
+          writes.push({ target: args[0], payload: args[1] });
+        }
+      } else if (preceding !== 'res' && preceding !== 'response' && preceding !== 'router' && preceding !== 'express') {
+        if (args.length >= 1) {
+          writes.push({ target: preceding, payload: args[0] });
+        }
+      }
+    }
   }
   return writes;
 }
@@ -338,14 +403,14 @@ function sanitizeType(type) {
 // Main
 // ─────────────────────────────────────────────────────────────────────────────
 
-function main() {
+async function main() {
   console.log('Inferring Firestore schema from source...');
 
   const collectionsSrc = fs.readFileSync(COLLECTIONS_PATH, 'utf8');
   const keyToName = parseCollectionsConstant(collectionsSrc);
   console.log(`Canonical collections: ${Object.values(keyToName).join(', ') || '(none)'}`);
 
-  const sourceFiles = collectSourceFiles(SRC_DIR);
+  const sourceFiles = SRC_DIRS.flatMap(dir => fs.existsSync(dir) ? collectSourceFiles(dir) : []);
   const filesContent = sourceFiles.map(f => fs.readFileSync(f, 'utf8'));
   const combinedContent = filesContent.join('\n');
 
@@ -424,28 +489,40 @@ function main() {
     descriptions += '\n';
   });
 
-  const markdownContent = `# Database Schema ERD
+  const mermaidDiagram = `erDiagram\n${relationships ? relationships + '\n\n' : ''}${entityBlocks.trimEnd()}`;
 
-This document contains the Entity-Relationship Diagram (ERD) for the Peer Coaching Network database schema.
+  console.log('Rendering diagram locally using mermaid-cli...');
+  
+  // Ensure architecture folder exists
+  const archDir = path.dirname(OUTPUT_PATH);
+  if (!fs.existsSync(archDir)) {
+    fs.mkdirSync(archDir, { recursive: true });
+  }
 
-> [!NOTE]
-> This file is auto-generated by running \`make erd\` (\`scripts/generate-erd.js\`). Do not edit it directly.
-> Collections come from \`src/config/collections.ts\`; fields are inferred from Firestore writes and TypeScript interfaces across \`src/\`.
+  const tempMmdPath = path.join(archDir, 'temp-schema.mmd');
+  
+  try {
+    // Write temporary Mermaid file
+    fs.writeFileSync(tempMmdPath, mermaidDiagram, 'utf8');
 
-## Entity-Relationship Diagram
+    // Run local mmdc CLI
+    const mmdcPath = path.join(ROOT_DIR, 'node_modules/.bin/mmdc');
+    execSync(`"${mmdcPath}" -i "${tempMmdPath}" -o "${OUTPUT_PATH}"`, { stdio: 'inherit' });
 
-\`\`\`mermaid
-erDiagram
-${relationships ? relationships + '\n\n' : ''}${entityBlocks.trimEnd()}
-\`\`\`
-
-## Collection Descriptions
-
-${descriptions.trimEnd()}
-`;
-
-  fs.writeFileSync(OUTPUT_PATH, markdownContent, 'utf8');
-  console.log(`ERD successfully generated and written to ${OUTPUT_PATH}`);
+    console.log(`ERD successfully generated locally as PNG image and written to ${OUTPUT_PATH}`);
+  } catch (err) {
+    console.error('Error generating PNG locally via mermaid-cli:', err);
+    process.exit(1);
+  } finally {
+    // Clean up temporary Mermaid file
+    if (fs.existsSync(tempMmdPath)) {
+      try {
+        fs.unlinkSync(tempMmdPath);
+      } catch (_e) {
+        // Ignore cleanup errors
+      }
+    }
+  }
 }
 
 main();
