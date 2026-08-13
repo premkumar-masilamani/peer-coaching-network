@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { scheduleMeeting } from '../../services/googleCalendar';
 import type { CalendarEvent } from '../../services/googleCalendar';
 import { logger } from '../../utils/logger';
+import { getGoogleToken } from '../../services/googleToken';
 import { type UserProfile } from '../../services/types';
 import { formatDisplayName } from '../../services/profileService';
 import { logAnalyticsEvent } from '../../services/firebaseApp';
@@ -90,6 +91,12 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       return;
     }
     setFormErrors({});
+
+    if (getGoogleToken() === null) {
+      setErrorMsg('Your Google Calendar connection has expired or is missing. Please reconnect to proceed.');
+      setBookingStatus(SCHEDULE_MODAL_STATUS.IDLE);
+      return;
+    }
 
     setBookingStatus(SCHEDULE_MODAL_STATUS.BOOKING);
     setErrorMsg('');

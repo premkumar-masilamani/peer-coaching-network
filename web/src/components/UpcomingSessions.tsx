@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
 
 import { subscribeAvailableCoachesForDay, getUserBookings, getProfiles } from '../services/firebaseService';
-import { hasExpiredGoogleToken } from '../services/googleToken';
+import { hasExpiredGoogleToken, getGoogleToken } from '../services/googleToken';
 import type { UserProfile } from '../services/firebaseService';
 import { 
   getUpcomingEvents,
@@ -28,7 +28,7 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getTimezoneCode, getUtcForLocalDateTime } from '../utils/timezoneHelpers';
 import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
-import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE, ENABLE_GOOGLE_INTEGRATION, BOOKING_ERROR } from '../config';
+import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE, BOOKING_ERROR } from '../config';
 
 
 export const UpcomingSessions: React.FC = () => {
@@ -200,9 +200,8 @@ export const UpcomingSessions: React.FC = () => {
   const loadGoogleCalendarEvents = useCallback(async () => {
     // If a Google token was obtained earlier this session but has since expired,
     // force a fresh OAuth redirect rather than loading the dashboard with a
-    // silently-empty calendar. The redirect guard in loginWithGoogle keeps this
-    // from firing more than once even if several loaders detect expiry at once.
-    if (ENABLE_GOOGLE_INTEGRATION && hasExpiredGoogleToken()) {
+    // silently-empty calendar.
+    if (hasExpiredGoogleToken()) {
       login().catch((e) => console.error('Re-authentication redirect failed:', e));
       return;
     }
@@ -472,11 +471,23 @@ export const UpcomingSessions: React.FC = () => {
             dayAvailability={dayAvailability}
             userBusyEvents={userBusyEvents}
             onSlotSelect={(coach, slot) => {
+              if (getGoogleToken() === null) {
+                showToast('Google Calendar connection required. Please reconnect your calendar to schedule sessions.', 'error');
+                login().catch((e) => console.error('Re-authentication redirect failed:', e));
+                return;
+              }
               setActiveBookingCoach(coach);
               setActiveBookingSlot(slot);
             }}
             onViewBooking={(booking) => setSelectedBookingForView(booking)}
-            onCancelBooking={(booking) => setBookingToCancel(booking)}
+            onCancelBooking={(booking) => {
+              if (getGoogleToken() === null) {
+                showToast('Google Calendar connection required. Please reconnect your calendar to cancel sessions.', 'error');
+                login().catch((e) => console.error('Re-authentication redirect failed:', e));
+                return;
+              }
+              setBookingToCancel(booking);
+            }}
             onClearFilters={clearFilters}
             cancellingId={cancellingId}
             isInitialLoading={isInitialLoading}
@@ -525,6 +536,11 @@ export const UpcomingSessions: React.FC = () => {
         onClose={() => setBookingToCancel(null)}
         onConfirm={async () => {
           if (!bookingToCancel) return;
+          if (getGoogleToken() === null) {
+            showToast('Google Calendar connection required. Please reconnect your calendar to cancel sessions.', 'error');
+            login().catch((e) => console.error('Re-authentication redirect failed:', e));
+            return;
+          }
           const idToCancel = bookingToCancel.id;
           setCancellingId(idToCancel);
           try {

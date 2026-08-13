@@ -1,2 +1,5 @@
 const isEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
-export const ENABLE_GOOGLE_INTEGRATION = !isEmulator && import.meta.env.VITE_ENABLE_GOOGLE_INTEGRATION !== 'false';
+const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || 'peer-coaching-network';
+export const GOOGLE_API_BASE = isEmulator
+  ? `http://localhost:5001/${projectId}/us-central1/mockGoogleCalendar`
+  : 'https://www.googleapis.com';

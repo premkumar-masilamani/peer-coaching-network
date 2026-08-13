@@ -12,7 +12,7 @@ import {
   setBookingGoogleMeetLink,
 } from './firestoreRepository';
 import { getGoogleToken, clearGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION, LOG_SEVERITY, BOOKING_STATUS, EVENT_TYPE, GOOGLE_EVENTS_PAGE_SIZE, TelemetryErrors } from '../config';
+import { BOOKING_HORIZON_DAYS, GOOGLE_API_BASE, LOG_SEVERITY, BOOKING_STATUS, EVENT_TYPE, GOOGLE_EVENTS_PAGE_SIZE, TelemetryErrors } from '../config';
 import { logger } from '../utils/logger';
 import { resolveEventTemplate, DEFAULT_EVENT_TEMPLATES } from '../templates/eventTemplates';
 
@@ -79,7 +79,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
   const seenIds = new Set<string>();
 
   // Try to load from Google Calendar if a valid token is present
-  if (ENABLE_GOOGLE_INTEGRATION && token) {
+  if (token) {
     try {
       // Window the query to the booking horizon and page through results.
       // Without timeMax/maxResults + nextPageToken, Google caps a list response
@@ -106,7 +106,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
         if (pageToken) params.set('pageToken', pageToken);
 
         const response = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
+          `${GOOGLE_API_BASE}/calendar/v3/calendars/primary/events?${params.toString()}`,
           { headers: { Authorization: `Bearer ${token}` } }
         );
 

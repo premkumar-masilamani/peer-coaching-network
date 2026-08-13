@@ -143,7 +143,11 @@ export const handleAuthRedirect = async (): Promise<boolean> => {
   }
 
   const credential = GoogleAuthProvider.credentialFromResult(result);
-  const token = credential?.accessToken || undefined;
+  let token = credential?.accessToken || undefined;
+  const isEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true';
+  if (!token && isEmulator) {
+    token = 'mock-emulator-google-token';
+  }
   await registerOrSyncGoogleUser(result.user, token);
   
   if (token) {

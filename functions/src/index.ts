@@ -517,6 +517,25 @@ if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.VITE_USE_FIREBASE_E
       return;
     }
 
+    if (req.method === "GET" && req.path.includes("/events")) {
+      res.json({
+        items: [
+          {
+            id: "mock-event-1",
+            summary: "Project Review Meeting",
+            description: "Sync with team",
+            start: { dateTime: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() },
+            end: { dateTime: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString() },
+            hangoutLink: "https://meet.google.com/abc-defg-hij",
+            attendees: [
+              { email: "peer@example.com", displayName: "Peer Coach" }
+            ]
+          }
+        ]
+      });
+      return;
+    }
+
     if (req.method === "DELETE" && req.path.includes("/events/")) {
       res.status(204).send("");
       return;
