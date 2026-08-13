@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -490,33 +491,37 @@ async function main() {
 
   const mermaidDiagram = `erDiagram\n${relationships ? relationships + '\n\n' : ''}${entityBlocks.trimEnd()}`;
 
-  console.log('Sending diagram to Kroki to render as PNG...');
+  console.log('Rendering diagram locally using mermaid-cli...');
+  
+  // Ensure architecture folder exists
+  const archDir = path.dirname(OUTPUT_PATH);
+  if (!fs.existsSync(archDir)) {
+    fs.mkdirSync(archDir, { recursive: true });
+  }
+
+  const tempMmdPath = path.join(archDir, 'temp-schema.mmd');
+  
   try {
-    const response = await fetch('https://kroki.io/mermaid/png', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'text/plain',
-      },
-      body: mermaidDiagram
-    });
+    // Write temporary Mermaid file
+    fs.writeFileSync(tempMmdPath, mermaidDiagram, 'utf8');
 
-    if (!response.ok) {
-      throw new Error(`Kroki API returned status ${response.status}: ${response.statusText}`);
-    }
+    // Run local mmdc CLI
+    const mmdcPath = path.join(ROOT_DIR, 'node_modules/.bin/mmdc');
+    execSync(`"${mmdcPath}" -i "${tempMmdPath}" -o "${OUTPUT_PATH}"`, { stdio: 'inherit' });
 
-    const buffer = Buffer.from(await response.arrayBuffer());
-    
-    // Ensure architecture folder exists
-    const archDir = path.dirname(OUTPUT_PATH);
-    if (!fs.existsSync(archDir)) {
-      fs.mkdirSync(archDir, { recursive: true });
-    }
-
-    fs.writeFileSync(OUTPUT_PATH, buffer);
-    console.log(`ERD successfully generated as PNG image and written to ${OUTPUT_PATH}`);
+    console.log(`ERD successfully generated locally as PNG image and written to ${OUTPUT_PATH}`);
   } catch (err) {
-    console.error('Error generating PNG via Kroki API:', err);
+    console.error('Error generating PNG locally via mermaid-cli:', err);
     process.exit(1);
+  } finally {
+    // Clean up temporary Mermaid file
+    if (fs.existsSync(tempMmdPath)) {
+      try {
+        fs.unlinkSync(tempMmdPath);
+      } catch (_e) {
+        // Ignore cleanup errors
+      }
+    }
   }
 }
 
