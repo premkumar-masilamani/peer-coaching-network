@@ -10,6 +10,7 @@ lint:
 .PHONY: build_emulator
 build_emulator:
 	npm run build:shared
+	npm pack --workspace=@pcn/shared --pack-destination=./functions
 	npm run build:functions
 	set -a && . ./.env.local && set +a && npm run build --workspace=web -- --mode production
 
@@ -25,6 +26,7 @@ local:
 .PHONY: build_dev
 build_dev:
 	npm run build:shared
+	npm pack --workspace=@pcn/shared --pack-destination=./functions
 	npm run build:functions
 	set -a && . ./.env.development && set +a && npm run build --workspace=web -- --mode production
 
