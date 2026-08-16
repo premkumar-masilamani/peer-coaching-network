@@ -7,9 +7,6 @@ export const COACH_DISCOVERY_LIMIT = 5;
 
 /** Duration of a single bookable availability slot, in milliseconds (30 minutes). */
 export const SLOT_DURATION_MS = 30 * 60 * 1000;
-
-export const DEV_API_URL = 'http://localhost:5000/api';
-
 /** Google Calendar freeBusy endpoint, used to subtract busy hours from availability. */
 export const GOOGLE_FREE_BUSY_URL = 'https://www.googleapis.com/calendar/v3/freeBusy';
 
