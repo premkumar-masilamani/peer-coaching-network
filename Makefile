@@ -39,13 +39,7 @@ build: build_emulator
 
 .PHONY: deploy_dev
 deploy_dev: build_dev
-	. ./.env.development && \
-	echo "VITE_FIREBASE_PROJECT_ID=\$\$VITE_FIREBASE_PROJECT_ID" > functions/.env && \
-	echo "VITE_FIRESTORE_DATABASE_ID=\$\$VITE_FIRESTORE_DATABASE_ID" >> functions/.env && \
-	firebase deploy --only firestore:\$\$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project \$\$VITE_FIREBASE_PROJECT_ID --debug; \
-	status=\$\$?; \
-	rm -f functions/.env; \
-	exit \$\$status
+	. ./.env.development && firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project $$VITE_FIREBASE_PROJECT_ID --debug
 
 .PHONY: erd
 erd:
