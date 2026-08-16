@@ -44,6 +44,14 @@ Here are the primary commands for building, running, and validating the applicat
   ```bash
   make run
   ```
+* **Build Application**: Compiles shared packages, packages functions, and builds production client assets:
+  ```bash
+  make build
+  ```
+* **Deploy Application**: Builds and deploys Firestore configurations (rules/indexes), Cloud Functions, and hosting assets:
+  ```bash
+  make deploy
+  ```
 * **Linting & Type-checking**: Runs TypeScript compiler checks and ESLint:
   ```bash
   make lint
