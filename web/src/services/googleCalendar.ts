@@ -12,7 +12,7 @@ import {
   setBookingGoogleMeetLink,
 } from './firestoreRepository';
 import { getGoogleToken, clearGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, LOG_SEVERITY, BOOKING_STATUS, EVENT_TYPE, GOOGLE_EVENTS_PAGE_SIZE, TelemetryErrors } from '../config';
+import { BOOKING_HORIZON_DAYS, LOG_SEVERITY, BOOKING_STATUS, EVENT_TYPE, GOOGLE_EVENTS_PAGE_SIZE, TelemetryErrors, USER_MESSAGES } from '../config';
 import { logger } from '../utils/logger';
 import { resolveEventTemplate, DEFAULT_EVENT_TEMPLATES } from '../templates/eventTemplates';
 
@@ -330,7 +330,7 @@ export const scheduleMeeting = async (
 ): Promise<CalendarEvent> => {
   const token = getGoogleToken();
   if (!token) {
-    throw new Error('Google Calendar token is missing or expired. Please connect your Google Calendar.');
+    throw new Error(USER_MESSAGES.BOOKING.GOOGLE_CALENDAR_EXPIRED);
   }
   
   const currentUser = auth?.currentUser;
@@ -396,7 +396,7 @@ export const scheduleMeeting = async (
 export const cancelBooking = async (bookingId: string): Promise<void> => {
   const token = getGoogleToken();
   if (!token) {
-    throw new Error('Google Calendar token is missing or expired. Please connect your Google Calendar.');
+    throw new Error(USER_MESSAGES.BOOKING.GOOGLE_CALENDAR_EXPIRED);
   }
   const manageBooking = httpsCallable<unknown, void>(functions, 'manageBooking');
   

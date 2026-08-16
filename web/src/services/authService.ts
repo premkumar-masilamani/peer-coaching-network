@@ -12,6 +12,7 @@ import {
   type UserStatus,
   USER_ROLE,
   USER_STATUS,
+  USER_MESSAGES,
 } from '../config';
 import { auth, db } from './firebaseApp';
 import {
@@ -42,7 +43,7 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
     const email = user.email;
     const displayName = user.displayName;
     if (!email || !displayName) {
-      throw new Error('Google Sign-In did not return a valid email or display name.');
+      throw new Error(USER_MESSAGES.AUTH.INVALID_GOOGLE_SIGNIN);
     }
 
     const cleanEmail = email.toLowerCase();

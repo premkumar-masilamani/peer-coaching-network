@@ -19,7 +19,7 @@ import { loadTimezonesForCountry, type TimezoneOption } from '../utils/timezones
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince, logAnalyticsEvent } from '../services/firebaseService';
 import { sanitizeImageUrl } from '../utils/url';
-import { GENDER_OPTIONS, type Gender, type Qualification, INPUT_LIMITS } from '../config';
+import { GENDER_OPTIONS, type Gender, type Qualification, INPUT_LIMITS, USER_MESSAGES } from '../config';
 import { collectValidationErrors, clearFieldError, type FormErrors } from '../utils/formValidation';
 
 
@@ -124,12 +124,12 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
         hasBio: !!bio,
         hasCredentialDetails: !!credentialDetails,
       });
-      setSuccessMsg('Profile changes saved successfully!', 4000);
+      setSuccessMsg(USER_MESSAGES.PROFILE.SAVE_SUCCESS, 4000);
       if (onSaveSuccess) onSaveSuccess();
       return true;
     } catch (e) {
       console.error(e);
-      setErrorMsg('Failed to save profile changes. Please try again.');
+      setErrorMsg(USER_MESSAGES.PROFILE.SAVE_FAILED);
       return false;
     } finally {
       setSaving(false);

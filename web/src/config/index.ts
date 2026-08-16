@@ -53,6 +53,9 @@ import type {
   UserStatus as _UserStatus,
 } from '@pcn/shared';
 
+import { USER_MESSAGES } from './messages';
+import type { UserMessages } from './messages';
+
 // Export types
 export type {
   _BookingStatus as BookingStatus,
@@ -67,6 +70,7 @@ export type {
   _Qualification as Qualification,
   _UserRole as UserRole,
   _UserStatus as UserStatus,
+  UserMessages,
 };
 
 // Export values
@@ -101,3 +105,4 @@ export const USER_ROLE = _USER_ROLE;
 export const USER_ROLES = _USER_ROLES;
 export const USER_STATUS = _USER_STATUS;
 export const USER_STATUSES = _USER_STATUSES;
+export { USER_MESSAGES };

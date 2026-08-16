@@ -19,7 +19,7 @@ import {
   BookOpen
 } from 'lucide-react';
 import { Modal } from './Modal';
-import { BOOKING_ERROR, type BookingError, BOOKING_ERROR_MESSAGES, SCHEDULE_MODAL_STATUS, type ScheduleModalStatus, INPUT_LIMITS } from '../../config';
+import { BOOKING_ERROR, type BookingError, BOOKING_ERROR_MESSAGES, SCHEDULE_MODAL_STATUS, type ScheduleModalStatus, INPUT_LIMITS, USER_MESSAGES } from '../../config';
 import { collectValidationErrors, clearFieldError, type FormErrors } from '../../utils/formValidation';
 
 interface ScheduleModalProps {
@@ -85,7 +85,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     if (!form.checkValidity() || !topic.trim()) {
       const errors = collectValidationErrors(form);
       if (!topic.trim() && !errors['topic-input']) {
-        errors['topic-input'] = 'Please enter a coaching topic to confirm your booking.';
+        errors['topic-input'] = USER_MESSAGES.BOOKING.TOPIC_REQUIRED;
       }
       setFormErrors(errors);
       return;
@@ -93,7 +93,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     setFormErrors({});
 
     if (getGoogleToken() === null) {
-      setErrorMsg('Your Google Calendar connection has expired or is missing. Please reconnect to proceed.');
+      setErrorMsg(USER_MESSAGES.BOOKING.CALENDAR_CONNECTION_REQUIRED);
       setBookingStatus(SCHEDULE_MODAL_STATUS.IDLE);
       return;
     }

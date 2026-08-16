@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Modal } from './Modal';
+import { USER_MESSAGES } from '../../config';
 
 interface CancelModalProps {
   isOpen: boolean;
@@ -50,7 +51,7 @@ export const CancelModal: React.FC<CancelModalProps> = ({
       </div>
 
       <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '12px', textAlign: 'center' }}>
-        Cancel Session?
+        {USER_MESSAGES.MODALS.CANCEL_SESSION.TITLE}
       </h3>
 
       <div className="glass-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>
@@ -72,7 +73,7 @@ export const CancelModal: React.FC<CancelModalProps> = ({
       </div>
       
       <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', marginBottom: '24px', lineHeight: 1.4, textAlign: 'center' }}>
-        Are you sure you want to cancel this peer coaching session? This will remove the event from Google Calendar and release the slot.
+        {USER_MESSAGES.MODALS.CANCEL_SESSION.DESCRIPTION}
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -85,7 +86,7 @@ export const CancelModal: React.FC<CancelModalProps> = ({
             fontWeight: 600
           }}
         >
-          {isCancelling ? 'Cancelling...' : 'Yes, Cancel Session'}
+          {isCancelling ? USER_MESSAGES.MODALS.CANCEL_SESSION.CANCELLING : USER_MESSAGES.MODALS.CANCEL_SESSION.CONFIRM}
         </button>
         <button
           onClick={onClose}
@@ -93,7 +94,7 @@ export const CancelModal: React.FC<CancelModalProps> = ({
           className="btn btn-secondary"
           style={{ width: '100%' }}
         >
-          No, Keep Session
+          {USER_MESSAGES.MODALS.CANCEL_SESSION.CANCEL}
         </button>
       </div>
     </Modal>
