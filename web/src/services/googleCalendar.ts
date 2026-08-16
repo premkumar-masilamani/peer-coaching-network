@@ -23,6 +23,7 @@ export interface ApiError extends Error {
 
 export interface CalendarEvent {
   id: string;
+  bookingId?: string;
   summary: string;
   description?: string;
   start: { dateTime: string };
@@ -191,6 +192,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
             existingEvent.type = EVENT_TYPE.PEER_COACHING;
             existingEvent.coachUid = data.coachUid;
             existingEvent.clientUid = data.clientUid;
+            existingEvent.bookingId = data.bookingId;
             if (data.topic) {
               existingEvent.description = `Peer Coaching Network session on the topic: ${data.topic}. Created via PCN.`;
             }
@@ -213,6 +215,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
 
             events.push({
               id: data.bookingId,
+              bookingId: data.bookingId,
               summary: `${coachFirstName} / ${clientFirstName} - Peer Coaching Session`,
               description: `Peer Coaching Network session on the topic: ${data.topic}. Created via PCN.`,
               start: { dateTime: bookingStartIso(data) },

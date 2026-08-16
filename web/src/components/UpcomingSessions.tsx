@@ -542,9 +542,10 @@ export const UpcomingSessions: React.FC = () => {
             return;
           }
           const idToCancel = bookingToCancel.id;
+          const firestoreId = bookingToCancel.bookingId || bookingToCancel.id;
           setCancellingId(idToCancel);
           try {
-            await cancelBooking(idToCancel);
+            await cancelBooking(firestoreId);
             await handleRefresh();
           } catch (err) {
             console.error('Failed to cancel booking:', err);
