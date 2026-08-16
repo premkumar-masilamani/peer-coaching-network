@@ -2,6 +2,7 @@ import React from 'react';
 import { ExternalLink } from 'lucide-react';
 import { Modal } from './Modal';
 import { sanitizeMeetLink } from '../../utils/url';
+import { USER_MESSAGES } from '../../config';
 
 interface SessionDetailsModalProps {
   isOpen: boolean;
@@ -32,7 +33,7 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Session Details"
+      title={USER_MESSAGES.MODALS.SESSION_DETAILS.TITLE}
       maxWidth="440px"
     >
       <div className="glass-panel" style={{ padding: '20px', background: 'var(--panel-hover-bg)', marginBottom: '24px' }}>
@@ -64,7 +65,7 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({
             color: 'hsl(var(--text-secondary))',
             fontSize: '0.85rem'
           }}>
-            <span>Google Meet link pending...</span>
+            <span>{USER_MESSAGES.MODALS.SESSION_DETAILS.MEET_PENDING}</span>
           </div>
         ) : (
           <div style={{
@@ -82,7 +83,7 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({
               className="btn btn-primary"
               style={{ padding: '8px 16px', fontSize: '0.85rem', width: '100%', gap: '6px' }}
             >
-              Join Google Meet
+              {USER_MESSAGES.MODALS.SESSION_DETAILS.JOIN_MEET}
               <ExternalLink size={12} />
             </a>
           </div>
@@ -90,7 +91,7 @@ export const SessionDetailsModal: React.FC<SessionDetailsModalProps> = ({
       </div>
 
       <button onClick={onClose} className="btn btn-secondary" style={{ width: '100%' }}>
-        Close Window
+        {USER_MESSAGES.MODALS.SESSION_DETAILS.CLOSE}
       </button>
     </Modal>
   );

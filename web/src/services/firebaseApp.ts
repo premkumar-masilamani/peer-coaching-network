@@ -5,6 +5,7 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 import { logger } from '../utils/logger';
+import { USER_MESSAGES } from '../config';
 
 // Required config that has no safe default. A real (cloud) build must supply them
 // — we never silently fall back to dummy credentials.
@@ -35,7 +36,7 @@ if (missingConfig.length > 0) {
 } else {
   const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
   if (isLocalhost) {
-    firebaseConfigError = "Accessing the application via 'localhost' or '127.0.0.1' is blocked to prevent Google Sign-In redirect loops. Please access the application via 'https://local.peercoachingnetwork.com:5173' instead. (Refer to the README.md for setup instructions).";
+    firebaseConfigError = USER_MESSAGES.SYSTEM.LOCAL_HOST_BLOCKED;
   }
 }
 

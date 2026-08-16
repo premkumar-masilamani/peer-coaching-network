@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { USER_MESSAGES } from '../config';
 
 interface ConfigErrorScreenProps {
   /** Human-readable detail about what is misconfigured. */
@@ -50,7 +51,7 @@ export const ConfigErrorScreen: React.FC<ConfigErrorScreenProps> = ({ message })
         margin: 0,
       }}
     >
-      Configuration error
+      {USER_MESSAGES.SYSTEM.CONFIG_ERROR_TITLE}
     </h1>
     <p
       style={{
@@ -61,8 +62,7 @@ export const ConfigErrorScreen: React.FC<ConfigErrorScreenProps> = ({ message })
         margin: 0,
       }}
     >
-      The application is not configured correctly and can’t start. Please contact
-      the site administrator.
+      {USER_MESSAGES.SYSTEM.CONFIG_ERROR_DESC}
     </p>
     {message && (
       <p

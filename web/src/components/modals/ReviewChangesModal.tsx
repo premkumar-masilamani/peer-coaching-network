@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal } from './Modal';
+import { USER_MESSAGES } from '../../config';
 
 interface ReviewChangesModalProps {
   isOpen: boolean;
@@ -17,10 +18,10 @@ interface ReviewChangesModalProps {
 export const ReviewChangesModal: React.FC<ReviewChangesModalProps> = ({
   isOpen,
   userName,
-  title = "Review changes",
-  confirmText = "Confirm Approval",
-  discardText = "Discard",
-  cancelText = "Cancel",
+  title = USER_MESSAGES.MODALS.REVIEW_CHANGES.TITLE,
+  confirmText = USER_MESSAGES.MODALS.REVIEW_CHANGES.CONFIRM,
+  discardText = USER_MESSAGES.MODALS.REVIEW_CHANGES.DISCARD,
+  cancelText = USER_MESSAGES.MODALS.REVIEW_CHANGES.CANCEL,
   changes,
   onConfirm,
   onDiscard,
@@ -43,7 +44,7 @@ export const ReviewChangesModal: React.FC<ReviewChangesModalProps> = ({
 
       {changes.length === 0 ? (
         <div className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px', textAlign: 'center' }}>
-          <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-muted))' }}>No modifications detected in draft.</p>
+          <p style={{ fontSize: '0.9rem', color: 'hsl(var(--text-muted))' }}>{USER_MESSAGES.MODALS.REVIEW_CHANGES.NO_CHANGES}</p>
         </div>
       ) : (
         <div className="glass-panel" style={{ padding: '16px', background: 'var(--panel-hover-bg)', marginBottom: '20px' }}>

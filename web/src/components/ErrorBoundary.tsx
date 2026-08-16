@@ -1,6 +1,7 @@
 import React from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { logger } from '../utils/logger';
+import { USER_MESSAGES } from '../config';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -80,7 +81,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             margin: 0,
           }}
         >
-          Something went wrong
+          {USER_MESSAGES.SYSTEM.SOMETHING_WENT_WRONG}
         </h1>
         <p
           style={{
@@ -91,7 +92,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             margin: 0,
           }}
         >
-          An unexpected error occurred. Reloading the page usually fixes it.
+          {USER_MESSAGES.SYSTEM.UNEXPECTED_ERROR_RELOAD}
         </p>
         <button
           onClick={this.handleReload}
@@ -107,7 +108,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
             marginTop: '4px',
           }}
         >
-          Reload
+          {USER_MESSAGES.SYSTEM.RELOAD_BUTTON}
         </button>
       </div>
     );

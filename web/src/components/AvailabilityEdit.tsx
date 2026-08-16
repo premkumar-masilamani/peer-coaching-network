@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { parseLocalTime } from '../utils/timezoneHelpers';
 import { useUnsavedChanges } from '../context/UnsavedChangesContext';
+import { USER_MESSAGES } from '../config';
 import { CalendarModal } from './modals/CalendarModal';
 
 export interface AvailabilityEditProps {
@@ -335,13 +336,13 @@ export const AvailabilityEdit: React.FC<AvailabilityEditProps> = ({ onboardingMo
     });
 
     if (!isValid) {
-      setErrorMsg('Please select valid start and end times for all active slots.');
+      setErrorMsg(USER_MESSAGES.AVAILABILITY.VALIDATION_INVALID_TIMES);
       setSaving(false);
       return false;
     }
 
     if (!timeOrderValid) {
-      setErrorMsg('End times must be later than start times.');
+      setErrorMsg(USER_MESSAGES.AVAILABILITY.VALIDATION_TIME_ORDER);
       setSaving(false);
       return false;
     }
@@ -370,14 +371,14 @@ export const AvailabilityEdit: React.FC<AvailabilityEditProps> = ({ onboardingMo
         blockedDatesCount: blockedDates.length,
       });
 
-      setSuccessMsg('Availability template and schedules saved successfully!', 4000);
+      setSuccessMsg(USER_MESSAGES.AVAILABILITY.SAVE_SUCCESS, 4000);
       if (onSaveSuccess) onSaveSuccess();
       setInitialWeekly(weekly);
       setInitialBlockedDates(blockedDates);
       return true;
     } catch (e) {
       console.error(e);
-      setErrorMsg('Failed to save availability settings. Please try again.');
+      setErrorMsg(USER_MESSAGES.AVAILABILITY.SAVE_FAILED);
       return false;
     } finally {
       setSaving(false);

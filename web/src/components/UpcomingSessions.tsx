@@ -29,7 +29,7 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getTimezoneCode, getUtcForLocalDateTime } from '../utils/timezoneHelpers';
 import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
-import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE, BOOKING_ERROR } from '../config';
+import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE, BOOKING_ERROR, USER_MESSAGES } from '../config';
 
 
 export const UpcomingSessions: React.FC = () => {
@@ -559,7 +559,7 @@ export const UpcomingSessions: React.FC = () => {
               setShowGoogleConnectionModal(true);
               return;
             }
-            showToast('Failed to cancel booking. Please try again.');
+            showToast(USER_MESSAGES.TOASTS.CANCEL_BOOKING_FAILED);
           } finally {
             setCancellingId(null);
             setBookingToCancel(null);
