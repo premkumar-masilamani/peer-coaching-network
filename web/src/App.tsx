@@ -18,11 +18,10 @@ import { PublicProfile } from './components/PublicProfile';
 import { SupportFeedback } from './components/SupportFeedback';
 import { isApproved, logAnalyticsEvent, firebaseConfigError } from './services/firebaseService';
 import { ConfigErrorScreen } from './components/ConfigErrorScreen';
-import { Sparkles, AlertTriangle, X, Calendar } from 'lucide-react';
+import { Sparkles, AlertTriangle, X } from 'lucide-react';
 import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE } from './config';
 import { clearProfileFromUrl } from './utils/url';
 import { UnsavedChangesProvider, useUnsavedChanges } from './context/UnsavedChangesContext';
-import { getGoogleToken } from './services/googleToken';
 import { ToastProvider } from './context/ToastContext';
 
 
@@ -37,7 +36,7 @@ const getMissingProfileFields = (profile: ReturnType<typeof useAuth>['profile'])
 };
 
 const AppContent: React.FC = () => {
-  const { user, role, loading, profile, login } = useAuth();
+  const { user, role, loading, profile } = useAuth();
   const { navigateWithConfirmation } = useUnsavedChanges();
   const [currentTab, setCurrentTab] = useState<TabKey>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -255,35 +254,7 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Google Calendar connection guard for approved users
-  const hasGoogleToken = getGoogleToken() !== null;
-  if (approved && !hasGoogleToken) {
-    return (
-      <div className="app-container" style={{ height: 'auto', minHeight: '100vh' }}>
-        <div className="bg-gradient-radial" />
-        <div className="bg-aurora-glow" style={{ top: '10%', left: '10%' }} />
-        <div className="bg-aurora-glow" style={{ bottom: '10%', right: '10%' }} />
-        <main className="content-wrapper" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px 16px' }}>
-          <div className="glass-panel" style={{ maxWidth: '440px', padding: '32px', textAlign: 'center' }}>
-            <div style={{ background: 'hsl(var(--primary) / 0.1)', width: '56px', height: '56px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'hsl(var(--primary))', margin: '0 auto 20px auto' }}>
-              <Calendar size={32} />
-            </div>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '12px' }}>
-              Google Calendar Connection Required
-            </h3>
-            <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', marginBottom: '24px', lineHeight: 1.5 }}>
-              To manage or book peer coaching sessions, you must connect your Google Calendar. This allows the platform to sync availability and automatically schedule meetings.
-            </p>
-            <div style={{ display: 'grid' }}>
-              <button type="button" onClick={() => login().catch(console.error)} className="btn btn-primary">
-                Connect Google Calendar
-              </button>
-            </div>
-          </div>
-        </main>
-      </div>
-    );
-  }
+
 
   // Redirect to Dashboard if they are on Admin tab but not an admin
   if (currentTab === TABS.ADMIN && role !== USER_ROLE.ADMIN) {

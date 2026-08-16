@@ -16,6 +16,7 @@ import type { DocumentData } from 'firebase/firestore';
 import { ScheduleModal } from './modals/ScheduleModal';
 import { CancelModal } from './modals/CancelModal';
 import { SessionDetailsModal } from './modals/SessionDetailsModal';
+import { GoogleCalendarConnectionModal } from './modals/GoogleCalendarConnectionModal';
 import { SlotPicker } from './SlotPicker';
 
 import { 
@@ -37,6 +38,7 @@ export const UpcomingSessions: React.FC = () => {
   
   // List states
   const [dayAvailability, setDayAvailability] = useState<Record<string, UserProfile[]>>({});
+  const [showGoogleConnectionModal, setShowGoogleConnectionModal] = useState(false);
   const [loadingCalendar, setLoadingCalendar] = useState(true);
   const [isFetchingDay, setIsFetchingDay] = useState(false);
   const [userBaseBusyEvents, setUserBaseBusyEvents] = useState<CalendarEvent[]>([]);
@@ -477,8 +479,7 @@ export const UpcomingSessions: React.FC = () => {
             userBusyEvents={userBusyEvents}
             onSlotSelect={(coach, slot) => {
               if (getGoogleToken() === null) {
-                showToast('Google Calendar connection required. Please reconnect your calendar to schedule sessions.', 'error');
-                login().catch((e) => console.error('Re-authentication redirect failed:', e));
+                setShowGoogleConnectionModal(true);
                 return;
               }
               setActiveBookingCoach(coach);
@@ -487,8 +488,7 @@ export const UpcomingSessions: React.FC = () => {
             onViewBooking={(booking) => setSelectedBookingForView(booking)}
             onCancelBooking={(booking) => {
               if (getGoogleToken() === null) {
-                showToast('Google Calendar connection required. Please reconnect your calendar to cancel sessions.', 'error');
-                login().catch((e) => console.error('Re-authentication redirect failed:', e));
+                setShowGoogleConnectionModal(true);
                 return;
               }
               setBookingToCancel(booking);
@@ -542,8 +542,8 @@ export const UpcomingSessions: React.FC = () => {
         onConfirm={async () => {
           if (!bookingToCancel) return;
           if (getGoogleToken() === null) {
-            showToast('Google Calendar connection required. Please reconnect your calendar to cancel sessions.', 'error');
-            login().catch((e) => console.error('Re-authentication redirect failed:', e));
+            setBookingToCancel(null);
+            setShowGoogleConnectionModal(true);
             return;
           }
           const idToCancel = bookingToCancel.id;
@@ -555,9 +555,8 @@ export const UpcomingSessions: React.FC = () => {
           } catch (err) {
             console.error('Failed to cancel booking:', err);
             if ((err as { code?: string }).code === BOOKING_ERROR.GOOGLE_TOKEN_EXPIRED) {
-              // Expired Google token: send the user through a fresh OAuth
-              // redirect instead of a generic failure toast.
-              login().catch((e) => console.error('Re-authentication redirect failed:', e));
+              setBookingToCancel(null);
+              setShowGoogleConnectionModal(true);
               return;
             }
             showToast('Failed to cancel booking. Please try again.');
@@ -572,6 +571,15 @@ export const UpcomingSessions: React.FC = () => {
         topic={bookingToCancel ? getBookingTopic(bookingToCancel) : ''}
         date={bookingToCancel ? getFormattedDateTime(bookingToCancel.start.dateTime).date : ''}
         time={bookingToCancel ? getFormattedDateTime(bookingToCancel.start.dateTime).time : ''}
+      />
+
+      <GoogleCalendarConnectionModal
+        isOpen={showGoogleConnectionModal}
+        onClose={() => setShowGoogleConnectionModal(false)}
+        onConnect={() => {
+          setShowGoogleConnectionModal(false);
+          login().catch((e) => console.error('Re-authentication redirect failed:', e));
+        }}
       />
     </>
   );
