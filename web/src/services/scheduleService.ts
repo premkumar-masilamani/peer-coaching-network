@@ -1,4 +1,4 @@
-import { fetchScheduleRaw, writeSchedule, getUserProfile } from './firestoreRepository';
+import { fetchScheduleRaw } from './firestoreRepository';
 import { timeStringToTimestamp, timestampToTimeString } from '../utils/slotGeneration';
 import type { AvailableDays } from './types';
 
@@ -32,12 +32,6 @@ export const updateSchedule = async (
   availableDays: AvailableDays,
   blockedDates: string[]
 ): Promise<void> => {
-  const profile = await getUserProfile(uid);
-  if (!profile || profile.userStatus !== 'active') {
-    // New/unapproved user: write directly to collections instead of calling GCF
-    await writeSchedule(uid, availableDays, blockedDates);
-    return;
-  }
   const updateUserProfileAndSchedule = httpsCallable(functions, 'updateUserProfileAndSchedule');
   await updateUserProfileAndSchedule({ userId: uid, availableDays, blockedDates });
 };

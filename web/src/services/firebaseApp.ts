@@ -29,18 +29,21 @@ export let firebaseConfigError: string | null = null;
 
 if (missingConfig.length > 0) {
   const message = `Missing required Firebase configuration: ${missingConfig.join(', ')}. ` +
-    'Set these environment variables (see .env.development / .env.production / Firebase project settings).';
+    'Set these environment variables (see .env.development / Firebase project settings).';
   firebaseConfigError = message;
   logger.error(message);
+} else {
+  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  if (isLocalhost) {
+    firebaseConfigError = "Accessing the application via 'localhost' or '127.0.0.1' is blocked to prevent Google Sign-In redirect loops. Please access the application via 'https://local.peercoachingnetwork.com:5173' instead. (Refer to the README.md for setup instructions).";
+  }
 }
 
 const projectId = requiredConfig.projectId || '';
 
-const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
 const firebaseConfig = {
   apiKey: requiredConfig.apiKey,
-  authDomain: (isLocalhost ? null : import.meta.env.VITE_FIREBASE_AUTH_DOMAIN) || `${projectId}.firebaseapp.com`,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || `${projectId}.firebaseapp.com`,
   projectId,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || `${projectId}.firebasestorage.app`,
   messagingSenderId: requiredConfig.messagingSenderId,

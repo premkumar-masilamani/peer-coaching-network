@@ -11,11 +11,11 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Environment Overrides**:
   - `VITE_LOG_LEVEL`: Overrides console verbosity (`'debug'`, `'info'`, `'warn'`, `'error'`).
 - **Commands**:
-  - `make run_dev` / `make build_dev` / `make deploy_dev` / `make lint` / `make install` / `npm run test`
+  - `make run` / `make build` / `make deploy` / `make lint` / `make install` / `npm run test`
 - **Dependency Execution**:
   - Avoid using `npx` anywhere in the codebase or shell scripts; invoke scripts or local tools via package.json scripts or direct paths (e.g. node modules bin or make commands).
 - **Deployments**: 
-  - `firebase.json` uses an array of database configurations (`firestore: [{ database: "pcn-dev", ... }, { database: "pcn-prod", ... }]`).
+  - `firebase.json` uses database configurations (`firestore: [{ database: "pcn-dev", ... }]`).
   - Deploy using dynamic targets: `firebase deploy --only firestore:${VITE_FIRESTORE_DATABASE_ID},hosting`
 - **Monorepo Workspaces Layout**: The repository uses npm workspaces (`packages/shared`, `functions`, `web`). Common static configs, interfaces/schemas, and timezone/slot generation logic live under the `@pcn/shared` package.
 - **Shared Package Environment Separation**: The `@pcn/shared` package is environment-agnostic. Do not write environment variable references (`process.env` or `import.meta.env`) inside `@pcn/shared`. Define runtime checks inside entry points (like `web/src/config/env.ts`).
