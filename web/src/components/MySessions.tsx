@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { useNow } from '../hooks/useNow';
+import { getGoogleToken } from '../services/googleToken';
 import { getUpcomingEvents, cancelBooking } from '../services/googleCalendar';
 import { logAnalyticsEvent } from '../services/firebaseService';
 import type { CalendarEvent } from '../services/googleCalendar';
@@ -21,7 +22,7 @@ import { getTimezoneCode } from '../utils/timezoneHelpers';
 import { EVENT_TYPE } from '../config';
 
 export const MySessions: React.FC = () => {
-  const { user, profile } = useAuth();
+  const { user, profile, login } = useAuth();
   const { showToast } = useToast();
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const [sessions, setSessions] = useState<CalendarEvent[]>([]);
@@ -52,11 +53,18 @@ export const MySessions: React.FC = () => {
     loadSessions(true);
   }, [loadSessions]));
 
-  const handleCancel = async (bookingId: string) => {
-    setCancellingId(bookingId);
+  const handleCancel = async (session: CalendarEvent) => {
+    if (getGoogleToken() === null) {
+      showToast('Google Calendar connection required. Please reconnect your calendar to cancel sessions.', 'error');
+      login().catch((e) => console.error('Re-authentication redirect failed:', e));
+      return;
+    }
+    const idToCancel = session.id;
+    const firestoreId = session.bookingId || session.id;
+    setCancellingId(idToCancel);
     try {
-      await cancelBooking(bookingId);
-      logAnalyticsEvent('cancel_booking', { bookingId });
+      await cancelBooking(firestoreId);
+      logAnalyticsEvent('cancel_booking', { bookingId: firestoreId });
       await loadSessions(true); // Silent refresh to avoid UI flicker
     } catch (e) {
       console.error('Error cancelling booking:', e);
@@ -310,7 +318,14 @@ export const MySessions: React.FC = () => {
 
                             {isCancellable && (
                               <button
-                                onClick={() => setBookingToCancel(session)}
+                                onClick={() => {
+                                  if (getGoogleToken() === null) {
+                                    showToast('Google Calendar connection required. Please reconnect your calendar to cancel sessions.', 'error');
+                                    login().catch((e) => console.error('Re-authentication redirect failed:', e));
+                                    return;
+                                  }
+                                  setBookingToCancel(session);
+                                }}
                                 disabled={cancellingId === session.id}
                                 className="btn btn-secondary"
                                 style={{
@@ -371,8 +386,7 @@ export const MySessions: React.FC = () => {
         onClose={() => setBookingToCancel(null)}
         onConfirm={async () => {
           if (!bookingToCancel) return;
-          const idToCancel = bookingToCancel.id;
-          await handleCancel(idToCancel);
+          await handleCancel(bookingToCancel);
           setBookingToCancel(null);
         }}
         isCancelling={!!cancellingId}

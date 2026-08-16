@@ -39,14 +39,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Handle OAuth Redirect Result
   useEffect(() => {
+    console.log('[AuthContext] Triggering handleAuthRedirect effect...');
     handleAuthRedirect()
+      .then(res => console.log('[AuthContext] handleAuthRedirect completed, result:', res))
       .catch(e => console.error("OAuth redirect handling error:", e))
-      .finally(() => setIsHandlingRedirect(false));
+      .finally(() => {
+        console.log('[AuthContext] Setting isHandlingRedirect to false');
+        setIsHandlingRedirect(false);
+      });
   }, []);
 
   // Subscribe to Auth status
   useEffect(() => {
+    console.log('[AuthContext] Subscribing to Auth status...');
     const unsubAuth = subscribeToAuth((usr) => {
+      console.log('[AuthContext] onAuthStateChanged callback fired. User:', usr?.uid, usr?.email);
       setUser(usr);
       if (!usr) {
         setProfile(null);
@@ -57,7 +64,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setLoading(true);
       }
     });
-    return () => unsubAuth();
+    return () => {
+      console.log('[AuthContext] Unsubscribing from Auth status...');
+      unsubAuth();
+    };
   }, []);
 
   // Apply a fetched profile to context state (profile + derived role), and kick

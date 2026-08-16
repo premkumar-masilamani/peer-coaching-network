@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useId, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Clock, MapPin, Info, Calendar, RefreshCw } from 'lucide-react';
-import { getLocalDateInTimezone, getTimezoneCode } from '../utils/timezoneHelpers';
+import { getLocalDateInTimezone, getTimezoneCode, getUtcForLocalDateTime } from '../utils/timezoneHelpers';
 import { resolveTabNavigationIndex } from '../utils/keyboardNavigation';
 import { sanitizeImageUrl } from '../utils/url';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
@@ -156,14 +156,10 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
       const slotMin = (i % 2) * 30;
       
       const year = activeDayDate.getFullYear();
-      const month = activeDayDate.getMonth();
+      const month = activeDayDate.getMonth() + 1;
       const date = activeDayDate.getDate();
       
-      const localSlotDate = new Date(year, month, date, slotHour, slotMin);
-      
-      const utcString = localSlotDate.toLocaleString('en-US', { timeZone: viewerTimezone });
-      const diff = localSlotDate.getTime() - new Date(utcString).getTime();
-      const startTime = new Date(localSlotDate.getTime() + diff);
+      const startTime = getUtcForLocalDateTime(year, month, date, slotHour, slotMin, viewerTimezone);
       const endTime = new Date(startTime.getTime() + slotDurationMs);
       
       arr.push({ startTime, endTime });
@@ -543,7 +539,7 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
                                               fontWeight: 700
                                             }}
                                           >
-                                            Cancel
+                                            {cancellingId === booking.id ? 'Cancelling...' : 'Cancel'}
                                           </button>
                                         </div>
                                       );

@@ -5,12 +5,6 @@
       "location": "asia-south1",
       "rules": "firestore.rules",
       "indexes": "firestore.indexes.json"
-    },
-    {
-      "database": "pcn-prod",
-      "location": "asia-south1",
-      "rules": "firestore.rules",
-      "indexes": "firestore.indexes.json"
     }
   ],
   "hosting": {
@@ -65,31 +59,13 @@
       }
     ]
   },
-  "emulators": {
-    "auth": {
-      "port": 9099
-    },
-    "firestore": {
-      "port": 8080
-    },
-    "hosting": {
-      "port": 5002
-    },
-    "ui": {
-      "enabled": true
-    },
-    "singleProjectMode": true,
-    "functions": {
-      "port": 5001
-    },
-    "pubsub": {
-      "port": 8085
-    }
-  },
   "auth": {
     "providers": {}
   },
   "functions": {
-    "source": "functions"
+    "source": "functions",
+    "predeploy": [
+      "npm pack --workspace=@pcn/shared --pack-destination=./functions"
+    ]
   }
 }

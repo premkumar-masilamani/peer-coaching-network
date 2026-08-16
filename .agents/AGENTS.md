@@ -9,20 +9,18 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Cloud-Backed Architecture**: This project uses a "dumb client" pattern. Critical business logic, transactions, and external API integrations must be executed securely on the backend using Firebase Cloud Functions. The client is responsible for presentation, fast UI validation, and querying read-only Firestore data. Background maintenance is handled exclusively by a scheduled `dailyHousekeeping` function, completely replacing Firestore TTL.
 - **Cost Invariants**: Implement all storage and access patterns as cheaply as possible to stay strictly within the Firebase Spark (free) tier limits. Avoid high-frequency polling, unnecessary document reads/writes, or excessive caching structures that might cause cost-limit exhaustion.
 - **Environment Overrides**:
-  - `VITE_USE_FIREBASE_EMULATOR=true`: Routes to local emulators (Auth :9099, Firestore :8080).
-  - `VITE_ENABLE_GOOGLE_INTEGRATION=false`: Disables real API calls; runs sandbox fallback mode.
   - `VITE_LOG_LEVEL`: Overrides console verbosity (`'debug'`, `'info'`, `'warn'`, `'error'`).
 - **Commands**:
-  - `make dev` / `make local` (emulator) / `make build` / `make build-prod` / `make lint` / `make emulator` / `make install` / `npm run test`
+  - `make run` / `make build` / `make deploy` / `make lint` / `make install` / `npm run test`
 - **Dependency Execution**:
   - Avoid using `npx` anywhere in the codebase or shell scripts; invoke scripts or local tools via package.json scripts or direct paths (e.g. node modules bin or make commands).
 - **Deployments**: 
-  - `firebase.json` uses an array of database configurations (`firestore: [{ database: "pcn-dev", ... }, { database: "pcn-prod", ... }]`).
+  - `firebase.json` uses database configurations (`firestore: [{ database: "pcn-dev", ... }]`).
   - Deploy using dynamic targets: `firebase deploy --only firestore:${VITE_FIRESTORE_DATABASE_ID},hosting`
 - **Monorepo Workspaces Layout**: The repository uses npm workspaces (`packages/shared`, `functions`, `web`). Common static configs, interfaces/schemas, and timezone/slot generation logic live under the `@pcn/shared` package.
 - **Shared Package Environment Separation**: The `@pcn/shared` package is environment-agnostic. Do not write environment variable references (`process.env` or `import.meta.env`) inside `@pcn/shared`. Define runtime checks inside entry points (like `web/src/config/env.ts`).
-- **Dynamic Google API Mock Base**: Avoid branching `if (isEmulator)` inline checks within Google Calendar fetch queries. Point queries to a dynamic `GOOGLE_API_BASE` URL. In development, point this to an emulator-only HTTP mock function, and in production to `googleapis.com`.
-- **Local-Only Mock Functions Guard**: Export local emulator mock HTTP functions conditionally by checking `process.env.FUNCTIONS_EMULATOR === "true" || process.env.VITE_USE_FIREBASE_EMULATOR === "true"`, preventing them from ever being registered or deployed to production.
+- **Node.js Engines Compatibility on GCF Gen1**: Target engines in `functions/package.json` should specify `"node": "20"` (or another supported Gen1 version). Specifying unsupported node versions (like `nodejs24`) will cause GCF Gen1 deployments to fail with unsupported runtime errors.
+- **No Autonomous Cloud Modifications**: Do not run any commands that alter, deploy, or configure the GCP/Firebase cloud environment directly (such as `firebase deploy`, altering cloud IAM policies, or modifying production database configurations). All cloud-related deployment and configuration actions must be presented to the user to be executed manually.
 
 ## 2. Architecture & State Flow
 - **Service Layer**: Keep UI components strictly decoupled from storage and Google APIs.
@@ -84,6 +82,7 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Profile Banners**: Never block access to the dashboard or other tabs over an incomplete profile. Advisory banners only.
 - **Inline Error Feedback**: Avoid intrusive success or error popups (like alerts) for background verification actions. Use subtle inline text directly below or beside action buttons for errors, and quietly revert to a normal state on success for a frictionless experience.
 - **Background Action Buttons**: Always provide visual feedback on action buttons when waiting for async external requests by disabling the button and changing the text (e.g., "Verifying..."). Stack buttons and related links vertically for consistent, clean UI layouts.
+- **Stretching Buttons Without Inline Styles**: To stretch interactive button controls to full width in flexbox/centered layouts (like a glass card) without violating the "no inline style for buttons" rules, wrap the button in a container `div` set with `display: grid`.
 
 ## 6. Unsaved State Tracking
 - **Global Tracking**: Any form that mutates local state without persisting to Firestore must integrate the `useUnsavedChanges` hook to intercept and block accidental cross-tab navigation.

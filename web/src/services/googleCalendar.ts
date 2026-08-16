@@ -12,7 +12,7 @@ import {
   setBookingGoogleMeetLink,
 } from './firestoreRepository';
 import { getGoogleToken, clearGoogleToken } from './googleToken';
-import { BOOKING_HORIZON_DAYS, ENABLE_GOOGLE_INTEGRATION, LOG_SEVERITY, BOOKING_STATUS, EVENT_TYPE, GOOGLE_EVENTS_PAGE_SIZE, TelemetryErrors } from '../config';
+import { BOOKING_HORIZON_DAYS, LOG_SEVERITY, BOOKING_STATUS, EVENT_TYPE, GOOGLE_EVENTS_PAGE_SIZE, TelemetryErrors } from '../config';
 import { logger } from '../utils/logger';
 import { resolveEventTemplate, DEFAULT_EVENT_TEMPLATES } from '../templates/eventTemplates';
 
@@ -23,6 +23,7 @@ export interface ApiError extends Error {
 
 export interface CalendarEvent {
   id: string;
+  bookingId?: string;
   summary: string;
   description?: string;
   start: { dateTime: string };
@@ -79,7 +80,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
   const seenIds = new Set<string>();
 
   // Try to load from Google Calendar if a valid token is present
-  if (ENABLE_GOOGLE_INTEGRATION && token) {
+  if (token) {
     try {
       // Window the query to the booking horizon and page through results.
       // Without timeMax/maxResults + nextPageToken, Google caps a list response
@@ -191,6 +192,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
             existingEvent.type = EVENT_TYPE.PEER_COACHING;
             existingEvent.coachUid = data.coachUid;
             existingEvent.clientUid = data.clientUid;
+            existingEvent.bookingId = data.bookingId;
             if (data.topic) {
               existingEvent.description = `Peer Coaching Network session on the topic: ${data.topic}. Created via PCN.`;
             }
@@ -213,6 +215,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
 
             events.push({
               id: data.bookingId,
+              bookingId: data.bookingId,
               summary: `${coachFirstName} / ${clientFirstName} - Peer Coaching Session`,
               description: `Peer Coaching Network session on the topic: ${data.topic}. Created via PCN.`,
               start: { dateTime: bookingStartIso(data) },
@@ -326,6 +329,9 @@ export const scheduleMeeting = async (
   topic: string
 ): Promise<CalendarEvent> => {
   const token = getGoogleToken();
+  if (!token) {
+    throw new Error('Google Calendar token is missing or expired. Please connect your Google Calendar.');
+  }
   
   const currentUser = auth?.currentUser;
   const clientEmail = currentUser?.email || '';
@@ -396,6 +402,9 @@ export const scheduleMeeting = async (
 
 export const cancelBooking = async (bookingId: string): Promise<void> => {
   const token = getGoogleToken();
+  if (!token) {
+    throw new Error('Google Calendar token is missing or expired. Please connect your Google Calendar.');
+  }
   const manageBooking = httpsCallable<unknown, void>(functions, 'manageBooking');
   
   await manageBooking({
