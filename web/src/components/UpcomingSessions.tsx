@@ -7,7 +7,7 @@ import { useFocusRefresh } from '../hooks/useFocusRefresh';
 import { subscribeAvailableCoachesForDay, getUserBookings, getProfiles } from '../services/firebaseService';
 import { hasExpiredGoogleToken, getGoogleToken } from '../services/googleToken';
 import type { UserProfile } from '../services/firebaseService';
-import { 
+import {
   getUpcomingEvents,
   cancelBooking
 } from '../services/googleCalendar';
@@ -19,23 +19,23 @@ import { SessionDetailsModal } from './modals/SessionDetailsModal';
 import { GoogleCalendarConnectionModal } from './modals/GoogleCalendarConnectionModal';
 import { SlotPicker } from './SlotPicker';
 
-import { 
-  Filter, 
-  MapPin, 
-  Award, 
-  User as UserIcon, 
+import {
+  Filter,
+  MapPin,
+  Award,
+  User as UserIcon,
   X
 } from 'lucide-react';
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getTimezoneCode, getUtcForLocalDateTime } from '../utils/timezoneHelpers';
 import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
-import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE, BOOKING_ERROR } from '../config';
+import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE, BOOKING_ERROR, USER_MESSAGES } from '../config';
 
 
 export const UpcomingSessions: React.FC = () => {
   const { user: currentUser, profile, login } = useAuth();
   const { showToast } = useToast();
-  
+
   // List states
   const [dayAvailability, setDayAvailability] = useState<Record<string, UserProfile[]>>({});
   const [showGoogleConnectionModal, setShowGoogleConnectionModal] = useState(false);
@@ -64,20 +64,20 @@ export const UpcomingSessions: React.FC = () => {
     const baseGoogleEvents = userBaseBusyEvents.filter(e => e.type !== EVENT_TYPE.PEER_COACHING);
     const currentUid = currentUser?.uid;
     if (!currentUid) return baseGoogleEvents;
-    
+
     const liveUserEvents: CalendarEvent[] = [];
     userLiveBookings.forEach(b => {
       if (b.status === BOOKING_STATUS.CANCELLED) return;
       if (b.coachUid !== currentUid && b.clientUid !== currentUid) return;
-      
-      const startStr = b.startTime && typeof b.startTime.toDate === 'function' 
-        ? b.startTime.toDate().toISOString() 
+
+      const startStr = b.startTime && typeof b.startTime.toDate === 'function'
+        ? b.startTime.toDate().toISOString()
         : (b.startTime?.dateTime || b.startTime);
-      const endStr = b.endTime && typeof b.endTime.toDate === 'function' 
-        ? b.endTime.toDate().toISOString() 
+      const endStr = b.endTime && typeof b.endTime.toDate === 'function'
+        ? b.endTime.toDate().toISOString()
         : (b.endTime?.dateTime || b.endTime);
       if (!startStr || !endStr) return;
-      
+
       liveUserEvents.push({
         id: b.bookingId || `${currentUid}-${startStr}`,
         bookingId: b.bookingId,
@@ -91,24 +91,24 @@ export const UpcomingSessions: React.FC = () => {
         clientUid: b.clientUid
       });
     });
-    
+
     return [...baseGoogleEvents, ...liveUserEvents];
   }, [userBaseBusyEvents, userLiveBookings, currentUser]);
-  
+
   // Tab states
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const localToday = useMemo(() => getLocalDateInTimezone(new Date(), viewerTimezone), [viewerTimezone]);
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
-  
+
   // Filter states
   const [genderFilter, setGenderFilter] = useState('');
   const [countryFilter, setCountryFilter] = useState('');
   const [qualFilter, setQualFilter] = useState<Qualification | ''>('');
-  
+
   // Booking flow state
   const [activeBookingCoach, setActiveBookingCoach] = useState<UserProfile | null>(null);
   const [activeBookingSlot, setActiveBookingSlot] = useState<{ startTime: Date; endTime: Date } | null>(null);
-  
+
   // Booking view/cancel state
   const [selectedBookingForView, setSelectedBookingForView] = useState<CalendarEvent | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
@@ -249,7 +249,7 @@ export const UpcomingSessions: React.FC = () => {
   // Day/filter-scoped effect: subscribe to available coaches for the active day
   useEffect(() => {
     const requestId = ++queryRequestIdRef.current;
-    
+
     void Promise.resolve().then(() => setIsFetchingDay(true));
 
     const localDayStart = new Date(activeDayDate);
@@ -508,7 +508,7 @@ export const UpcomingSessions: React.FC = () => {
 
       {/* Booking confirmation modal overlay */}
       {activeBookingCoach && activeBookingSlot && (
-        <ScheduleModal 
+        <ScheduleModal
           coach={activeBookingCoach}
           startTime={activeBookingSlot.startTime}
           endTime={activeBookingSlot.endTime}
@@ -559,7 +559,7 @@ export const UpcomingSessions: React.FC = () => {
               setShowGoogleConnectionModal(true);
               return;
             }
-            showToast('Failed to cancel booking. Please try again.');
+            showToast(USER_MESSAGES.TOASTS.CANCEL_SESSION_FAILED);
           } finally {
             setCancellingId(null);
             setBookingToCancel(null);

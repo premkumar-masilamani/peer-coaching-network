@@ -20,7 +20,7 @@ import { GoogleCalendarConnectionModal } from './modals/GoogleCalendarConnection
 import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
 import { sanitizeMeetLink } from '../utils/url';
 import { getTimezoneCode } from '../utils/timezoneHelpers';
-import { EVENT_TYPE } from '../config';
+import { EVENT_TYPE, USER_MESSAGES } from '../config';
 
 export const MySessions: React.FC = () => {
   const { user, profile, login } = useAuth();
@@ -69,7 +69,7 @@ export const MySessions: React.FC = () => {
       await loadSessions(true); // Silent refresh to avoid UI flicker
     } catch (e) {
       console.error('Error cancelling booking:', e);
-      showToast('Failed to cancel session. Please try again.');
+      showToast(USER_MESSAGES.TOASTS.CANCEL_SESSION_FAILED);
     } finally {
       setCancellingId(null);
     }

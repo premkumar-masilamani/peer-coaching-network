@@ -1,6 +1,7 @@
 import React from 'react';
 import { Calendar } from 'lucide-react';
 import { Modal } from './Modal';
+import { USER_MESSAGES } from '../../config';
 
 interface GoogleCalendarConnectionModalProps {
   isOpen: boolean;
@@ -38,11 +39,11 @@ export const GoogleCalendarConnectionModal: React.FC<GoogleCalendarConnectionMod
       </div>
 
       <h3 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '12px', textAlign: 'center' }}>
-        Google Calendar Connection Required
+        {USER_MESSAGES.MODALS.CALENDAR_CONNECTION.TITLE}
       </h3>
 
       <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', marginBottom: '24px', lineHeight: 1.5, textAlign: 'center' }}>
-        To manage or book peer coaching sessions, you must connect your Google Calendar. This allows the platform to sync availability and automatically schedule meetings.
+        {USER_MESSAGES.MODALS.CALENDAR_CONNECTION.DESCRIPTION}
       </p>
 
       <div style={{ display: 'grid' }}>
@@ -52,7 +53,7 @@ export const GoogleCalendarConnectionModal: React.FC<GoogleCalendarConnectionMod
           disabled={isConnecting}
           className="btn btn-primary"
         >
-          {isConnecting ? 'Connecting...' : 'Connect Google Calendar'}
+          {isConnecting ? USER_MESSAGES.MODALS.CALENDAR_CONNECTION.CONNECTING : USER_MESSAGES.MODALS.CALENDAR_CONNECTION.CONNECT}
         </button>
       </div>
     </Modal>
