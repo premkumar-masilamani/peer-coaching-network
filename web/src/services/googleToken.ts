@@ -6,7 +6,7 @@
 // the tab/session ends or expires.
 
 let googleAccessToken: string | null = null;
-const EXPIRY_THRESHOLD_MS = 3500 * 1000; // 58 minutes safety margin
+const EXPIRY_THRESHOLD_MS = 58 * 60 * 1000; // 58 minutes safety margin
 
 export const setGoogleToken = (token: string | null): void => {
   googleAccessToken = token;

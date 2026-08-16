@@ -19,7 +19,7 @@ This document acts as the definitive codebase guide and runtime manual. It stric
   - Deploy using dynamic targets: `firebase deploy --only firestore:${VITE_FIRESTORE_DATABASE_ID},hosting`
 - **Monorepo Workspaces Layout**: The repository uses npm workspaces (`packages/shared`, `functions`, `web`). Common static configs, interfaces/schemas, and timezone/slot generation logic live under the `@pcn/shared` package.
 - **Shared Package Environment Separation**: The `@pcn/shared` package is environment-agnostic. Do not write environment variable references (`process.env` or `import.meta.env`) inside `@pcn/shared`. Define runtime checks inside entry points (like `web/src/config/env.ts`).
-- **Node.js Engines Compatibility on GCF Gen1**: Target engines in `functions/package.json` should specify `"node": "20"` (or another supported Gen1 version). Specifying unsupported node versions (like `nodejs24`) will cause GCF Gen1 deployments to fail with unsupported runtime errors.
+- **Node.js Engines Compatibility on GCF Gen1**: Target engines in `functions/package.json` should specify `"node": "22"` (or another supported Gen1 version). Specifying unsupported node versions (like `nodejs24`) will cause GCF Gen1 deployments to fail with unsupported runtime errors.
 - **No Autonomous Cloud Modifications**: Do not run any commands that alter, deploy, or configure the GCP/Firebase cloud environment directly (such as `firebase deploy`, altering cloud IAM policies, or modifying production database configurations). All cloud-related deployment and configuration actions must be presented to the user to be executed manually.
 
 ## 2. Architecture & State Flow
