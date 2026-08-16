@@ -9,11 +9,9 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Cloud-Backed Architecture**: This project uses a "dumb client" pattern. Critical business logic, transactions, and external API integrations must be executed securely on the backend using Firebase Cloud Functions. The client is responsible for presentation, fast UI validation, and querying read-only Firestore data. Background maintenance is handled exclusively by a scheduled `dailyHousekeeping` function, completely replacing Firestore TTL.
 - **Cost Invariants**: Implement all storage and access patterns as cheaply as possible to stay strictly within the Firebase Spark (free) tier limits. Avoid high-frequency polling, unnecessary document reads/writes, or excessive caching structures that might cause cost-limit exhaustion.
 - **Environment Overrides**:
-  - `VITE_USE_FIREBASE_EMULATOR=true`: Routes to local emulators (Auth :9099, Firestore :8080).
-  - `VITE_ENABLE_GOOGLE_INTEGRATION=false`: Disables real API calls; runs sandbox fallback mode.
   - `VITE_LOG_LEVEL`: Overrides console verbosity (`'debug'`, `'info'`, `'warn'`, `'error'`).
 - **Commands**:
-  - `make dev` / `make local` (emulator) / `make build` / `make build-prod` / `make lint` / `make emulator` / `make install` / `npm run test`
+  - `make run_dev` / `make build_dev` / `make deploy_dev` / `make lint` / `make install` / `npm run test`
 - **Dependency Execution**:
   - Avoid using `npx` anywhere in the codebase or shell scripts; invoke scripts or local tools via package.json scripts or direct paths (e.g. node modules bin or make commands).
 - **Deployments**: 

@@ -7,35 +7,16 @@ install:
 lint:
 	npm run tsc && npm run eslint
 
-.PHONY: build_emulator
-build_emulator:
-	npm run build:shared
-	npm pack --workspace=@pcn/shared --pack-destination=./functions
-	npm run build:functions
-	set -a && . ./.env.local && set +a && npm run build --workspace=web -- --mode production
-
-.PHONY: emulator
-emulator:
-	$(MAKE) build_emulator
-	set -a && . ./.env.local && set +a && firebase emulators:start
-
-.PHONY: local
-local:
-	set -a && . ./.env.local && set +a && npm run emulator:seed && npm run dev --workspace=web -- --mode development
-
 .PHONY: build_dev
 build_dev:
 	npm run build:shared
 	npm pack --workspace=@pcn/shared --pack-destination=./functions
 	npm run build:functions
-	set -a && . ./.env.development && set +a && VITE_USE_FIREBASE_EMULATOR=false npm run build --workspace=web -- --mode production
+	set -a && . ./.env.development && set +a && npm run build --workspace=web -- --mode production
 
-.PHONY: dev
-dev:
+.PHONY: run_dev
+run_dev:
 	npm run dev --workspace=web -- --mode development
-
-.PHONY: build
-build: build_emulator
 
 .PHONY: deploy_dev
 deploy_dev: build_dev
