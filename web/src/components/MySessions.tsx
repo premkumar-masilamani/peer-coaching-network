@@ -55,9 +55,13 @@ export const MySessions: React.FC = () => {
 
   const handleCancel = async (bookingId: string) => {
     if (getGoogleToken() === null) {
-      showToast('Google Calendar connection required. Please reconnect your calendar to cancel sessions.', 'error');
-      login().catch((e) => console.error('Re-authentication redirect failed:', e));
-      return;
+      const proceed = window.confirm(
+        "Google Calendar is not connected. Do you want to connect it now? \n\nClick 'OK' to redirect and connect, or 'Cancel' to continue cancellation without calendar sync."
+      );
+      if (proceed) {
+        login().catch((e) => console.error('Re-authentication redirect failed:', e));
+        return;
+      }
     }
     setCancellingId(bookingId);
     try {
@@ -318,9 +322,13 @@ export const MySessions: React.FC = () => {
                               <button
                                 onClick={() => {
                                   if (getGoogleToken() === null) {
-                                    showToast('Google Calendar connection required. Please reconnect your calendar to cancel sessions.', 'error');
-                                    login().catch((e) => console.error('Re-authentication redirect failed:', e));
-                                    return;
+                                    const proceed = window.confirm(
+                                      "Google Calendar is not connected.\n\nClick 'OK' to redirect and connect your Google Calendar now, or 'Cancel' to continue cancellation without calendar sync."
+                                    );
+                                    if (proceed) {
+                                      login().catch((e) => console.error('Re-authentication redirect failed:', e));
+                                      return;
+                                    }
                                   }
                                   setBookingToCancel(session);
                                 }}

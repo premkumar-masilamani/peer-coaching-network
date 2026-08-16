@@ -93,9 +93,13 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     setFormErrors({});
 
     if (getGoogleToken() === null) {
-      setErrorMsg('Your Google Calendar connection has expired or is missing. Please reconnect to proceed.');
-      setBookingStatus(SCHEDULE_MODAL_STATUS.IDLE);
-      return;
+      const proceed = window.confirm(
+        "Google Calendar is not connected. Do you want to connect it now? \n\nClick 'OK' to redirect and connect, or 'Cancel' to continue booking without calendar sync."
+      );
+      if (proceed) {
+        login().catch((e) => console.error('Re-authentication redirect failed:', e));
+        return;
+      }
     }
 
     setBookingStatus(SCHEDULE_MODAL_STATUS.BOOKING);

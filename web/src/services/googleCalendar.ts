@@ -326,9 +326,6 @@ export const scheduleMeeting = async (
   topic: string
 ): Promise<CalendarEvent> => {
   const token = getGoogleToken();
-  if (!token) {
-    throw new Error('Google Calendar token is missing or expired. Please connect your Google Calendar.');
-  }
   
   const currentUser = auth?.currentUser;
   const clientEmail = currentUser?.email || '';
@@ -399,9 +396,6 @@ export const scheduleMeeting = async (
 
 export const cancelBooking = async (bookingId: string): Promise<void> => {
   const token = getGoogleToken();
-  if (!token) {
-    throw new Error('Google Calendar token is missing or expired. Please connect your Google Calendar.');
-  }
   const manageBooking = httpsCallable<unknown, void>(functions, 'manageBooking');
   
   await manageBooking({
