@@ -114,9 +114,13 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
 let redirectInFlight = false;
 
 export const loginWithGoogle = async (): Promise<void> => {
-  if (redirectInFlight) return;
+  if (redirectInFlight) {
+    console.log('[AuthService] Redirect already in flight, ignoring click.');
+    return;
+  }
   redirectInFlight = true;
 
+  console.log('[AuthService] Initiating Google Sign-In with Redirect...');
   const provider = new GoogleAuthProvider();
   // Request Google Calendar access. Only the events scope is needed: every
   // Calendar API call in this app is event CRUD on the user's primary calendar
@@ -129,7 +133,9 @@ export const loginWithGoogle = async (): Promise<void> => {
 
   try {
     await signInWithRedirect(auth, provider);
+    console.log('[AuthService] signInWithRedirect completed (redirecting browser)...');
   } catch (e) {
+    console.error('[AuthService] signInWithRedirect error:', e);
     // Navigation never happened, so allow a later retry.
     redirectInFlight = false;
     throw e;
@@ -137,20 +143,31 @@ export const loginWithGoogle = async (): Promise<void> => {
 };
 
 export const handleAuthRedirect = async (): Promise<boolean> => {
-  const result = await getRedirectResult(auth);
-  if (!result) {
-    return false;
-  }
+  console.log('[AuthService] Entering handleAuthRedirect...');
+  try {
+    const result = await getRedirectResult(auth);
+    console.log('[AuthService] getRedirectResult returned:', result);
+    if (!result) {
+      console.log('[AuthService] No redirect result found (regular page load or cookie block).');
+      return false;
+    }
 
-  const credential = GoogleAuthProvider.credentialFromResult(result);
-  const token = credential?.accessToken || undefined;
-  await registerOrSyncGoogleUser(result.user, token);
-  
-  if (token) {
-    syncCalendar().catch(err => logger.error('Failed to sync calendar after login:', err));
+    console.log('[AuthService] Successful redirect result found for user:', result.user.uid, result.user.email);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const token = credential?.accessToken || undefined;
+    console.log('[AuthService] Google OAuth Access Token present:', !!token);
+    await registerOrSyncGoogleUser(result.user, token);
+    
+    if (token) {
+      console.log('[AuthService] Triggering post-login calendar sync...');
+      syncCalendar().catch(err => logger.error('Failed to sync calendar after login:', err));
+    }
+    
+    return true;
+  } catch (err) {
+    console.error('[AuthService] Error in handleAuthRedirect:', err);
+    throw err;
   }
-  
-  return true;
 };
 
 export const logout = async (): Promise<void> => {
