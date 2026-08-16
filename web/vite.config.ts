@@ -5,7 +5,7 @@ import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  const envDir = path.resolve(__dirname, '..');
+  const envDir = path.resolve(import.meta.dirname, '..');
   const env = loadEnv(mode, envDir, '');
   const databaseId = env.VITE_FIRESTORE_DATABASE_ID || process.env.VITE_FIRESTORE_DATABASE_ID;
 
