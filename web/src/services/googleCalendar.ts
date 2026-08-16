@@ -341,13 +341,6 @@ export const scheduleMeeting = async (
   const bookingId = `${coachUid}_${sanitizedStartIso}`;
 
   logger.info(`Attempting to book session for client ${clientUid} with coach ${coachUid} at ${startIso}`);
-  await logger.telemetry(LOG_SEVERITY.INFO, 'booking_attempt', {
-    clientUid,
-    coachUid,
-    startIso,
-    bookingId,
-    clientBookingCacheId: `${clientUid}_${startIso}`
-  });
 
   const manageBooking = httpsCallable<unknown, { googleMeetLink?: string }>(functions, 'manageBooking');
   
