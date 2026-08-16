@@ -28,7 +28,7 @@ build_dev:
 	npm run build:shared
 	npm pack --workspace=@pcn/shared --pack-destination=./functions
 	npm run build:functions
-	set -a && . ./.env.development && set +a && npm run build --workspace=web -- --mode production
+	set -a && . ./.env.development && set +a && VITE_USE_FIREBASE_EMULATOR=false npm run build --workspace=web -- --mode production
 
 .PHONY: dev
 dev:
