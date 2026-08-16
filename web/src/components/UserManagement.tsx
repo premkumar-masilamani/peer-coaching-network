@@ -888,26 +888,39 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
 
                       {/* Quick Approve Action Column */}
                       <td style={{ textAlign: 'right' }}>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            triggerApprove(u.userId);
-                          }}
-                          disabled={savingId !== null}
-                          className="btn btn-primary"
-                          style={{
-                            padding: '6px 12px',
-                            fontSize: '0.85rem',
-                            height: '34px',
-                            gap: '4px',
-                            background: '#10b981',
-                            color: '#ffffff',
-                            fontWeight: 700
-                          }}
-                        >
-                          <UserCheck size={12} />
-                          Approve
-                        </button>
+                        {(() => {
+                          const isSavingThis = savingId === u.userId;
+                          const draft = drafts[u.userId];
+                          const statusToSave = draft?.userStatus || getUserStatus(u);
+                          const isApproving = statusToSave === USER_STATUS.ACTIVE && getUserStatus(u) === USER_STATUS.INACTIVE;
+
+                          const buttonText = isSavingThis 
+                            ? (isApproving ? 'Approving...' : 'Saving...') 
+                            : (getUserStatus(u) === USER_STATUS.INACTIVE ? 'Approve' : 'Save');
+
+                          return (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                triggerApprove(u.userId);
+                              }}
+                              disabled={savingId !== null}
+                              className="btn btn-primary"
+                              style={{
+                                padding: '6px 12px',
+                                fontSize: '0.85rem',
+                                height: '34px',
+                                gap: '4px',
+                                background: '#10b981',
+                                color: '#ffffff',
+                                fontWeight: 700
+                              }}
+                            >
+                              {!isSavingThis && <UserCheck size={12} />}
+                              {buttonText}
+                            </button>
+                          );
+                        })()}
                       </td>
                     </tr>
                   );

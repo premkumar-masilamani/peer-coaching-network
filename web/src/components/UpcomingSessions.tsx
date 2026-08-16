@@ -265,7 +265,8 @@ export const UpcomingSessions: React.FC = () => {
       icf_uncertified: qualFilter === 'No Verified Credentials' ? true : undefined,
     };
 
-    let unsubscribe = () => {};
+    let isCleanedUp = false;
+    let unsubscribeFn: (() => void) | null = null;
 
     subscribeAvailableCoachesForDay(
       localDayStart,
@@ -275,26 +276,29 @@ export const UpcomingSessions: React.FC = () => {
       sessionSeed,
       currentUser?.uid,
       (availability) => {
-        if (requestId !== queryRequestIdRef.current) return;
+        if (isCleanedUp || requestId !== queryRequestIdRef.current) return;
         setDayAvailability(availability);
         setIsFetchingDay(false);
         setLoadingCalendar(false);
       }
     ).then(unsub => {
-      if (requestId !== queryRequestIdRef.current) {
+      if (isCleanedUp || requestId !== queryRequestIdRef.current) {
         unsub();
       } else {
-        unsubscribe = unsub;
+        unsubscribeFn = unsub;
       }
     }).catch(e => {
-      if (requestId !== queryRequestIdRef.current) return;
+      if (isCleanedUp || requestId !== queryRequestIdRef.current) return;
       console.error('Error subscribing to day availability:', e);
       setIsFetchingDay(false);
       setLoadingCalendar(false);
     });
 
     return () => {
-      unsubscribe();
+      isCleanedUp = true;
+      if (unsubscribeFn) {
+        unsubscribeFn();
+      }
     };
   }, [activeDayDate, querySlots, genderFilter, countryFilter, qualFilter, sessionSeed, currentUser]);
   // Handle booking success with optimistic updates

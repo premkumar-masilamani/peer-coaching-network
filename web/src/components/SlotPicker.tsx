@@ -539,7 +539,7 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
                                               fontWeight: 700
                                             }}
                                           >
-                                            Cancel
+                                            {cancellingId === booking.id ? 'Cancelling...' : 'Cancel'}
                                           </button>
                                         </div>
                                       );
