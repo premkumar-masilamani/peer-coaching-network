@@ -6,7 +6,6 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-  Info,
   Terminal,
   TriangleAlert,
   User,
@@ -27,7 +26,6 @@ type SystemLog = Omit<SystemLogEntry, 'details'> & { details: Record<string, any
 const SEVERITY_OPTIONS: { value: LogSeverity; label: string }[] = [
   { value: LOG_SEVERITY.ERROR, label: 'Errors' },
   { value: LOG_SEVERITY.WARN,  label: 'Warnings' },
-  { value: LOG_SEVERITY.INFO,  label: 'Info' },
 ];
 
 export const SystemLogs: React.FC = () => {
@@ -120,19 +118,12 @@ export const SystemLogs: React.FC = () => {
           icon: <AlertCircle size={14} style={{ marginRight: '6px' }} />
         };
       case LOG_SEVERITY.WARN:
+      default:
         return {
           background: 'rgba(245, 158, 11, 0.12)',
           color: '#fbbf24',
           border: '1px solid rgba(245, 158, 11, 0.2)',
           icon: <TriangleAlert size={14} style={{ marginRight: '6px' }} />
-        };
-      case LOG_SEVERITY.INFO:
-      default:
-        return {
-          background: 'rgba(13, 148, 136, 0.12)',
-          color: '#2dd4bf',
-          border: '1px solid rgba(13, 148, 136, 0.2)',
-          icon: <Info size={14} style={{ marginRight: '6px' }} />
         };
     }
   };
@@ -166,17 +157,14 @@ export const SystemLogs: React.FC = () => {
       case LOG_SEVERITY.ERROR:
         return { ...base, background: 'rgba(239, 68, 68, 0.18)', color: '#f87171', border: '1px solid rgba(239, 68, 68, 0.4)' };
       case LOG_SEVERITY.WARN:
-        return { ...base, background: 'rgba(245, 158, 11, 0.18)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.4)' };
-      case LOG_SEVERITY.INFO:
       default:
-        return { ...base, background: 'rgba(13, 148, 136, 0.18)', color: '#2dd4bf', border: '1px solid rgba(13, 148, 136, 0.4)' };
+        return { ...base, background: 'rgba(245, 158, 11, 0.18)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.4)' };
     }
   };
 
   const severityChipIcons: Record<LogSeverity, React.ReactNode> = {
     [LOG_SEVERITY.ERROR]: <AlertCircle size={13} />,
     [LOG_SEVERITY.WARN]:  <TriangleAlert size={13} />,
-    [LOG_SEVERITY.INFO]:  <Info size={13} />,
   };
 
   return (

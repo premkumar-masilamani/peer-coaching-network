@@ -4,9 +4,8 @@
 export const LOG_SEVERITY = {
   ERROR: 'error',
   WARN:  'warn',
-  INFO:  'info',
 } as const;
-export const LOG_SEVERITIES = [LOG_SEVERITY.ERROR, LOG_SEVERITY.WARN, LOG_SEVERITY.INFO] as const;
+export const LOG_SEVERITIES = [LOG_SEVERITY.ERROR, LOG_SEVERITY.WARN] as const;
 export type LogSeverity = (typeof LOG_SEVERITIES)[number];
 
 export const TABS = {
