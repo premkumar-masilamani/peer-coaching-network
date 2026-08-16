@@ -25,6 +25,7 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Local-Only Mock Functions Guard**: Export local emulator mock HTTP functions conditionally by checking `process.env.FUNCTIONS_EMULATOR === "true" || process.env.VITE_USE_FIREBASE_EMULATOR === "true"`, preventing them from ever being registered or deployed to production.
 - **Google Calendar API Base Endpoint Mapping**: When requesting Google Calendar resources or scheduling meetings in development/test mode, developers should avoid hardcoding the Google API endpoint base URL (`https://www.googleapis.com`). Instead, import and query using the dynamic `GOOGLE_API_BASE` configuration, which resolves to local emulator functions under emulation mode.
 - **Node.js Engines Compatibility on GCF Gen1**: Target engines in `functions/package.json` should specify `"node": "20"` (or another supported Gen1 version). Specifying unsupported node versions (like `nodejs24`) will cause GCF Gen1 deployments to fail with unsupported runtime errors.
+- **No Autonomous Cloud Modifications**: Do not run any commands that alter, deploy, or configure the GCP/Firebase cloud environment directly (such as `firebase deploy`, altering cloud IAM policies, or modifying production database configurations). All cloud-related deployment and configuration actions must be presented to the user to be executed manually.
 
 ## 2. Architecture & State Flow
 - **Service Layer**: Keep UI components strictly decoupled from storage and Google APIs.
