@@ -5,6 +5,7 @@ coverage/
 packages/shared/lib/
 web/dist/
 functions/lib/
+functions/*.tgz
 *.tsbuildinfo
 
 # --- Logs ---

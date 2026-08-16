@@ -15,11 +15,6 @@ const db = databaseId ? getFirestore(admin.app(), databaseId) : getFirestore();
 
 // Google API helpers
 const getGoogleApiBase = () => {
-  if (process.env.VITE_USE_FIREBASE_EMULATOR === "true" || process.env.FUNCTIONS_EMULATOR === "true") {
-    // Under local emulation, point to the mockGoogleCalendar endpoint running on port 5001.
-    const projectId = process.env.VITE_FIREBASE_PROJECT_ID || "peer-coaching-network";
-    return `http://localhost:5001/${projectId}/us-central1/mockGoogleCalendar`;
-  }
   return "https://www.googleapis.com";
 };
 
@@ -484,44 +479,3 @@ export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone
   return null;
 });
 
-if (process.env.FUNCTIONS_EMULATOR === "true" || process.env.VITE_USE_FIREBASE_EMULATOR === "true") {
-  exports.mockGoogleCalendar = functions.https.onRequest(async (req, res) => {
-    // Enable CORS
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-
-    if (req.method === "OPTIONS") {
-      res.status(204).send("");
-      return;
-    }
-
-    console.log(`Mock Google Calendar request received. Method: ${req.method}, Path: ${req.path}`);
-
-    if (req.path.includes("/freeBusy")) {
-      res.json({
-        calendars: {
-          primary: {
-            busy: []
-          }
-        }
-      });
-      return;
-    }
-
-    if (req.method === "POST" && req.path.includes("/events")) {
-      res.json({
-        id: "mock-google-event-id",
-        hangoutLink: "https://meet.google.com/mock-meet-link"
-      });
-      return;
-    }
-
-    if (req.method === "DELETE" && req.path.includes("/events/")) {
-      res.status(204).send("");
-      return;
-    }
-
-    res.status(404).json({ error: "Not found" });
-  });
-}

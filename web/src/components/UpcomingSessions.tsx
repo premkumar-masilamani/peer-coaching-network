@@ -5,7 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
 
 import { subscribeAvailableCoachesForDay, getUserBookings, getProfiles } from '../services/firebaseService';
-import { hasExpiredGoogleToken } from '../services/googleToken';
+import { hasExpiredGoogleToken, getGoogleToken } from '../services/googleToken';
 import type { UserProfile } from '../services/firebaseService';
 import { 
   getUpcomingEvents,
@@ -28,7 +28,7 @@ import {
 import { COUNTRIES } from '../utils/countries';
 import { getLocalDateInTimezone, getTimezoneCode, getUtcForLocalDateTime } from '../utils/timezoneHelpers';
 import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
-import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE, ENABLE_GOOGLE_INTEGRATION, BOOKING_ERROR } from '../config';
+import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER_OPTIONS, type Qualification, QUALIFICATION_OPTIONS, EVENT_TYPE, BOOKING_ERROR } from '../config';
 
 
 export const UpcomingSessions: React.FC = () => {
@@ -78,6 +78,7 @@ export const UpcomingSessions: React.FC = () => {
       
       liveUserEvents.push({
         id: b.bookingId || `${currentUid}-${startStr}`,
+        bookingId: b.bookingId,
         summary: b.topic || 'Peer Coaching',
         description: `Coaching session`,
         start: { dateTime: startStr },
@@ -200,9 +201,8 @@ export const UpcomingSessions: React.FC = () => {
   const loadGoogleCalendarEvents = useCallback(async () => {
     // If a Google token was obtained earlier this session but has since expired,
     // force a fresh OAuth redirect rather than loading the dashboard with a
-    // silently-empty calendar. The redirect guard in loginWithGoogle keeps this
-    // from firing more than once even if several loaders detect expiry at once.
-    if (ENABLE_GOOGLE_INTEGRATION && hasExpiredGoogleToken()) {
+    // silently-empty calendar.
+    if (hasExpiredGoogleToken()) {
       login().catch((e) => console.error('Re-authentication redirect failed:', e));
       return;
     }
@@ -265,7 +265,8 @@ export const UpcomingSessions: React.FC = () => {
       icf_uncertified: qualFilter === 'No Verified Credentials' ? true : undefined,
     };
 
-    let unsubscribe = () => {};
+    let isCleanedUp = false;
+    let unsubscribeFn: (() => void) | null = null;
 
     subscribeAvailableCoachesForDay(
       localDayStart,
@@ -275,26 +276,29 @@ export const UpcomingSessions: React.FC = () => {
       sessionSeed,
       currentUser?.uid,
       (availability) => {
-        if (requestId !== queryRequestIdRef.current) return;
+        if (isCleanedUp || requestId !== queryRequestIdRef.current) return;
         setDayAvailability(availability);
         setIsFetchingDay(false);
         setLoadingCalendar(false);
       }
     ).then(unsub => {
-      if (requestId !== queryRequestIdRef.current) {
+      if (isCleanedUp || requestId !== queryRequestIdRef.current) {
         unsub();
       } else {
-        unsubscribe = unsub;
+        unsubscribeFn = unsub;
       }
     }).catch(e => {
-      if (requestId !== queryRequestIdRef.current) return;
+      if (isCleanedUp || requestId !== queryRequestIdRef.current) return;
       console.error('Error subscribing to day availability:', e);
       setIsFetchingDay(false);
       setLoadingCalendar(false);
     });
 
     return () => {
-      unsubscribe();
+      isCleanedUp = true;
+      if (unsubscribeFn) {
+        unsubscribeFn();
+      }
     };
   }, [activeDayDate, querySlots, genderFilter, countryFilter, qualFilter, sessionSeed, currentUser]);
   // Handle booking success with optimistic updates
@@ -472,11 +476,23 @@ export const UpcomingSessions: React.FC = () => {
             dayAvailability={dayAvailability}
             userBusyEvents={userBusyEvents}
             onSlotSelect={(coach, slot) => {
+              if (getGoogleToken() === null) {
+                showToast('Google Calendar connection required. Please reconnect your calendar to schedule sessions.', 'error');
+                login().catch((e) => console.error('Re-authentication redirect failed:', e));
+                return;
+              }
               setActiveBookingCoach(coach);
               setActiveBookingSlot(slot);
             }}
             onViewBooking={(booking) => setSelectedBookingForView(booking)}
-            onCancelBooking={(booking) => setBookingToCancel(booking)}
+            onCancelBooking={(booking) => {
+              if (getGoogleToken() === null) {
+                showToast('Google Calendar connection required. Please reconnect your calendar to cancel sessions.', 'error');
+                login().catch((e) => console.error('Re-authentication redirect failed:', e));
+                return;
+              }
+              setBookingToCancel(booking);
+            }}
             onClearFilters={clearFilters}
             cancellingId={cancellingId}
             isInitialLoading={isInitialLoading}
@@ -525,10 +541,16 @@ export const UpcomingSessions: React.FC = () => {
         onClose={() => setBookingToCancel(null)}
         onConfirm={async () => {
           if (!bookingToCancel) return;
+          if (getGoogleToken() === null) {
+            showToast('Google Calendar connection required. Please reconnect your calendar to cancel sessions.', 'error');
+            login().catch((e) => console.error('Re-authentication redirect failed:', e));
+            return;
+          }
           const idToCancel = bookingToCancel.id;
+          const firestoreId = bookingToCancel.bookingId || bookingToCancel.id;
           setCancellingId(idToCancel);
           try {
-            await cancelBooking(idToCancel);
+            await cancelBooking(firestoreId);
             await handleRefresh();
           } catch (err) {
             console.error('Failed to cancel booking:', err);

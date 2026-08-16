@@ -5,6 +5,11 @@ import { logger } from '../utils/logger';
 
 export const recalculateAvailableSlotsCache = async (uid: string): Promise<void> => {
   try {
+    const profile = await getUserProfile(uid);
+    if (!profile || profile.userStatus !== 'active') {
+      logger.info(`recalculateAvailableSlotsCache: Skipped GCF call for new/unapproved user ${uid} (status: ${profile?.userStatus})`);
+      return;
+    }
     const updateUserProfileAndSchedule = httpsCallable<unknown, void>(functions, 'updateUserProfileAndSchedule');
     await updateUserProfileAndSchedule({ userId: uid });
     logger.info(`Successfully triggered backend availability recalculation for user: ${uid}`);
