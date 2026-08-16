@@ -52,7 +52,6 @@ const AppContent: React.FC = () => {
     return (params.get('adminFilter') as 'all' | UserStatus | UserRole) || 'all';
   });
   const [publicProfileUid, setPublicProfileUid] = useState<string | null>(null);
-  const [isCalendarSkipped, setIsCalendarSkipped] = useState(() => sessionStorage.getItem('pcn_calendar_skipped') === 'true');
 
   // Bumped when the Support tab is re-clicked while already active. Passed to
   // SupportFeedback as a prop so it can reset its view — replaces a former
@@ -256,9 +255,9 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // Google Calendar connection guard for approved users (if not bypassed)
+  // Google Calendar connection guard for approved users
   const hasGoogleToken = getGoogleToken() !== null;
-  if (approved && !hasGoogleToken && !isCalendarSkipped) {
+  if (approved && !hasGoogleToken) {
     return (
       <div className="app-container" style={{ height: 'auto', minHeight: '100vh' }}>
         <div className="bg-gradient-radial" />
@@ -275,19 +274,9 @@ const AppContent: React.FC = () => {
             <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-secondary))', marginBottom: '24px', lineHeight: 1.5 }}>
               To manage or book peer coaching sessions, you must connect your Google Calendar. This allows the platform to sync availability and automatically schedule meetings.
             </p>
-            <div style={{ display: 'grid', gap: '12px' }}>
+            <div style={{ display: 'grid' }}>
               <button type="button" onClick={() => login().catch(console.error)} className="btn btn-primary">
                 Connect Google Calendar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  sessionStorage.setItem('pcn_calendar_skipped', 'true');
-                  setIsCalendarSkipped(true);
-                }}
-                className="btn btn-secondary"
-              >
-                Continue without Calendar
               </button>
             </div>
           </div>
