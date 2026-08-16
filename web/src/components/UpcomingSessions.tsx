@@ -78,6 +78,7 @@ export const UpcomingSessions: React.FC = () => {
       
       liveUserEvents.push({
         id: b.bookingId || `${currentUid}-${startStr}`,
+        bookingId: b.bookingId,
         summary: b.topic || 'Peer Coaching',
         description: `Coaching session`,
         start: { dateTime: startStr },
