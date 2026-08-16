@@ -6,6 +6,8 @@ packages/shared/lib/
 web/dist/
 functions/lib/
 functions/*.tgz
+functions/.env
+functions/.env.*
 *.tsbuildinfo
 
 # --- Logs ---
