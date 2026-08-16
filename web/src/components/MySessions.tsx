@@ -16,6 +16,7 @@ import {
   XCircle
 } from 'lucide-react';
 import { CancelModal } from './modals/CancelModal';
+import { GoogleCalendarConnectionModal } from './modals/GoogleCalendarConnectionModal';
 import { getParticipantNames, getBookingTopic } from '../utils/calendarHelpers';
 import { sanitizeMeetLink } from '../utils/url';
 import { getTimezoneCode } from '../utils/timezoneHelpers';
@@ -26,6 +27,7 @@ export const MySessions: React.FC = () => {
   const { showToast } = useToast();
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const [sessions, setSessions] = useState<CalendarEvent[]>([]);
+  const [showGoogleConnectionModal, setShowGoogleConnectionModal] = useState(false);
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [bookingToCancel, setBookingToCancel] = useState<CalendarEvent | null>(null);
@@ -55,8 +57,7 @@ export const MySessions: React.FC = () => {
 
   const handleCancel = async (session: CalendarEvent) => {
     if (getGoogleToken() === null) {
-      showToast('Google Calendar connection required. Please reconnect your calendar to cancel sessions.', 'error');
-      login().catch((e) => console.error('Re-authentication redirect failed:', e));
+      setShowGoogleConnectionModal(true);
       return;
     }
     const idToCancel = session.id;
@@ -320,8 +321,7 @@ export const MySessions: React.FC = () => {
                               <button
                                 onClick={() => {
                                   if (getGoogleToken() === null) {
-                                    showToast('Google Calendar connection required. Please reconnect your calendar to cancel sessions.', 'error');
-                                    login().catch((e) => console.error('Re-authentication redirect failed:', e));
+                                    setShowGoogleConnectionModal(true);
                                     return;
                                   }
                                   setBookingToCancel(session);
@@ -395,6 +395,15 @@ export const MySessions: React.FC = () => {
         topic={bookingToCancel ? getBookingTopic(bookingToCancel) : ''}
         date={bookingToCancel ? new Date(bookingToCancel.start.dateTime).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : ''}
         time={bookingToCancel ? new Date(bookingToCancel.start.dateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: viewerTimezone }) + ` ${getTimezoneCode(new Date(bookingToCancel.start.dateTime), viewerTimezone)}` : ''}
+      />
+
+      <GoogleCalendarConnectionModal
+        isOpen={showGoogleConnectionModal}
+        onClose={() => setShowGoogleConnectionModal(false)}
+        onConnect={() => {
+          setShowGoogleConnectionModal(false);
+          login().catch((e) => console.error('Re-authentication redirect failed:', e));
+        }}
       />
     </div>
   );

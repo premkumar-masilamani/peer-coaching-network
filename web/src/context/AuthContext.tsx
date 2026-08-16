@@ -110,6 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => { cancelled = true; };
   }, [user, applyProfile]);
 
+
   // Stable callback identities so the memoized context value below only changes
   // when the underlying state does — otherwise every provider render would hand
   // consumers a fresh value object and re-render all of them.
@@ -137,6 +138,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     }
   }, []);
+
+  // Expire the Firebase auth session in 58 minutes since the Google token was obtained
+  useEffect(() => {
+    if (!user) return;
+
+    const checkAndScheduleExpiry = () => {
+      const obtainedAtStr = sessionStorage.getItem('google_token_obtained_at');
+      if (!obtainedAtStr) return;
+
+      const obtainedAt = parseInt(obtainedAtStr, 10);
+      if (isNaN(obtainedAt)) return;
+
+      const expiryMs = 58 * 60 * 1000; // 58 minutes
+      const elapsed = Date.now() - obtainedAt;
+
+      if (elapsed >= expiryMs) {
+        console.log('[AuthContext] Session expired (58 minutes reached). Logging out...');
+        logout();
+      } else {
+        const remaining = expiryMs - elapsed;
+        console.log(`[AuthContext] Session expires in ${Math.round(remaining / 1000)}s. Scheduling logout.`);
+        const timer = setTimeout(() => {
+          console.log('[AuthContext] Session expired (scheduled 58 minutes reached). Logging out...');
+          logout();
+        }, remaining);
+        return timer;
+      }
+    };
+
+    const timer = checkAndScheduleExpiry();
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [user, logout]);
 
   const updateProfileDetails = useCallback(async (updates: Partial<UserProfile>) => {
     if (!user) return;
