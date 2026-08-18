@@ -3,6 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ── Helpers ────────────────────────────────────────────────────────────
     function isSignedIn() {
       return request.auth != null;
     }
@@ -11,52 +12,145 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    function isAdmin() {
+    // The caller's own user document exists. Guarded by isSignedIn() so the
+    // exists()/get() below are never evaluated for an anonymous request.
+    function hasUserDoc() {
       return isSignedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userRole == 'admin'
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userStatus == 'active';
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    // ── Global admin access ─────────────────────────────────────────────────
+    function callerData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Minimum access floor for the app: an APPROVED (active) member, regardless
+    // of role. Every collection below requires at least this, except the
+    // self-service management a user needs to enrol (own user doc + schedule).
+    function isActiveUser() {
+      return hasUserDoc() && callerData().userStatus == 'active';
+    }
+
+    // An active member whose role is admin. Some actions require this.
+    function isAdmin() {
+      return hasUserDoc()
+        && callerData().userRole == 'admin'
+        && callerData().userStatus == 'active';
+    }
+
+    // Owner of the parent support ticket (for the messages subcollection).
+    function isSupportOwner(requestId) {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/supportRequests/$(requestId)).data.userId == request.auth.uid;
+    }
+
+    // Telemetry payloads may only carry the allowlisted detail keys. Adding a
+    // new key to a logger.telemetry(...) call requires adding it here too.
+    function isValidSystemLogDetails(details) {
+      return details is map
+        && details.keys().hasOnly(['errorCode', 'errorMessage', 'error']);
+    }
+
+    // ── Global admin override ───────────────────────────────────────────────
+    // Admins may read/write everything. All admin-only actions rely on this.
     match /{document=**} {
       allow read, write: if isAdmin();
     }
 
+    // ── users ───────────────────────────────────────────────────────────────
     match /users/{uid} {
-      allow read: if isSignedIn();
-      allow create, update: if isOwner(uid);
+      // Any approved member may read the roster/directory; a not-yet-approved
+      // owner may still read their own document to drive onboarding.
+      allow read: if isActiveUser() || isOwner(uid);
 
+      // Self-enrolment — the ONLY write a not-yet-approved user may make.
+      // A signed-in user may create ONLY their own document, containing ONLY
+      // the enrolment fields, with the privileged fields pinned to safe
+      // defaults. This structurally prevents privilege escalation at sign-up:
+      // role/status/verified-credentials cannot be chosen by the client, and no
+      // extra fields may be smuggled in.
+      allow create: if isOwner(uid)
+        && request.resource.data.userId == uid
+        && request.resource.data.userRole == 'user'
+        && request.resource.data.userStatus == 'inactive'
+        && request.resource.data.icf_acc == false
+        && request.resource.data.icf_pcc == false
+        && request.resource.data.icf_mcc == false
+        && request.resource.data.icf_actc == false
+        && request.resource.data.keys().hasOnly([
+             'userId', 'email', 'firstName', 'lastName', 'displayName',
+             'photoURL', 'userRole', 'userStatus', 'gender', 'country',
+             'bio', 'timezone', 'icf_acc', 'icf_pcc', 'icf_mcc', 'icf_actc',
+             'createdAt'
+           ]);
+
+      // Self-service profile edits (name sync, onboarding fields, bio, etc.).
+      // The owner may NOT change role, status, or verified credentials — those
+      // are admin-only and enforced by pinning them to their stored values.
+      allow update: if isOwner(uid)
+        && request.resource.data.userRole == resource.data.userRole
+        && request.resource.data.userStatus == resource.data.userStatus
+        && request.resource.data.icf_acc == resource.data.icf_acc
+        && request.resource.data.icf_pcc == resource.data.icf_pcc
+        && request.resource.data.icf_mcc == resource.data.icf_mcc
+        && request.resource.data.icf_actc == resource.data.icf_actc;
+
+      // No client deletes of user documents (admins covered by the global rule).
+
+      // Owner-private schedule template. Writable while still pending so the
+      // onboarding flow can seed default availability before approval.
       match /schedule/{document=**} {
         allow read, write: if isOwner(uid);
       }
     }
 
+    // ── availability (coach discovery cache) ────────────────────────────────
+    // Readable by any approved member for discovery. Never written directly by
+    // clients — it is maintained solely by the backend Cloud Functions (Admin
+    // SDK, which bypasses these rules) and by admins via the global rule.
     match /availability/{coachUid} {
-      allow read: if isSignedIn();
-      allow write: if isOwner(coachUid);
+      allow read: if isActiveUser();
+      allow write: if false;
     }
 
+    // ── bookings ────────────────────────────────────────────────────────────
+    // Created, cancelled, and status-changed EXCLUSIVELY through the
+    // manageBooking Cloud Function (Admin SDK). Participants may read only their
+    // own bookings, and may self-heal the Google Meet link — nothing else.
     match /bookings/{bookingId} {
-      allow read: if isSignedIn();
-      // Any signed-in user can create a booking
-      allow create: if isSignedIn();
-      // Only participants can update/cancel a booking
-      allow update, delete: if isSignedIn() && (
-        request.auth.uid == resource.data.coachUid ||
-        request.auth.uid == resource.data.clientUid
-      );
+      allow read: if isActiveUser()
+        && (request.auth.uid == resource.data.coachUid
+            || request.auth.uid == resource.data.clientUid);
+
+      allow update: if isActiveUser()
+        && (request.auth.uid == resource.data.coachUid
+            || request.auth.uid == resource.data.clientUid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['googleMeetLink']);
+
+      allow create, delete: if false;
     }
 
+    // ── systemLogs (telemetry sink) ─────────────────────────────────────────
+    // Append-only for approved members. Each entry must be self-stamped
+    // (userId == caller) and limited to the telemetry detail allowlist, which
+    // prevents log spoofing/injection. Reads are admin-only (global rule).
     match /systemLogs/{logId} {
-      allow create: if isSignedIn();
+      allow create: if isActiveUser()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.type in ['error', 'warn']
+        && isValidSystemLogDetails(request.resource.data.details);
     }
 
+    // ── supportRequests (+ messages) ────────────────────────────────────────
+    // A member may see and manage ONLY their own tickets; admins get every
+    // ticket via the global rule. Deletes are admin-only.
     match /supportRequests/{requestId} {
-      allow read, write: if isSignedIn();
+      allow read:   if isActiveUser() && resource.data.userId == request.auth.uid;
+      allow create: if isActiveUser() && request.resource.data.userId == request.auth.uid;
+      allow update: if isActiveUser() && resource.data.userId == request.auth.uid;
+      allow delete: if false;
 
       match /messages/{messageId} {
-        allow read, write: if isSignedIn();
+        allow read, create: if isActiveUser() && isSupportOwner(requestId);
       }
     }
   }
