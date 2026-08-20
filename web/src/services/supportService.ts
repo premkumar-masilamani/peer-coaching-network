@@ -32,12 +32,10 @@ const toSupportRequest = ({ id, data }: RawDoc): SupportRequest => ({
   id,
   userId: data.userId,
   userDisplayName: data.userDisplayName,
-  userEmail: data.userEmail,
   category: data.category,
   subject: data.subject,
   status: data.status,
   createdAt: convertTimestampToString(data.createdAt),
-  updatedAt: convertTimestampToString(data.updatedAt),
 });
 
 const toSupportMessage = ({ id, data }: RawDoc): SupportMessage => ({
@@ -49,13 +47,12 @@ const toSupportMessage = ({ id, data }: RawDoc): SupportMessage => ({
   createdAt: convertTimestampToString(data.createdAt),
 });
 
-const byUpdatedAtDesc = (a: SupportRequest, b: SupportRequest): number =>
-  new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+const byCreatedAtDesc = (a: SupportRequest, b: SupportRequest): number =>
+  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
 
 export const createSupportRequest = async (
   userId: string,
   userDisplayName: string,
-  userEmail: string,
   category: SupportCategory,
   subject: string,
   messageText: string
@@ -64,7 +61,6 @@ export const createSupportRequest = async (
   return createSupportRequestWithFirstMessage({
     userId,
     userDisplayName,
-    userEmail,
     category,
     subject,
     senderRole: USER_ROLE.USER,
@@ -75,18 +71,18 @@ export const createSupportRequest = async (
 export const getSupportRequestsForUser = async (userId: string): Promise<SupportRequest[]> => {
   if (!db) return [];
   const docs = await fetchSupportRequestDocsByUser(userId);
-  return docs.map(toSupportRequest).sort(byUpdatedAtDesc);
+  return docs.map(toSupportRequest).sort(byCreatedAtDesc);
 };
 
 export const getAllSupportRequests = async (): Promise<SupportRequest[]> => {
   if (!db) return [];
   const docs = await fetchAllSupportRequestDocs();
-  return docs.map(toSupportRequest).sort(byUpdatedAtDesc);
+  return docs.map(toSupportRequest).sort(byCreatedAtDesc);
 };
 
-// One page of support tickets (newest-updated first) with an opaque cursor for
+// One page of support tickets (newest first) with an opaque cursor for
 // the next page, bounding the admin desk's initial read. The query already
-// returns tickets in updatedAt-desc order, so no additional client-side sort is
+// returns tickets in createdAt-desc order, so no additional client-side sort is
 // needed within a page.
 export const getSupportRequestsPage = async (
   pageSize: number,

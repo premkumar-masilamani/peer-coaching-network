@@ -2,7 +2,7 @@
  * General application-wide constants.
  */
 export const BOOKING_START_OFFSET_DAYS = 1;
-export const BOOKING_HORIZON_DAYS = 30;
+export const BOOKING_HORIZON_DAYS = 14;
 export const COACH_DISCOVERY_LIMIT = 5;
 
 /** Duration of a single bookable availability slot, in milliseconds (30 minutes). */
@@ -20,9 +20,9 @@ export const GOOGLE_EVENTS_PAGE_SIZE = 250;
 export const ICF_DIRECTORY_URL = 'https://apps.coachingfederation.org/eweb/DynamicPage.aspx?webcode=ICFDirectory&firstname={firstName}&lastname={lastName}';
 
 export const INPUT_LIMITS = {
-  BIO: 2000,
-  SUPPORT_SUBJECT: 200,
-  SUPPORT_MESSAGE: 2000,
-  COACHING_TOPIC: 1000,
-  CREDENTIAL_DETAILS: 1000,
+  BIO: 2500,
+  SUPPORT_SUBJECT: 250,
+  SUPPORT_MESSAGE: 2500,
+  COACHING_TOPIC: 2500,
+  CREDENTIAL_DETAILS: 2500,
 } as const;

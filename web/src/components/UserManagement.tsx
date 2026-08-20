@@ -387,7 +387,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
 
   const filteredUsers = listSource.filter((u) => {
     const matchesSearch =
-      (u.displayName?.toLowerCase() || '').includes(search.toLowerCase()) ||
+      (u.firstName?.toLowerCase() || '').includes(search.toLowerCase()) ||
+      (u.lastName?.toLowerCase() || '').includes(search.toLowerCase()) ||
       (u.email?.toLowerCase() || '').includes(search.toLowerCase());
 
     const matchesRole =
