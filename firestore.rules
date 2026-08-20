@@ -12,46 +12,34 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    // The caller's own user document exists. Guarded by isSignedIn() so the
-    // exists()/get() below are never evaluated for an anonymous request.
     function hasUserDoc() {
       return isSignedIn()
         && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    function callerData() {
+    function getUserData() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // Minimum access floor for the app: an APPROVED (active) member, regardless
-    // of role. Every collection below requires at least this, except the
-    // self-service management a user needs to enrol (own user doc + schedule).
-    function isActiveUser() {
-      return hasUserDoc() && callerData().userStatus == 'active';
+    function isUser() {
+        return hasUserDoc()
+        && getUserData().userRole == 'user'
+        && getUserData().userStatus == 'active';
     }
 
-    // An active member whose role is admin. Some actions require this.
     function isAdmin() {
       return hasUserDoc()
-        && callerData().userRole == 'admin'
-        && callerData().userStatus == 'active';
+        && getUserData().userRole == 'admin'
+        && getUserData().userStatus == 'active';
     }
 
-    // Owner of the parent support ticket (for the messages subcollection).
     function isSupportOwner(requestId) {
-      return isSignedIn()
+      return (isUser() || isAdmin())
         && get(/databases/$(database)/documents/supportRequests/$(requestId)).data.userId == request.auth.uid;
     }
 
-    // Telemetry payloads may only carry the allowlisted detail keys. Adding a
-    // new key to a logger.telemetry(...) call requires adding it here too.
-    function isValidSystemLogDetails(details) {
-      return details is map
-        && details.keys().hasOnly(['errorCode', 'errorMessage', 'error']);
-    }
 
     // ── Global admin override ───────────────────────────────────────────────
-    // Admins may read/write everything. All admin-only actions rely on this.
     match /{document=**} {
       allow read, write: if isAdmin();
     }
@@ -60,7 +48,7 @@ service cloud.firestore {
     match /users/{uid} {
       // Any approved member may read the roster/directory; a not-yet-approved
       // owner may still read their own document to drive onboarding.
-      allow read: if isActiveUser() || isOwner(uid);
+      allow read: if isUser() || isOwner(uid);
 
       // Self-enrolment — the ONLY write a not-yet-approved user may make.
       // A signed-in user may create ONLY their own document, containing ONLY
@@ -77,10 +65,10 @@ service cloud.firestore {
         && request.resource.data.icf_mcc == false
         && request.resource.data.icf_actc == false
         && request.resource.data.keys().hasOnly([
-             'userId', 'email', 'firstName', 'lastName', 'displayName',
-             'photoURL', 'userRole', 'userStatus', 'gender', 'country',
-             'bio', 'timezone', 'icf_acc', 'icf_pcc', 'icf_mcc', 'icf_actc',
-             'createdAt'
+             'userId', 'email', 'firstName', 'lastName', 'photoURL',
+             'gender', 'bio', 'country', 'timezone',
+             'icf_acc', 'icf_pcc', 'icf_mcc', 'icf_actc',
+             'userRole', 'userStatus', 'createdAt', 'updatedAt'
            ]);
 
       // Self-service profile edits (name sync, onboarding fields, bio, etc.).
@@ -108,7 +96,7 @@ service cloud.firestore {
     // clients — it is maintained solely by the backend Cloud Functions (Admin
     // SDK, which bypasses these rules) and by admins via the global rule.
     match /availability/{coachUid} {
-      allow read: if isActiveUser();
+      allow read: if isUser();
       allow write: if false;
     }
 
@@ -117,11 +105,11 @@ service cloud.firestore {
     // manageBooking Cloud Function (Admin SDK). Participants may read only their
     // own bookings, and may self-heal the Google Meet link — nothing else.
     match /bookings/{bookingId} {
-      allow read: if isActiveUser()
+      allow read: if isUser()
         && (request.auth.uid == resource.data.coachUid
             || request.auth.uid == resource.data.clientUid);
 
-      allow update: if isActiveUser()
+      allow update: if isUser()
         && (request.auth.uid == resource.data.coachUid
             || request.auth.uid == resource.data.clientUid)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['googleMeetLink']);
@@ -131,26 +119,31 @@ service cloud.firestore {
 
     // ── systemLogs (telemetry sink) ─────────────────────────────────────────
     // Append-only for approved members. Each entry must be self-stamped
-    // (userId == caller) and limited to the telemetry detail allowlist, which
-    // prevents log spoofing/injection. Reads are admin-only (global rule).
+    // (userId == caller). Reads are admin-only (global rule).
     match /systemLogs/{logId} {
-      allow create: if isActiveUser()
+      allow create: if isUser()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.type in ['error', 'warn']
-        && isValidSystemLogDetails(request.resource.data.details);
+        && request.resource.data.keys().hasOnly([
+             'type', 'event', 'userId', 'userEmail', 'errorMessage', 'timestamp', 'expireAt'
+           ]);
     }
 
     // ── supportRequests (+ messages) ────────────────────────────────────────
     // A member may see and manage ONLY their own tickets; admins get every
     // ticket via the global rule. Deletes are admin-only.
     match /supportRequests/{requestId} {
-      allow read:   if isActiveUser() && resource.data.userId == request.auth.uid;
-      allow create: if isActiveUser() && request.resource.data.userId == request.auth.uid;
-      allow update: if isActiveUser() && resource.data.userId == request.auth.uid;
+      allow read:   if (isUser() || isAdmin()) && resource.data.userId == request.auth.uid;
+      allow create: if (isUser() || isAdmin()) && request.resource.data.userId == request.auth.uid;
+      allow update: if (isUser() || isAdmin()) && resource.data.userId == request.auth.uid;
       allow delete: if false;
 
       match /messages/{messageId} {
-        allow read, create: if isActiveUser() && isSupportOwner(requestId);
+        allow read: if (isUser() || isAdmin()) && isSupportOwner(requestId);
+        allow create: if (isUser() || isAdmin())
+          && isSupportOwner(requestId)
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.senderRole == (isAdmin() ? 'admin' : 'user');
       }
     }
   }

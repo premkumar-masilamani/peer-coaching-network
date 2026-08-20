@@ -56,12 +56,11 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
     const initialStatus: UserStatus = USER_STATUS.INACTIVE;
 
     // Create new user profile (createdAt is stamped by the repository).
-    const newProfile: Omit<UserProfile, 'createdAt'> = {
+    const newProfile: Omit<UserProfile, 'createdAt' | 'updatedAt'> = {
       userId: user.uid,
       email: cleanEmail,
       firstName,
       lastName,
-      displayName,
       photoURL: user.photoURL,
       userRole: assignedRole,
       userStatus: initialStatus,
@@ -89,9 +88,6 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
       if (existingProfile.firstName !== inFirst || existingProfile.lastName !== inLast) {
         updates.firstName = inFirst;
         updates.lastName = inLast;
-      }
-      if (existingProfile.displayName !== user.displayName) {
-        updates.displayName = user.displayName;
       }
     }
     const incomingEmail = user.email ? user.email.toLowerCase() : null;
