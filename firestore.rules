@@ -3,6 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ── Helpers ────────────────────────────────────────────────────────────
     function isSignedIn() {
       return request.auth != null;
     }
@@ -11,52 +12,138 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    function isAdmin() {
+    function hasUserDoc() {
       return isSignedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userRole == 'admin'
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userStatus == 'active';
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    // ── Global admin access ─────────────────────────────────────────────────
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isUser() {
+        return hasUserDoc()
+        && getUserData().userRole == 'user'
+        && getUserData().userStatus == 'active';
+    }
+
+    function isAdmin() {
+      return hasUserDoc()
+        && getUserData().userRole == 'admin'
+        && getUserData().userStatus == 'active';
+    }
+
+    function isSupportOwner(requestId) {
+      return (isUser() || isAdmin())
+        && get(/databases/$(database)/documents/supportRequests/$(requestId)).data.userId == request.auth.uid;
+    }
+
+
+    // ── Global admin override ───────────────────────────────────────────────
     match /{document=**} {
       allow read, write: if isAdmin();
     }
 
+    // ── users ───────────────────────────────────────────────────────────────
     match /users/{uid} {
-      allow read: if isSignedIn();
-      allow create, update: if isOwner(uid);
+      // Any approved member may read the roster/directory; a not-yet-approved
+      // owner may still read their own document to drive onboarding.
+      allow read: if isUser() || isOwner(uid);
 
+      // Self-enrolment — the ONLY write a not-yet-approved user may make.
+      // A signed-in user may create ONLY their own document, containing ONLY
+      // the enrolment fields, with the privileged fields pinned to safe
+      // defaults. This structurally prevents privilege escalation at sign-up:
+      // role/status/verified-credentials cannot be chosen by the client, and no
+      // extra fields may be smuggled in.
+      allow create: if isOwner(uid)
+        && request.resource.data.userId == uid
+        && request.resource.data.userRole == 'user'
+        && request.resource.data.userStatus == 'inactive'
+        && request.resource.data.icf_acc == false
+        && request.resource.data.icf_pcc == false
+        && request.resource.data.icf_mcc == false
+        && request.resource.data.icf_actc == false
+        && request.resource.data.keys().hasOnly([
+             'userId', 'email', 'firstName', 'lastName', 'photoURL',
+             'gender', 'bio', 'country', 'timezone',
+             'icf_acc', 'icf_pcc', 'icf_mcc', 'icf_actc',
+             'userRole', 'userStatus', 'createdAt', 'updatedAt'
+           ]);
+
+      // Self-service profile edits (name sync, onboarding fields, bio, etc.).
+      // The owner may NOT change role, status, or verified credentials — those
+      // are admin-only and enforced by pinning them to their stored values.
+      allow update: if isOwner(uid)
+        && request.resource.data.userRole == resource.data.userRole
+        && request.resource.data.userStatus == resource.data.userStatus
+        && request.resource.data.icf_acc == resource.data.icf_acc
+        && request.resource.data.icf_pcc == resource.data.icf_pcc
+        && request.resource.data.icf_mcc == resource.data.icf_mcc
+        && request.resource.data.icf_actc == resource.data.icf_actc;
+
+      // No client deletes of user documents (admins covered by the global rule).
+
+      // Owner-private schedule template. Writable while still pending so the
+      // onboarding flow can seed default availability before approval.
       match /schedule/{document=**} {
         allow read, write: if isOwner(uid);
       }
     }
 
+    // ── availability (coach discovery cache) ────────────────────────────────
+    // Readable by any approved member for discovery. Never written directly by
+    // clients — it is maintained solely by the backend Cloud Functions (Admin
+    // SDK, which bypasses these rules) and by admins via the global rule.
     match /availability/{coachUid} {
-      allow read: if isSignedIn();
-      allow write: if isOwner(coachUid);
+      allow read: if isUser();
+      allow write: if false;
     }
 
+    // ── bookings ────────────────────────────────────────────────────────────
+    // Created, cancelled, and status-changed EXCLUSIVELY through the
+    // manageBooking Cloud Function (Admin SDK). Participants may read only their
+    // own bookings, and may self-heal the Google Meet link — nothing else.
     match /bookings/{bookingId} {
-      allow read: if isSignedIn();
-      // Any signed-in user can create a booking
-      allow create: if isSignedIn();
-      // Only participants can update/cancel a booking
-      allow update, delete: if isSignedIn() && (
-        request.auth.uid == resource.data.coachUid ||
-        request.auth.uid == resource.data.clientUid
-      );
+      allow read: if isUser()
+        && (request.auth.uid == resource.data.coachUid
+            || request.auth.uid == resource.data.clientUid);
+
+      allow update: if isUser()
+        && (request.auth.uid == resource.data.coachUid
+            || request.auth.uid == resource.data.clientUid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['googleMeetLink']);
+
+      allow create, delete: if false;
     }
 
+    // ── systemLogs (telemetry sink) ─────────────────────────────────────────
+    // Append-only for approved members. Each entry must be self-stamped
+    // (userId == caller). Reads are admin-only (global rule).
     match /systemLogs/{logId} {
-      allow create: if isSignedIn();
+      allow create: if isUser()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.type in ['error', 'warn']
+        && request.resource.data.keys().hasOnly([
+             'type', 'event', 'userId', 'userEmail', 'errorMessage', 'timestamp', 'expireAt'
+           ]);
     }
 
+    // ── supportRequests (+ messages) ────────────────────────────────────────
+    // A member may see and manage ONLY their own tickets; admins get every
+    // ticket via the global rule. Deletes are admin-only.
     match /supportRequests/{requestId} {
-      allow read, write: if isSignedIn();
+      allow read:   if (isUser() || isAdmin()) && resource.data.userId == request.auth.uid;
+      allow create: if (isUser() || isAdmin()) && request.resource.data.userId == request.auth.uid;
+      allow update: if (isUser() || isAdmin()) && resource.data.userId == request.auth.uid;
+      allow delete: if false;
 
       match /messages/{messageId} {
-        allow read, write: if isSignedIn();
+        allow read: if (isUser() || isAdmin()) && isSupportOwner(requestId);
+        allow create: if (isUser() || isAdmin())
+          && isSupportOwner(requestId)
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.senderRole == (isAdmin() ? 'admin' : 'user');
       }
     }
   }

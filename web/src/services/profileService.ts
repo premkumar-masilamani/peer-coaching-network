@@ -40,7 +40,7 @@ export const updateProfile = async (uid: string, updates: Partial<UserProfile>):
 // (userRole/userStatus/qualifications) are intentionally excluded — they
 // are admin-controlled and enforced server-side by Firestore rules.
 const OWN_EDITABLE_FIELDS: (keyof UserProfile)[] = [
-  'displayName', 'photoURL', 'gender', 'country',
+  'photoURL', 'gender', 'country',
   'bio', 'timezone', 'onboardingComplete', 'credentialDetails'
 ];
 
