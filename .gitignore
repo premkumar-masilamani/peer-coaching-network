@@ -6,6 +6,7 @@ packages/shared/lib/
 web/dist/
 functions/lib/
 functions/*.tgz
+functions/package-lock.json
 *.tsbuildinfo
 
 # --- Logs ---
