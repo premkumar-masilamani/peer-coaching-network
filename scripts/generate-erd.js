@@ -1,14 +1,13 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const ROOT_DIR = path.resolve(__dirname, '..');
 const COLLECTIONS_PATH = path.join(ROOT_DIR, 'packages/shared/src/config/collections.ts');
-const OUTPUT_PATH = path.join(ROOT_DIR, 'architecture/schema.png');
+const OUTPUT_PATH = path.join(ROOT_DIR, 'architecture/schema.md');
 const SRC_DIRS = [
   path.join(ROOT_DIR, 'packages/shared/src'),
   path.join(ROOT_DIR, 'functions/src'),
@@ -102,7 +101,7 @@ function lastCollectionToken(args, keyToName) {
 /** Resolve a string to find any canonical collection/subcollection name referenced within. */
 function extractCollectionFromAssignment(expr, keyToName) {
   const matches = [];
-  
+
   // Match COLLECTIONS.X
   const collRegex = /COLLECTIONS\.(\w+)/g;
   let m;
@@ -110,7 +109,7 @@ function extractCollectionFromAssignment(expr, keyToName) {
     const colName = keyToName[m[1]];
     if (colName) matches.push(colName);
   }
-  
+
   // Match literal strings like "bookings" or 'availableDays'
   const litRegex = /['"]([^'"]+)['"]/g;
   while ((m = litRegex.exec(expr)) !== null) {
@@ -119,7 +118,7 @@ function extractCollectionFromAssignment(expr, keyToName) {
       matches.push(val);
     }
   }
-  
+
   return matches.length > 0 ? matches[matches.length - 1] : null;
 }
 
@@ -178,7 +177,7 @@ function findWrites(content) {
     const parenIdx = content.indexOf('(', m.index);
     const { args, end } = readArgs(content, parenIdx);
     verbRegex.lastIndex = end;
-    
+
     if (verb === 'setDoc' || verb === 'updateDoc' || verb === 'addDoc') {
       if (args.length >= 2) {
         writes.push({ target: args[0], payload: args[1] });
@@ -426,10 +425,7 @@ async function main() {
     }
   });
 
-  // Supplement each collection with a matching interface, if one exists. Only
-  // persistence interfaces (defined in .ts service/config files) are considered —
-  // .tsx components define UI view-models (e.g. rows holding a snapshot) that are
-  // not the stored document shape.
+  // Supplement each collection with a matching interface, if one exists.
   const persistenceContent = filesContent.filter((_, i) => !sourceFiles[i].endsWith('.tsx'));
   for (const col of Object.keys(rawSchemas)) {
     const singular = col.endsWith('s') ? col.slice(0, -1) : col;
@@ -473,7 +469,7 @@ async function main() {
   }
   const relationships = Array.from(relSet).sort().join('\n');
 
-  // Collection descriptions (generated, not hand-maintained).
+  // Collection descriptions.
   let descriptions = '';
   collectionNames.forEach((col, idx) => {
     const pk = schemas[col].find(f => f.name === 'uid' || f.name === 'id');
@@ -489,40 +485,31 @@ async function main() {
     descriptions += '\n';
   });
 
-  const mermaidDiagram = `erDiagram\n${relationships ? relationships + '\n\n' : ''}${entityBlocks.trimEnd()}`;
+  // Construct final markdown content
+  const markdownOutput = [
+    '# Firestore Schema',
+    '',
+    '```mermaid',
+    'erDiagram',
+    relationships ? `${relationships}\n` : '',
+    entityBlocks.trimEnd(),
+    '```',
+    '',
+    '## Collections',
+    '',
+    descriptions.trimEnd(),
+    '',
+  ].filter(line => line !== null).join('\n');
 
-  console.log('Rendering diagram locally using mermaid-cli...');
-  
-  // Ensure architecture folder exists
+  // Ensure architecture directory exists
   const archDir = path.dirname(OUTPUT_PATH);
   if (!fs.existsSync(archDir)) {
     fs.mkdirSync(archDir, { recursive: true });
   }
 
-  const tempMmdPath = path.join(archDir, 'temp-schema.mmd');
-  
-  try {
-    // Write temporary Mermaid file
-    fs.writeFileSync(tempMmdPath, mermaidDiagram, 'utf8');
-
-    // Run local mmdc CLI
-    const mmdcPath = path.join(ROOT_DIR, 'node_modules/.bin/mmdc');
-    execSync(`"${mmdcPath}" -i "${tempMmdPath}" -o "${OUTPUT_PATH}"`, { stdio: 'inherit' });
-
-    console.log(`ERD successfully generated locally as PNG image and written to ${OUTPUT_PATH}`);
-  } catch (err) {
-    console.error('Error generating PNG locally via mermaid-cli:', err);
-    process.exit(1);
-  } finally {
-    // Clean up temporary Mermaid file
-    if (fs.existsSync(tempMmdPath)) {
-      try {
-        fs.unlinkSync(tempMmdPath);
-      } catch (_e) {
-        // Ignore cleanup errors
-      }
-    }
-  }
+  // Write markdown file
+  fs.writeFileSync(OUTPUT_PATH, markdownOutput, 'utf8');
+  console.log(`Schema successfully written to ${OUTPUT_PATH}`);
 }
 
 main();
