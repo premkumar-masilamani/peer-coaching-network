@@ -51,6 +51,8 @@ import {
   BOOKING_STATUS,
   SUPPORT_STATUS,
   USER_STATUS,
+  SUPPORT_REQUESTS_CLOSED_TTL_DAYS,
+  SYSTEM_LOGS_TTL_DAYS,
   type UserStatus,
   type LogSeverity,
 } from '../config';
@@ -532,9 +534,13 @@ export const addSupportMessage = async (
 
 /** Update a support request's status. */
 export const setSupportRequestStatus = async (requestId: string, status: string): Promise<void> => {
-  await updateDoc(doc(db, COLLECTIONS.SUPPORT_REQUESTS, requestId), {
-    status,
-  });
+  const updates: Record<string, unknown> = { status };
+  if (status === SUPPORT_STATUS.CLOSED) {
+    const expireAt = new Date();
+    expireAt.setDate(expireAt.getDate() + SUPPORT_REQUESTS_CLOSED_TTL_DAYS);
+    updates.expireAt = Timestamp.fromDate(expireAt);
+  }
+  await updateDoc(doc(db, COLLECTIONS.SUPPORT_REQUESTS, requestId), updates);
 };
 
 /** Delete a support request and cascade-delete its message subcollection. */
@@ -564,7 +570,7 @@ export const writeSystemLog = async (
   const userId = auth?.currentUser?.uid || null;
   const userEmail = auth?.currentUser?.email || null;
   const errorMessage = (details && typeof details.errorMessage === 'string') ? details.errorMessage : null;
-  const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const expireAt = new Date(Date.now() + SYSTEM_LOGS_TTL_DAYS * 24 * 60 * 60 * 1000);
   await addDoc(collection(db, COLLECTIONS.SYSTEM_LOGS), {
     type,
     event,
