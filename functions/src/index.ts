@@ -7,11 +7,30 @@ import {
   BOOKING_STATUS,
   BOOKING_ERROR,
   BOOKING_HORIZON_DAYS,
+  INPUT_LIMITS,
 } from "@pcn/shared";
 
 admin.initializeApp(process.env.VITE_FIREBASE_PROJECT_ID ? { projectId: process.env.VITE_FIREBASE_PROJECT_ID } : undefined);
 const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID;
 const db = databaseId ? getFirestore(admin.app(), databaseId) : getFirestore();
+
+// Helper for SystemLogs
+const logSystemEvent = async (type: string, event: string, details: Record<string, unknown>) => {
+  try {
+    const expireAt = new Date();
+    expireAt.setDate(expireAt.getDate() + 7); // 7 days retention for logs
+    await db.collection("systemLogs").add({
+      type,
+      event,
+      details,
+      timestamp: FieldValue.serverTimestamp(),
+      expireAt: Timestamp.fromDate(expireAt)
+    });
+  } catch (e) {
+    console.error("Failed to write to systemLogs", e);
+  }
+};
+
 
 // Google API helpers
 const getGoogleApiBase = () => {
@@ -67,71 +86,23 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
   const clientEmail = context.auth.token.email || "";
 
   if (action === "book") {
-    const bookingRef = db.collection("bookings").doc(bookingId);
+    const generatedBookingId = `${coachUid}_${startIso}`;
+    const bookingRef = db.collection("bookings").doc(generatedBookingId);
     const availabilityRef = db.collection("availability").doc(coachUid);
 
-    await db.runTransaction(async (t) => {
-      const availSnap = await t.get(availabilityRef);
-      if (!availSnap.exists) throw new functions.https.HttpsError("failed-precondition", "Coach availability not found.");
-
-      const availData = availSnap.data()!;
-      const slots: string[] = availData.availableSlotsUtc || [];
-      if (!slots.includes(startIso)) {
-        throw new functions.https.HttpsError("failed-precondition", "Slot is no longer available.");
-      }
-
-      // Check for client double-booking conflicts (overlapping sessions in either client or coach role)
-      const clientBookingsQuery = db.collection("bookings")
-        .where("clientUid", "==", clientUid)
-        .where("status", "==", BOOKING_STATUS.CONFIRMED);
-
-      const clientCoachBookingsQuery = db.collection("bookings")
-        .where("coachUid", "==", clientUid)
-        .where("status", "==", BOOKING_STATUS.CONFIRMED);
-
-      const [clientBookingsSnap, clientCoachBookingsSnap] = await Promise.all([
-        t.get(clientBookingsQuery),
-        t.get(clientCoachBookingsQuery)
-      ]);
-
-      const reqStart = new Date(startIso).getTime();
-      const reqEnd = new Date(endIso).getTime();
-
-      for (const docSnap of clientBookingsSnap.docs) {
-        const docData = docSnap.data();
-        const bStart = docData.startTime.toDate().getTime();
-        const bEnd = docData.endTime.toDate().getTime();
-        if (reqStart < bEnd && reqEnd > bStart) {
-          throw new functions.https.HttpsError("failed-precondition", BOOKING_ERROR.BOOKED_AS_CLIENT);
-        }
-      }
-
-      for (const docSnap of clientCoachBookingsSnap.docs) {
-        const docData = docSnap.data();
-        const bStart = docData.startTime.toDate().getTime();
-        const bEnd = docData.endTime.toDate().getTime();
-        if (reqStart < bEnd && reqEnd > bStart) {
-          throw new functions.https.HttpsError("failed-precondition", BOOKING_ERROR.BOOKED_AS_COACH);
-        }
-      }
-
-      t.update(availabilityRef, {
-        availableSlotsUtc: FieldValue.arrayRemove(startIso)
-      });
-
-      t.set(bookingRef, {
-        bookingId,
-        coachUid,
-        clientUid,
-        startIso,
-        endIso,
-        startTime: Timestamp.fromDate(new Date(startIso)),
-        endTime: Timestamp.fromDate(new Date(endIso)),
-        topic,
-        status: BOOKING_STATUS.CONFIRMED,
-        createdAt: FieldValue.serverTimestamp()
-      });
-    });
+    const reqStart = new Date(startIso).getTime();
+    const reqEnd = new Date(endIso).getTime();
+    
+    if (isNaN(reqStart) || isNaN(reqEnd)) {
+      throw new functions.https.HttpsError("invalid-argument", "Invalid date format for startIso or endIso.");
+    }
+    const diffMins = (reqEnd - reqStart) / 60000;
+    if (diffMins !== 30 && diffMins !== 60) {
+      throw new functions.https.HttpsError("invalid-argument", "Booking duration must be exactly 30 or 60 minutes.");
+    }
+    if (topic && topic.length > INPUT_LIMITS.COACHING_TOPIC) {
+      throw new functions.https.HttpsError("invalid-argument", "Topic exceeds maximum length.");
+    }
 
     let meetLink = "";
     let eventId = "";
@@ -145,7 +116,7 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
          attendees: [{ email: coachEmail }, { email: clientEmail }],
          conferenceData: {
            createRequest: {
-             requestId: bookingId,
+             requestId: generatedBookingId,
              conferenceSolutionKey: { type: "hangoutsMeet" }
            }
          }
@@ -154,13 +125,94 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
          const gcalRes = await createGoogleEvent(googleAccessToken, eventPayload);
          eventId = gcalRes.id;
          meetLink = gcalRes.hangoutLink || "";
-         await bookingRef.update({ googleEventId: eventId, googleMeetLink: meetLink });
        } catch (err) {
          console.error("Google Calendar Error:", err);
+         await logSystemEvent("ERROR", "GOOGLE_CALENDAR_CREATE_FAILED", { userId: clientUid, error: String(err) });
+         throw new functions.https.HttpsError("internal", "Failed to create Google Calendar event. Booking aborted.");
        }
     }
 
-    return { success: true, bookingId, googleEventId: eventId, googleMeetLink: meetLink };
+    try {
+      await db.runTransaction(async (t) => {
+        const bookingSnap = await t.get(bookingRef);
+        if (bookingSnap.exists && bookingSnap.data()?.status === BOOKING_STATUS.CONFIRMED) {
+          throw new functions.https.HttpsError("already-exists", "This slot is already booked.");
+        }
+
+        const availSnap = await t.get(availabilityRef);
+        if (!availSnap.exists) throw new functions.https.HttpsError("failed-precondition", "Coach availability not found.");
+
+        const availData = availSnap.data()!;
+        const slots: string[] = availData.availableSlotsUtc || [];
+        if (!slots.includes(startIso)) {
+          throw new functions.https.HttpsError("failed-precondition", "Slot is no longer available.");
+        }
+
+        // Check for client double-booking conflicts (overlapping sessions in either client or coach role)
+        const clientBookingsQuery = db.collection("bookings")
+          .where("clientUid", "==", clientUid)
+          .where("status", "==", BOOKING_STATUS.CONFIRMED);
+
+        const clientCoachBookingsQuery = db.collection("bookings")
+          .where("coachUid", "==", clientUid)
+          .where("status", "==", BOOKING_STATUS.CONFIRMED);
+
+        const [clientBookingsSnap, clientCoachBookingsSnap] = await Promise.all([
+          t.get(clientBookingsQuery),
+          t.get(clientCoachBookingsQuery)
+        ]);
+
+        for (const docSnap of clientBookingsSnap.docs) {
+          const docData = docSnap.data();
+          const bStart = docData.startTime.toDate().getTime();
+          const bEnd = docData.endTime.toDate().getTime();
+          if (reqStart < bEnd && reqEnd > bStart) {
+            throw new functions.https.HttpsError("failed-precondition", BOOKING_ERROR.BOOKED_AS_CLIENT);
+          }
+        }
+
+        for (const docSnap of clientCoachBookingsSnap.docs) {
+          const docData = docSnap.data();
+          const bStart = docData.startTime.toDate().getTime();
+          const bEnd = docData.endTime.toDate().getTime();
+          if (reqStart < bEnd && reqEnd > bStart) {
+            throw new functions.https.HttpsError("failed-precondition", BOOKING_ERROR.BOOKED_AS_COACH);
+          }
+        }
+
+        t.update(availabilityRef, {
+          availableSlotsUtc: FieldValue.arrayRemove(startIso)
+        });
+
+        t.set(bookingRef, {
+          bookingId: generatedBookingId,
+          coachUid,
+          clientUid,
+          startIso,
+          endIso,
+          startTime: Timestamp.fromDate(new Date(startIso)),
+          endTime: Timestamp.fromDate(new Date(endIso)),
+          topic: topic || "",
+          status: BOOKING_STATUS.CONFIRMED,
+          createdAt: FieldValue.serverTimestamp(),
+          googleEventId: eventId,
+          googleMeetLink: meetLink
+        });
+      });
+    } catch (e) {
+       // Rollback Google Calendar Event if transaction fails
+       if (googleAccessToken && eventId) {
+          try {
+            await deleteGoogleEvent(googleAccessToken, eventId);
+          } catch (delErr) {
+            console.error("Failed to rollback Google Calendar Event:", delErr);
+            await logSystemEvent("ERROR", "GOOGLE_CALENDAR_ROLLBACK_FAILED", { userId: clientUid, eventId, error: String(delErr) });
+          }
+       }
+       throw e;
+    }
+
+    return { success: true, bookingId: generatedBookingId, googleEventId: eventId, googleMeetLink: meetLink };
 
   } else if (action === "cancel") {
     const bookingRef = db.collection("bookings").doc(bookingId);
@@ -177,6 +229,7 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
         await deleteGoogleEvent(googleAccessToken, docData.googleEventId);
       } catch (err) {
         console.error("Google Calendar Error:", err);
+        await logSystemEvent("WARNING", "GOOGLE_CALENDAR_DELETE_FAILED", { userId: clientUid, eventId: docData.googleEventId, error: String(err) });
       }
     }
 
@@ -260,7 +313,7 @@ function parseAvailableDays(availableDays: RawAvailableDays | undefined | null):
       result[day] = {
         enabled: !!dayData.enabled,
         slots: Array.isArray(dayData.slots)
-          ? dayData.slots.map((slot) => ({
+          ? dayData.slots.slice(0, 48).map((slot) => ({
               startTime: parseTimestamp(slot.startTime),
               endTime: parseTimestamp(slot.endTime)
             }))
@@ -308,6 +361,19 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
     delete effectiveProfileData.icf_mcc;
     delete effectiveProfileData.icf_actc;
   }
+
+  if (effectiveProfileData) {
+    if (effectiveProfileData.bio && effectiveProfileData.bio.length > INPUT_LIMITS.BIO) {
+      throw new functions.https.HttpsError("invalid-argument", "Bio exceeds maximum length.");
+    }
+    if (effectiveProfileData.credentialDetails && effectiveProfileData.credentialDetails.length > INPUT_LIMITS.CREDENTIAL_DETAILS) {
+      throw new functions.https.HttpsError("invalid-argument", "Credential Details exceeds maximum length.");
+    }
+    if (effectiveProfileData.firstName && effectiveProfileData.firstName.length > 100) effectiveProfileData.firstName = effectiveProfileData.firstName.substring(0, 100);
+    if (effectiveProfileData.lastName && effectiveProfileData.lastName.length > 100) effectiveProfileData.lastName = effectiveProfileData.lastName.substring(0, 100);
+    if (effectiveProfileData.displayName && effectiveProfileData.displayName.length > 100) effectiveProfileData.displayName = effectiveProfileData.displayName.substring(0, 100);
+  }
+
 
   const userRef = db.collection("users").doc(uid);
   const availableDaysRef = userRef.collection("schedule").doc("availableDays");
@@ -426,77 +492,64 @@ export const syncMyCalendar = functions.https.onCall(async (data, context) => {
 
 /**
  * dailyHousekeeping
- * Nightly cron job to replenish 30-day slot window, delete expired pending bookings, and delete subcollections.
+ * Nightly cron job to replenish 30-day slot window.
+ * Support request and SystemLog cleanups are handled via Firestore TTL.
  */
 export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone("UTC").onRun(async () => {
-  const usersSnap = await db.collection("users").where("userStatus", "==", "active").get();
   const now = new Date();
+  
+  let lastVisible = null;
+  let hasMore = true;
 
-  for (const userDoc of usersSnap.docs) {
-    const uid = userDoc.id;
-    const userData = userDoc.data();
-    const availableDaysRef = db.collection("users").doc(uid).collection("schedule").doc("availableDays");
-    const blockedDatesRef = db.collection("users").doc(uid).collection("schedule").doc("blockedDates");
-    const [daysDoc, datesDoc] = await Promise.all([availableDaysRef.get(), blockedDatesRef.get()]);
-
-    if (!daysDoc.exists) continue;
-
-    const daysData = daysDoc.data()!;
-    const datesData = datesDoc.exists ? datesDoc.data()! : {};
-
-    const slots = generateTemplateSlots({
-      availableDays: parseAvailableDays(daysData),
-      blockedDates: datesData.blockedDates || [],
-      timezone: userData.timezone || "UTC",
-      anchorDate: now,
-      horizonDays: BOOKING_HORIZON_DAYS + 1
-    });
-
-    await db.collection("availability").doc(uid).set({
-      availableSlotsUtc: slots,
-      lastUpdated: FieldValue.serverTimestamp()
-    }, { merge: true });
-  }
-
-  const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
-  const pendingSnap = await db.collection("bookings")
-    .where("status", "==", "PENDING")
-    .where("createdAt", "<", Timestamp.fromDate(fifteenMinsAgo))
-    .get();
-
-  for (const doc of pendingSnap.docs) {
-    const data = doc.data();
-    await db.collection("availability").doc(data.coachUid).update({
-      availableSlotsUtc: FieldValue.arrayUnion(data.startIso)
-    });
-    await doc.ref.delete();
-  }
-
-  // Clean up supportRequests > 7 days old
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const supportSnap = await db.collection("supportRequests")
-    .where("status", "==", "closed")
-    .get();
-
-  for (const doc of supportSnap.docs) {
-    const data = doc.data();
-    let isOld = false;
-    if (data.updatedAt) {
-      if (typeof data.updatedAt === "string") {
-         isOld = new Date(data.updatedAt) < sevenDaysAgo;
-      } else if (data.updatedAt.toDate) {
-         isOld = data.updatedAt.toDate() < sevenDaysAgo;
+  while (hasMore) {
+    try {
+      let query = db.collection("users").where("userStatus", "==", "active").limit(100);
+      if (lastVisible) {
+        query = query.startAfter(lastVisible);
       }
-    }
-
-    if (isOld) {
-      const messagesSnap = await doc.ref.collection("messages").get();
-      const batch = db.batch();
-      for (const msgDoc of messagesSnap.docs) {
-        batch.delete(msgDoc.ref);
+      const usersSnap = await query.get();
+      
+      if (usersSnap.empty) {
+        hasMore = false;
+        break;
       }
-      batch.delete(doc.ref);
-      await batch.commit();
+      
+      lastVisible = usersSnap.docs[usersSnap.docs.length - 1];
+
+      for (const userDoc of usersSnap.docs) {
+        try {
+          const uid = userDoc.id;
+          const userData = userDoc.data();
+          const availableDaysRef = db.collection("users").doc(uid).collection("schedule").doc("availableDays");
+          const blockedDatesRef = db.collection("users").doc(uid).collection("schedule").doc("blockedDates");
+          const [daysDoc, datesDoc] = await Promise.all([availableDaysRef.get(), blockedDatesRef.get()]);
+
+          if (!daysDoc.exists) continue;
+
+          const daysData = daysDoc.data()!;
+          const datesData = datesDoc.exists ? datesDoc.data()! : {};
+
+          const slots = generateTemplateSlots({
+            availableDays: parseAvailableDays(daysData),
+            blockedDates: datesData.blockedDates || [],
+            timezone: userData.timezone || "UTC",
+            anchorDate: now,
+            horizonDays: BOOKING_HORIZON_DAYS + 1
+          });
+
+          await db.collection("availability").doc(uid).set({
+            availableSlotsUtc: slots,
+            lastUpdated: FieldValue.serverTimestamp()
+          }, { merge: true });
+        } catch (coachErr) {
+          console.error(`Error processing coach ${userDoc.id} in dailyHousekeeping:`, coachErr);
+          await logSystemEvent("ERROR", "HOUSEKEEPING_COACH_FAILED", { coachUid: userDoc.id, error: String(coachErr) });
+        }
+      }
+    } catch (err) {
+      console.error("Housekeeping pagination error:", err);
+      await logSystemEvent("ERROR", "HOUSEKEEPING_BATCH_FAILED", { error: String(err) });
+      hasMore = false;
     }
   }
 

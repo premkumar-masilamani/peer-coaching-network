@@ -532,9 +532,13 @@ export const addSupportMessage = async (
 
 /** Update a support request's status. */
 export const setSupportRequestStatus = async (requestId: string, status: string): Promise<void> => {
-  await updateDoc(doc(db, COLLECTIONS.SUPPORT_REQUESTS, requestId), {
-    status,
-  });
+  const updates: Record<string, unknown> = { status };
+  if (status === SUPPORT_STATUS.CLOSED) {
+    const expireAt = new Date();
+    expireAt.setDate(expireAt.getDate() + 7);
+    updates.expireAt = Timestamp.fromDate(expireAt);
+  }
+  await updateDoc(doc(db, COLLECTIONS.SUPPORT_REQUESTS, requestId), updates);
 };
 
 /** Delete a support request and cascade-delete its message subcollection. */
