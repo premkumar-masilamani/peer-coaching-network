@@ -1,3 +1,4 @@
+import { httpsCallable } from 'firebase/functions';
 import {
   signInWithRedirect,
   getRedirectResult,
@@ -14,12 +15,9 @@ import {
   USER_STATUS,
   USER_MESSAGES,
 } from '../config';
-import { auth, db } from './firebaseApp';
+import { auth, db, functions } from './firebaseApp';
 import {
   getUserProfile,
-  createUserProfile,
-  updateUserProfile,
-  writeSchedule,
 } from './firestoreRepository';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
 import { syncCalendar } from './googleCalendar';
@@ -73,10 +71,13 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
       icf_mcc: false,
       icf_actc: false
     };
-    await createUserProfile(user.uid, newProfile);
-
-    // Initialize schedule sub-collection documents with defaults.
-    await writeSchedule(user.uid, DEFAULT_AVAILABLE_DAYS, []);
+    const updateUserProfileAndSchedule = httpsCallable(functions, 'updateUserProfileAndSchedule');
+    await updateUserProfileAndSchedule({ 
+      userId: user.uid, 
+      profileData: newProfile,
+      availableDays: DEFAULT_AVAILABLE_DAYS,
+      blockedDates: []
+    });
   } else {
     // Sync Google Profile data in database during login (Google takes priority)
     const updates: Partial<UserProfile> = {};
@@ -99,7 +100,8 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
     }
 
     if (Object.keys(updates).length > 0) {
-      await updateUserProfile(user.uid, updates);
+      const updateUserProfileAndSchedule = httpsCallable(functions, 'updateUserProfileAndSchedule');
+      await updateUserProfileAndSchedule({ userId: user.uid, profileData: updates });
     }
   }
 };
