@@ -9,7 +9,6 @@ import {
   fetchUpcomingBookingsByCoach,
   fetchBookingsByClient,
   fetchBookingsByCoach,
-  setBookingGoogleMeetLink,
 } from './firestoreRepository';
 import { getGoogleToken, clearGoogleToken } from './googleToken';
 import { BOOKING_HORIZON_DAYS, LOG_SEVERITY, BOOKING_STATUS, EVENT_TYPE, GOOGLE_EVENTS_PAGE_SIZE, TelemetryErrors, USER_MESSAGES } from '../config';
@@ -196,12 +195,7 @@ export const getUpcomingEvents = async (): Promise<CalendarEvent[]> => {
             if (data.topic) {
               existingEvent.description = `Peer Coaching Network session on the topic: ${data.topic}. Created via PCN.`;
             }
-            if (existingEvent.meetLink && !data.googleMeetLink) {
-              // Self-heal a booking that is missing its stored meet link.
-              setBookingGoogleMeetLink(data.bookingId, existingEvent.meetLink).catch((err: unknown) => {
-                logger.error(`Failed to self-heal googleMeetLink for booking ${data.bookingId}:`, err);
-              });
-            } else if (!existingEvent.meetLink && data.googleMeetLink) {
+            if (!existingEvent.meetLink && data.googleMeetLink) {
               existingEvent.meetLink = data.googleMeetLink;
             }
           } else if (!seenIds.has(data.bookingId)) {
