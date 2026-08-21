@@ -8,6 +8,11 @@ import {
   BOOKING_ERROR,
   BOOKING_HORIZON_DAYS,
   INPUT_LIMITS,
+  COLLECTIONS,
+  SYSTEM_LOGS_TTL_DAYS,
+  ALLOWED_BOOKING_DURATIONS_MIN,
+  MAX_SLOTS_PER_DAY,
+  CRON_SCHEDULES,
 } from "@pcn/shared";
 
 admin.initializeApp(process.env.VITE_FIREBASE_PROJECT_ID ? { projectId: process.env.VITE_FIREBASE_PROJECT_ID } : undefined);
@@ -18,8 +23,8 @@ const db = databaseId ? getFirestore(admin.app(), databaseId) : getFirestore();
 const logSystemEvent = async (type: string, event: string, details: Record<string, unknown>) => {
   try {
     const expireAt = new Date();
-    expireAt.setDate(expireAt.getDate() + 7); // 7 days retention for logs
-    await db.collection("systemLogs").add({
+    expireAt.setDate(expireAt.getDate() + SYSTEM_LOGS_TTL_DAYS); 
+    await db.collection(COLLECTIONS.SYSTEM_LOGS).add({
       type,
       event,
       details,
@@ -87,8 +92,8 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
 
   if (action === "book") {
     const generatedBookingId = `${coachUid}_${startIso}`;
-    const bookingRef = db.collection("bookings").doc(generatedBookingId);
-    const availabilityRef = db.collection("availability").doc(coachUid);
+    const bookingRef = db.collection(COLLECTIONS.BOOKINGS).doc(generatedBookingId);
+    const availabilityRef = db.collection(COLLECTIONS.AVAILABILITY).doc(coachUid);
 
     const reqStart = new Date(startIso).getTime();
     const reqEnd = new Date(endIso).getTime();
@@ -97,7 +102,7 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
       throw new functions.https.HttpsError("invalid-argument", "Invalid date format for startIso or endIso.");
     }
     const diffMins = (reqEnd - reqStart) / 60000;
-    if (diffMins !== 30 && diffMins !== 60) {
+    if (!ALLOWED_BOOKING_DURATIONS_MIN.includes(diffMins as typeof ALLOWED_BOOKING_DURATIONS_MIN[number])) {
       throw new functions.https.HttpsError("invalid-argument", "Booking duration must be exactly 30 or 60 minutes.");
     }
     if (topic && topic.length > INPUT_LIMITS.COACHING_TOPIC) {
@@ -149,11 +154,11 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
         }
 
         // Check for client double-booking conflicts (overlapping sessions in either client or coach role)
-        const clientBookingsQuery = db.collection("bookings")
+        const clientBookingsQuery = db.collection(COLLECTIONS.BOOKINGS)
           .where("clientUid", "==", clientUid)
           .where("status", "==", BOOKING_STATUS.CONFIRMED);
 
-        const clientCoachBookingsQuery = db.collection("bookings")
+        const clientCoachBookingsQuery = db.collection(COLLECTIONS.BOOKINGS)
           .where("coachUid", "==", clientUid)
           .where("status", "==", BOOKING_STATUS.CONFIRMED);
 
@@ -215,7 +220,7 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
     return { success: true, bookingId: generatedBookingId, googleEventId: eventId, googleMeetLink: meetLink };
 
   } else if (action === "cancel") {
-    const bookingRef = db.collection("bookings").doc(bookingId);
+    const bookingRef = db.collection(COLLECTIONS.BOOKINGS).doc(bookingId);
     const doc = await bookingRef.get();
     if (!doc.exists) return { success: true };
     const docData = doc.data()!;
@@ -234,7 +239,7 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
     }
 
     await db.runTransaction(async (t) => {
-      const availRef = db.collection("availability").doc(docData.coachUid);
+      const availRef = db.collection(COLLECTIONS.AVAILABILITY).doc(docData.coachUid);
       t.update(bookingRef, { status: BOOKING_STATUS.CANCELLED, updatedAt: FieldValue.serverTimestamp() });
       t.update(availRef, {
         availableSlotsUtc: FieldValue.arrayUnion(docData.startIso)
@@ -313,7 +318,7 @@ function parseAvailableDays(availableDays: RawAvailableDays | undefined | null):
       result[day] = {
         enabled: !!dayData.enabled,
         slots: Array.isArray(dayData.slots)
-          ? dayData.slots.slice(0, 48).map((slot) => ({
+          ? dayData.slots.slice(0, MAX_SLOTS_PER_DAY).map((slot) => ({
               startTime: parseTimestamp(slot.startTime),
               endTime: parseTimestamp(slot.endTime)
             }))
@@ -339,7 +344,7 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
 
   if (userId && userId !== callerUid) {
     // Check if caller is admin
-    const callerDoc = await db.collection("users").doc(callerUid).get();
+    const callerDoc = await db.collection(COLLECTIONS.USERS).doc(callerUid).get();
     callerIsAdmin = callerDoc.exists && callerDoc.data()?.userRole === "admin";
     if (!callerIsAdmin) {
       throw new functions.https.HttpsError("permission-denied", "Only admins can update other users' profiles.");
@@ -369,16 +374,16 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
     if (effectiveProfileData.credentialDetails && effectiveProfileData.credentialDetails.length > INPUT_LIMITS.CREDENTIAL_DETAILS) {
       throw new functions.https.HttpsError("invalid-argument", "Credential Details exceeds maximum length.");
     }
-    if (effectiveProfileData.firstName && effectiveProfileData.firstName.length > 100) effectiveProfileData.firstName = effectiveProfileData.firstName.substring(0, 100);
-    if (effectiveProfileData.lastName && effectiveProfileData.lastName.length > 100) effectiveProfileData.lastName = effectiveProfileData.lastName.substring(0, 100);
-    if (effectiveProfileData.displayName && effectiveProfileData.displayName.length > 100) effectiveProfileData.displayName = effectiveProfileData.displayName.substring(0, 100);
+    if (effectiveProfileData.firstName && effectiveProfileData.firstName.length > INPUT_LIMITS.NAME) effectiveProfileData.firstName = effectiveProfileData.firstName.substring(0, INPUT_LIMITS.NAME);
+    if (effectiveProfileData.lastName && effectiveProfileData.lastName.length > INPUT_LIMITS.NAME) effectiveProfileData.lastName = effectiveProfileData.lastName.substring(0, INPUT_LIMITS.NAME);
+    if (effectiveProfileData.displayName && effectiveProfileData.displayName.length > INPUT_LIMITS.NAME) effectiveProfileData.displayName = effectiveProfileData.displayName.substring(0, INPUT_LIMITS.NAME);
   }
 
 
-  const userRef = db.collection("users").doc(uid);
-  const availableDaysRef = userRef.collection("schedule").doc("availableDays");
-  const blockedDatesRef = userRef.collection("schedule").doc("blockedDates");
-  const availRef = db.collection("availability").doc(uid);
+  const userRef = db.collection(COLLECTIONS.USERS).doc(uid);
+  const availableDaysRef = userRef.collection(COLLECTIONS.USERS_SCHEDULE).doc(COLLECTIONS.USERS_SCHEDULE_AVAILABLE_DAYS);
+  const blockedDatesRef = userRef.collection(COLLECTIONS.USERS_SCHEDULE).doc(COLLECTIONS.USERS_SCHEDULE_BLOCKED_DATES);
+  const availRef = db.collection(COLLECTIONS.AVAILABILITY).doc(uid);
 
   await db.runTransaction(async (t) => {
     const userDoc = await t.get(userRef);
@@ -465,7 +470,7 @@ export const syncMyCalendar = functions.https.onCall(async (data, context) => {
     const freeBusy = await getGoogleFreeBusy(googleAccessToken, timeMin, timeMax);
     const busyTimes = freeBusy.calendars?.primary?.busy || [];
 
-    const availRef = db.collection("availability").doc(uid);
+    const availRef = db.collection(COLLECTIONS.AVAILABILITY).doc(uid);
     const availDoc = await availRef.get();
     if (availDoc.exists) {
       const availData = availDoc.data()!;
@@ -495,7 +500,7 @@ export const syncMyCalendar = functions.https.onCall(async (data, context) => {
  * Nightly cron job to replenish 30-day slot window.
  * Support request and SystemLog cleanups are handled via Firestore TTL.
  */
-export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone("UTC").onRun(async () => {
+export const dailyHousekeeping = functions.pubsub.schedule(CRON_SCHEDULES.DAILY_HOUSEKEEPING).timeZone("UTC").onRun(async () => {
   const now = new Date();
   
   let lastVisible = null;
@@ -503,7 +508,7 @@ export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone
 
   while (hasMore) {
     try {
-      let query = db.collection("users").where("userStatus", "==", "active").limit(100);
+      let query = db.collection(COLLECTIONS.USERS).where("userStatus", "==", "active").limit(100);
       if (lastVisible) {
         query = query.startAfter(lastVisible);
       }
@@ -520,8 +525,8 @@ export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone
         try {
           const uid = userDoc.id;
           const userData = userDoc.data();
-          const availableDaysRef = db.collection("users").doc(uid).collection("schedule").doc("availableDays");
-          const blockedDatesRef = db.collection("users").doc(uid).collection("schedule").doc("blockedDates");
+          const availableDaysRef = db.collection(COLLECTIONS.USERS).doc(uid).collection(COLLECTIONS.USERS_SCHEDULE).doc(COLLECTIONS.USERS_SCHEDULE_AVAILABLE_DAYS);
+          const blockedDatesRef = db.collection(COLLECTIONS.USERS).doc(uid).collection(COLLECTIONS.USERS_SCHEDULE).doc(COLLECTIONS.USERS_SCHEDULE_BLOCKED_DATES);
           const [daysDoc, datesDoc] = await Promise.all([availableDaysRef.get(), blockedDatesRef.get()]);
 
           if (!daysDoc.exists) continue;
@@ -537,7 +542,7 @@ export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone
             horizonDays: BOOKING_HORIZON_DAYS + 1
           });
 
-          await db.collection("availability").doc(uid).set({
+          await db.collection(COLLECTIONS.AVAILABILITY).doc(uid).set({
             availableSlotsUtc: slots,
             lastUpdated: FieldValue.serverTimestamp()
           }, { merge: true });
