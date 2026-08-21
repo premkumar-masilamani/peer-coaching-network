@@ -317,10 +317,19 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
   await db.runTransaction(async (t) => {
     const userDoc = await t.get(userRef);
     const existingProfile = userDoc.exists ? userDoc.data() : {};
-    const mergedProfile = { ...existingProfile, ...(effectiveProfileData || {}) };
+    let newDocData = {};
+    if (!userDoc.exists) {
+      newDocData = {
+        userRole: 'user',
+        userStatus: 'inactive',
+        createdAt: FieldValue.serverTimestamp()
+      };
+    }
 
-    if (effectiveProfileData) {
-      t.set(userRef, { ...effectiveProfileData, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    const mergedProfile = { ...existingProfile, ...newDocData, ...(effectiveProfileData || {}) };
+
+    if (effectiveProfileData || !userDoc.exists) {
+      t.set(userRef, { ...newDocData, ...(effectiveProfileData || {}), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
 
     let effectiveAvailableDays: AvailableDays;

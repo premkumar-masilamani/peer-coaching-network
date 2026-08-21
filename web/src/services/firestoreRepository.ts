@@ -362,9 +362,7 @@ export const fetchConfirmedBookingsByParticipant = async (uid: string): Promise<
 
 
 /** Persist a self-healed Google Meet link onto a booking. */
-export const setBookingGoogleMeetLink = async (bookingId: string, googleMeetLink: string): Promise<void> => {
-  await updateDoc(doc(db, COLLECTIONS.BOOKINGS, bookingId), { googleMeetLink });
-};
+
 
 // Booking lifecycle methods have been migrated to the manageBooking Cloud Function.
 
