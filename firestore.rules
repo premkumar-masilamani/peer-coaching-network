@@ -22,7 +22,7 @@ service cloud.firestore {
     }
 
     function isUser() {
-        return hasUserDoc()
+      return hasUserDoc()
         && getUserData().userRole == 'user'
         && getUserData().userStatus == 'active';
     }
@@ -38,80 +38,70 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/supportRequests/$(requestId)).data.userId == request.auth.uid;
     }
 
-
-    // ── Global admin override ───────────────────────────────────────────────
-    match /{document=**} {
-      allow read: if isAdmin();
-      allow write: if false;
-    }
-
     // ── users ───────────────────────────────────────────────────────────────
+    // Any approved member or admin may read the roster/directory; a not-yet-approved
+    // owner may still read their own document to drive onboarding.
+    // All writes are handled exclusively by Cloud Functions (Admin SDK).
     match /users/{uid} {
-      // Any approved member may read the roster/directory; a not-yet-approved
-      // owner may still read their own document to drive onboarding.
-      allow read: if isUser() || isOwner(uid);
+      allow read: if isUser() || isAdmin() || isOwner(uid);
+      allow write: if false;
 
-      allow create, update: if false;
-
-      // No client deletes of user documents (admins covered by the global rule).
-
-      // Owner-private schedule template. Writable while still pending so the
-      // onboarding flow can seed default availability before approval.
+      // Owner-private schedule template.
+      // All writes are handled exclusively by Cloud Functions (Admin SDK).
       match /schedule/{document=**} {
-        allow read: if isOwner(uid);
+        allow read: if isOwner(uid) || isAdmin();
         allow write: if false;
       }
     }
 
     // ── availability (coach discovery cache) ────────────────────────────────
-    // Readable by any approved member for discovery. Never written directly by
-    // clients — it is maintained solely by the backend Cloud Functions (Admin
-    // SDK, which bypasses these rules) and by admins via the global rule.
+    // Readable by any approved member or admin for discovery.
+    // Written exclusively by Cloud Functions (Admin SDK).
     match /availability/{coachUid} {
-      allow read: if isUser();
+      allow read: if isUser() || isAdmin();
       allow write: if false;
     }
 
     // ── bookings ────────────────────────────────────────────────────────────
-    // Created, cancelled, and status-changed EXCLUSIVELY through the
-    // manageBooking Cloud Function (Admin SDK). Participants may read only their
-    // own bookings, and may self-heal the Google Meet link — nothing else.
+    // Read allowed for admins or participants (coach/client).
+    // All creations, cancellations, and modifications are handled exclusively
+    // via Cloud Functions (Admin SDK).
     match /bookings/{bookingId} {
-      allow read: if isUser()
-        && (request.auth.uid == resource.data.coachUid
-            || request.auth.uid == resource.data.clientUid);
-
+      allow read: if isAdmin()
+        || (isUser() && (request.auth.uid == resource.data.coachUid || request.auth.uid == resource.data.clientUid));
       allow write: if false;
     }
 
     // ── systemLogs (telemetry sink) ─────────────────────────────────────────
-    // Append-only for approved members. Each entry must be self-stamped
-    // (userId == caller). Reads are admin-only (global rule).
+    // Append-only for active members and admins. Each entry must be self-stamped
+    // (userId == caller). Reads are admin-only.
     match /systemLogs/{logId} {
-      allow create: if isUser()
+      allow read: if isAdmin();
+      allow create: if (isUser() || isAdmin())
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.type in ['error', 'warn']
         && request.resource.data.keys().hasOnly([
              'type', 'event', 'userId', 'userEmail', 'errorMessage', 'timestamp', 'expireAt'
            ]);
+      allow update, delete: if false;
     }
 
     // ── supportRequests (+ messages) ────────────────────────────────────────
-    // A member may see and manage ONLY their own tickets; admins get every
-    // ticket via the global rule. Deletes are admin-only.
+    // Members may see and update their own tickets; admins can read, update, and delete all tickets.
     match /supportRequests/{requestId} {
-      allow read:   if (isUser() || isAdmin()) && resource.data.userId == request.auth.uid;
+      allow read:   if isAdmin() || (isUser() && resource.data.userId == request.auth.uid);
       allow create: if (isUser() || isAdmin()) && request.resource.data.userId == request.auth.uid;
-      allow update: if (isUser() && resource.data.userId == request.auth.uid) || isAdmin();
+      allow update: if isAdmin() || (isUser() && resource.data.userId == request.auth.uid);
       allow delete: if isAdmin();
 
       match /messages/{messageId} {
-        allow read: if (isUser() || isAdmin()) && isSupportOwner(requestId);
-        allow create: if (isUser() || isAdmin())
-          && isSupportOwner(requestId)
+        allow read: if isAdmin() || (isUser() && isSupportOwner(requestId));
+        allow create: if (isAdmin() || (isUser() && isSupportOwner(requestId)))
           && request.resource.data.senderId == request.auth.uid
           && request.resource.data.senderRole == (isAdmin() ? 'admin' : 'user');
+        allow update, delete: if false;
       }
     }
   }
 }
+
