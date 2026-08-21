@@ -282,15 +282,31 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
   const { profileData, availableDays, blockedDates, userId } = data;
   const callerUid = context.auth.uid;
   let uid = callerUid;
+  let callerIsAdmin = false;
 
   if (userId && userId !== callerUid) {
     // Check if caller is admin
     const callerDoc = await db.collection("users").doc(callerUid).get();
-    const isAdmin = callerDoc.exists && callerDoc.data()?.userRole === "admin";
-    if (!isAdmin) {
+    callerIsAdmin = callerDoc.exists && callerDoc.data()?.userRole === "admin";
+    if (!callerIsAdmin) {
       throw new functions.https.HttpsError("permission-denied", "Only admins can update other users' profiles.");
     }
     uid = userId;
+  }
+
+  // Privileged fields (role, approval status, verified ICF credentials) are
+  // admin-controlled. A self-update must never be able to set them, or a user
+  // could escalate to admin by passing them in profileData. Strip them here for
+  // any non-admin caller; admins editing another user (callerIsAdmin) keep them.
+  let effectiveProfileData = profileData;
+  if (profileData && !callerIsAdmin) {
+    effectiveProfileData = { ...profileData };
+    delete effectiveProfileData.userRole;
+    delete effectiveProfileData.userStatus;
+    delete effectiveProfileData.icf_acc;
+    delete effectiveProfileData.icf_pcc;
+    delete effectiveProfileData.icf_mcc;
+    delete effectiveProfileData.icf_actc;
   }
 
   const userRef = db.collection("users").doc(uid);
@@ -301,10 +317,19 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
   await db.runTransaction(async (t) => {
     const userDoc = await t.get(userRef);
     const existingProfile = userDoc.exists ? userDoc.data() : {};
-    const mergedProfile = { ...existingProfile, ...(profileData || {}) };
+    let newDocData = {};
+    if (!userDoc.exists) {
+      newDocData = {
+        userRole: 'user',
+        userStatus: 'inactive',
+        createdAt: FieldValue.serverTimestamp()
+      };
+    }
 
-    if (profileData) {
-      t.set(userRef, { ...profileData, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    const mergedProfile = { ...existingProfile, ...newDocData, ...(effectiveProfileData || {}) };
+
+    if (effectiveProfileData || !userDoc.exists) {
+      t.set(userRef, { ...newDocData, ...(effectiveProfileData || {}), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
     }
 
     let effectiveAvailableDays: AvailableDays;

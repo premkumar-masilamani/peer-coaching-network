@@ -121,7 +121,6 @@ export const SupportFeedback: React.FC<SupportFeedbackProps> = ({ reclickNonce }
       await createSupportRequest(
         profile.userId,
         formatDisplayName(profile),
-        profile.email,
         category,
         subject.trim(),
         message.trim()
@@ -435,7 +434,7 @@ export const SupportFeedback: React.FC<SupportFeedbackProps> = ({ reclickNonce }
                     <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1rem' }}>{ticket.subject}</h4>
                   </div>
                   <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                    {ticket.category} &nbsp;·&nbsp; Updated {new Date(ticket.updatedAt).toLocaleString()}
+                    {ticket.category} &nbsp;·&nbsp; Created {new Date(ticket.createdAt).toLocaleString()}
                   </div>
                 </div>
                 <ChevronLeft size={20} color="var(--text-muted)" style={{ transform: 'rotate(180deg)' }} />

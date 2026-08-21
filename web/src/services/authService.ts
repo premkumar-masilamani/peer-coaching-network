@@ -1,3 +1,4 @@
+import { httpsCallable } from 'firebase/functions';
 import {
   signInWithRedirect,
   getRedirectResult,
@@ -14,12 +15,9 @@ import {
   USER_STATUS,
   USER_MESSAGES,
 } from '../config';
-import { auth, db } from './firebaseApp';
+import { auth, db, functions } from './firebaseApp';
 import {
   getUserProfile,
-  createUserProfile,
-  updateUserProfile,
-  writeSchedule,
 } from './firestoreRepository';
 import { setGoogleToken, clearGoogleToken } from './googleToken';
 import { syncCalendar } from './googleCalendar';
@@ -56,12 +54,11 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
     const initialStatus: UserStatus = USER_STATUS.INACTIVE;
 
     // Create new user profile (createdAt is stamped by the repository).
-    const newProfile: Omit<UserProfile, 'createdAt'> = {
+    const newProfile: Omit<UserProfile, 'createdAt' | 'updatedAt'> = {
       userId: user.uid,
       email: cleanEmail,
       firstName,
       lastName,
-      displayName,
       photoURL: user.photoURL,
       userRole: assignedRole,
       userStatus: initialStatus,
@@ -74,10 +71,13 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
       icf_mcc: false,
       icf_actc: false
     };
-    await createUserProfile(user.uid, newProfile);
-
-    // Initialize schedule sub-collection documents with defaults.
-    await writeSchedule(user.uid, DEFAULT_AVAILABLE_DAYS, []);
+    const updateUserProfileAndSchedule = httpsCallable(functions, 'updateUserProfileAndSchedule');
+    await updateUserProfileAndSchedule({ 
+      userId: user.uid, 
+      profileData: newProfile,
+      availableDays: DEFAULT_AVAILABLE_DAYS,
+      blockedDates: []
+    });
   } else {
     // Sync Google Profile data in database during login (Google takes priority)
     const updates: Partial<UserProfile> = {};
@@ -90,9 +90,6 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
         updates.firstName = inFirst;
         updates.lastName = inLast;
       }
-      if (existingProfile.displayName !== user.displayName) {
-        updates.displayName = user.displayName;
-      }
     }
     const incomingEmail = user.email ? user.email.toLowerCase() : null;
     if (incomingEmail && existingProfile.email !== incomingEmail) {
@@ -103,7 +100,8 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
     }
 
     if (Object.keys(updates).length > 0) {
-      await updateUserProfile(user.uid, updates);
+      const updateUserProfileAndSchedule = httpsCallable(functions, 'updateUserProfileAndSchedule');
+      await updateUserProfileAndSchedule({ userId: user.uid, profileData: updates });
     }
   }
 };

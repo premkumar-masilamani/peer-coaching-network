@@ -1,6 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useRef } from 'react';
-import { useTransientState } from '../hooks/useTransientState';
 import { getLogsPage, type SystemLogEntry } from '../services/adminService';
 import {
   AlertCircle,
@@ -9,8 +8,6 @@ import {
   Terminal,
   TriangleAlert,
   User,
-  Copy,
-  Check,
   Eye,
   EyeOff
 } from 'lucide-react';
@@ -19,9 +16,7 @@ import { type LogSeverity, LOG_SEVERITY } from '../config';
 
 // LogSeverity is imported from config — 'error' | 'warn' | 'info'
 
-// The repository types `details` as Record<string, unknown>; widen to `any` here
-// so the detail fields can be read directly in JSX.
-type SystemLog = Omit<SystemLogEntry, 'details'> & { details: Record<string, any> };
+type SystemLog = SystemLogEntry;
 
 const SEVERITY_OPTIONS: { value: LogSeverity; label: string }[] = [
   { value: LOG_SEVERITY.ERROR, label: 'Errors' },
@@ -41,9 +36,6 @@ export const SystemLogs: React.FC = () => {
   
   // Row Expansion State
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
-  
-  // Copy feedback state
-  const [copiedId, setCopiedId] = useTransientState<string | null>(null);
 
   // Toggle a severity in/out of the selected set
   const handleSeverityToggle = (sev: LogSeverity) => {
@@ -96,10 +88,7 @@ export const SystemLogs: React.FC = () => {
     return () => { cancelled = true; };
   }, [pageIndex, selectedSeverities]);
 
-  const handleCopy = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id, 2000);
-  };
+
 
   const formatTimestamp = (ts: any) => {
     if (!ts) return 'Pending...';
@@ -268,7 +257,7 @@ export const SystemLogs: React.FC = () => {
                   <th style={{ width: '220px' }}>Timestamp</th>
                   <th style={{ width: '130px' }}>Severity</th>
                   <th>Event Type</th>
-                  <th>Actor ID</th>
+                  <th>User Email</th>
                   <th style={{ textAlign: 'right', width: '100px' }}>Details</th>
                 </tr>
               </thead>
@@ -312,9 +301,14 @@ export const SystemLogs: React.FC = () => {
                           {log.event}
                         </td>
                         
-                        {/* User ID */}
+                        {/* User Email / ID */}
                         <td style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                          {log.userId ? (
+                          {log.userEmail ? (
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              <User size={12} />
+                              {log.userEmail}
+                            </span>
+                          ) : log.userId ? (
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
                               <User size={12} />
                               {log.userId}
@@ -344,152 +338,28 @@ export const SystemLogs: React.FC = () => {
                       {isExpanded && (
                         <tr style={{ background: 'rgba(0, 0, 0, 0.15)' }}>
                           <td colSpan={5} style={{ padding: '20px 24px', borderBottom: '1px solid var(--table-border-1)' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                              
-                              {/* Quick Copyable IDs Section */}
-                              <div style={{ 
-                                display: 'flex', 
-                                gap: '12px', 
-                                flexWrap: 'wrap',
-                                fontSize: '0.85rem'
-                              }}>
-                                {/* Log ID */}
-                                <div style={{ 
-                                  background: 'var(--bg-surface-elevated)', 
-                                  padding: '6px 12px', 
-                                  borderRadius: '6px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: '8px',
-                                  border: '1px solid var(--border-light)'
-                                }}>
-                                  <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Log ID:</span>
-                                  <code style={{ color: 'var(--text-primary)' }}>{log.id}</code>
-                                  <button 
-                                    onClick={() => handleCopy(log.id, `log-${log.id}`)}
-                                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
-                                    title="Copy Log ID"
-                                  >
-                                    {copiedId === `log-${log.id}` ? <Check size={14} color="hsl(var(--success))" /> : <Copy size={14} />}
-                                  </button>
-                                </div>
-
-                                {/* User ID */}
-                                {log.userId && (
-                                  <div style={{ 
-                                    background: 'var(--bg-surface-elevated)', 
-                                    padding: '6px 12px', 
-                                    borderRadius: '6px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    border: '1px solid var(--border-light)'
-                                  }}>
-                                    <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>User ID:</span>
-                                    <code style={{ color: 'var(--text-primary)' }}>{log.userId}</code>
-                                    <button 
-                                      onClick={() => handleCopy(log.userId!, `user-${log.id}`)}
-                                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
-                                      title="Copy User ID"
-                                    >
-                                      {copiedId === `user-${log.id}` ? <Check size={14} color="hsl(var(--success))" /> : <Copy size={14} />}
-                                    </button>
-                                  </div>
-                                )}
-
-                                {/* Booking ID */}
-                                {log.details.bookingId && (
-                                  <div style={{ 
-                                    background: 'var(--bg-surface-elevated)', 
-                                    padding: '6px 12px', 
-                                    borderRadius: '6px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    border: '1px solid var(--border-light)'
-                                  }}>
-                                    <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Booking ID:</span>
-                                    <code style={{ color: 'var(--text-primary)' }}>{log.details.bookingId}</code>
-                                    <button 
-                                      onClick={() => handleCopy(log.details.bookingId, `booking-${log.id}`)}
-                                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
-                                      title="Copy Booking ID"
-                                    >
-                                      {copiedId === `booking-${log.id}` ? <Check size={14} color="hsl(var(--success))" /> : <Copy size={14} />}
-                                    </button>
-                                  </div>
-                                )}
-
-                                {/* Client Booking Cache ID */}
-                                {log.details.clientBookingCacheId && (
-                                  <div style={{ 
-                                    background: 'var(--bg-surface-elevated)', 
-                                    padding: '6px 12px', 
-                                    borderRadius: '6px',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    border: '1px solid var(--border-light)'
-                                  }}>
-                                    <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Cache ID:</span>
-                                    <code style={{ color: 'var(--text-primary)' }}>{log.details.clientBookingCacheId}</code>
-                                    <button 
-                                      onClick={() => handleCopy(log.details.clientBookingCacheId, `cache-${log.id}`)}
-                                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}
-                                      title="Copy Cache ID"
-                                    >
-                                      {copiedId === `cache-${log.id}` ? <Check size={14} color="hsl(var(--success))" /> : <Copy size={14} />}
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Textual Summary of error/issue if present */}
-                              {(log.details.errorMessage || log.details.error) && (
-                                <div style={{ 
-                                  padding: '12px 16px', 
-                                  background: 'rgba(239, 68, 68, 0.08)', 
-                                  borderLeft: '4px solid #ef4444', 
-                                  borderRadius: '4px' 
-                                }}>
-                                  {log.details.errorCode && (
-                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f87171', display: 'block', marginBottom: '4px' }}>
-                                      ERROR CODE: {log.details.errorCode}
-                                    </span>
-                                  )}
-                                  <p style={{ margin: 0, fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                    {log.details.errorMessage || 'System Error Exception'}
-                                  </p>
-                                  {log.details.error && (
-                                    <p style={{ margin: '6px 0 0 0', fontSize: '0.825rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                                      Reason: {log.details.error}
-                                    </p>
-                                  )}
-                                </div>
-                              )}
-
-                              {/* Structured Metadata JSON Block */}
-                              <div>
-                                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '6px' }}>
-                                  STRUCTURED TELEMETRY METADATA
-                                </span>
-                                <pre style={{
-                                  background: 'var(--bg-surface)',
-                                  border: '1px solid var(--border-light)',
-                                  padding: '16px',
-                                  borderRadius: '8px',
-                                  fontSize: '0.85rem',
-                                  color: 'hsl(var(--text-secondary))',
-                                  overflowX: 'auto',
-                                  margin: 0,
-                                  fontFamily: 'monospace',
-                                  maxHeight: '300px'
-                                }}>
-                                  {JSON.stringify(log.details, null, 2)}
-                                </pre>
-                              </div>
-                              
-                            </div>
+                            <pre style={{
+                              background: 'var(--bg-surface)',
+                              border: '1px solid var(--border-light)',
+                              padding: '16px',
+                              borderRadius: '8px',
+                              fontSize: '0.85rem',
+                              color: 'hsl(var(--text-secondary))',
+                              overflowX: 'auto',
+                              margin: 0,
+                              fontFamily: 'monospace',
+                              maxHeight: '350px'
+                            }}>
+                              {JSON.stringify({
+                                id: log.id,
+                                type: log.type,
+                                event: log.event,
+                                userId: log.userId,
+                                userEmail: log.userEmail,
+                                errorMessage: log.errorMessage,
+                                timestamp: log.timestamp
+                              }, null, 2)}
+                            </pre>
                           </td>
                         </tr>
                       )}

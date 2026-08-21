@@ -273,7 +273,7 @@ export const SupportDesk: React.FC = () => {
                     gap: '8px'
                   }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      <strong>{isAdmin ? 'You (Admin)' : `${msg.senderName} (${selectedRequest.userEmail})`}</strong>
+                      <strong>{isAdmin ? 'You (Admin)' : msg.senderName}</strong>
                       <span>{new Date(msg.createdAt).toLocaleString()}</span>
                     </div>
                     <div style={{ color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>
@@ -359,7 +359,7 @@ export const SupportDesk: React.FC = () => {
                     <h4 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1rem' }}>{req.subject}</h4>
                   </div>
                   <div style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                    <strong>{req.userDisplayName}</strong> &nbsp;·&nbsp; {req.category} &nbsp;·&nbsp; Updated {new Date(req.updatedAt).toLocaleString()}
+                    <strong>{req.userDisplayName}</strong> &nbsp;·&nbsp; {req.category} &nbsp;·&nbsp; Created {new Date(req.createdAt).toLocaleString()}
                   </div>
                 </div>
                 <ChevronLeft size={20} color="var(--text-muted)" style={{ transform: 'rotate(180deg)' }} />

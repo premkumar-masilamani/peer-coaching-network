@@ -105,9 +105,9 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
       const event = await scheduleMeeting(
         coach.userId,
         coach.email || 'coach@example.com',
-        coach.displayName || 'Coach',
+        formatDisplayName(coach) || 'Coach',
         user?.uid || '',
-        profile?.displayName || user?.displayName || 'Peer',
+        formatDisplayName(profile) || user?.displayName || 'Peer',
         startTime.toISOString(),
         endTime.toISOString(),
         topic.trim()

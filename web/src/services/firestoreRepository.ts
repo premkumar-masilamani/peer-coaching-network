@@ -146,7 +146,7 @@ const supportRequestsByUserQuery = (userId: string): Query<DocumentData> =>
 // supportRequests/{id}/messages — `orderBy(createdAt asc)`. Single-field orderBy; no composite index.
 const supportMessagesQuery = (requestId: string): Query<DocumentData> =>
   query(
-    collection(db, COLLECTIONS.SUPPORT_REQUESTS, requestId, COLLECTIONS.SUPPORT_MESSAGES),
+    collection(db, COLLECTIONS.SUPPORT_REQUESTS, requestId, COLLECTIONS.SUPPORT_REQUESTS_MESSAGES),
     orderBy('createdAt', 'asc')
   );
 
@@ -208,11 +208,12 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
 /** Create a new user profile, stamping the server-side creation time. */
 export const createUserProfile = async (
   uid: string,
-  profile: Omit<UserProfile, 'createdAt'>
+  profile: Omit<UserProfile, 'createdAt' | 'updatedAt'>
 ): Promise<void> => {
   await setDoc(doc(db, COLLECTIONS.USERS, uid), {
     ...profile,
     createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   } as DocumentData);
 };
 
@@ -221,7 +222,10 @@ export const updateUserProfile = async (
   uid: string,
   updates: Partial<UserProfile> | DocumentData
 ): Promise<void> => {
-  await updateDoc(doc(db, COLLECTIONS.USERS, uid), updates as DocumentData);
+  await updateDoc(doc(db, COLLECTIONS.USERS, uid), {
+    ...updates,
+    updatedAt: serverTimestamp(),
+  } as DocumentData);
 };
 
 /** Read every user document (admin roster). */
@@ -305,8 +309,8 @@ export const fetchActiveUsersByIds = async (uids: string[]): Promise<UserProfile
 export const fetchScheduleRaw = async (
   uid: string
 ): Promise<{ availableDays: AvailableDays | null; blockedDates: string[] | null }> => {
-  const availableDaysRef = doc(db, COLLECTIONS.USERS, uid, COLLECTIONS.SCHEDULE, COLLECTIONS.AVAILABLE_DAYS);
-  const blockedDatesRef = doc(db, COLLECTIONS.USERS, uid, COLLECTIONS.SCHEDULE, COLLECTIONS.BLOCKED_DATES);
+  const availableDaysRef = doc(db, COLLECTIONS.USERS, uid, COLLECTIONS.USERS_SCHEDULE, COLLECTIONS.USERS_SCHEDULE_AVAILABLE_DAYS);
+  const blockedDatesRef = doc(db, COLLECTIONS.USERS, uid, COLLECTIONS.USERS_SCHEDULE, COLLECTIONS.USERS_SCHEDULE_BLOCKED_DATES);
   const [daysSnap, datesSnap] = await Promise.all([getDoc(availableDaysRef), getDoc(blockedDatesRef)]);
   return {
     availableDays: daysSnap.exists() ? (daysSnap.data() as AvailableDays) : null,
@@ -320,8 +324,8 @@ export const writeSchedule = async (
   availableDays: AvailableDays,
   blockedDates: string[]
 ): Promise<void> => {
-  const availableDaysRef = doc(db, COLLECTIONS.USERS, uid, COLLECTIONS.SCHEDULE, COLLECTIONS.AVAILABLE_DAYS);
-  const blockedDatesRef = doc(db, COLLECTIONS.USERS, uid, COLLECTIONS.SCHEDULE, COLLECTIONS.BLOCKED_DATES);
+  const availableDaysRef = doc(db, COLLECTIONS.USERS, uid, COLLECTIONS.USERS_SCHEDULE, COLLECTIONS.USERS_SCHEDULE_AVAILABLE_DAYS);
+  const blockedDatesRef = doc(db, COLLECTIONS.USERS, uid, COLLECTIONS.USERS_SCHEDULE, COLLECTIONS.USERS_SCHEDULE_BLOCKED_DATES);
   await Promise.all([
     setDoc(availableDaysRef, availableDays),
     setDoc(blockedDatesRef, { blockedDates }),
@@ -358,9 +362,7 @@ export const fetchConfirmedBookingsByParticipant = async (uid: string): Promise<
 
 
 /** Persist a self-healed Google Meet link onto a booking. */
-export const setBookingGoogleMeetLink = async (bookingId: string, googleMeetLink: string): Promise<void> => {
-  await updateDoc(doc(db, COLLECTIONS.BOOKINGS, bookingId), { googleMeetLink });
-};
+
 
 // Booking lifecycle methods have been migrated to the manageBooking Cloud Function.
 
@@ -422,14 +424,13 @@ export const fetchAvailabilityByIds = async (uids: string[]): Promise<DocumentDa
 export const createSupportRequestWithFirstMessage = async (request: {
   userId: string;
   userDisplayName: string;
-  userEmail: string;
   category: string;
   subject: string;
   senderRole: string;
   content: string;
 }): Promise<string> => {
   const requestRef = doc(collection(db, COLLECTIONS.SUPPORT_REQUESTS));
-  const messagesRef = collection(db, COLLECTIONS.SUPPORT_REQUESTS, requestRef.id, COLLECTIONS.SUPPORT_MESSAGES);
+  const messagesRef = collection(db, COLLECTIONS.SUPPORT_REQUESTS, requestRef.id, COLLECTIONS.SUPPORT_REQUESTS_MESSAGES);
   const messageRef = doc(messagesRef);
 
   const batch = writeBatch(db);
@@ -437,12 +438,10 @@ export const createSupportRequestWithFirstMessage = async (request: {
     id: requestRef.id,
     userId: request.userId,
     userDisplayName: request.userDisplayName,
-    userEmail: request.userEmail,
     category: request.category,
     subject: request.subject,
     status: SUPPORT_STATUS.OPEN,
     createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
   });
   batch.set(messageRef, {
     id: messageRef.id,
@@ -464,14 +463,13 @@ export const fetchSupportRequestDocsByUser = async (userId: string): Promise<Raw
 export const fetchAllSupportRequestDocs = async (): Promise<RawDoc[]> =>
   collectRawDocs(await getDocs(collection(db, COLLECTIONS.SUPPORT_REQUESTS)));
 
-// supportRequests — page window newest-first by `updatedAt` (set on create and
-// on every message append, so always present). Single-field orderBy; no
+// supportRequests — page window newest-first by `createdAt`. Single-field orderBy; no
 // composite index required.
 const supportRequestsPageQuery = (
   pageCursor: QueryDocumentSnapshot<DocumentData> | null,
   pageSize: number
 ): Query<DocumentData> => {
-  const constraints: QueryConstraint[] = [orderBy('updatedAt', 'desc')];
+  const constraints: QueryConstraint[] = [orderBy('createdAt', 'desc')];
   if (pageCursor) constraints.push(startAfter(pageCursor));
   constraints.push(limit(pageSize));
   return query(collection(db, COLLECTIONS.SUPPORT_REQUESTS), ...constraints);
@@ -514,7 +512,7 @@ export const addSupportMessage = async (
   message: { senderId: string; senderName: string; senderRole: string; content: string }
 ): Promise<void> => {
   const parentRef = doc(db, COLLECTIONS.SUPPORT_REQUESTS, requestId);
-  const messagesRef = collection(db, COLLECTIONS.SUPPORT_REQUESTS, requestId, COLLECTIONS.SUPPORT_MESSAGES);
+  const messagesRef = collection(db, COLLECTIONS.SUPPORT_REQUESTS, requestId, COLLECTIONS.SUPPORT_REQUESTS_MESSAGES);
   const messageRef = doc(messagesRef);
 
   const batch = writeBatch(db);
@@ -527,24 +525,22 @@ export const addSupportMessage = async (
     createdAt: serverTimestamp(),
   });
   batch.update(parentRef, {
-    updatedAt: serverTimestamp(),
     status: SUPPORT_STATUS.OPEN, // Always re-open when a new message is sent
   });
   await batch.commit();
 };
 
-/** Update a support request's status, stamping a server `updatedAt`. */
+/** Update a support request's status. */
 export const setSupportRequestStatus = async (requestId: string, status: string): Promise<void> => {
   await updateDoc(doc(db, COLLECTIONS.SUPPORT_REQUESTS, requestId), {
     status,
-    updatedAt: serverTimestamp(),
   });
 };
 
 /** Delete a support request and cascade-delete its message subcollection. */
 export const deleteSupportRequestCascade = async (requestId: string): Promise<void> => {
   const parentRef = doc(db, COLLECTIONS.SUPPORT_REQUESTS, requestId);
-  const messagesRef = collection(db, COLLECTIONS.SUPPORT_REQUESTS, requestId, COLLECTIONS.SUPPORT_MESSAGES);
+  const messagesRef = collection(db, COLLECTIONS.SUPPORT_REQUESTS, requestId, COLLECTIONS.SUPPORT_REQUESTS_MESSAGES);
   const snap = await getDocs(messagesRef);
 
   const batch = writeBatch(db);
@@ -566,12 +562,15 @@ export const writeSystemLog = async (
   details: Record<string, unknown>
 ): Promise<void> => {
   const userId = auth?.currentUser?.uid || null;
+  const userEmail = auth?.currentUser?.email || null;
+  const errorMessage = (details && typeof details.errorMessage === 'string') ? details.errorMessage : null;
   const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   await addDoc(collection(db, COLLECTIONS.SYSTEM_LOGS), {
     type,
     event,
     userId,
-    details,
+    userEmail,
+    errorMessage,
     timestamp: serverTimestamp(),
     expireAt: Timestamp.fromDate(expireAt),
   });
@@ -582,7 +581,8 @@ export interface SystemLogRecord {
   type: LogSeverity;
   event: string;
   userId: string | null;
-  details: Record<string, unknown>;
+  userEmail: string | null;
+  errorMessage: string | null;
   timestamp: unknown;
   expireAt: unknown;
 }
@@ -611,7 +611,8 @@ export const fetchSystemLogsPage = async (options: {
         type: data.type,
         event: data.event,
         userId: data.userId,
-        details: data.details || {},
+        userEmail: data.userEmail || null,
+        errorMessage: data.errorMessage || null,
         timestamp: data.timestamp,
         expireAt: data.expireAt,
       },

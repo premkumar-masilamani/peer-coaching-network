@@ -3,6 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ── Helpers ────────────────────────────────────────────────────────────
     function isSignedIn() {
       return request.auth != null;
     }
@@ -11,53 +12,96 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    function isAdmin() {
+    function hasUserDoc() {
       return isSignedIn()
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userRole == 'admin'
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.userStatus == 'active';
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
     }
 
-    // ── Global admin access ─────────────────────────────────────────────────
-    match /{document=**} {
-      allow read, write: if isAdmin();
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    function isUser() {
+      return hasUserDoc()
+        && getUserData().userRole == 'user'
+        && getUserData().userStatus == 'active';
+    }
+
+    function isAdmin() {
+      return hasUserDoc()
+        && getUserData().userRole == 'admin'
+        && getUserData().userStatus == 'active';
+    }
+
+    function isSupportOwner(requestId) {
+      return (isUser() || isAdmin())
+        && get(/databases/$(database)/documents/supportRequests/$(requestId)).data.userId == request.auth.uid;
+    }
+
+    // ── users ───────────────────────────────────────────────────────────────
+    // Any approved member or admin may read the roster/directory; a not-yet-approved
+    // owner may still read their own document to drive onboarding.
+    // All writes are handled exclusively by Cloud Functions (Admin SDK).
     match /users/{uid} {
-      allow read: if isSignedIn();
-      allow create, update: if isOwner(uid);
+      allow read: if isUser() || isAdmin() || isOwner(uid);
+      allow write: if false;
 
+      // Owner-private schedule template.
+      // All writes are handled exclusively by Cloud Functions (Admin SDK).
       match /schedule/{document=**} {
-        allow read, write: if isOwner(uid);
+        allow read: if isOwner(uid) || isAdmin();
+        allow write: if false;
       }
     }
 
+    // ── availability (coach discovery cache) ────────────────────────────────
+    // Readable by any approved member or admin for discovery.
+    // Written exclusively by Cloud Functions (Admin SDK).
     match /availability/{coachUid} {
-      allow read: if isSignedIn();
-      allow write: if isOwner(coachUid);
+      allow read: if isUser() || isAdmin();
+      allow write: if false;
     }
 
+    // ── bookings ────────────────────────────────────────────────────────────
+    // Read allowed for admins or participants (coach/client).
+    // All creations, cancellations, and modifications are handled exclusively
+    // via Cloud Functions (Admin SDK).
     match /bookings/{bookingId} {
-      allow read: if isSignedIn();
-      // Any signed-in user can create a booking
-      allow create: if isSignedIn();
-      // Only participants can update/cancel a booking
-      allow update, delete: if isSignedIn() && (
-        request.auth.uid == resource.data.coachUid ||
-        request.auth.uid == resource.data.clientUid
-      );
+      allow read: if isAdmin()
+        || (isUser() && (request.auth.uid == resource.data.coachUid || request.auth.uid == resource.data.clientUid));
+      allow write: if false;
     }
 
+    // ── systemLogs (telemetry sink) ─────────────────────────────────────────
+    // Append-only for active members and admins. Each entry must be self-stamped
+    // (userId == caller). Reads are admin-only.
     match /systemLogs/{logId} {
-      allow create: if isSignedIn();
+      allow read: if isAdmin();
+      allow create: if (isUser() || isAdmin())
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.type in ['error', 'warn']
+        && request.resource.data.keys().hasOnly([
+             'type', 'event', 'userId', 'userEmail', 'errorMessage', 'timestamp', 'expireAt'
+           ]);
+      allow update, delete: if false;
     }
 
+    // ── supportRequests (+ messages) ────────────────────────────────────────
+    // Members may see and update their own tickets; admins can read, update, and delete all tickets.
     match /supportRequests/{requestId} {
-      allow read, write: if isSignedIn();
+      allow read:   if isAdmin() || (isUser() && resource.data.userId == request.auth.uid);
+      allow create: if (isUser() || isAdmin()) && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin() || (isUser() && resource.data.userId == request.auth.uid);
+      allow delete: if isAdmin();
 
       match /messages/{messageId} {
-        allow read, write: if isSignedIn();
+        allow read: if isAdmin() || (isUser() && isSupportOwner(requestId));
+        allow create: if (isAdmin() || (isUser() && isSupportOwner(requestId)))
+          && request.resource.data.senderId == request.auth.uid
+          && request.resource.data.senderRole == (isAdmin() ? 'admin' : 'user');
+        allow update, delete: if false;
       }
     }
   }
 }
+

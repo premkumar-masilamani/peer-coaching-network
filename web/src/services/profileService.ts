@@ -1,3 +1,5 @@
+import { functions } from './firebaseApp';
+import { httpsCallable } from 'firebase/functions';
 import type { DocumentData } from 'firebase/firestore';
 import { type UserProfile, type FirestoreTimestamp } from './types';
 import {
@@ -8,15 +10,12 @@ import {
 } from '../config';
 import {
   getUserProfile,
-  updateUserProfile,
   fetchAllUsers,
   fetchUsersPage,
   fetchUsersByStatus,
   countUsersByStatus,
   fetchUsersByIds,
 } from './firestoreRepository';
-import { recalculateAvailableSlotsCache } from './slotsService';
-import { logger } from '../utils/logger';
 
 // Canonical approval/role helpers live in a dependency-free module so
 // infrastructure services can reuse them without an import cycle; re-exported
@@ -31,16 +30,17 @@ export const getProfile = async (uid: string): Promise<UserProfile | null> => {
 // Generic mutator. Used by admin operations that legitimately write privileged
 // fields; server-side Firestore rules enforce that only admins may do so.
 export const updateProfile = async (uid: string, updates: Partial<UserProfile>): Promise<void> => {
-  await updateUserProfile(uid, updates);
-  // Cache uses profile fields like status, gender, country, etc.
-  recalculateAvailableSlotsCache(uid).catch((err) => logger.error(`Error recalculating slots cache for ${uid}:`, err));
+  const updateUserProfileAndSchedule = httpsCallable(functions, 'updateUserProfileAndSchedule');
+  await updateUserProfileAndSchedule({ userId: uid, profileData: updates });
+  // The cloud function already updates the availability document, so we don't need to manually recalculate slots cache here,
+  // but if we want to trigger a local refresh or something we could. Actually the cloud function handles everything.
 };
 
 // Fields a user may change on their OWN profile. Privileged fields
 // (userRole/userStatus/qualifications) are intentionally excluded — they
 // are admin-controlled and enforced server-side by Firestore rules.
 const OWN_EDITABLE_FIELDS: (keyof UserProfile)[] = [
-  'displayName', 'photoURL', 'gender', 'country',
+  'photoURL', 'gender', 'country',
   'bio', 'timezone', 'onboardingComplete', 'credentialDetails'
 ];
 
@@ -53,9 +53,8 @@ export const updateOwnProfile = async (uid: string, updates: Partial<UserProfile
     }
   }
   if (Object.keys(safeUpdates).length === 0) return;
-  await updateUserProfile(uid, safeUpdates);
-  // Cache uses profile fields like status, gender, country, etc.
-  recalculateAvailableSlotsCache(uid).catch((err) => logger.error(`Error recalculating slots cache for ${uid}:`, err));
+  const updateUserProfileAndSchedule = httpsCallable(functions, 'updateUserProfileAndSchedule');
+  await updateUserProfileAndSchedule({ userId: uid, profileData: safeUpdates });
 };
 
 // Format a stored createdAt for display, accepting both Firestore Timestamps and legacy ISO strings.
@@ -125,10 +124,8 @@ export const updateVerifiedCredentials = async (uid: string, newQualifications: 
     updates.icf_mcc = newQualifications.includes('ICF MCC');
     updates.icf_actc = newQualifications.includes('ICF ACTC');
   }
-  await updateUserProfile(uid, updates);
-  // Credential/qualification changes alter the denormalized filter fields in the
-  // availability cache and day shards, so refresh them.
-  recalculateAvailableSlotsCache(uid).catch((err) => logger.error(`Error recalculating slots cache for ${uid}:`, err));
+  const updateUserProfileAndSchedule = httpsCallable(functions, 'updateUserProfileAndSchedule');
+  await updateUserProfileAndSchedule({ userId: uid, profileData: updates });
 };
 
 export const getProfiles = async (uids: string[]): Promise<UserProfile[]> => {

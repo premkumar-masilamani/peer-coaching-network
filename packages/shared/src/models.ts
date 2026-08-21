@@ -32,21 +32,21 @@ export interface UserProfile {
   email: string;
   firstName: string;
   lastName: string;
-  displayName?: string; // Optional legacy field
   photoURL: string | null;
   gender: Gender;
+  bio: string;
   country: string;
+  timezone: string;
   icf_acc?: boolean;
   icf_pcc?: boolean;
   icf_mcc?: boolean;
   icf_actc?: boolean;
-  bio: string;
-  timezone: string;
   userRole: UserRole;
   userStatus: UserStatus;
   onboardingComplete?: boolean;
   credentialDetails?: string;
   createdAt: FirestoreTimestamp;
+  updatedAt: FirestoreTimestamp;
 }
 
 export interface SupportMessage {
@@ -62,12 +62,10 @@ export interface SupportRequest {
   id: string;
   userId: string;
   userDisplayName: string;
-  userEmail: string;
   category: SupportCategory;
   subject: string;
   status: SupportStatus;
   createdAt: string; // ISO string
-  updatedAt: string; // ISO string
 }
 
 export interface DiscoveryFilters {
