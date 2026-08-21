@@ -20,6 +20,7 @@ export const GOOGLE_EVENTS_PAGE_SIZE = 250;
 export const ICF_DIRECTORY_URL = 'https://apps.coachingfederation.org/eweb/DynamicPage.aspx?webcode=ICFDirectory&firstname={firstName}&lastname={lastName}';
 
 export const SYSTEM_LOGS_TTL_DAYS = 7;
+export const SUPPORT_REQUESTS_CLOSED_TTL_DAYS = 7;
 export const ALLOWED_BOOKING_DURATIONS_MIN = [30, 60] as const;
 export const MAX_SLOTS_PER_DAY = 48;
 
