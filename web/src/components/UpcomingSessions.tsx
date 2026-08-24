@@ -205,7 +205,7 @@ export const UpcomingSessions: React.FC = () => {
     // force a fresh OAuth redirect rather than loading the dashboard with a
     // silently-empty calendar.
     if (hasExpiredGoogleToken()) {
-      login().catch((e) => console.error('Re-authentication redirect failed:', e));
+      setShowGoogleConnectionModal(true);
       return;
     }
     const requestId = ++gcalRequestIdRef.current;
@@ -217,7 +217,7 @@ export const UpcomingSessions: React.FC = () => {
       if (requestId !== gcalRequestIdRef.current) return;
       console.error('Error loading Google Calendar events:', e);
     }
-  }, [login]);
+  }, []);
 
 
 
