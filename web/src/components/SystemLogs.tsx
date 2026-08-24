@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useRef } from 'react';
-import { getLogsPage, type SystemLogEntry } from '../services/adminService';
+import { getLogsPage, getSystemLogsByUser, type SystemLogEntry } from '../services/adminService';
 import {
   AlertCircle,
   ChevronLeft,
@@ -34,8 +34,10 @@ export const SystemLogs: React.FC = () => {
   const pageCursorsRef = useRef<(any | null)[]>([null]);
   const [hasNext, setHasNext] = useState(false);
   
-  // Row Expansion State
+  // Row Expansion & Trace State
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const [userLogsCache, setUserLogsCache] = useState<Record<string, SystemLogEntry[]>>({});
+  const [loadingUserLogs, setLoadingUserLogs] = useState<Record<string, boolean>>({});
 
   // Toggle a severity in/out of the selected set
   const handleSeverityToggle = (sev: LogSeverity) => {
@@ -57,6 +59,23 @@ export const SystemLogs: React.FC = () => {
   const handlePrevPage = () => {
     setPageIndex(prev => Math.max(0, prev - 1));
     setLoading(true);
+  };
+
+  const handleToggleExpand = async (log: SystemLog) => {
+    const nextExpandedId = expandedLogId === log.id ? null : log.id;
+    setExpandedLogId(nextExpandedId);
+
+    if (nextExpandedId && log.userId && !userLogsCache[log.userId] && !loadingUserLogs[log.userId]) {
+      setLoadingUserLogs(prev => ({ ...prev, [log.userId!]: true }));
+      try {
+        const userLogs = await getSystemLogsByUser(log.userId, 20);
+        setUserLogsCache(prev => ({ ...prev, [log.userId!]: userLogs }));
+      } catch (err) {
+        console.error('Error fetching user activity logs:', err);
+      } finally {
+        setLoadingUserLogs(prev => ({ ...prev, [log.userId!]: false }));
+      }
+    }
   };
 
   useEffect(() => {
@@ -269,7 +288,7 @@ export const SystemLogs: React.FC = () => {
                   return (
                     <React.Fragment key={log.id}>
                       <tr 
-                        onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
+                        onClick={() => handleToggleExpand(log)}
                         style={{ cursor: 'pointer' }}
                         className="hover-row"
                       >
@@ -321,10 +340,11 @@ export const SystemLogs: React.FC = () => {
                         {/* Actions Toggle */}
                         <td style={{ textAlign: 'right' }}>
                           <button
+                            type="button"
                             className="btn btn-secondary"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setExpandedLogId(isExpanded ? null : log.id);
+                              handleToggleExpand(log);
                             }}
                             style={{ padding: '6px 10px', borderRadius: '6px', fontSize: '0.8rem' }}
                             title={isExpanded ? 'Hide Details' : 'View Details'}
@@ -338,28 +358,69 @@ export const SystemLogs: React.FC = () => {
                       {isExpanded && (
                         <tr style={{ background: 'rgba(0, 0, 0, 0.15)' }}>
                           <td colSpan={5} style={{ padding: '20px 24px', borderBottom: '1px solid var(--table-border-1)' }}>
-                            <pre style={{
-                              background: 'var(--bg-surface)',
-                              border: '1px solid var(--border-light)',
-                              padding: '16px',
-                              borderRadius: '8px',
-                              fontSize: '0.85rem',
-                              color: 'hsl(var(--text-secondary))',
-                              overflowX: 'auto',
-                              margin: 0,
-                              fontFamily: 'monospace',
-                              maxHeight: '350px'
-                            }}>
-                              {JSON.stringify({
-                                id: log.id,
-                                type: log.type,
-                                event: log.event,
-                                userId: log.userId,
-                                userEmail: log.userEmail,
-                                errorMessage: log.errorMessage,
-                                timestamp: log.timestamp
-                              }, null, 2)}
-                            </pre>
+                            {log.userId ? (
+                              loadingUserLogs[log.userId] ? (
+                                <p style={{ margin: 0, padding: '12px', color: 'hsl(var(--text-muted))', textAlign: 'center' }}>
+                                  Loading activity trace for user...
+                                </p>
+                              ) : (
+                                <div>
+                                  <div style={{ marginBottom: '8px', fontSize: '0.85rem', fontWeight: 600, color: 'hsl(var(--text-primary))' }}>
+                                    Activity Trace for User: <span style={{ fontFamily: 'monospace', color: 'hsl(var(--primary))' }}>{log.userId}</span> {userLogsCache[log.userId] ? `(${userLogsCache[log.userId].length} events, newest first)` : ''}
+                                  </div>
+                                  <pre style={{
+                                    background: 'var(--bg-surface)',
+                                    border: '1px solid var(--border-light)',
+                                    padding: '16px',
+                                    borderRadius: '8px',
+                                    fontSize: '0.85rem',
+                                    color: 'hsl(var(--text-secondary))',
+                                    overflowX: 'auto',
+                                    margin: 0,
+                                    fontFamily: 'monospace',
+                                    maxHeight: '350px'
+                                  }}>
+                                    {JSON.stringify((userLogsCache[log.userId] || [log]).map((entry) => ({
+                                      id: entry.id,
+                                      type: entry.type,
+                                      event: entry.event,
+                                      userId: entry.userId,
+                                      userEmail: entry.userEmail,
+                                      errorMessage: entry.errorMessage,
+                                      timestamp: entry.timestamp
+                                    })), null, 2)}
+                                  </pre>
+                                </div>
+                              )
+                            ) : (
+                              <div>
+                                <div style={{ marginBottom: '8px', fontSize: '0.85rem', fontWeight: 600, color: 'hsl(var(--text-secondary))' }}>
+                                  System / Guest Event Details:
+                                </div>
+                                <pre style={{
+                                  background: 'var(--bg-surface)',
+                                  border: '1px solid var(--border-light)',
+                                  padding: '16px',
+                                  borderRadius: '8px',
+                                  fontSize: '0.85rem',
+                                  color: 'hsl(var(--text-secondary))',
+                                  overflowX: 'auto',
+                                  margin: 0,
+                                  fontFamily: 'monospace',
+                                  maxHeight: '350px'
+                                }}>
+                                  {JSON.stringify({
+                                    id: log.id,
+                                    type: log.type,
+                                    event: log.event,
+                                    userId: log.userId,
+                                    userEmail: log.userEmail,
+                                    errorMessage: log.errorMessage,
+                                    timestamp: log.timestamp
+                                  }, null, 2)}
+                                </pre>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       )}

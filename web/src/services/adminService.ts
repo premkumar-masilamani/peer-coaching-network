@@ -5,7 +5,7 @@ import type { CalendarEvent } from './googleCalendar';
 import type { UserProfile } from './types';
 import type { LogSeverity } from '../config';
 
-export { type SystemLogEntry } from './systemLogsService';
+export { getSystemLogsByUser, type SystemLogEntry } from './systemLogsService';
 export { type CalendarEvent } from './googleCalendar';
 
 /**
