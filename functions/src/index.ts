@@ -13,6 +13,8 @@ import {
   ALLOWED_BOOKING_DURATIONS_MIN,
   MAX_SLOTS_PER_DAY,
   CRON_SCHEDULES,
+  LOG_SEVERITY,
+  type LogSeverity,
 } from "@pcn/shared";
 
 admin.initializeApp(process.env.VITE_FIREBASE_PROJECT_ID ? { projectId: process.env.VITE_FIREBASE_PROJECT_ID } : undefined);
@@ -20,13 +22,24 @@ const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID;
 const db = databaseId ? getFirestore(admin.app(), databaseId) : getFirestore();
 
 // Helper for SystemLogs
-const logSystemEvent = async (type: string, event: string, details: Record<string, unknown>) => {
+const logSystemEvent = async (
+  type: LogSeverity,
+  event: string,
+  details: Record<string, unknown> = {},
+  userId?: string | null
+) => {
   try {
     const expireAt = new Date();
-    expireAt.setDate(expireAt.getDate() + SYSTEM_LOGS_TTL_DAYS); 
+    expireAt.setDate(expireAt.getDate() + SYSTEM_LOGS_TTL_DAYS);
+    const resolvedUserId = userId ?? (details.userId as string) ?? (details.coachUid as string) ?? null;
+    const resolvedErrorMessage = (details.error as string) ?? (details.errorMessage as string) ?? null;
+
     await db.collection(COLLECTIONS.SYSTEM_LOGS).add({
       type,
       event,
+      userId: resolvedUserId,
+      userEmail: (details.userEmail as string) ?? null,
+      errorMessage: resolvedErrorMessage,
       details,
       timestamp: FieldValue.serverTimestamp(),
       expireAt: Timestamp.fromDate(expireAt)
@@ -130,11 +143,11 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
          const gcalRes = await createGoogleEvent(googleAccessToken, eventPayload);
          eventId = gcalRes.id;
          meetLink = gcalRes.hangoutLink || "";
-       } catch (err) {
-         console.error("Google Calendar Error:", err);
-         await logSystemEvent("ERROR", "GOOGLE_CALENDAR_CREATE_FAILED", { userId: clientUid, error: String(err) });
-         throw new functions.https.HttpsError("internal", "Failed to create Google Calendar event. Booking aborted.");
-       }
+        } catch (err) {
+          console.error("Google Calendar Error:", err);
+          await logSystemEvent(LOG_SEVERITY.ERROR, "GOOGLE_CALENDAR_CREATE_FAILED", { userId: clientUid, error: String(err) }, clientUid);
+          throw new functions.https.HttpsError("internal", "Failed to create Google Calendar event. Booking aborted.");
+        }
     }
 
     try {
@@ -211,7 +224,7 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
             await deleteGoogleEvent(googleAccessToken, eventId);
           } catch (delErr) {
             console.error("Failed to rollback Google Calendar Event:", delErr);
-            await logSystemEvent("ERROR", "GOOGLE_CALENDAR_ROLLBACK_FAILED", { userId: clientUid, eventId, error: String(delErr) });
+            await logSystemEvent(LOG_SEVERITY.ERROR, "GOOGLE_CALENDAR_ROLLBACK_FAILED", { userId: clientUid, eventId, error: String(delErr) }, clientUid);
           }
        }
        throw e;
@@ -234,7 +247,7 @@ export const manageBooking = functions.https.onCall(async (data, context) => {
         await deleteGoogleEvent(googleAccessToken, docData.googleEventId);
       } catch (err) {
         console.error("Google Calendar Error:", err);
-        await logSystemEvent("WARNING", "GOOGLE_CALENDAR_DELETE_FAILED", { userId: clientUid, eventId: docData.googleEventId, error: String(err) });
+        await logSystemEvent(LOG_SEVERITY.WARN, "GOOGLE_CALENDAR_DELETE_FAILED", { userId: clientUid, eventId: docData.googleEventId, error: String(err) }, clientUid);
       }
     }
 
@@ -548,12 +561,12 @@ export const dailyHousekeeping = functions.pubsub.schedule(CRON_SCHEDULES.DAILY_
           }, { merge: true });
         } catch (coachErr) {
           console.error(`Error processing coach ${userDoc.id} in dailyHousekeeping:`, coachErr);
-          await logSystemEvent("ERROR", "HOUSEKEEPING_COACH_FAILED", { coachUid: userDoc.id, error: String(coachErr) });
+          await logSystemEvent(LOG_SEVERITY.ERROR, "HOUSEKEEPING_COACH_FAILED", { coachUid: userDoc.id, error: String(coachErr) }, userDoc.id);
         }
       }
     } catch (err) {
       console.error("Housekeeping pagination error:", err);
-      await logSystemEvent("ERROR", "HOUSEKEEPING_BATCH_FAILED", { error: String(err) });
+      await logSystemEvent(LOG_SEVERITY.ERROR, "HOUSEKEEPING_BATCH_FAILED", { error: String(err) });
       hasMore = false;
     }
   }

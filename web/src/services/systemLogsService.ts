@@ -1,4 +1,4 @@
-import { fetchSystemLogsPage, type SystemLogRecord } from './firestoreRepository';
+import { fetchSystemLogsPage, fetchSystemLogsByUser, type SystemLogRecord } from './firestoreRepository';
 import type { LogSeverity } from '../config';
 
 // Public shape of a system-log row for the admin log viewer.
@@ -22,4 +22,14 @@ export const getSystemLogs = async (options: {
     pageCursor: options.pageCursor,
     pageSize: options.pageSize ?? SYSTEM_LOGS_PAGE_SIZE,
   });
+};
+
+/**
+ * Read recent system logs for a specific user (newest first).
+ */
+export const getSystemLogsByUser = async (
+  userId: string,
+  limitCount = 20
+): Promise<SystemLogEntry[]> => {
+  return fetchSystemLogsByUser(userId, limitCount);
 };
