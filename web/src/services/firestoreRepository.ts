@@ -172,6 +172,19 @@ const systemLogsQuery = (
   return query(collection(db, COLLECTIONS.SYSTEM_LOGS), ...constraints);
 };
 
+// systemLogs — `userId == x` + `orderBy(timestamp desc)` + limit.
+// Requires composite index systemLogs (userId ASC, timestamp DESC).
+const systemLogsByUserQuery = (
+  userId: string,
+  limitCount: number
+): Query<DocumentData> =>
+  query(
+    collection(db, COLLECTIONS.SYSTEM_LOGS),
+    where('userId', '==', userId),
+    orderBy('timestamp', 'desc'),
+    limit(limitCount)
+  );
+
 // Materialize a QuerySnapshot into a plain array of document data. Real Firestore
 // snapshots expose `.docs`; we fall back to `.forEach` for leaner test doubles.
 const collectDocs = (snap: {
@@ -630,6 +643,31 @@ export const fetchSystemLogsPage = async (options: {
   if (hasMore) rows.pop(); // drop the extra look-ahead row
   const nextCursor = hasMore ? rows[rows.length - 1].snap : null;
   return { logs: rows.map((r) => r.record), nextCursor, hasMore };
+};
+
+/**
+ * Read recent system logs for a specific user, newest first.
+ */
+export const fetchSystemLogsByUser = async (
+  userId: string,
+  limitCount = 20
+): Promise<SystemLogRecord[]> => {
+  const snapshot = await getDocs(systemLogsByUserQuery(userId, limitCount));
+  const rows: SystemLogRecord[] = [];
+  snapshot.forEach((docSnap) => {
+    const data = docSnap.data();
+    rows.push({
+      id: docSnap.id,
+      type: data.type,
+      event: data.event,
+      userId: data.userId,
+      userEmail: data.userEmail || null,
+      errorMessage: data.errorMessage || null,
+      timestamp: data.timestamp,
+      expireAt: data.expireAt,
+    });
+  });
+  return rows;
 };
 
 import { onSnapshot } from 'firebase/firestore';
