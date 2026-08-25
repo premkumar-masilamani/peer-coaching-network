@@ -56,7 +56,8 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const databaseId = import.meta.env.VITE_FIRESTORE_DATABASE_ID;
 export const db = getFirestore(app, databaseId);
-export const functions = getFunctions(app);
+const region = import.meta.env.VITE_FIREBASE_REGION || 'asia-south1';
+export const functions = getFunctions(app, region);
 
 // Safe-initialize Google Analytics
 let analytics: Analytics | null = null;

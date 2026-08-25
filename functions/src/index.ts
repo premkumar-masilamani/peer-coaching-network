@@ -12,6 +12,8 @@ import {
 admin.initializeApp(process.env.VITE_FIREBASE_PROJECT_ID ? { projectId: process.env.VITE_FIREBASE_PROJECT_ID } : undefined);
 const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID;
 const db = databaseId ? getFirestore(admin.app(), databaseId) : getFirestore();
+const region = (process.env.VITE_FIREBASE_REGION || "asia-south1") as "asia-south1";
+const regionFunctions = functions.region(region);
 
 // Google API helpers
 const getGoogleApiBase = () => {
@@ -57,7 +59,7 @@ const getGoogleFreeBusy = async (token: string, timeMin: string, timeMax: string
  * manageBooking
  * Single endpoint for booking and canceling sessions.
  */
-export const manageBooking = functions.https.onCall(async (data, context) => {
+export const manageBooking = regionFunctions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
   }
@@ -275,7 +277,7 @@ function parseAvailableDays(availableDays: RawAvailableDays | undefined | null):
  * updateUserProfileAndSchedule
  * Unified profile and schedule metadata synchronization.
  */
-export const updateUserProfileAndSchedule = functions.https.onCall(async (data, context) => {
+export const updateUserProfileAndSchedule = regionFunctions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
   }
@@ -381,7 +383,7 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
  * syncMyCalendar
  * Called exclusively by the client upon login.
  */
-export const syncMyCalendar = functions.https.onCall(async (data, context) => {
+export const syncMyCalendar = regionFunctions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
   }
@@ -428,7 +430,7 @@ export const syncMyCalendar = functions.https.onCall(async (data, context) => {
  * dailyHousekeeping
  * Nightly cron job to replenish 30-day slot window, delete expired pending bookings, and delete subcollections.
  */
-export const dailyHousekeeping = functions.pubsub.schedule("0 2 * * *").timeZone("UTC").onRun(async () => {
+export const dailyHousekeeping = regionFunctions.pubsub.schedule("0 2 * * *").timeZone("UTC").onRun(async () => {
   const usersSnap = await db.collection("users").where("userStatus", "==", "active").get();
   const now = new Date();
 
