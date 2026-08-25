@@ -14,6 +14,7 @@ const requiredConfig = {
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  region: import.meta.env.VITE_FIREBASE_REGION,
 };
 
 const missingConfig = Object.entries(requiredConfig)
@@ -56,8 +57,7 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const databaseId = import.meta.env.VITE_FIRESTORE_DATABASE_ID;
 export const db = getFirestore(app, databaseId);
-const region = import.meta.env.VITE_FIREBASE_REGION || 'asia-south1';
-export const functions = getFunctions(app, region);
+export const functions = getFunctions(app, requiredConfig.region);
 
 // Safe-initialize Google Analytics
 let analytics: Analytics | null = null;
