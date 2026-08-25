@@ -51,6 +51,8 @@ import {
   BOOKING_STATUS,
   SUPPORT_STATUS,
   USER_STATUS,
+  SUPPORT_REQUESTS_CLOSED_TTL_DAYS,
+  SYSTEM_LOGS_TTL_DAYS,
   type UserStatus,
   type LogSeverity,
 } from '../config';
@@ -169,6 +171,19 @@ const systemLogsQuery = (
   constraints.push(limit(pageSize));
   return query(collection(db, COLLECTIONS.SYSTEM_LOGS), ...constraints);
 };
+
+// systemLogs — `userId == x` + `orderBy(timestamp desc)` + limit.
+// Requires composite index systemLogs (userId ASC, timestamp DESC).
+const systemLogsByUserQuery = (
+  userId: string,
+  limitCount: number
+): Query<DocumentData> =>
+  query(
+    collection(db, COLLECTIONS.SYSTEM_LOGS),
+    where('userId', '==', userId),
+    orderBy('timestamp', 'desc'),
+    limit(limitCount)
+  );
 
 // Materialize a QuerySnapshot into a plain array of document data. Real Firestore
 // snapshots expose `.docs`; we fall back to `.forEach` for leaner test doubles.
@@ -532,9 +547,13 @@ export const addSupportMessage = async (
 
 /** Update a support request's status. */
 export const setSupportRequestStatus = async (requestId: string, status: string): Promise<void> => {
-  await updateDoc(doc(db, COLLECTIONS.SUPPORT_REQUESTS, requestId), {
-    status,
-  });
+  const updates: Record<string, unknown> = { status };
+  if (status === SUPPORT_STATUS.CLOSED) {
+    const expireAt = new Date();
+    expireAt.setDate(expireAt.getDate() + SUPPORT_REQUESTS_CLOSED_TTL_DAYS);
+    updates.expireAt = Timestamp.fromDate(expireAt);
+  }
+  await updateDoc(doc(db, COLLECTIONS.SUPPORT_REQUESTS, requestId), updates);
 };
 
 /** Delete a support request and cascade-delete its message subcollection. */
@@ -564,7 +583,7 @@ export const writeSystemLog = async (
   const userId = auth?.currentUser?.uid || null;
   const userEmail = auth?.currentUser?.email || null;
   const errorMessage = (details && typeof details.errorMessage === 'string') ? details.errorMessage : null;
-  const expireAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const expireAt = new Date(Date.now() + SYSTEM_LOGS_TTL_DAYS * 24 * 60 * 60 * 1000);
   await addDoc(collection(db, COLLECTIONS.SYSTEM_LOGS), {
     type,
     event,
@@ -624,6 +643,31 @@ export const fetchSystemLogsPage = async (options: {
   if (hasMore) rows.pop(); // drop the extra look-ahead row
   const nextCursor = hasMore ? rows[rows.length - 1].snap : null;
   return { logs: rows.map((r) => r.record), nextCursor, hasMore };
+};
+
+/**
+ * Read recent system logs for a specific user, newest first.
+ */
+export const fetchSystemLogsByUser = async (
+  userId: string,
+  limitCount = 20
+): Promise<SystemLogRecord[]> => {
+  const snapshot = await getDocs(systemLogsByUserQuery(userId, limitCount));
+  const rows: SystemLogRecord[] = [];
+  snapshot.forEach((docSnap) => {
+    const data = docSnap.data();
+    rows.push({
+      id: docSnap.id,
+      type: data.type,
+      event: data.event,
+      userId: data.userId,
+      userEmail: data.userEmail || null,
+      errorMessage: data.errorMessage || null,
+      timestamp: data.timestamp,
+      expireAt: data.expireAt,
+    });
+  });
+  return rows;
 };
 
 import { onSnapshot } from 'firebase/firestore';
