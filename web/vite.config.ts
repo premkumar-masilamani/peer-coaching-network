@@ -8,11 +8,19 @@ export default defineConfig(({ mode }) => {
   const envDir = path.resolve(import.meta.dirname, '..');
   const env = loadEnv(mode, envDir, '');
   const databaseId = env.VITE_FIRESTORE_DATABASE_ID || process.env.VITE_FIRESTORE_DATABASE_ID;
+  const region = env.VITE_FIREBASE_REGION || process.env.VITE_FIREBASE_REGION;
 
   if (mode !== 'test' && !databaseId) {
     throw new Error(
       'Missing required environment variable: VITE_FIRESTORE_DATABASE_ID. ' +
       'Please specify the Firestore database name in your environment configuration.'
+    );
+  }
+
+  if (mode !== 'test' && !region) {
+    throw new Error(
+      'Missing required environment variable: VITE_FIREBASE_REGION. ' +
+      'Please specify the Firebase Functions region in your environment configuration.'
     );
   }
 

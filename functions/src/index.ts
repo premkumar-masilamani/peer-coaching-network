@@ -20,6 +20,14 @@ import {
 admin.initializeApp(process.env.VITE_FIREBASE_PROJECT_ID ? { projectId: process.env.VITE_FIREBASE_PROJECT_ID } : undefined);
 const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID;
 const db = databaseId ? getFirestore(admin.app(), databaseId) : getFirestore();
+const region = process.env.VITE_FIREBASE_REGION;
+if (!region) {
+  throw new Error(
+    "Missing required environment variable: VITE_FIREBASE_REGION. " +
+    "Please specify the Firebase Functions region in your environment configuration."
+  );
+}
+const regionFunctions = functions.region(region);
 
 // Helper for SystemLogs
 const logSystemEvent = async (
@@ -94,7 +102,7 @@ const getGoogleFreeBusy = async (token: string, timeMin: string, timeMax: string
  * manageBooking
  * Single endpoint for booking and canceling sessions.
  */
-export const manageBooking = functions.https.onCall(async (data, context) => {
+export const manageBooking = regionFunctions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
   }
@@ -346,7 +354,7 @@ function parseAvailableDays(availableDays: RawAvailableDays | undefined | null):
  * updateUserProfileAndSchedule
  * Unified profile and schedule metadata synchronization.
  */
-export const updateUserProfileAndSchedule = functions.https.onCall(async (data, context) => {
+export const updateUserProfileAndSchedule = regionFunctions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
   }
@@ -465,7 +473,7 @@ export const updateUserProfileAndSchedule = functions.https.onCall(async (data, 
  * syncMyCalendar
  * Called exclusively by the client upon login.
  */
-export const syncMyCalendar = functions.https.onCall(async (data, context) => {
+export const syncMyCalendar = regionFunctions.https.onCall(async (data, context) => {
   if (!context.auth) {
     throw new functions.https.HttpsError("unauthenticated", "User must be logged in.");
   }
@@ -513,7 +521,7 @@ export const syncMyCalendar = functions.https.onCall(async (data, context) => {
  * Nightly cron job to replenish 30-day slot window.
  * Support request and SystemLog cleanups are handled via Firestore TTL.
  */
-export const dailyHousekeeping = functions.pubsub.schedule(CRON_SCHEDULES.DAILY_HOUSEKEEPING).timeZone("UTC").onRun(async () => {
+export const dailyHousekeeping = regionFunctions.pubsub.schedule(CRON_SCHEDULES.DAILY_HOUSEKEEPING).timeZone("UTC").onRun(async () => {
   const now = new Date();
   
   let lastVisible = null;
