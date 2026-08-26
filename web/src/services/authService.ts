@@ -1,6 +1,6 @@
 import { httpsCallable } from 'firebase/functions';
 import {
-  signInWithRedirect,
+  signInWithPopup,
   getRedirectResult,
   GoogleAuthProvider,
   signOut,
@@ -106,20 +106,8 @@ const registerOrSyncGoogleUser = async (user: User, credentialAccessToken?: stri
   }
 };
 
-// Guard against firing signInWithRedirect more than once before the browser
-// actually navigates away. Expiry can be detected from several places at nearly
-// the same time (dashboard load, a window-focus refresh, a booking attempt);
-// without this, each could kick off its own redirect.
-let redirectInFlight = false;
-
 export const loginWithGoogle = async (): Promise<void> => {
-  if (redirectInFlight) {
-    console.log('[AuthService] Redirect already in flight, ignoring click.');
-    return;
-  }
-  redirectInFlight = true;
-
-  console.log('[AuthService] Initiating Google Sign-In with Redirect...');
+  logger.info('[AuthService] Initiating Google Sign-In with Popup...');
   const provider = new GoogleAuthProvider();
   // Request Google Calendar access. Only the events scope is needed: every
   // Calendar API call in this app is event CRUD on the user's primary calendar
@@ -131,12 +119,16 @@ export const loginWithGoogle = async (): Promise<void> => {
   provider.setCustomParameters({ prompt: 'select_account' });
 
   try {
-    await signInWithRedirect(auth, provider);
-    console.log('[AuthService] signInWithRedirect completed (redirecting browser)...');
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const token = credential?.accessToken || undefined;
+    await registerOrSyncGoogleUser(result.user, token);
+
+    if (token) {
+      syncCalendar().catch(err => logger.error('Failed to sync calendar after login:', err));
+    }
   } catch (e) {
-    console.error('[AuthService] signInWithRedirect error:', e);
-    // Navigation never happened, so allow a later retry.
-    redirectInFlight = false;
+    logger.error('[AuthService] signInWithPopup error:', e);
     throw e;
   }
 };

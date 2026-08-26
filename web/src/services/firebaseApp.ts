@@ -5,8 +5,6 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 import { logger } from '../utils/logger';
-import { USER_MESSAGES } from '../config';
-
 // Required config that has no safe default. A real (cloud) build must supply them
 // — we never silently fall back to dummy credentials.
 const requiredConfig = {
@@ -34,11 +32,6 @@ if (missingConfig.length > 0) {
     'Set these environment variables (see .env.development / Firebase project settings).';
   firebaseConfigError = message;
   logger.error(message);
-} else {
-  const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  if (isLocalhost) {
-    firebaseConfigError = USER_MESSAGES.SYSTEM.LOCAL_HOST_BLOCKED;
-  }
 }
 
 const projectId = requiredConfig.projectId || '';

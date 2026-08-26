@@ -12,7 +12,6 @@ export const USER_MESSAGES = {
     RELOAD_BUTTON: 'Refresh Page',
     CONFIG_ERROR_TITLE: 'Unable to start the website',
     CONFIG_ERROR_DESC: 'The website needs a quick setup fix before it can open. Please contact support for help.',
-    LOCAL_HOST_BLOCKED: "Please open this website using 'https://local.peercoachingnetwork.com:5173' so Google Sign-In works properly.",
   },
   AUTH: {
     INVALID_GOOGLE_SIGNIN: 'We could not get your name or email from Google. Please try signing in again.',
