@@ -20,6 +20,7 @@ run:
 
 .PHONY: deploy
 deploy: build
+	cp .env.development functions/.env || cp .env functions/.env || true
 	. ./.env.development && npx --no-install firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project $$VITE_FIREBASE_PROJECT_ID --debug
 
 .PHONY: erd

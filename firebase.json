@@ -65,7 +65,8 @@
   "functions": {
     "source": "functions",
     "predeploy": [
-      "npm pack --workspace=@pcn/shared --pack-destination=./functions"
+      "npm pack --workspace=@pcn/shared --pack-destination=./functions",
+      "cp ../.env.development .env || cp ../.env .env || true"
     ],
     "ignore": [
       "node_modules",
