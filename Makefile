@@ -22,6 +22,10 @@ run:
 deploy: build
 	set -a && . ./.env.development && set +a && npx --no-install firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project $$VITE_FIREBASE_PROJECT_ID --debug
 
+.PHONY: logs
+logs:
+	set -a && . ./.env.development && set +a && npx --no-install firebase functions:log --project $$VITE_FIREBASE_PROJECT_ID $(if $(LINES),-n $(LINES),) $(if $(FUNC),--only $(FUNC),)
+
 .PHONY: erd
 erd:
 	node scripts/generate-erd.js

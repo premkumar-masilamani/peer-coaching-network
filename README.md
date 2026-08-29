@@ -37,6 +37,12 @@ Here are the primary commands for building, running, and validating the applicat
   ```bash
   make deploy
   ```
+* **Fetch Cloud Function Logs**: Reads live execution logs from deployed functions in Google Cloud:
+  ```bash
+  make logs
+  make logs LINES=50
+  make logs FUNC=updateUserProfileAndSchedule
+  ```
 * **Linting & Type-checking**: Runs TypeScript compiler checks and ESLint:
   ```bash
   make lint
