@@ -1,17 +1,17 @@
 specVersion: v1alpha1
 endpoints:
   manageBooking:
-    httpsTrigger: {}
+    callableTrigger: {}
     entryPoint: manageBooking
     region:
       - asia-south1
   updateUserProfileAndSchedule:
-    httpsTrigger: {}
+    callableTrigger: {}
     entryPoint: updateUserProfileAndSchedule
     region:
       - asia-south1
   syncMyCalendar:
-    httpsTrigger: {}
+    callableTrigger: {}
     entryPoint: syncMyCalendar
     region:
       - asia-south1
