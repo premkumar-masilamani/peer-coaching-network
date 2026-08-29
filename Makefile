@@ -20,7 +20,7 @@ run:
 
 .PHONY: deploy
 deploy: build
-	. ./.env.development && npx --no-install firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project $$VITE_FIREBASE_PROJECT_ID --debug
+	set -a && . ./.env.development && set +a && npx --no-install firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project $$VITE_FIREBASE_PROJECT_ID --debug
 
 .PHONY: erd
 erd:

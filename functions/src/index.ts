@@ -18,10 +18,25 @@ import {
 } from "@pcn/shared";
 
 const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID;
+const region = process.env.VITE_FIREBASE_REGION;
+
+if (!databaseId) {
+  throw new Error(
+    "Missing required environment variable: VITE_FIRESTORE_DATABASE_ID. " +
+    "Please specify the Firestore database name in your environment configuration."
+  );
+}
+
+if (!region) {
+  throw new Error(
+    "Missing required environment variable: VITE_FIREBASE_REGION. " +
+    "Please specify the Firebase Functions region in your environment configuration."
+  );
+}
+
 admin.initializeApp(projectId ? { projectId } : undefined);
-const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID || "pcn-dev";
-const db = databaseId ? getFirestore(admin.app(), databaseId) : getFirestore();
-const region = process.env.VITE_FIREBASE_REGION || "asia-south1";
+const db = getFirestore(admin.app(), databaseId);
 const regionFunctions = functions.region(region);
 
 // Helper for SystemLogs
