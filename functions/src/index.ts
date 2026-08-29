@@ -371,12 +371,11 @@ export const updateUserProfileAndSchedule = regionFunctions.https.onCall(async (
   const { profileData, availableDays, blockedDates, userId } = data;
   const callerUid = context.auth.uid;
   let uid = callerUid;
-  let callerIsAdmin = false;
+
+  const callerDoc = await db.collection(COLLECTIONS.USERS).doc(callerUid).get();
+  const callerIsAdmin = callerDoc.exists && callerDoc.data()?.userRole === "admin";
 
   if (userId && userId !== callerUid) {
-    // Check if caller is admin
-    const callerDoc = await db.collection(COLLECTIONS.USERS).doc(callerUid).get();
-    callerIsAdmin = callerDoc.exists && callerDoc.data()?.userRole === "admin";
     if (!callerIsAdmin) {
       throw new functions.https.HttpsError("permission-denied", "Only admins can update other users' profiles.");
     }
