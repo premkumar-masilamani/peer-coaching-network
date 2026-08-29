@@ -25,7 +25,7 @@ Here are the primary commands for building, running, and validating the applicat
   ```bash
   make install
   ```
-* **Run Dev Server**: Starts the Vite local server bound to the custom domain over HTTPS:
+* **Run Dev Server**: Starts the Vite local development server on `http://localhost:5173`:
   ```bash
   make run
   ```

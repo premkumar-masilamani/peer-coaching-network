@@ -18,7 +18,8 @@ functions/package-lock.json
 # --- Firebase CLI ---
 .firebase/
 
-# --- Environment Files ---
-.env.development
+# --- Environment Files (Ignore local overrides only) ---
 .env*.local
-.env
+.env.local
+functions/.env*.local
+functions/.env.local
