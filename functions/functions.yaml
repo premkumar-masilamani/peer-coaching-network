@@ -1,0 +1,24 @@
+specVersion: v1alpha1
+endpoints:
+  manageBooking:
+    httpsTrigger: {}
+    entryPoint: manageBooking
+    region:
+      - asia-south1
+  updateUserProfileAndSchedule:
+    httpsTrigger: {}
+    entryPoint: updateUserProfileAndSchedule
+    region:
+      - asia-south1
+  syncMyCalendar:
+    httpsTrigger: {}
+    entryPoint: syncMyCalendar
+    region:
+      - asia-south1
+  dailyHousekeeping:
+    scheduleTrigger:
+      schedule: "0 2 * * *"
+      timeZone: "UTC"
+    entryPoint: dailyHousekeeping
+    region:
+      - asia-south1

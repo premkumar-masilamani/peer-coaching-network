@@ -17,16 +17,11 @@ import {
   type LogSeverity,
 } from "@pcn/shared";
 
-admin.initializeApp(process.env.VITE_FIREBASE_PROJECT_ID ? { projectId: process.env.VITE_FIREBASE_PROJECT_ID } : undefined);
-const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID;
+const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
+admin.initializeApp(projectId ? { projectId } : undefined);
+const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID || "pcn-dev";
 const db = databaseId ? getFirestore(admin.app(), databaseId) : getFirestore();
-const region = process.env.VITE_FIREBASE_REGION;
-if (!region) {
-  throw new Error(
-    "Missing required environment variable: VITE_FIREBASE_REGION. " +
-    "Please specify the Firebase Functions region in your environment configuration."
-  );
-}
+const region = process.env.VITE_FIREBASE_REGION || "asia-south1";
 const regionFunctions = functions.region(region);
 
 // Helper for SystemLogs
