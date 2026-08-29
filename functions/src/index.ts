@@ -417,7 +417,18 @@ export const updateUserProfileAndSchedule = regionFunctions.https.onCall(async (
   const availRef = db.collection(COLLECTIONS.AVAILABILITY).doc(uid);
 
   await db.runTransaction(async (t) => {
+    // 1. All reads first
     const userDoc = await t.get(userRef);
+    let daysSnap = null;
+    let datesSnap = null;
+    if (!availableDays) {
+      [daysSnap, datesSnap] = await Promise.all([
+        t.get(availableDaysRef),
+        t.get(blockedDatesRef)
+      ]);
+    }
+
+    // 2. Compute profile and schedule data
     const existingProfile = userDoc.exists ? userDoc.data() : {};
     let newDocData = {};
     if (!userDoc.exists) {
@@ -430,25 +441,15 @@ export const updateUserProfileAndSchedule = regionFunctions.https.onCall(async (
 
     const mergedProfile = { ...existingProfile, ...newDocData, ...(effectiveProfileData || {}) };
 
-    if (effectiveProfileData || !userDoc.exists) {
-      t.set(userRef, { ...newDocData, ...(effectiveProfileData || {}), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    }
-
     let effectiveAvailableDays: AvailableDays;
     let effectiveBlockedDates: string[];
 
     if (!availableDays) {
-      const [daysSnap, datesSnap] = await Promise.all([
-        t.get(availableDaysRef),
-        t.get(blockedDatesRef)
-      ]);
-      effectiveAvailableDays = daysSnap.exists ? parseAvailableDays(daysSnap.data()) : parseAvailableDays({});
-      effectiveBlockedDates = datesSnap.exists ? (datesSnap.data()!.blockedDates || []) : [];
+      effectiveAvailableDays = (daysSnap && daysSnap.exists) ? parseAvailableDays(daysSnap.data()) : parseAvailableDays({});
+      effectiveBlockedDates = (datesSnap && datesSnap.exists) ? (datesSnap.data()!.blockedDates || []) : [];
     } else {
       effectiveAvailableDays = parseAvailableDays(availableDays);
       effectiveBlockedDates = blockedDates || [];
-      t.set(availableDaysRef, effectiveAvailableDays);
-      t.set(blockedDatesRef, { blockedDates: effectiveBlockedDates });
     }
 
     const now = new Date();
@@ -461,6 +462,16 @@ export const updateUserProfileAndSchedule = regionFunctions.https.onCall(async (
       anchorDate: now,
       horizonDays
     });
+
+    // 3. All writes after reads
+    if (effectiveProfileData || !userDoc.exists) {
+      t.set(userRef, { ...newDocData, ...(effectiveProfileData || {}), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    }
+
+    if (availableDays) {
+      t.set(availableDaysRef, effectiveAvailableDays);
+      t.set(blockedDatesRef, { blockedDates: effectiveBlockedDates });
+    }
 
     t.set(availRef, {
       coachUid: uid,
