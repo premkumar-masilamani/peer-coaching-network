@@ -65,7 +65,7 @@
   "functions": {
     "source": "functions",
     "predeploy": [
-      "npm pack --workspace=@pcn/shared --pack-destination=./functions"
+      "npm run pack:shared"
     ],
     "ignore": [
       "node_modules",

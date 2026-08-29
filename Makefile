@@ -10,7 +10,7 @@ lint:
 .PHONY: build
 build:
 	npm run build:shared
-	npm pack --workspace=@pcn/shared --pack-destination=./functions
+	npm run pack:shared
 	npm run build:functions
 	set -a && . ./.env.development && set +a && npm run build --workspace=web -- --mode production
 
