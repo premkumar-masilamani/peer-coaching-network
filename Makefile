@@ -10,7 +10,7 @@ lint:
 .PHONY: build
 build:
 	npm run build:shared
-	npm pack --workspace=@pcn/shared --pack-destination=./functions
+	npm run pack:shared
 	npm run build:functions
 	set -a && . ./.env.development && set +a && npm run build --workspace=web -- --mode production
 
@@ -20,7 +20,11 @@ run:
 
 .PHONY: deploy
 deploy: build
-	. ./.env.development && npx --no-install firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project $$VITE_FIREBASE_PROJECT_ID --debug
+	set -a && . ./.env.development && set +a && npx --no-install firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project $$VITE_FIREBASE_PROJECT_ID --debug
+
+.PHONY: logs
+logs:
+	set -a && . ./.env.development && set +a && npx --no-install firebase functions:log --project $$VITE_FIREBASE_PROJECT_ID $(if $(LINES),-n $(LINES),) $(if $(FUNC),--only $(FUNC),)
 
 .PHONY: erd
 erd:
