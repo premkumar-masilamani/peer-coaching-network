@@ -1,0 +1,28 @@
+specVersion: v1alpha1
+endpoints:
+  manageBooking:
+    platform: gcfv1
+    callableTrigger: {}
+    entryPoint: manageBooking
+    region:
+      - asia-south1
+  updateUserProfileAndSchedule:
+    platform: gcfv1
+    callableTrigger: {}
+    entryPoint: updateUserProfileAndSchedule
+    region:
+      - asia-south1
+  syncMyCalendar:
+    platform: gcfv1
+    callableTrigger: {}
+    entryPoint: syncMyCalendar
+    region:
+      - asia-south1
+  dailyHousekeeping:
+    platform: gcfv1
+    scheduleTrigger:
+      schedule: "0 2 * * *"
+      timeZone: "UTC"
+    entryPoint: dailyHousekeeping
+    region:
+      - asia-south1

@@ -13,6 +13,7 @@
   ],
   "scripts": {
     "build:shared": "npm run build --workspace=@pcn/shared",
+    "pack:shared": "npm pack --workspace @pcn/shared --pack-destination ./functions",
     "build:functions": "npm run build --workspace=functions",
     "build:web": "npm run build --workspace=web",
     "build:all": "npm run build:shared && npm run build:functions && npm run build:web",

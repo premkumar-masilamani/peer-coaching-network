@@ -17,16 +17,26 @@ import {
   type LogSeverity,
 } from "@pcn/shared";
 
-admin.initializeApp(process.env.VITE_FIREBASE_PROJECT_ID ? { projectId: process.env.VITE_FIREBASE_PROJECT_ID } : undefined);
+const projectId = process.env.VITE_FIREBASE_PROJECT_ID;
 const databaseId = process.env.VITE_FIRESTORE_DATABASE_ID;
-const db = databaseId ? getFirestore(admin.app(), databaseId) : getFirestore();
 const region = process.env.VITE_FIREBASE_REGION;
+
+if (!databaseId) {
+  throw new Error(
+    "Missing required environment variable: VITE_FIRESTORE_DATABASE_ID. " +
+    "Please specify the Firestore database name in your environment configuration."
+  );
+}
+
 if (!region) {
   throw new Error(
     "Missing required environment variable: VITE_FIREBASE_REGION. " +
     "Please specify the Firebase Functions region in your environment configuration."
   );
 }
+
+admin.initializeApp(projectId ? { projectId } : undefined);
+const db = getFirestore(admin.app(), databaseId);
 const regionFunctions = functions.region(region);
 
 // Helper for SystemLogs
@@ -361,12 +371,11 @@ export const updateUserProfileAndSchedule = regionFunctions.https.onCall(async (
   const { profileData, availableDays, blockedDates, userId } = data;
   const callerUid = context.auth.uid;
   let uid = callerUid;
-  let callerIsAdmin = false;
+
+  const callerDoc = await db.collection(COLLECTIONS.USERS).doc(callerUid).get();
+  const callerIsAdmin = callerDoc.exists && callerDoc.data()?.userRole === "admin";
 
   if (userId && userId !== callerUid) {
-    // Check if caller is admin
-    const callerDoc = await db.collection(COLLECTIONS.USERS).doc(callerUid).get();
-    callerIsAdmin = callerDoc.exists && callerDoc.data()?.userRole === "admin";
     if (!callerIsAdmin) {
       throw new functions.https.HttpsError("permission-denied", "Only admins can update other users' profiles.");
     }
@@ -407,7 +416,18 @@ export const updateUserProfileAndSchedule = regionFunctions.https.onCall(async (
   const availRef = db.collection(COLLECTIONS.AVAILABILITY).doc(uid);
 
   await db.runTransaction(async (t) => {
+    // 1. All reads first
     const userDoc = await t.get(userRef);
+    let daysSnap = null;
+    let datesSnap = null;
+    if (!availableDays) {
+      [daysSnap, datesSnap] = await Promise.all([
+        t.get(availableDaysRef),
+        t.get(blockedDatesRef)
+      ]);
+    }
+
+    // 2. Compute profile and schedule data
     const existingProfile = userDoc.exists ? userDoc.data() : {};
     let newDocData = {};
     if (!userDoc.exists) {
@@ -420,25 +440,15 @@ export const updateUserProfileAndSchedule = regionFunctions.https.onCall(async (
 
     const mergedProfile = { ...existingProfile, ...newDocData, ...(effectiveProfileData || {}) };
 
-    if (effectiveProfileData || !userDoc.exists) {
-      t.set(userRef, { ...newDocData, ...(effectiveProfileData || {}), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
-    }
-
     let effectiveAvailableDays: AvailableDays;
     let effectiveBlockedDates: string[];
 
     if (!availableDays) {
-      const [daysSnap, datesSnap] = await Promise.all([
-        t.get(availableDaysRef),
-        t.get(blockedDatesRef)
-      ]);
-      effectiveAvailableDays = daysSnap.exists ? parseAvailableDays(daysSnap.data()) : parseAvailableDays({});
-      effectiveBlockedDates = datesSnap.exists ? (datesSnap.data()!.blockedDates || []) : [];
+      effectiveAvailableDays = (daysSnap && daysSnap.exists) ? parseAvailableDays(daysSnap.data()) : parseAvailableDays({});
+      effectiveBlockedDates = (datesSnap && datesSnap.exists) ? (datesSnap.data()!.blockedDates || []) : [];
     } else {
       effectiveAvailableDays = parseAvailableDays(availableDays);
       effectiveBlockedDates = blockedDates || [];
-      t.set(availableDaysRef, effectiveAvailableDays);
-      t.set(blockedDatesRef, { blockedDates: effectiveBlockedDates });
     }
 
     const now = new Date();
@@ -451,6 +461,16 @@ export const updateUserProfileAndSchedule = regionFunctions.https.onCall(async (
       anchorDate: now,
       horizonDays
     });
+
+    // 3. All writes after reads
+    if (effectiveProfileData || !userDoc.exists) {
+      t.set(userRef, { ...newDocData, ...(effectiveProfileData || {}), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    }
+
+    if (availableDays) {
+      t.set(availableDaysRef, effectiveAvailableDays);
+      t.set(blockedDatesRef, { blockedDates: effectiveBlockedDates });
+    }
 
     t.set(availRef, {
       coachUid: uid,
