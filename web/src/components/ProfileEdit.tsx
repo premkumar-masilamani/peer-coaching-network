@@ -18,7 +18,7 @@ import { COUNTRIES } from '../utils/countries';
 import { loadTimezonesForCountry, type TimezoneOption } from '../utils/timezonesLazy';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince, logAnalyticsEvent } from '../services/firebaseService';
-import { sanitizeImageUrl } from '../utils/url';
+import { Avatar } from './Avatar';
 import { GENDER_OPTIONS, type Gender, type Qualification, INPUT_LIMITS, USER_MESSAGES } from '../config';
 import { collectValidationErrors, clearFieldError, type FormErrors } from '../utils/formValidation';
 
@@ -196,10 +196,12 @@ export const ProfileEdit: React.FC<ProfileEditProps> = ({ onboardingMode, onSave
 
         {/* ── Profile card header ─────────────────────────────────────────── */}
         <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginBottom: '28px' }}>
-          <img
-            src={sanitizeImageUrl(profile?.photoURL || user?.photoURL)}
-            alt="Profile Avatar"
-            style={{ width: '64px', height: '64px', borderRadius: '50%', border: '2px solid hsl(var(--primary))' }}
+          <Avatar
+            src={profile?.photoURL || user?.photoURL}
+            name={formatDisplayName(profile || user)}
+            email={profile?.email || user?.email}
+            size={64}
+            border="2px solid hsl(var(--primary))"
           />
           <div>
             <h2 style={{ fontSize: '1.5rem', fontWeight: 800 }}>{formatDisplayName(profile || user) || 'Coaching Profile'}</h2>
