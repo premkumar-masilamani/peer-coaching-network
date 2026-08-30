@@ -1,6 +1,5 @@
 import React from 'react';
 import { Sparkles, ShieldCheck, Heart, Plus, ArrowRight } from 'lucide-react';
-import { APP_URL } from '../config';
 
 interface FooterProps {
   onNavigate: (path: string) => void;
@@ -332,19 +331,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                 >
                   Contact & Support
                 </button>
-              </li>
-              <li style={{ marginTop: '8px' }}>
-                <a
-                  href={APP_URL}
-                  className="btn btn-secondary"
-                  style={{
-                    padding: '8px 16px',
-                    fontSize: '0.88rem',
-                  }}
-                >
-                  <span>Launch Web App</span>
-                  <ArrowRight size={14} />
-                </a>
               </li>
             </ul>
           </div>

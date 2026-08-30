@@ -110,7 +110,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
               className="btn btn-primary"
               style={{ fontSize: '1.05rem', padding: '14px 32px' }}
             >
-              <span>Launch App & Sign In</span>
+              <span>Launch App</span>
               <ArrowRight size={18} />
             </a>
             <button
