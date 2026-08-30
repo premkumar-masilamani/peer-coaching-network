@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { formatDisplayName, formatMemberSince } from '../services/profileService';
-import { sanitizeImageUrl } from '../utils/url';
+import { Avatar } from './Avatar';
 import { type Qualification } from '../config';
 
 export const VerificationNotice: React.FC = () => {
@@ -62,16 +62,12 @@ export const VerificationNotice: React.FC = () => {
 
         {/* Profile Header */}
         <div style={{ display: 'flex', gap: '20px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <img
-            src={sanitizeImageUrl(profile?.photoURL || user?.photoURL)}
-            alt="Profile Avatar"
-            style={{
-              width: '80px',
-              height: '80px',
-              borderRadius: '50%',
-              border: '2px solid hsl(var(--primary))',
-              objectFit: 'cover'
-            }}
+          <Avatar
+            src={profile?.photoURL || user?.photoURL}
+            name={formatDisplayName(profile || user)}
+            email={profile?.email || user?.email}
+            size="lg"
+            border="2px solid hsl(var(--primary))"
           />
           <div>
             <h4 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)', marginBottom: '4px' }}>

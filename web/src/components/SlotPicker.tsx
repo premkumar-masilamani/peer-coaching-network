@@ -2,10 +2,10 @@ import React, { useState, useMemo, useCallback, useId, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Clock, MapPin, Info, Calendar, RefreshCw } from 'lucide-react';
 import { getLocalDateInTimezone, getTimezoneCode, getUtcForLocalDateTime } from '../utils/timezoneHelpers';
 import { resolveTabNavigationIndex } from '../utils/keyboardNavigation';
-import { sanitizeImageUrl } from '../utils/url';
 import { getCredentialBadgeClass, buildDisplayCredentials } from '../utils/credentials';
 import { useNavigateToProfile } from '../context/UnsavedChangesContext';
 import { formatDisplayName } from '../services/profileService';
+import { Avatar } from './Avatar';
 import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, EVENT_TYPE, type Qualification } from '../config';
 import { useAuth } from '../context/AuthContext';
 import type { UserProfile } from '../services/types';
@@ -466,11 +466,13 @@ export const SlotPicker: React.FC<SlotPickerProps> = ({
                                         aria-hidden="true"
                                         onClick={() => navigateProfile(slotCoach.userId)}
                                       >
-                                        <img
-                                          src={sanitizeImageUrl(slotCoach.photoURL)}
-                                          alt=""
+                                        <Avatar
+                                          src={slotCoach.photoURL}
+                                          name={formatDisplayName(slotCoach)}
+                                          email={slotCoach.email}
+                                          size="sm"
                                           className="mini-coach-avatar"
-                                          style={{ border: `1.5px solid ${borderCol}` }}
+                                          border={`1.5px solid ${borderCol}`}
                                         />
                                       </button>
                                       <div className="mini-coach-details">

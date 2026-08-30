@@ -17,7 +17,8 @@ import type { UserProfile } from '../services/types';
 import { ReviewChangesModal } from './modals/ReviewChangesModal';
 import { useUnsavedChanges, useNavigateToProfile } from '../context/UnsavedChangesContext';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
-import { sanitizeImageUrl, sanitizeMeetLink } from '../utils/url';
+import { Avatar } from './Avatar';
+import { sanitizeMeetLink } from '../utils/url';
 import {
   Search,
   UserCheck,
@@ -444,10 +445,13 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
 
           {/* Left Column: Avatar & Quick Info */}
           <div className="glass-panel" style={{ padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', alignSelf: 'start' }}>
-            <img
-              src={sanitizeImageUrl(coach.photoURL)}
-              alt={formatDisplayName(coach) || 'Coach'}
-              style={{ width: '120px', height: '120px', borderRadius: '50%', border: '3px solid hsl(var(--primary))', marginBottom: '20px' }}
+            <Avatar
+              src={coach.photoURL}
+              name={formatDisplayName(coach)}
+              email={coach.email}
+              size="xl"
+              border="3px solid hsl(var(--primary))"
+              style={{ marginBottom: '20px' }}
             />
             <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '8px' }}>
               {formatDisplayName(coach)}
@@ -763,10 +767,12 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
                       {/* Coach Avatar, Name & Email */}
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <img
-                            src={sanitizeImageUrl(u.photoURL)}
-                            alt={formatDisplayName(u) || 'Coach'}
-                            style={{ width: '38px', height: '38px', borderRadius: '50%', border: '1px solid var(--border-light)' }}
+                          <Avatar
+                            src={u.photoURL}
+                            name={formatDisplayName(u)}
+                            email={u.email}
+                            size="sm"
+                            border="1px solid var(--border-light)"
                           />
                           <div>
                             <p style={{ fontWeight: 700, fontSize: '0.925rem' }}>{formatDisplayName(u) || 'No Name'}</p>

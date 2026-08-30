@@ -3,7 +3,7 @@ import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, USER_STAT
 import { useAuth } from '../context/AuthContext';
 import { Sparkles, Shield } from 'lucide-react';
 import { formatDisplayName, formatMemberSince, isApproved, getPendingUsersCount } from '../services/firebaseService';
-import { sanitizeImageUrl } from '../utils/url';
+import { Avatar } from './Avatar';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
 
 interface HeaderProps {
@@ -161,16 +161,12 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab }) => {
               )}
             </div>
 
-            <img
-              src={sanitizeImageUrl(profile?.photoURL || user.photoURL)}
-              alt={formatDisplayName(profile || user) || 'User'}
-              style={{
-                width: '38px',
-                height: '38px',
-                borderRadius: '50%',
-                objectFit: 'cover',
-                border: '2px solid var(--border-light)'
-              }}
+            <Avatar
+              src={profile?.photoURL || user.photoURL}
+              name={formatDisplayName(profile || user)}
+              email={profile?.email || user.email}
+              size="sm"
+              border="2px solid var(--border-light)"
             />
           </div>
         </div>
