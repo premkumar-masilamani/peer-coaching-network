@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowLeft, Shield, CheckCircle2, Lock, Mail } from 'lucide-react';
+import { SUPPORT_EMAIL } from '../config';
 
 interface PrivacyPageProps {
   onNavigate: (path: string) => void;
@@ -206,7 +207,7 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onNavigate }) => {
                 <strong>Revoking Google Calendar Permissions:</strong> You can revoke Peer Coaching Network's access to your Google Calendar at any time through your <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>Google Account Permissions</a>.
               </li>
               <li>
-                <strong>Account Deletion:</strong> You may request complete deletion of your account, profile, and all associated session logs by emailing us at <a href="mailto:support@peercoachingnetwork.com" style={{ color: 'hsl(var(--primary))' }}>support@peercoachingnetwork.com</a>. Upon receipt, we will permanently purge your account data within 30 days.
+                <strong>Account Deletion:</strong> You may request complete deletion of your account, profile, and all associated session logs by emailing our support team at <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: 'hsl(var(--primary))', textDecoration: 'underline' }}>Send Deletion Request</a>. Upon receipt, we will permanently purge your account data within 30 days.
               </li>
             </ul>
           </section>
@@ -234,12 +235,14 @@ export const PrivacyPage: React.FC<PrivacyPageProps> = ({ onNavigate }) => {
               alignItems: 'center',
               gap: '8px',
               marginTop: '12px',
-              color: 'hsl(var(--primary))',
-              fontWeight: 600,
             }}>
-              <Mail size={18} />
-              <a href="mailto:support@peercoachingnetwork.com" style={{ color: 'inherit', textDecoration: 'none' }}>
-                support@peercoachingnetwork.com
+              <a
+                href={`mailto:${SUPPORT_EMAIL}`}
+                className="btn btn-primary"
+                style={{ padding: '8px 18px', fontSize: '0.9rem' }}
+              >
+                <Mail size={16} />
+                <span>Send Email</span>
               </a>
             </div>
           </section>

@@ -1,5 +1,6 @@
 import React from 'react';
-import { Sparkles, Mail, ShieldCheck, Heart } from 'lucide-react';
+import { Sparkles, ShieldCheck, Heart, Plus, ArrowRight } from 'lucide-react';
+import { APP_URL } from '../config';
 
 interface FooterProps {
   onNavigate: (path: string) => void;
@@ -7,29 +8,62 @@ interface FooterProps {
 
 export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
   const currentYear = new Date().getFullYear();
-  const appUrl = import.meta.env.VITE_APP_URL || (
-    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      ? 'http://localhost:5173'
-      : 'https://app.peercoachingnetwork.com'
-  );
+
+  const team = [
+    {
+      name: 'Premkumar Masilamani',
+      role: 'Founder & Lead Architect',
+      credential: 'ICF PCC • 20+ Yrs Tech',
+      isFounder: true,
+      initials: 'PM',
+    },
+    {
+      name: 'Early Coach Contributor',
+      role: 'Beta Tester & Peer Advisor',
+      credential: 'Open Seat',
+      isFounder: false,
+      initials: '+',
+    },
+    {
+      name: 'Early Coach Contributor',
+      role: 'Beta Tester & Peer Advisor',
+      credential: 'Open Seat',
+      isFounder: false,
+      initials: '+',
+    },
+    {
+      name: 'Early Coach Contributor',
+      role: 'Beta Tester & Peer Advisor',
+      credential: 'Open Seat',
+      isFounder: false,
+      initials: '+',
+    },
+    {
+      name: 'Early Coach Contributor',
+      role: 'Beta Tester & Peer Advisor',
+      credential: 'Open Seat',
+      isFounder: false,
+      initials: '+',
+    },
+  ];
 
   return (
     <footer style={{
       background: 'hsl(var(--bg-surface))',
       borderTop: '1px solid var(--border-light)',
-      paddingTop: '60px',
+      paddingTop: '64px',
       paddingBottom: '40px',
       marginTop: 'auto',
     }}>
       <div className="container">
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-          gap: '40px',
-          marginBottom: '48px',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gap: '48px',
+          marginBottom: '56px',
         }}>
-          {/* Brand Col */}
-          <div style={{ maxWidth: '340px' }}>
+          {/* ── Left Column: About Us & Community Builders ─────────── */}
+          <div style={{ maxWidth: '680px' }}>
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -39,8 +73,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               <div style={{
                 background: 'hsl(var(--primary))',
                 color: '#fff',
-                width: '32px',
-                height: '32px',
+                width: '34px',
+                height: '34px',
                 borderRadius: '8px',
                 display: 'flex',
                 alignItems: 'center',
@@ -51,46 +85,170 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
               <span style={{
                 fontFamily: 'var(--font-family-body)',
                 fontWeight: 700,
-                fontSize: '1.1rem',
+                fontSize: '1.15rem',
                 color: 'hsl(var(--text-primary))',
+                letterSpacing: '-0.02em',
               }}>
-                Peer Coaching Network
+                About Peer Coaching Network
               </span>
             </div>
+
             <p style={{
-              fontSize: '0.9rem',
+              fontSize: '0.94rem',
               color: 'hsl(var(--text-secondary))',
-              lineHeight: '1.6',
-              marginBottom: '16px',
+              lineHeight: '1.65',
+              marginBottom: '20px',
             }}>
-              A dedicated, distraction-free peer practice platform for credentialed life coaches and trainee coaches to grow through reciprocal coaching.
+              Peer Coaching Network was founded to solve the core scheduling, matching, and practice challenges faced by life coaches and coaches-in-training. Architected and developed by a 20+ years software engineering veteran and certified ICF PCC coach to provide a secure, non-commercial environment for continuous skill mastery.
             </p>
+
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '6px',
               fontSize: '0.85rem',
               color: 'hsl(var(--primary))',
-              fontWeight: 500,
+              fontWeight: 600,
+              marginBottom: '24px',
             }}>
               <ShieldCheck size={16} />
-              <span>Safe • Non-commercial • Vetted</span>
+              <span>Built by Coaches • For Coaches • 100% Non-Commercial</span>
+            </div>
+
+            {/* Team & Contributors Grid */}
+            <div style={{
+              background: 'hsl(var(--bg-surface-elevated))',
+              border: '1px solid var(--border-light)',
+              borderRadius: '14px',
+              padding: '20px',
+              marginBottom: '16px',
+            }}>
+              <div style={{
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                color: 'hsl(var(--text-muted))',
+                marginBottom: '16px',
+              }}>
+                Core Builder & Early Coach Contributors
+              </div>
+
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                gap: '14px',
+              }}>
+                {team.map((member, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      background: 'hsl(var(--bg-surface))',
+                      border: member.isFounder
+                        ? '1px solid hsl(var(--primary) / 0.3)'
+                        : '1px dashed var(--border-light)',
+                    }}
+                  >
+                    <div style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '50%',
+                      background: member.isFounder ? 'hsl(var(--primary))' : 'hsl(var(--btn-secondary-bg))',
+                      color: member.isFounder ? '#ffffff' : 'hsl(var(--text-muted))',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 700,
+                      fontSize: '0.85rem',
+                      flexShrink: 0,
+                    }}>
+                      {member.isFounder ? (
+                        member.initials
+                      ) : (
+                        <Plus size={16} />
+                      )}
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{
+                        fontSize: '0.88rem',
+                        fontWeight: 600,
+                        color: 'hsl(var(--text-primary))',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}>
+                        {member.name}
+                      </div>
+                      <div style={{
+                        fontSize: '0.75rem',
+                        color: member.isFounder ? 'hsl(var(--primary))' : 'hsl(var(--text-muted))',
+                        fontWeight: 500,
+                        lineHeight: 1.2,
+                      }}>
+                        {member.credential}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Join Early Contributors Callout */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
+              fontSize: '0.86rem',
+              color: 'hsl(var(--text-secondary))',
+            }}>
+              <span>Want to help test and shape the network as an early coach advisor?</span>
+              <button
+                type="button"
+                onClick={() => onNavigate('/contact')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'hsl(var(--primary))',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: 0,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
+                <span>Get In Touch</span>
+                <ArrowRight size={14} />
+              </button>
             </div>
           </div>
 
-          {/* Quick Links */}
-          <div>
+          {/* ── Right Column: Legal & Trust ────────────────────────── */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'flex-start',
+            alignItems: 'flex-start',
+          }}>
             <h4 style={{
               fontSize: '0.95rem',
               fontWeight: 700,
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
               color: 'hsl(var(--text-primary))',
-              marginBottom: '16px',
+              marginBottom: '20px',
             }}>
-              Explore
+              Legal & Trust
             </h4>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '14px' }}>
               <li>
                 <button
                   type="button"
@@ -100,9 +258,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                     border: 'none',
                     padding: 0,
                     color: 'hsl(var(--text-secondary))',
-                    fontSize: '0.9rem',
+                    fontSize: '0.92rem',
                     cursor: 'pointer',
                     textAlign: 'left',
+                    fontWeight: 500,
+                    transition: 'color 0.15s ease',
                   }}
                   onMouseEnter={(e) => (e.currentTarget.style.color = 'hsl(var(--primary))')}
                   onMouseLeave={(e) => (e.currentTarget.style.color = 'hsl(var(--text-secondary))')}
@@ -110,36 +270,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   Home
                 </button>
               </li>
-              <li>
-                <a
-                  href={appUrl}
-                  style={{
-                    color: 'hsl(var(--text-secondary))',
-                    textDecoration: 'none',
-                    fontSize: '0.9rem',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.color = 'hsl(var(--primary))')}
-                  onMouseLeave={(e) => (e.currentTarget.style.color = 'hsl(var(--text-secondary))')}
-                >
-                  Member Sign In
-                </a>
-              </li>
-            </ul>
-          </div>
-
-          {/* Legal & Governance */}
-          <div>
-            <h4 style={{
-              fontSize: '0.95rem',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              color: 'hsl(var(--text-primary))',
-              marginBottom: '16px',
-            }}>
-              Legal & Trust
-            </h4>
-            <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <li>
                 <button
                   type="button"
@@ -149,9 +279,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                     border: 'none',
                     padding: 0,
                     color: 'hsl(var(--text-secondary))',
-                    fontSize: '0.9rem',
+                    fontSize: '0.92rem',
                     cursor: 'pointer',
                     textAlign: 'left',
+                    fontWeight: 500,
+                    transition: 'color 0.15s ease',
                   }}
                   onMouseEnter={(e) => (e.currentTarget.style.color = 'hsl(var(--primary))')}
                   onMouseLeave={(e) => (e.currentTarget.style.color = 'hsl(var(--text-secondary))')}
@@ -168,9 +300,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                     border: 'none',
                     padding: 0,
                     color: 'hsl(var(--text-secondary))',
-                    fontSize: '0.9rem',
+                    fontSize: '0.92rem',
                     cursor: 'pointer',
                     textAlign: 'left',
+                    fontWeight: 500,
+                    transition: 'color 0.15s ease',
                   }}
                   onMouseEnter={(e) => (e.currentTarget.style.color = 'hsl(var(--primary))')}
                   onMouseLeave={(e) => (e.currentTarget.style.color = 'hsl(var(--text-secondary))')}
@@ -187,9 +321,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                     border: 'none',
                     padding: 0,
                     color: 'hsl(var(--text-secondary))',
-                    fontSize: '0.9rem',
+                    fontSize: '0.92rem',
                     cursor: 'pointer',
                     textAlign: 'left',
+                    fontWeight: 500,
+                    transition: 'color 0.15s ease',
                   }}
                   onMouseEnter={(e) => (e.currentTarget.style.color = 'hsl(var(--primary))')}
                   onMouseLeave={(e) => (e.currentTarget.style.color = 'hsl(var(--text-secondary))')}
@@ -197,51 +333,24 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
                   Contact & Support
                 </button>
               </li>
+              <li style={{ marginTop: '8px' }}>
+                <a
+                  href={APP_URL}
+                  className="btn btn-secondary"
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '0.88rem',
+                  }}
+                >
+                  <span>Launch Web App</span>
+                  <ArrowRight size={14} />
+                </a>
+              </li>
             </ul>
-          </div>
-
-          {/* Contact Col */}
-          <div>
-            <h4 style={{
-              fontSize: '0.95rem',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              color: 'hsl(var(--text-primary))',
-              marginBottom: '16px',
-            }}>
-              Get In Touch
-            </h4>
-            <p style={{
-              fontSize: '0.9rem',
-              color: 'hsl(var(--text-secondary))',
-              marginBottom: '12px',
-            }}>
-              Questions, feedback, or need assistance? Reach out directly:
-            </p>
-            <button
-              type="button"
-              onClick={() => onNavigate('/contact')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                color: 'hsl(var(--primary))',
-                fontSize: '0.9rem',
-                fontWeight: 600,
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: 0,
-              }}
-            >
-              <Mail size={16} />
-              <span>Contact Support Team</span>
-            </button>
           </div>
         </div>
 
-        {/* Bottom Bar */}
+        {/* ── Bottom Bar ─────────────────────────────────────────── */}
         <div style={{
           borderTop: '1px solid var(--border-light)',
           paddingTop: '24px',

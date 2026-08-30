@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowLeft, FileText, AlertCircle, Mail } from 'lucide-react';
+import { SUPPORT_EMAIL } from '../config';
 
 interface TermsPageProps {
   onNavigate: (path: string) => void;
@@ -176,19 +177,21 @@ export const TermsPage: React.FC<TermsPageProps> = ({ onNavigate }) => {
               9. Contact & Inquiries
             </h2>
             <p>
-              If you have any questions regarding these Terms of Service, please contact us at:
+              If you have any questions regarding these Terms of Service, please reach out to our support team:
             </p>
             <div style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '8px',
               marginTop: '12px',
-              color: 'hsl(var(--primary))',
-              fontWeight: 600,
             }}>
-              <Mail size={18} />
-              <a href="mailto:support@peercoachingnetwork.com" style={{ color: 'inherit', textDecoration: 'none' }}>
-                support@peercoachingnetwork.com
+              <a
+                href={`mailto:${SUPPORT_EMAIL}`}
+                className="btn btn-primary"
+                style={{ padding: '8px 18px', fontSize: '0.9rem' }}
+              >
+                <Mail size={16} />
+                <span>Send Email</span>
               </a>
             </div>
           </section>

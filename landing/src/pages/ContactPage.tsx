@@ -1,5 +1,6 @@
 import React from 'react';
 import { ArrowLeft, Mail, Clock, MessageSquare, CheckCircle2 } from 'lucide-react';
+import { SUPPORT_EMAIL } from '../config';
 
 interface ContactPageProps {
   onNavigate: (path: string) => void;
@@ -88,12 +89,12 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate }) => {
                 Our team responds to all member inquiries, privacy requests, and technical questions directly.
               </p>
               <a
-                href="mailto:support@peercoachingnetwork.com"
+                href={`mailto:${SUPPORT_EMAIL}`}
                 className="btn btn-primary"
                 style={{ width: '100%', fontSize: '0.95rem' }}
               >
                 <Mail size={16} />
-                <span>support@peercoachingnetwork.com</span>
+                <span>Send Email</span>
               </a>
             </div>
           </div>
@@ -149,8 +150,8 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate }) => {
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-            gap: '20px',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+            gap: '24px',
           }}>
             <div style={{ borderLeft: '3px solid hsl(var(--primary))', paddingLeft: '16px' }}>
               <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '6px' }}>
@@ -170,9 +171,18 @@ export const ContactPage: React.FC<ContactPageProps> = ({ onNavigate }) => {
               </p>
             </div>
 
+            <div style={{ borderLeft: '3px solid hsl(var(--primary))', paddingLeft: '16px' }}>
+              <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '6px' }}>
+                Peer Feedback & Session Ethics
+              </h4>
+              <p style={{ fontSize: '0.88rem', color: 'hsl(var(--text-secondary))', lineHeight: 1.5 }}>
+                Guidance on constructive peer feedback, session etiquette, or community standards.
+              </p>
+            </div>
+
             <div style={{ borderLeft: '3px solid hsl(var(--success))', paddingLeft: '16px' }}>
               <h4 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '6px' }}>
-                Privacy & Data Deletion
+                Privacy & Data Rights
               </h4>
               <p style={{ fontSize: '0.88rem', color: 'hsl(var(--text-secondary))', lineHeight: 1.5 }}>
                 Requests for account removal, data export, or questions on our privacy standards.

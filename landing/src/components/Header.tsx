@@ -1,5 +1,6 @@
 import React from 'react';
 import { Sparkles, ArrowRight } from 'lucide-react';
+import { APP_URL } from '../config';
 
 interface HeaderProps {
   currentPath: string;
@@ -7,11 +8,6 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate }) => {
-  const appUrl = import.meta.env.VITE_APP_URL || (
-    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      ? 'http://localhost:5173'
-      : 'https://app.peercoachingnetwork.com'
-  );
 
   const handleNavClick = (sectionId: string) => {
     if (currentPath !== '/') {
@@ -169,7 +165,7 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate }) => {
 
           {/* App Sign In Action */}
           <a
-            href={appUrl}
+            href={APP_URL}
             className="btn btn-primary"
             style={{
               padding: '9px 18px',

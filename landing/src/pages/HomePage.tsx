@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Sparkles,
-  Calendar,
   ShieldCheck,
   Users,
   Video,
@@ -13,6 +12,7 @@ import {
   CheckCircle2,
   Clock
 } from 'lucide-react';
+import { APP_URL } from '../config';
 
 interface HomePageProps {
   onNavigate: (path: string) => void;
@@ -20,12 +20,6 @@ interface HomePageProps {
 
 export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-
-  const appUrl = import.meta.env.VITE_APP_URL || (
-    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      ? 'http://localhost:5173'
-      : 'https://app.peercoachingnetwork.com'
-  );
 
   const toggleFaq = (index: number) => {
     setOpenFaq(openFaq === index ? null : index);
@@ -112,7 +106,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             marginBottom: '40px',
           }}>
             <a
-              href={appUrl}
+              href={APP_URL}
               className="btn btn-primary"
               style={{ fontSize: '1.05rem', padding: '14px 32px' }}
             >
@@ -158,7 +152,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
         </div>
       </section>
 
-      {/* ── 4 PILLARS OF TRUST ────────────────────────────────────────── */}
+      {/* ── 3 PILLARS OF TRUST ────────────────────────────────────────── */}
       <section id="trust-pillars" className="section" style={{
         background: 'hsl(var(--bg-surface))',
         borderTop: '1px solid var(--border-light)',
@@ -176,7 +170,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
 
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
             gap: '24px',
           }}>
             {/* Pillar 1 */}
@@ -226,29 +220,6 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             </div>
 
             {/* Pillar 3 */}
-            <div className="landing-card" style={{ padding: '32px 24px' }}>
-              <div style={{
-                background: 'hsl(var(--success) / 0.1)',
-                color: 'hsl(var(--success))',
-                width: '48px',
-                height: '48px',
-                borderRadius: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '20px',
-              }}>
-                <Calendar size={24} />
-              </div>
-              <h3 style={{ fontSize: '1.2rem', marginBottom: '10px', fontWeight: 700 }}>
-                Automated Calendar Sync
-              </h3>
-              <p style={{ fontSize: '0.92rem', color: 'hsl(var(--text-secondary))', lineHeight: 1.6 }}>
-                No manual back-and-forth emails. Connecting your Google Calendar automatically creates your coaching sessions and generates private Google Meet links.
-              </p>
-            </div>
-
-            {/* Pillar 4 */}
             <div className="landing-card" style={{ padding: '32px 24px' }}>
               <div style={{
                 background: 'hsl(var(--primary) / 0.1)',
@@ -657,7 +628,7 @@ export const HomePage: React.FC<HomePageProps> = ({ onNavigate }) => {
             Join fellow credentialed coaches and trainees in a dedicated, supportive peer learning community.
           </p>
           <a
-            href={appUrl}
+            href={APP_URL}
             className="btn btn-primary"
             style={{ fontSize: '1.1rem', padding: '16px 36px' }}
           >
