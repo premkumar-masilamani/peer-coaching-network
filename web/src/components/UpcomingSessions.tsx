@@ -33,7 +33,7 @@ import { BOOKING_START_OFFSET_DAYS, BOOKING_HORIZON_DAYS, BOOKING_STATUS, GENDER
 
 
 export const UpcomingSessions: React.FC = () => {
-  const { user: currentUser, profile, login } = useAuth();
+  const { user: currentUser, profile, reconnectGoogle } = useAuth();
   const { showToast } = useToast();
 
   // List states
@@ -477,19 +477,35 @@ export const UpcomingSessions: React.FC = () => {
             mode="multi"
             dayAvailability={dayAvailability}
             userBusyEvents={userBusyEvents}
-            onSlotSelect={(coach, slot) => {
+            onSlotSelect={async (coach, slot) => {
               if (getGoogleToken() === null) {
-                setShowGoogleConnectionModal(true);
-                return;
+                try {
+                  const token = await reconnectGoogle();
+                  if (!token) {
+                    setShowGoogleConnectionModal(true);
+                    return;
+                  }
+                } catch {
+                  setShowGoogleConnectionModal(true);
+                  return;
+                }
               }
               setActiveBookingCoach(coach);
               setActiveBookingSlot(slot);
             }}
             onViewBooking={(booking) => setSelectedBookingForView(booking)}
-            onCancelBooking={(booking) => {
+            onCancelBooking={async (booking) => {
               if (getGoogleToken() === null) {
-                setShowGoogleConnectionModal(true);
-                return;
+                try {
+                  const token = await reconnectGoogle();
+                  if (!token) {
+                    setShowGoogleConnectionModal(true);
+                    return;
+                  }
+                } catch {
+                  setShowGoogleConnectionModal(true);
+                  return;
+                }
               }
               setBookingToCancel(booking);
             }}
@@ -523,7 +539,6 @@ export const UpcomingSessions: React.FC = () => {
       )}
 
       {/* Booking details view modal overlay */}
-      {/* Booking details view modal overlay */}
       <SessionDetailsModal
         isOpen={!!selectedBookingForView}
         onClose={() => setSelectedBookingForView(null)}
@@ -542,9 +557,18 @@ export const UpcomingSessions: React.FC = () => {
         onConfirm={async () => {
           if (!bookingToCancel) return;
           if (getGoogleToken() === null) {
-            setBookingToCancel(null);
-            setShowGoogleConnectionModal(true);
-            return;
+            try {
+              const token = await reconnectGoogle();
+              if (!token) {
+                setBookingToCancel(null);
+                setShowGoogleConnectionModal(true);
+                return;
+              }
+            } catch {
+              setBookingToCancel(null);
+              setShowGoogleConnectionModal(true);
+              return;
+            }
           }
           const idToCancel = bookingToCancel.id;
           const firestoreId = bookingToCancel.bookingId || bookingToCancel.id;
@@ -555,6 +579,16 @@ export const UpcomingSessions: React.FC = () => {
           } catch (err) {
             console.error('Failed to cancel booking:', err);
             if ((err as { code?: string }).code === BOOKING_ERROR.GOOGLE_TOKEN_EXPIRED) {
+              try {
+                const freshToken = await reconnectGoogle();
+                if (freshToken) {
+                  await cancelBooking(firestoreId);
+                  await handleRefresh();
+                  return;
+                }
+              } catch (reauthErr) {
+                console.error('Re-auth retry on cancel failed:', reauthErr);
+              }
               setBookingToCancel(null);
               setShowGoogleConnectionModal(true);
               return;
@@ -576,9 +610,14 @@ export const UpcomingSessions: React.FC = () => {
       <GoogleCalendarConnectionModal
         isOpen={showGoogleConnectionModal}
         onClose={() => setShowGoogleConnectionModal(false)}
-        onConnect={() => {
+        onConnect={async () => {
           setShowGoogleConnectionModal(false);
-          login().catch((e) => console.error('Re-authentication redirect failed:', e));
+          try {
+            await reconnectGoogle();
+            await handleRefresh();
+          } catch (e) {
+            console.error('Re-authentication failed:', e);
+          }
         }}
       />
     </>

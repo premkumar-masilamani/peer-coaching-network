@@ -1,3 +1,5 @@
+import { GOOGLE_TOKEN_LIFETIME_MS, GOOGLE_TOKEN_EXPIRY_BUFFER_MS } from '../config';
+
 // In-memory holder for the Google OAuth access token.
 //
 // The token is deliberately NOT persisted to localStorage so it cannot be
@@ -6,7 +8,7 @@
 // the tab/session ends or expires.
 
 let googleAccessToken: string | null = null;
-const EXPIRY_THRESHOLD_MS = 58 * 60 * 1000; // 58 minutes safety margin
+const EXPIRY_THRESHOLD_MS = GOOGLE_TOKEN_LIFETIME_MS - GOOGLE_TOKEN_EXPIRY_BUFFER_MS;
 
 export const setGoogleToken = (token: string | null): void => {
   googleAccessToken = token;
@@ -55,12 +57,34 @@ export const clearGoogleToken = (): void => {
   sessionStorage.removeItem('google_token_obtained_at');
 };
 
+/**
+ * Returns the remaining milliseconds before the Google token expires.
+ * Returns 0 if token is expired, not set, or invalid.
+ */
+export const getGoogleTokenRemainingMs = (): number => {
+  const token = sessionStorage.getItem('google_access_token') || googleAccessToken;
+  const obtainedAtStr = sessionStorage.getItem('google_token_obtained_at');
+  if (!token || !obtainedAtStr) {
+    return 0;
+  }
+  const obtainedAt = parseInt(obtainedAtStr, 10);
+  if (isNaN(obtainedAt)) {
+    return 0;
+  }
+  const remaining = EXPIRY_THRESHOLD_MS - (Date.now() - obtainedAt);
+  return remaining > 0 ? remaining : 0;
+};
+
+/**
+ * Checks if the Google token is valid and active.
+ */
+export const isGoogleTokenValid = (): boolean => {
+  return getGoogleToken() !== null;
+};
+
 // True only when a token was obtained in this session AND it has since crossed
-// the expiry threshold. Used to decide whether to force a fresh Google OAuth
-// redirect when the user next touches the Calendar. Deliberately requires the
-// obtained-at marker to be present so a user who never connected (or who
-// declined the Calendar scope, leaving no marker) is not bounced into an
-// endless redirect loop.
+// the expiry threshold. Used to decide whether to prompt or force a fresh Google OAuth
+// re-authentication when the user touches Calendar features.
 export const hasExpiredGoogleToken = (): boolean => {
   const token = sessionStorage.getItem('google_access_token');
   const obtainedAtStr = sessionStorage.getItem('google_token_obtained_at');

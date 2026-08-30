@@ -133,6 +133,31 @@ export const loginWithGoogle = async (): Promise<void> => {
   }
 };
 
+export const reconnectGoogleCalendar = async (userEmail?: string): Promise<string> => {
+  logger.info('[AuthService] Initiating Google Calendar Reconnection with Popup...');
+  const provider = new GoogleAuthProvider();
+  provider.addScope('https://www.googleapis.com/auth/calendar.events');
+  if (userEmail) {
+    provider.setCustomParameters({ login_hint: userEmail });
+  }
+
+  try {
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    const token = credential?.accessToken || undefined;
+    if (!token) {
+      throw new Error(USER_MESSAGES.AUTH.INVALID_GOOGLE_SIGNIN);
+    }
+    await registerOrSyncGoogleUser(result.user, token);
+
+    syncCalendar().catch(err => logger.error('Failed to sync calendar after reconnection:', err));
+    return token;
+  } catch (e) {
+    logger.error('[AuthService] reconnectGoogleCalendar error:', e);
+    throw e;
+  }
+};
+
 export const handleAuthRedirect = async (): Promise<boolean> => {
   console.log('[AuthService] Entering handleAuthRedirect...');
   try {

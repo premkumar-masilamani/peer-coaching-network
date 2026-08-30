@@ -33,6 +33,7 @@ export { db, auth, isFirebaseConfigured, firebaseConfigError, logAnalyticsEvent 
 
 export {
   loginWithGoogle,
+  reconnectGoogleCalendar,
   handleAuthRedirect,
   logout,
   subscribeToAuth,

@@ -23,7 +23,7 @@ import { getTimezoneCode } from '../utils/timezoneHelpers';
 import { EVENT_TYPE, USER_MESSAGES } from '../config';
 
 export const MySessions: React.FC = () => {
-  const { user, profile, login } = useAuth();
+  const { user, profile, reconnectGoogle } = useAuth();
   const { showToast } = useToast();
   const viewerTimezone = profile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
   const [sessions, setSessions] = useState<CalendarEvent[]>([]);
@@ -57,8 +57,16 @@ export const MySessions: React.FC = () => {
 
   const handleCancel = async (session: CalendarEvent) => {
     if (getGoogleToken() === null) {
-      setShowGoogleConnectionModal(true);
-      return;
+      try {
+        const token = await reconnectGoogle();
+        if (!token) {
+          setShowGoogleConnectionModal(true);
+          return;
+        }
+      } catch {
+        setShowGoogleConnectionModal(true);
+        return;
+      }
     }
     const idToCancel = session.id;
     const firestoreId = session.bookingId || session.id;
@@ -319,10 +327,18 @@ export const MySessions: React.FC = () => {
 
                             {isCancellable && (
                               <button
-                                onClick={() => {
+                                onClick={async () => {
                                   if (getGoogleToken() === null) {
-                                    setShowGoogleConnectionModal(true);
-                                    return;
+                                    try {
+                                      const token = await reconnectGoogle();
+                                      if (!token) {
+                                        setShowGoogleConnectionModal(true);
+                                        return;
+                                      }
+                                    } catch {
+                                      setShowGoogleConnectionModal(true);
+                                      return;
+                                    }
                                   }
                                   setBookingToCancel(session);
                                 }}
@@ -400,9 +416,14 @@ export const MySessions: React.FC = () => {
       <GoogleCalendarConnectionModal
         isOpen={showGoogleConnectionModal}
         onClose={() => setShowGoogleConnectionModal(false)}
-        onConnect={() => {
+        onConnect={async () => {
           setShowGoogleConnectionModal(false);
-          login().catch((e) => console.error('Re-authentication redirect failed:', e));
+          try {
+            await reconnectGoogle();
+            await loadSessions(true);
+          } catch (e) {
+            console.error('Reconnection failed:', e);
+          }
         }}
       />
     </div>
