@@ -19,8 +19,8 @@ build:
 run:
 	npm run dev --workspace=web -- --mode development
 
-.PHONY: run-landing
-run-landing:
+.PHONY: landing
+landing:
 	npm run dev --workspace=landing
 
 .PHONY: deploy
