@@ -1,13 +1,8 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import {
-  Sparkles,
-  Target,
-  Compass,
-  Users
-} from 'lucide-react';
-
+import { Sparkles, Calendar, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { logAnalyticsEvent } from '../services/firebaseService';
+import { USER_MESSAGES } from '../config';
 
 export const Login: React.FC = () => {
   const { login } = useAuth();
@@ -21,6 +16,12 @@ export const Login: React.FC = () => {
     }
   };
 
+  const landingUrl = import.meta.env.VITE_LANDING_URL || (
+    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? 'http://localhost:5174'
+      : 'https://www.peercoachingnetwork.com'
+  );
+
   return (
     <div className="animate-fade-in" style={{
       display: 'flex',
@@ -29,57 +30,80 @@ export const Login: React.FC = () => {
       justifyContent: 'center',
       minHeight: '85vh',
       width: '100%',
-      padding: '24px 16px'
+      padding: '24px 16px',
     }}>
-      {/* Background decoration */}
-      <div className="bg-aurora-glow" style={{ top: '10%', left: '10%' }} />
-      <div className="bg-aurora-glow" style={{ bottom: '10%', right: '10%' }} />
+      {/* Background Radial Glow */}
+      <div className="bg-aurora-glow" style={{ top: '15%', left: '20%' }} />
 
-      <div style={{ maxWidth: '800px', width: '100%', textAlign: 'center', marginBottom: '48px' }}>
+      {/* Main Login Card */}
+      <div className="glass-panel" style={{
+        maxWidth: '460px',
+        width: '100%',
+        padding: '40px 32px',
+        textAlign: 'center',
+        boxShadow: '0 12px 40px rgba(15, 23, 42, 0.06)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+      }}>
+        {/* Brand Icon */}
         <div style={{
-          display: 'inline-flex',
+          background: 'hsl(var(--primary))',
+          color: '#ffffff',
+          width: '52px',
+          height: '52px',
+          borderRadius: '14px',
+          display: 'flex',
           alignItems: 'center',
-          gap: '8px',
-          padding: '8px 16px',
-          borderRadius: '9999px',
-          background: 'var(--btn-secondary-bg)',
-          border: '1px solid var(--border-light)',
-          marginBottom: '24px',
-          fontSize: '0.85rem',
-          color: 'hsl(var(--primary))',
-          fontWeight: 600
+          justifyContent: 'center',
+          boxShadow: '0 4px 16px rgba(15, 118, 110, 0.3)',
+          marginBottom: '20px',
         }}>
-          <Sparkles size={14} />
-          Exclusive Peer-to-Peer Coaching Platform
+          <Sparkles size={28} />
         </div>
 
+        {/* Brand Title & Welcome */}
+        <span style={{
+          fontSize: '0.88rem',
+          fontWeight: 700,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          color: 'hsl(var(--primary))',
+          marginBottom: '6px',
+        }}>
+          Peer Coaching Network
+        </span>
+
         <h1 style={{
-          fontSize: '3.5rem',
-          lineHeight: '1.15',
+          fontSize: '1.85rem',
           fontWeight: 800,
           color: 'hsl(var(--text-primary))',
-          marginBottom: '16px',
-          letterSpacing: '-0.04em'
+          marginBottom: '10px',
+          letterSpacing: '-0.02em',
         }}>
-          Elevate Your Practice Through Peer Coaching
+          {USER_MESSAGES.AUTH.LOGIN_TITLE}
         </h1>
 
         <p style={{
-          fontSize: '1.2rem',
-          maxWidth: '600px',
-          margin: '0 auto 32px auto',
+          fontSize: '0.95rem',
           color: 'hsl(var(--text-secondary))',
-          lineHeight: '1.6'
+          lineHeight: 1.5,
+          marginBottom: '32px',
+          maxWidth: '360px',
         }}>
-          Find, connect, and partner with fellow credentialed life coaches to master your craft through a dedicated peer-to-peer coaching sessions.
+          {USER_MESSAGES.AUTH.LOGIN_SUBTITLE}
         </p>
 
-        {/* Real Sign In Action */}
-        <div>
+        {/* Google Sign In Button */}
+        <div style={{ width: '100%', display: 'grid' }}>
           <button
+            type="button"
             onClick={handleRealLogin}
             className="btn btn-primary"
-            style={{ fontSize: '1.05rem', padding: '14px 32px' }}
+            style={{
+              padding: '14px 24px',
+              fontSize: '1rem',
+            }}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" style={{ marginRight: '8px' }}>
               <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
@@ -87,80 +111,90 @@ export const Login: React.FC = () => {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z" />
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.47 3.47 2.18 7.06l3.66 2.85c.87-2.6 3.3-4.53 6.16-4.53z" />
             </svg>
-            Sign In with Google
+            <span>{USER_MESSAGES.AUTH.SIGN_IN_GOOGLE}</span>
           </button>
-          <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))', marginTop: '12px' }}>
-            Requires permission to add events to your Google Calendar.
-          </p>
+        </div>
+
+        {/* Friendly Calendar Sync Notice */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '10px',
+          background: 'hsl(var(--bg-surface-elevated))',
+          border: '1px solid var(--border-light)',
+          borderRadius: '10px',
+          padding: '12px 14px',
+          marginTop: '24px',
+          textAlign: 'left',
+          fontSize: '0.82rem',
+          color: 'hsl(var(--text-secondary))',
+          lineHeight: 1.45,
+        }}>
+          <Calendar size={18} color="hsl(var(--primary))" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <span>{USER_MESSAGES.AUTH.CALENDAR_PERMISSION_NOTICE}</span>
+        </div>
+
+        {/* Back Link to Landing Page */}
+        <div style={{ marginTop: '28px' }}>
+          <a
+            href={landingUrl}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: 'hsl(var(--primary))',
+              fontSize: '0.88rem',
+              fontWeight: 600,
+              textDecoration: 'none',
+            }}
+          >
+            <ArrowLeft size={14} />
+            <span>{USER_MESSAGES.AUTH.LEARN_MORE_LINK}</span>
+          </a>
         </div>
       </div>
 
-      {/* Feature Section */}
+      {/* Trust & Legal Footer */}
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        gap: '24px',
-        width: '100%',
-        maxWidth: '900px'
+        marginTop: '32px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: '12px',
+        fontSize: '0.82rem',
+        color: 'hsl(var(--text-muted))',
       }}>
-        <div className="glass-panel" style={{ padding: '24px' }}>
-          <div style={{
-            background: 'hsl(var(--accent) / 0.1)',
-            width: '44px',
-            height: '44px',
-            borderRadius: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'hsl(var(--accent))',
-            marginBottom: '16px'
-          }}>
-            <Target size={22}/>
-          </div>
-          <h4 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>Verified Coaches</h4>
-          <p style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>
-            Access is restricted through role-based authentication and administrative approval workflows. All new registrations are manually reviewed and approved by an administrator.
-          </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <ShieldCheck size={14} color="hsl(var(--success))" />
+          <span>Vetted community for credentialed coaches & trainees</span>
         </div>
-
-        <div className="glass-panel" style={{ padding: '24px' }}>
-          <div style={{
-            background: 'hsl(var(--primary) / 0.1)',
-            width: '44px',
-            height: '44px',
-            borderRadius: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'hsl(var(--primary))',
-            marginBottom: '16px'
-          }}>
-            <Compass size={22}/>
-          </div>
-          <h4 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>Elevate Your Skills</h4>
-          <p style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>
-            Transform theory into practice. Hone your core competencies by regularly giving and receiving feedback in an environment tailored for life coaching excellence.
-          </p>
-        </div>
-
-        <div className="glass-panel" style={{ padding: '24px' }}>
-          <div style={{
-            background: 'hsl(var(--success) / 0.1)',
-            width: '44px',
-            height: '44px',
-            borderRadius: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'hsl(var(--success))',
-            marginBottom: '16px'
-          }}>
-            <Users size={22}/>
-          </div>
-          <h4 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>Broaden Your Network</h4>
-          <p style={{ fontSize: '0.9rem', lineHeight: '1.5' }}>
-            Join a trusted community of credentialed professionals. Find a dedicated accountability partner, create lasting professional relationships, and open doors to future collaborations.
-          </p>
+        <div style={{ display: 'flex', gap: '16px' }}>
+          <a
+            href={`${landingUrl}/privacy`}
+            style={{ color: 'hsl(var(--text-muted))', textDecoration: 'none' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'hsl(var(--primary))')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'hsl(var(--text-muted))')}
+          >
+            Privacy Policy
+          </a>
+          <span>•</span>
+          <a
+            href={`${landingUrl}/terms`}
+            style={{ color: 'hsl(var(--text-muted))', textDecoration: 'none' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'hsl(var(--primary))')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'hsl(var(--text-muted))')}
+          >
+            Terms of Service
+          </a>
+          <span>•</span>
+          <a
+            href={`${landingUrl}/contact`}
+            style={{ color: 'hsl(var(--text-muted))', textDecoration: 'none' }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'hsl(var(--primary))')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = 'hsl(var(--text-muted))')}
+          >
+            Support
+          </a>
         </div>
       </div>
     </div>

@@ -3,6 +3,7 @@
   "references": [
     { "path": "./packages/shared" },
     { "path": "./functions" },
-    { "path": "./web" }
+    { "path": "./web" },
+    { "path": "./landing" }
   ]
 }
