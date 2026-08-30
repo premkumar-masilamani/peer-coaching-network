@@ -7,6 +7,10 @@ export const COACH_DISCOVERY_LIMIT = 5;
 
 /** Duration of a single bookable availability slot, in milliseconds (30 minutes). */
 export const SLOT_DURATION_MS = 30 * 60 * 1000;
+/** Standard Google OAuth access token lifetime in milliseconds (60 minutes). */
+export const GOOGLE_TOKEN_LIFETIME_MS = 60 * 60 * 1000;
+/** Safety buffer before Google OAuth token expires (2 minutes). */
+export const GOOGLE_TOKEN_EXPIRY_BUFFER_MS = 2 * 60 * 1000;
 /** Google Calendar freeBusy endpoint, used to subtract busy hours from availability. */
 export const GOOGLE_FREE_BUSY_URL = 'https://www.googleapis.com/calendar/v3/freeBusy';
 

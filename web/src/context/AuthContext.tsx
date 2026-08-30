@@ -5,6 +5,7 @@ import {
   subscribeToAuth,
   getProfile,
   loginWithGoogle,
+  reconnectGoogleCalendar,
   handleAuthRedirect,
   logout as fbLogout,
   updateOwnProfile,
@@ -13,6 +14,7 @@ import {
   isFirebaseConfigured,
   lazyRecalculateAvailableSlotsCache
 } from '../services/firebaseService';
+import { isGoogleTokenValid, hasExpiredGoogleToken } from '../services/googleToken';
 import type { UserProfile } from '../services/firebaseService';
 import { type UserRole, USER_ROLE, USER_STATUS } from '../config';
 
@@ -23,8 +25,12 @@ interface AuthContextType {
   role: UserRole | null | undefined; // undefined = loading/unset, null = no role (pending)
   loading: boolean;
   isRealFirebase: boolean;
+  isGoogleConnected: boolean;
+  isGoogleTokenExpired: boolean;
   login: () => Promise<void>;
   logout: () => Promise<void>;
+  reconnectGoogle: () => Promise<string | null>;
+  checkGoogleToken: () => boolean;
   updateProfileDetails: (updates: Partial<UserProfile>) => Promise<void>;
 }
 
@@ -36,6 +42,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<UserRole | null | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [isHandlingRedirect, setIsHandlingRedirect] = useState(true);
+  const [isGoogleConnected, setIsGoogleConnected] = useState<boolean>(() => isGoogleTokenValid());
+  const [isGoogleTokenExpired, setIsGoogleTokenExpired] = useState<boolean>(() => hasExpiredGoogleToken());
+
+  // Proactive token status evaluation helper
+  const updateGoogleTokenStatus = useCallback(() => {
+    const valid = isGoogleTokenValid();
+    const expired = hasExpiredGoogleToken();
+    setIsGoogleConnected(valid);
+    setIsGoogleTokenExpired(expired);
+    return valid;
+  }, []);
 
   // Handle OAuth Redirect Result
   useEffect(() => {
@@ -46,8 +63,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       .finally(() => {
         console.log('[AuthContext] Setting isHandlingRedirect to false');
         setIsHandlingRedirect(false);
+        updateGoogleTokenStatus();
       });
-  }, []);
+  }, [updateGoogleTokenStatus]);
 
   // Subscribe to Auth status
   useEffect(() => {
@@ -58,17 +76,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!usr) {
         setProfile(null);
         setRole(undefined);
+        setIsGoogleConnected(false);
+        setIsGoogleTokenExpired(false);
         setLoading(false);
       } else {
         // Re-enter loading until the profile snapshot resolves.
         setLoading(true);
+        updateGoogleTokenStatus();
       }
     });
     return () => {
       console.log('[AuthContext] Unsubscribing from Auth status...');
       unsubAuth();
     };
-  }, []);
+  }, [updateGoogleTokenStatus]);
 
   // Apply a fetched profile to context state (profile + derived role), and kick
   // the lazy availability recalc for active coaches.
@@ -118,12 +139,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     try {
       await loginWithGoogle();
+      updateGoogleTokenStatus();
     } catch (e) {
       console.error('Login error:', e);
       setLoading(false);
       throw e;
     }
-  }, []);
+  }, [updateGoogleTokenStatus]);
+
+  const reconnectGoogle = useCallback(async (): Promise<string | null> => {
+    try {
+      const token = await reconnectGoogleCalendar(user?.email || undefined);
+      setIsGoogleConnected(true);
+      setIsGoogleTokenExpired(false);
+      return token;
+    } catch (e) {
+      console.error('Reconnect Google Calendar error:', e);
+      updateGoogleTokenStatus();
+      throw e;
+    }
+  }, [user, updateGoogleTokenStatus]);
+
+  const checkGoogleToken = useCallback((): boolean => {
+    return updateGoogleTokenStatus();
+  }, [updateGoogleTokenStatus]);
 
   const logout = useCallback(async () => {
     setLoading(true);
@@ -135,43 +174,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setUser(null);
       setProfile(null);
       setRole(undefined);
+      setIsGoogleConnected(false);
+      setIsGoogleTokenExpired(false);
       setLoading(false);
     }
   }, []);
 
-  // Expire the Firebase auth session in 58 minutes since the Google token was obtained
+  // Proactively monitor Google token validity on window focus, visibilitychange, and periodic heartbeat
   useEffect(() => {
     if (!user) return;
 
-    const checkAndScheduleExpiry = () => {
-      const obtainedAtStr = sessionStorage.getItem('google_token_obtained_at');
-      if (!obtainedAtStr) return;
-
-      const obtainedAt = parseInt(obtainedAtStr, 10);
-      if (isNaN(obtainedAt)) return;
-
-      const expiryMs = 58 * 60 * 1000; // 58 minutes
-      const elapsed = Date.now() - obtainedAt;
-
-      if (elapsed >= expiryMs) {
-        console.log('[AuthContext] Session expired (58 minutes reached). Logging out...');
-        logout();
-      } else {
-        const remaining = expiryMs - elapsed;
-        console.log(`[AuthContext] Session expires in ${Math.round(remaining / 1000)}s. Scheduling logout.`);
-        const timer = setTimeout(() => {
-          console.log('[AuthContext] Session expired (scheduled 58 minutes reached). Logging out...');
-          logout();
-        }, remaining);
-        return timer;
+    const handleFocus = () => updateGoogleTokenStatus();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        updateGoogleTokenStatus();
       }
     };
 
-    const timer = checkAndScheduleExpiry();
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    const interval = setInterval(updateGoogleTokenStatus, 60000);
+
     return () => {
-      if (timer) clearTimeout(timer);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      clearInterval(interval);
     };
-  }, [user, logout]);
+  }, [user, updateGoogleTokenStatus]);
 
   const updateProfileDetails = useCallback(async (updates: Partial<UserProfile>) => {
     if (!user) return;
@@ -196,11 +225,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       role,
       loading: loading || isHandlingRedirect,
       isRealFirebase: isFirebaseConfigured,
+      isGoogleConnected,
+      isGoogleTokenExpired,
       login,
       logout,
+      reconnectGoogle,
+      checkGoogleToken,
       updateProfileDetails,
     }),
-    [user, profile, role, loading, isHandlingRedirect, login, logout, updateProfileDetails]
+    [
+      user,
+      profile,
+      role,
+      loading,
+      isHandlingRedirect,
+      isGoogleConnected,
+      isGoogleTokenExpired,
+      login,
+      logout,
+      reconnectGoogle,
+      checkGoogleToken,
+      updateProfileDetails,
+    ]
   );
 
   return (
