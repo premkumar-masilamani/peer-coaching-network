@@ -30,7 +30,7 @@ import {
   getCredentialDescription,
   buildDisplayCredentials
 } from '../utils/credentials';
-import { sanitizeImageUrl } from '../utils/url';
+import { Avatar } from './Avatar';
 import { type Qualification, EVENT_TYPE, BOOKING_STATUS } from '../config';
 import type { CalendarEvent } from '../services/googleCalendar';
 import type { DocumentData } from 'firebase/firestore';
@@ -266,17 +266,15 @@ export const PublicProfile: React.FC<PublicProfileProps> = ({ uid, onClose }) =>
           }} />
 
           {/* Large Avatar */}
-          <img
-            src={sanitizeImageUrl(profile.photoURL)}
-            alt={formatDisplayName(profile) || 'Coach'}
-            style={{ 
-              width: '96px', 
-              height: '96px', 
-              borderRadius: '50%', 
-              border: `3px solid ${borderCol}`,
+          <Avatar
+            src={profile.photoURL}
+            name={formatDisplayName(profile)}
+            email={profile.email}
+            size={96}
+            border={`3px solid ${borderCol}`}
+            style={{
               marginBottom: '20px',
-              objectFit: 'cover',
-              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)'
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
             }}
           />
 
