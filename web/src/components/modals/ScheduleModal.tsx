@@ -39,7 +39,7 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
   onClose,
   onBookingSuccess
 }) => {
-  const { profile, user, login } = useAuth();
+  const { profile, user, reconnectGoogle } = useAuth();
   const [topic, setTopic] = useState('');
   const [bookingStatus, setBookingStatus] = useState<ScheduleModalStatus>(SCHEDULE_MODAL_STATUS.IDLE);
   const [createdEvent, setCreatedEvent] = useState<CalendarEvent | null>(null);
@@ -92,9 +92,23 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
     }
     setFormErrors({});
 
-    if (getGoogleToken() === null) {
+    let token = getGoogleToken();
+    if (token === null) {
+      setBookingStatus(SCHEDULE_MODAL_STATUS.BOOKING);
+      setErrorMsg('');
+      try {
+        token = await reconnectGoogle();
+      } catch (err) {
+        logger.error('Failed to reconnect Google Calendar in ScheduleModal:', err);
+        setErrorMsg(USER_MESSAGES.BOOKING.CALENDAR_CONNECTION_REQUIRED);
+        setBookingStatus(SCHEDULE_MODAL_STATUS.ERROR);
+        return;
+      }
+    }
+
+    if (!token) {
       setErrorMsg(USER_MESSAGES.BOOKING.CALENDAR_CONNECTION_REQUIRED);
-      setBookingStatus(SCHEDULE_MODAL_STATUS.IDLE);
+      setBookingStatus(SCHEDULE_MODAL_STATUS.ERROR);
       return;
     }
 
@@ -135,18 +149,35 @@ export const ScheduleModal: React.FC<ScheduleModalProps> = ({
         } else if (err.message === BOOKING_ERROR.BOOKED_AS_CLIENT || err.message === BOOKING_ERROR.BOOKED_AS_COACH) {
           message = BOOKING_ERROR_MESSAGES[BOOKING_ERROR.BOOKED_AS_CLIENT];
         } else if (errCode === BOOKING_ERROR.GOOGLE_TOKEN_EXPIRED) {
-          // The Google token has expired. Rather than surface a reconnect
-          // prompt, send the user straight through the OAuth redirect for a
-          // fresh token; the in-progress booking is abandoned and can be retried
-          // after they return.
-          logAnalyticsEvent('booking_failure', {
-            coachUid: coach.userId,
-            startTime: startTime.toISOString(),
-            error: 'google_token_expired_reauth',
-            code: errCode,
-          });
-          login().catch((e) => logger.error('Re-authentication redirect failed:', e));
-          return;
+          try {
+            const freshToken = await reconnectGoogle();
+            if (freshToken) {
+              const event = await scheduleMeeting(
+                coach.userId,
+                coach.email || 'coach@example.com',
+                formatDisplayName(coach) || 'Coach',
+                user?.uid || '',
+                formatDisplayName(profile) || user?.displayName || 'Peer',
+                startTime.toISOString(),
+                endTime.toISOString(),
+                topic.trim()
+              );
+              logAnalyticsEvent('booking_success', {
+                coachUid: coach.userId,
+                startTime: startTime.toISOString(),
+                topic: topic.trim(),
+              });
+              setCreatedEvent(event);
+              setBookingStatus(SCHEDULE_MODAL_STATUS.SUCCESS);
+              if (onBookingSuccess) {
+                onBookingSuccess(event);
+              }
+              return;
+            }
+          } catch (reauthErr) {
+            logger.error('Re-authentication retry failed:', reauthErr);
+          }
+          message = USER_MESSAGES.BOOKING.GOOGLE_CALENDAR_EXPIRED;
         } else if ((err as { code?: string }).code === BOOKING_ERROR.GOOGLE_API_ERROR) {
           message = err.message;
         }

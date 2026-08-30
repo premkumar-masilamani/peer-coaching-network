@@ -16,6 +16,7 @@ import { LeftNav } from './components/LeftNav';
 import { MySessions } from './components/MySessions';
 import { PublicProfile } from './components/PublicProfile';
 import { SupportFeedback } from './components/SupportFeedback';
+import { GoogleCalendarBanner } from './components/GoogleCalendarBanner';
 import { isApproved, logAnalyticsEvent, firebaseConfigError } from './services/firebaseService';
 import { ConfigErrorScreen } from './components/ConfigErrorScreen';
 import { Sparkles, AlertTriangle, X } from 'lucide-react';
@@ -289,6 +290,8 @@ const AppContent: React.FC = () => {
           />
 
           <main style={{ flex: 1, minWidth: 0, height: '100%', overflowY: 'auto', paddingRight: '16px', paddingBottom: '16px' }}>
+
+            <GoogleCalendarBanner />
 
             {/* ── Non-blocking profile completion banner ───────────────────── */}
             {showBanner && (

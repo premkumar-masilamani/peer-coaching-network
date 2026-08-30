@@ -16,6 +16,13 @@ export const USER_MESSAGES = {
   AUTH: {
     INVALID_GOOGLE_SIGNIN: 'We could not get your name or email from Google. Please try signing in again.',
   },
+  CALENDAR: {
+    EXPIRED_BANNER_TITLE: 'Google Calendar session expired',
+    EXPIRED_BANNER_DESC: 'Reconnect your Google Calendar to keep your schedule synchronized and book sessions.',
+    RECONNECT_BTN: 'Reconnect Google Calendar',
+    RECONNECTING_BTN: 'Reconnecting...',
+    RECONNECT_SUCCESS: 'Google Calendar reconnected successfully!',
+  },
   AVAILABILITY: {
     VALIDATION_INVALID_TIMES: 'Please make sure every time slot has both a start and finish time.',
     VALIDATION_TIME_ORDER: 'The finish time must be after the start time.',
