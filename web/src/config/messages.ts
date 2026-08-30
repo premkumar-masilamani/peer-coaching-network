@@ -15,6 +15,11 @@ export const USER_MESSAGES = {
   },
   AUTH: {
     INVALID_GOOGLE_SIGNIN: 'We could not get your name or email from Google. Please try signing in again.',
+    LOGIN_TITLE: 'Welcome Back',
+    LOGIN_SUBTITLE: 'Sign in to access your coaching sessions, schedule, and peer matches.',
+    SIGN_IN_GOOGLE: 'Sign In with Google',
+    CALENDAR_PERMISSION_NOTICE: 'We connect with your Google Calendar to automatically add sessions and create Google Meet links.',
+    LEARN_MORE_LINK: 'Learn more about Peer Coaching Network',
   },
   CALENDAR: {
     EXPIRED_BANNER_TITLE: 'Google Calendar session expired',
