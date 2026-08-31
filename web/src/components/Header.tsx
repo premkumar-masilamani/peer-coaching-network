@@ -1,7 +1,8 @@
 import React from 'react';
 import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE, USER_STATUS } from '../config';
 import { useAuth } from '../context/AuthContext';
-import { Sparkles, Shield } from 'lucide-react';
+import { Shield } from 'lucide-react';
+import { LogoIcon } from './Logo';
 import { formatDisplayName, formatMemberSince, isApproved, getPendingUsersCount } from '../services/firebaseService';
 import { Avatar } from './Avatar';
 import { useFocusRefresh } from '../hooks/useFocusRefresh';
@@ -44,19 +45,7 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab }) => {
 
   const logoContent = (
     <>
-      <span style={{
-        background: 'hsl(var(--primary))',
-        width: '40px',
-        height: '40px',
-        borderRadius: '10px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-        boxShadow: '0 4px 12px var(--primary-glow)'
-      }}>
-        <Sparkles size={20} color="#fff" />
-      </span>
+      <LogoIcon size={38} />
       <span>
         {/* Styled as a heading, but not an h3: headings are not valid inside a button. */}
         <span style={{

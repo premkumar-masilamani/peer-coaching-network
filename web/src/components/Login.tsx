@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Sparkles, Calendar, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { Calendar, ShieldCheck, ArrowLeft } from 'lucide-react';
+import { LogoIcon } from './Logo';
 import { logAnalyticsEvent } from '../services/firebaseService';
 import { USER_MESSAGES, LANDING_URL } from '../config';
 
@@ -44,18 +45,12 @@ export const Login: React.FC = () => {
       }}>
         {/* Brand Icon */}
         <div style={{
-          background: 'hsl(var(--primary))',
-          color: '#ffffff',
-          width: '52px',
-          height: '52px',
-          borderRadius: '14px',
+          marginBottom: '20px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: '0 4px 16px rgba(15, 118, 110, 0.3)',
-          marginBottom: '20px',
         }}>
-          <Sparkles size={28} />
+          <LogoIcon size={56} />
         </div>
 
         {/* Brand Title & Welcome */}

@@ -1,6 +1,7 @@
 import React from 'react';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { APP_URL } from '../config';
+import { LogoIcon } from './Logo';
 
 interface HeaderProps {
   currentPath: string;
@@ -52,25 +53,13 @@ export const Header: React.FC<HeaderProps> = ({ currentPath, onNavigate }) => {
             border: 'none',
             display: 'flex',
             alignItems: 'center',
-            gap: '10px',
+            gap: '12px',
             cursor: 'pointer',
             padding: 0,
             textAlign: 'left',
           }}
         >
-          <div style={{
-            background: 'hsl(var(--primary))',
-            color: '#fff',
-            width: '36px',
-            height: '36px',
-            borderRadius: '10px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 2px 8px rgba(15, 118, 110, 0.25)',
-          }}>
-            <Sparkles size={20} />
-          </div>
+          <LogoIcon size={38} />
           <span style={{
             fontFamily: 'var(--font-family-body)',
             fontWeight: 700,
