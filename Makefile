@@ -7,13 +7,21 @@ install:
 lint:
 	npm run tsc && npm run eslint
 
-.PHONY: build
-build:
+.PHONY: build-dev
+build-dev:
 	npm run build:shared
 	npm run pack:shared
 	npm run build:functions
 	set -a && . ./.env.development && set +a && npm run build --workspace=landing
 	set -a && . ./.env.development && set +a && npm run build --workspace=web -- --mode production
+
+.PHONY: build-prod
+build-prod:
+	npm run build:shared
+	npm run pack:shared
+	npm run build:functions
+	set -a && . ./.env.production && set +a && npm run build --workspace=landing
+	set -a && . ./.env.production && set +a && npm run build --workspace=web -- --mode production
 
 .PHONY: run
 run:
@@ -23,13 +31,21 @@ run:
 landing:
 	npm run dev --workspace=landing
 
-.PHONY: deploy
-deploy: build
-	set -a && . ./.env.development && set +a && npx --no-install firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project $$VITE_FIREBASE_PROJECT_ID --debug
+.PHONY: deploy-dev
+deploy-dev: build-dev
+	set -a && . ./.env.development && set +a && ./node_modules/.bin/firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project $$VITE_FIREBASE_PROJECT_ID --debug
 
-.PHONY: logs
-logs:
-	set -a && . ./.env.development && set +a && npx --no-install firebase functions:log --project $$VITE_FIREBASE_PROJECT_ID $(if $(LINES),-n $(LINES),) $(if $(FUNC),--only $(FUNC),)
+.PHONY: deploy-prod
+deploy-prod: build-prod
+	set -a && . ./.env.production && set +a && ./node_modules/.bin/firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project $$VITE_FIREBASE_PROJECT_ID --debug
+
+.PHONY: logs-dev
+logs-dev:
+	set -a && . ./.env.development && set +a && ./node_modules/.bin/firebase functions:log --project $$VITE_FIREBASE_PROJECT_ID $(if $(LINES),-n $(LINES),) $(if $(FUNC),--only $(FUNC),)
+
+.PHONY: logs-prod
+logs-prod:
+	set -a && . ./.env.production && set +a && ./node_modules/.bin/firebase functions:log --project $$VITE_FIREBASE_PROJECT_ID $(if $(LINES),-n $(LINES),) $(if $(FUNC),--only $(FUNC),)
 
 .PHONY: erd
 erd:

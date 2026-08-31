@@ -23,6 +23,7 @@
     "dev:landing": "npm run dev --workspace=landing",
     "tsc": "tsc -b",
     "eslint": "eslint .",
+    "test": "vitest run --root web",
     "vitest": "vitest run --root web",
     "emulator:seed": "node scripts/seed-emulator.cjs"
   },
