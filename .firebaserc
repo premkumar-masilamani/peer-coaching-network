@@ -7,7 +7,7 @@
     "pcn-dev-506605": {
       "hosting": {
         "landing": [
-          "dev-www-506605"
+          "dev-landing-506605"
         ],
         "app": [
           "dev-app-506605"

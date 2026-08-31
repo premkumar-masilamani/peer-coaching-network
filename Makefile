@@ -25,11 +25,11 @@ landing:
 
 .PHONY: deploy
 deploy: build
-	set -a && . ./.env.development && set +a && ./node_modules/.bin/firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project $$VITE_FIREBASE_PROJECT_ID --debug
+	set -a && . ./.env.development && set +a && npx --no-install firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project $$VITE_FIREBASE_PROJECT_ID --debug
 
 .PHONY: logs
 logs:
-	set -a && . ./.env.development && set +a && ./node_modules/.bin/firebase functions:log --project $$VITE_FIREBASE_PROJECT_ID $(if $(LINES),-n $(LINES),) $(if $(FUNC),--only $(FUNC),)
+	set -a && . ./.env.development && set +a && npx --no-install firebase functions:log --project $$VITE_FIREBASE_PROJECT_ID $(if $(LINES),-n $(LINES),) $(if $(FUNC),--only $(FUNC),)
 
 .PHONY: erd
 erd:
