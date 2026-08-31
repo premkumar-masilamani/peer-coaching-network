@@ -12,7 +12,7 @@ build:
 	npm run build:shared
 	npm run pack:shared
 	npm run build:functions
-	npm run build --workspace=landing
+	set -a && . ./.env.development && set +a && npm run build --workspace=landing
 	set -a && . ./.env.development && set +a && npm run build --workspace=web -- --mode production
 
 .PHONY: run

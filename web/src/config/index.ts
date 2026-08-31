@@ -113,4 +113,7 @@ export const USER_ROLE = _USER_ROLE;
 export const USER_ROLES = _USER_ROLES;
 export const USER_STATUS = _USER_STATUS;
 export const USER_STATUSES = _USER_STATUSES;
+export const APP_URL = (import.meta.env.VITE_APP_URL as string) || '';
+export const LANDING_URL = (import.meta.env.VITE_LANDING_URL as string) || '';
 export { USER_MESSAGES };
+
