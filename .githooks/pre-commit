@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Pre-commit gate: run lint locally before every commit.
+# Pre-commit gate: run lint and test locally before every commit.
 #
 
 set -euo pipefail
@@ -11,5 +11,8 @@ cd "$repo_root"
 
 echo "pre-commit: lint"
 make lint
+
+echo "pre-commit: test"
+make test
 
 echo "pre-commit checks passed"
