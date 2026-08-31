@@ -7,6 +7,10 @@ install:
 lint:
 	npm run tsc && npm run eslint
 
+.PHONY: test
+test:
+	npm run test
+
 .PHONY: build-dev
 build-dev:
 	npm run build:shared
