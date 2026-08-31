@@ -10,7 +10,7 @@
           "dev-landing-506605"
         ],
         "app": [
-          "dev-app-506605"
+          "pcn-dev-506605"
         ]
       }
     },
@@ -20,10 +20,9 @@
           "prod-landing-507207"
         ],
         "app": [
-          "prod-app-507207"
+          "pcn-prod-507207"
         ]
       }
     }
   }
 }
-
