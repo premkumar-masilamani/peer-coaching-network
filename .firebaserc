@@ -1,6 +1,5 @@
 {
   "projects": {
-    "default": "pcn-dev-506605",
     "dev": "pcn-dev-506605",
     "prod": "pcn-prod-507207"
   },

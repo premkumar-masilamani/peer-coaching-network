@@ -16,7 +16,7 @@ Repository: **[peer-coaching-network-infrastructure](https://github.com/premkuma
 
 To run the application locally connected to your Firebase Dev environment:
 
-1. Ensure `.env.development` is present with your Firebase dev credentials (see `.env.sample` for reference).
+1. Ensure `.env.development` is present with your Firebase dev credentials.
 2. Start the local development server:
    ```bash
    make run
