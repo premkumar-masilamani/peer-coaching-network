@@ -1,7 +1,7 @@
 {
   "projects": {
-    "default": "pcn-dev-506605",
-    "dev": "pcn-dev-506605"
+    "dev": "pcn-dev-506605",
+    "prod": "pcn-prod-507207"
   },
   "targets": {
     "pcn-dev-506605": {
@@ -10,10 +10,19 @@
           "dev-landing-506605"
         ],
         "app": [
-          "dev-app-506605"
+          "pcn-dev-506605"
+        ]
+      }
+    },
+    "pcn-prod-507207": {
+      "hosting": {
+        "landing": [
+          "prod-landing-507207"
+        ],
+        "app": [
+          "pcn-prod-507207"
         ]
       }
     }
   }
 }
-

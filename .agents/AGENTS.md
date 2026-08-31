@@ -11,7 +11,7 @@ This document acts as the definitive codebase guide and runtime manual. It stric
 - **Environment Overrides**:
   - `VITE_LOG_LEVEL`: Overrides console verbosity (`'debug'`, `'info'`, `'warn'`, `'error'`).
 - **Commands**:
-  - `make run` / `make build` / `make deploy` / `make logs` / `make lint` / `make install` / `npm run test`
+  - `make run` / `make build-dev` / `make build-prod` / `make deploy-dev` / `make deploy-prod` / `make logs-dev` / `make logs-prod` / `make lint` / `make install` / `npm run test`
 - **Dependency Execution**:
   - Avoid using `npx` anywhere in the codebase or shell scripts; invoke scripts or local tools via package.json scripts or direct paths (e.g. node modules bin or make commands).
 - **Deployments**: 
