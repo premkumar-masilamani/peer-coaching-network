@@ -2,7 +2,7 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Sparkles, Calendar, ShieldCheck, ArrowLeft } from 'lucide-react';
 import { logAnalyticsEvent } from '../services/firebaseService';
-import { USER_MESSAGES } from '../config';
+import { USER_MESSAGES, LANDING_URL } from '../config';
 
 export const Login: React.FC = () => {
   const { login } = useAuth();
@@ -16,11 +16,7 @@ export const Login: React.FC = () => {
     }
   };
 
-  const landingUrl = import.meta.env.VITE_LANDING_URL || (
-    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      ? 'http://localhost:5174'
-      : 'https://www.peercoachingnetwork.com'
-  );
+  const landingUrl = LANDING_URL;
 
   return (
     <div className="animate-fade-in" style={{

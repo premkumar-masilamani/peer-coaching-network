@@ -1,5 +1,19 @@
 {
   "projects": {
-    "default": "peer-coaching-network-dev"
+    "default": "pcn-dev-506605",
+    "dev": "pcn-dev-506605"
+  },
+  "targets": {
+    "pcn-dev-506605": {
+      "hosting": {
+        "landing": [
+          "dev-www-506605"
+        ],
+        "app": [
+          "dev-app-506605"
+        ]
+      }
+    }
   }
 }
+
