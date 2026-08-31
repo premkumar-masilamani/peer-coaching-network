@@ -19,7 +19,8 @@ import { SupportFeedback } from './components/SupportFeedback';
 import { GoogleCalendarBanner } from './components/GoogleCalendarBanner';
 import { isApproved, logAnalyticsEvent, firebaseConfigError } from './services/firebaseService';
 import { ConfigErrorScreen } from './components/ConfigErrorScreen';
-import { Sparkles, AlertTriangle, X } from 'lucide-react';
+import { LogoIcon } from './components/Logo';
+import { AlertTriangle, X } from 'lucide-react';
 import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE } from './config';
 import { clearProfileFromUrl } from './utils/url';
 import { UnsavedChangesProvider, useUnsavedChanges } from './context/UnsavedChangesContext';
@@ -198,18 +199,7 @@ const AppContent: React.FC = () => {
         gap: '16px'
       }}>
         <div className="bg-gradient-radial" />
-        <div style={{
-          background: 'hsl(var(--primary))',
-          width: '50px',
-          height: '50px',
-          borderRadius: '12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          boxShadow: '0 0 30px var(--primary-glow)',
-        }} className="animate-pulse">
-          <Sparkles size={24} color="#fff" />
-        </div>
+        <LogoIcon size={52} className="animate-pulse" />
         <p style={{
           fontSize: '0.9rem',
           color: 'var(--text-secondary)',

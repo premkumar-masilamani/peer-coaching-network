@@ -1,5 +1,6 @@
 import React from 'react';
-import { Sparkles, ShieldCheck, Heart, Plus, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Heart, Plus, ArrowRight } from 'lucide-react';
+import { LogoIcon } from './Logo';
 
 interface FooterProps {
   onNavigate: (path: string) => void;
@@ -66,21 +67,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
+              gap: '12px',
               marginBottom: '16px',
             }}>
-              <div style={{
-                background: 'hsl(var(--primary))',
-                color: '#fff',
-                width: '34px',
-                height: '34px',
-                borderRadius: '8px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <Sparkles size={18} />
-              </div>
+              <LogoIcon size={34} />
               <span style={{
                 fontFamily: 'var(--font-family-body)',
                 fontWeight: 700,
