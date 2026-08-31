@@ -113,15 +113,7 @@ export const USER_ROLE = _USER_ROLE;
 export const USER_ROLES = _USER_ROLES;
 export const USER_STATUS = _USER_STATUS;
 export const USER_STATUSES = _USER_STATUSES;
-export const APP_URL = (import.meta.env.VITE_APP_URL as string) || (
-  typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:5173'
-    : 'https://app.peercoachingnetwork.com'
-);
-export const LANDING_URL = (import.meta.env.VITE_LANDING_URL as string) || (
-  typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-    ? 'http://localhost:5174'
-    : 'https://www.peercoachingnetwork.com'
-);
+export const APP_URL = (import.meta.env.VITE_APP_URL as string) || '';
+export const LANDING_URL = (import.meta.env.VITE_LANDING_URL as string) || '';
 export { USER_MESSAGES };
 
