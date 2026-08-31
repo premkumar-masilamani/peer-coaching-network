@@ -50,23 +50,17 @@ Here are the primary commands for building, running, testing, and deploying the 
   ```
 * **Build (Dev)**: Compiles shared packages, packages functions, and builds client assets using `.env.development`:
   ```bash
-  make build
-  # or
   make build-dev
   ```
 * **Deploy (Dev)**: Builds and deploys Firestore configurations (rules/indexes), Cloud Functions, and hosting assets to Dev (`pcn-dev-506605`):
   ```bash
-  make deploy
-  # or
   make deploy-dev
   ```
 * **Fetch Dev Cloud Function Logs**: Reads live execution logs from deployed functions in Google Cloud:
   ```bash
-  make logs
-  # or
   make logs-dev
-  make logs LINES=50
-  make logs FUNC=updateUserProfileAndSchedule
+  make logs-dev LINES=50
+  make logs-dev FUNC=updateUserProfileAndSchedule
   ```
 
 ---

@@ -7,9 +7,6 @@ install:
 lint:
 	npm run tsc && npm run eslint
 
-.PHONY: build
-build: build-dev
-
 .PHONY: build-dev
 build-dev:
 	npm run build:shared
@@ -34,9 +31,6 @@ run:
 landing:
 	npm run dev --workspace=landing
 
-.PHONY: deploy
-deploy: deploy-dev
-
 .PHONY: deploy-dev
 deploy-dev: build-dev
 	set -a && . ./.env.development && set +a && ./node_modules/.bin/firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project $$VITE_FIREBASE_PROJECT_ID --debug
@@ -44,9 +38,6 @@ deploy-dev: build-dev
 .PHONY: deploy-prod
 deploy-prod: build-prod
 	set -a && . ./.env.production && set +a && ./node_modules/.bin/firebase deploy --only firestore:$$VITE_FIRESTORE_DATABASE_ID,hosting,functions --project $$VITE_FIREBASE_PROJECT_ID --debug
-
-.PHONY: logs
-logs: logs-dev
 
 .PHONY: logs-dev
 logs-dev:
