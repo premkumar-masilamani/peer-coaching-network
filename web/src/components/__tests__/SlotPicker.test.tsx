@@ -98,8 +98,11 @@ describe('SlotPicker component', () => {
       updatedAt: { toDate: () => new Date(), seconds: 0, nanoseconds: 0, toMillis: () => 0 },
     };
 
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const tomorrowDateStr = d.toISOString().split('T')[0];
     const dayAvailability = {
-      '2026-09-01T10:00:00.000Z': [mockCoach],
+      [`${tomorrowDateStr}T10:00:00.000Z`]: [mockCoach],
     };
 
     await act(async () => {
