@@ -36,7 +36,13 @@ export const LeftNav: React.FC<LeftNavProps> = ({
   const toggleCollapse = () => {
     const nextState = !collapsed;
     setCollapsed(nextState);
-    localStorage.setItem('peer-coaching-nav-collapsed', JSON.stringify(nextState));
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('peer-coaching-nav-collapsed', JSON.stringify(nextState));
+      }
+    } catch {
+      // Ignore storage errors in restricted or test environments
+    }
   };
 
   return (
