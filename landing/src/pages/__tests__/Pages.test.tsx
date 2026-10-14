@@ -69,6 +69,12 @@ describe('Landing Pages', () => {
 
       expect(container?.textContent).toContain('Privacy Policy');
       expect(container?.textContent).toContain('Google API Services & Limited Use Disclosure');
+      expect(container?.textContent).toContain('Privacy Policy Disclosures: Google User Data');
+      expect(container?.textContent).toContain('Data Access');
+      expect(container?.textContent).toContain('Data Use');
+      expect(container?.textContent).toContain('Data Transfer');
+      expect(container?.textContent).toContain('Data Protection');
+      expect(container?.textContent).toContain('Data Retention & Deletion');
 
       const backBtn = Array.from(container?.querySelectorAll('button') || []).find((b) =>
         b.textContent?.includes('Back to Home')
