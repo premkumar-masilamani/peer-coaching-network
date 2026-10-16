@@ -56,6 +56,12 @@
           flex-shrink: 0;
         }
 
+        @media (max-width: 767px) {
+          .scroll-btn {
+            display: none !important;
+          }
+        }
+
         .scroll-btn:hover {
           background: var(--btn-secondary-hover-bg);
           border-color: hsl(var(--primary) / 0.4);
@@ -146,6 +152,15 @@
           grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
           gap: 16px;
           margin-top: 16px;
+        }
+
+        @media (max-width: 767px) {
+          .slot-coaches-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .slot-row {
+            padding: 14px !important;
+          }
         }
 
         .mini-coach-card {

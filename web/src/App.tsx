@@ -23,6 +23,8 @@ import { LogoIcon } from './components/Logo';
 import { AlertTriangle, X } from 'lucide-react';
 import { TABS, type TabKey, type UserRole, type UserStatus, USER_ROLE } from './config';
 import { clearProfileFromUrl } from './utils/url';
+import { BottomNav } from './components/BottomNav';
+import { MoreMenuSheet } from './components/modals/MoreMenuSheet';
 import { UnsavedChangesProvider, useUnsavedChanges } from './context/UnsavedChangesContext';
 import { ToastProvider } from './context/ToastContext';
 
@@ -53,6 +55,7 @@ const AppContent: React.FC = () => {
     return (params.get('adminFilter') as 'all' | UserStatus | UserRole) || 'all';
   });
   const [publicProfileUid, setPublicProfileUid] = useState<string | null>(null);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
 
   // Bumped when the Support tab is re-clicked while already active. Passed to
   // SupportFeedback as a prop so it can reset its view — replaces a former
@@ -371,6 +374,19 @@ const AppContent: React.FC = () => {
           </main>
         </div>
       </div>
+
+      <BottomNav
+        currentTab={currentTab}
+        setCurrentTab={handleTabChange}
+        onOpenMore={() => setIsMoreMenuOpen(true)}
+      />
+
+      <MoreMenuSheet
+        isOpen={isMoreMenuOpen}
+        onClose={() => setIsMoreMenuOpen(false)}
+        currentTab={currentTab}
+        setCurrentTab={handleTabChange}
+      />
     </div>
 
   );

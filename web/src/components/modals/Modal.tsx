@@ -69,7 +69,7 @@ export const Modal: React.FC<ModalProps> = ({
       ref={dialogRef}
       onCancel={handleCancel}
       onClick={handleBackdropClick}
-      className="modal-dialog-native"
+      className="modal-dialog-native modal-bottom-sheet"
       style={{
         padding: 0,
         background: 'transparent',
@@ -91,6 +91,7 @@ export const Modal: React.FC<ModalProps> = ({
           boxSizing: 'border-box',
         }}
       >
+        <div className="modal-grab-handle" />
         <button
           type="button"
           onClick={onClose}
