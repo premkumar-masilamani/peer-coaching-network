@@ -1,5 +1,6 @@
-import * as functions from "firebase-functions";
+import * as functions from "firebase-functions/v1";
 import * as admin from "firebase-admin";
+import { getApp } from "firebase-admin/app";
 import { FieldValue, Timestamp, getFirestore } from "firebase-admin/firestore";
 import {
   generateTemplateSlots,
@@ -36,7 +37,7 @@ if (!region) {
 }
 
 admin.initializeApp(projectId ? { projectId } : undefined);
-const db = getFirestore(admin.app(), databaseId);
+const db = getFirestore(getApp(), databaseId);
 const regionFunctions = functions.region(region);
 
 // Helper for SystemLogs

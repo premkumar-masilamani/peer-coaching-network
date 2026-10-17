@@ -31,7 +31,11 @@
     "eslint-plugin-jsx-a11y": {
       "eslint": "$eslint"
     },
-    "superstatic": "^11.1.0"
+    "superstatic": "^11.1.0",
+    "@grpc/grpc-js": "1.14.6",
+    "chokidar": "^4.0.3",
+    "@google-cloud/pubsub": "^6.3.0",
+    "uuid": "^11.1.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
