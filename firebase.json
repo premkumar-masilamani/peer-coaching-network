@@ -117,6 +117,7 @@
   },
   "functions": {
     "source": "functions",
+    "runtime": "nodejs22",
     "predeploy": [
       "npm run pack:shared"
     ],
