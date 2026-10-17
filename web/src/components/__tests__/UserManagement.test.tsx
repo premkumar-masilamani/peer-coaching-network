@@ -92,5 +92,15 @@ describe('UserManagement component', () => {
     expect(mockGetUsersPage).toHaveBeenCalled();
     expect(mockGetPendingUsers).toHaveBeenCalled();
     expect(container?.textContent).toContain('Coach Alice');
+
+    // Desktop table container and mobile card list are both rendered in DOM
+    const tableContainer = container?.querySelector('.admin-table-container');
+    const cardsList = container?.querySelector('.admin-cards-list');
+    expect(tableContainer).toBeTruthy();
+    expect(cardsList).toBeTruthy();
+
+    const userCard = container?.querySelector('.admin-user-card');
+    expect(userCard).toBeTruthy();
+    expect(userCard?.textContent).toContain('Coach Alice');
   });
 });

@@ -101,6 +101,15 @@ describe('SystemLogs component', () => {
     expect(container?.textContent).toContain('HOUSEKEEPING_BATCH_FAILED');
     expect(container?.textContent).toContain('user101@example.com');
     expect(container?.textContent).toContain('System / Guest');
+
+    // Desktop table container and mobile card list are both rendered in DOM
+    const tableContainer = container?.querySelector('.admin-table-container');
+    const cardsList = container?.querySelector('.admin-cards-list');
+    expect(tableContainer).toBeTruthy();
+    expect(cardsList).toBeTruthy();
+
+    const logCards = container?.querySelectorAll('.admin-log-card');
+    expect(logCards?.length).toBe(2);
   });
 
   it('expands user log, fetches user activity trace, and caches result', async () => {

@@ -740,7 +740,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
             <p>No matching users found.</p>
           </div>
         ) : (
-          <div className="admin-table-container">
+          <>
+            <div className="admin-table-container">
             <table className="admin-table">
               <thead>
                 <tr>
@@ -935,6 +936,192 @@ export const UserManagement: React.FC<UserManagementProps> = ({ initialFilter = 
               </tbody>
             </table>
           </div>
+
+          {/* Mobile User Cards List (< 768px) */}
+          <div className="admin-cards-list">
+            {filteredUsers.map((u) => {
+              const currentRole = drafts[u.userId]?.userRole || getUserRole(u);
+              const currentStatus = drafts[u.userId]?.userStatus || getUserStatus(u);
+              const isSavingThis = savingId === u.userId;
+              const draft = drafts[u.userId];
+              const statusToSave = draft?.userStatus || getUserStatus(u);
+              const isApproving = statusToSave === USER_STATUS.ACTIVE && getUserStatus(u) === USER_STATUS.INACTIVE;
+              const buttonText = isSavingThis 
+                ? (isApproving ? 'Approving...' : 'Saving...') 
+                : (getUserStatus(u) === USER_STATUS.INACTIVE ? 'Approve' : 'Save');
+
+              return (
+                <div
+                  key={u.userId}
+                  className="glass-panel admin-user-card"
+                  style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <Avatar
+                        src={u.photoURL}
+                        name={formatDisplayName(u)}
+                        email={u.email}
+                        size="sm"
+                        border="1px solid var(--border-light)"
+                      />
+                      <div>
+                        <p style={{ fontWeight: 700, fontSize: '0.925rem', margin: 0 }}>{formatDisplayName(u) || 'No Name'}</p>
+                        <p style={{ fontSize: '0.75rem', color: 'hsl(var(--text-muted))', margin: '2px 0 0 0' }}>{u.email}</p>
+                      </div>
+                    </div>
+                    <span className={`badge ${currentStatus === USER_STATUS.ACTIVE ? 'badge-user' : 'badge-pending'}`} style={{ fontSize: '0.75rem' }}>
+                      {currentStatus === USER_STATUS.ACTIVE ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+
+                  {/* Credentials row */}
+                  {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions */}
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}
+                  >
+                    {([
+                      { key: 'icf_acc', label: 'ACC' },
+                      { key: 'icf_pcc', label: 'PCC' },
+                      { key: 'icf_mcc', label: 'MCC' },
+                      { key: 'icf_actc', label: 'ACTC' }
+                    ] as const).map(({ key, label }) => {
+                      const isChecked = drafts[u.userId]?.[key] !== undefined ? drafts[u.userId][key] : !!u[key];
+                      return (
+                        <label
+                          key={key}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            fontWeight: 600,
+                            userSelect: 'none'
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setDrafts(prev => ({
+                                ...prev,
+                                [u.userId]: {
+                                  ...prev[u.userId],
+                                  [key]: checked
+                                }
+                              }));
+                            }}
+                            style={{ accentColor: 'hsl(var(--primary))', width: '14px', height: '14px' }}
+                          />
+                          {label}
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  {/* Role and Actions */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', borderTop: '1px solid var(--border-light)', paddingTop: '10px', flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>Role:</span>
+                      <select
+                        value={currentRole}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          const newRole = e.target.value as UserRole;
+                          setDrafts(prev => ({
+                            ...prev,
+                            [u.userId]: {
+                              ...prev[u.userId],
+                              userRole: newRole
+                            }
+                          }));
+                        }}
+                        className="input-field"
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '0.8rem',
+                          width: '90px',
+                          border: '1px solid var(--border-light)',
+                          borderRadius: '6px',
+                          background: 'var(--input-bg)'
+                        }}
+                      >
+                        <option value={USER_ROLE.USER}>User</option>
+                        <option value={USER_ROLE.ADMIN}>Admin</option>
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions */}
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }} onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={currentStatus === USER_STATUS.ACTIVE}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            const newStatus = e.target.checked ? USER_STATUS.ACTIVE : USER_STATUS.INACTIVE;
+                            setDrafts(prev => ({
+                              ...prev,
+                              [u.userId]: {
+                                ...prev[u.userId],
+                                userStatus: newStatus
+                              }
+                            }));
+                          }}
+                          style={{
+                            accentColor: 'hsl(var(--primary))',
+                            width: '16px',
+                            height: '16px',
+                            cursor: 'pointer'
+                          }}
+                        />
+                        <span style={{ fontSize: '0.75rem', color: 'hsl(var(--text-secondary))' }}>Active</span>
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCoachUid(u.userId)}
+                        className="btn btn-secondary"
+                        style={{
+                          padding: '6px 10px',
+                          fontSize: '0.8rem',
+                          height: '32px',
+                        }}
+                      >
+                        Details
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          triggerApprove(u.userId);
+                        }}
+                        disabled={savingId !== null}
+                        className="btn btn-primary"
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '0.8rem',
+                          height: '32px',
+                          gap: '4px',
+                          background: '#10b981',
+                          color: '#ffffff',
+                          fontWeight: 700
+                        }}
+                      >
+                        {!isSavingThis && <UserCheck size={12} />}
+                        {buttonText}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          </>
         )}
 
         {!loading && !isPendingView && hasMore && (

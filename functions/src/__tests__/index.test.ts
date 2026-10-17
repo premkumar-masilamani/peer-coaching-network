@@ -37,6 +37,7 @@ vi.stubGlobal('fetch', mockFetch);
 vi.mock('firebase-admin/app', () => ({
   initializeApp: vi.fn(),
   getApps: vi.fn(() => [{ name: '[DEFAULT]' }]),
+  getApp: vi.fn(() => ({ name: '[DEFAULT]' })),
 }));
 
 vi.mock('firebase-admin/firestore', () => {

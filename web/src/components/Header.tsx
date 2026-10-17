@@ -58,7 +58,7 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab }) => {
         }}>
           Peer Coaching <span style={{ color: 'hsl(var(--primary))' }}>Network</span>
         </span>
-        <span style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))', fontWeight: 600, textTransform: 'uppercase' }}>
+        <span className="header-tagline" style={{ fontSize: '0.65rem', color: 'hsl(var(--text-muted))', fontWeight: 600, textTransform: 'uppercase' }}>
           Collaborative Calendly for coaches
         </span>
       </span>
@@ -120,7 +120,8 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab }) => {
               title="View pending approval requests in Admin Panel"
             >
               <Shield size={13} />
-              <span>Member Requests ({pendingCount})</span>
+              <span className="header-admin-text-full">Member Requests ({pendingCount})</span>
+              <span className="header-admin-text-compact">({pendingCount})</span>
             </button>
           )}
 
@@ -136,15 +137,15 @@ export const Header: React.FC<HeaderProps> = ({ setCurrentTab }) => {
             }}
           >
             {/* User details displayed to the left of the profile picture */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right' }}>
+            <div className="header-user-details" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', textAlign: 'right' }}>
               <p style={{ fontSize: '0.95rem', fontWeight: 600, color: 'hsl(var(--text-primary))', margin: 0 }}>
                 {formatDisplayName(profile || user) || 'Coaching Peer'}
               </p>
-              <p style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))', margin: 0, marginTop: '2px' }}>
+              <p className="header-user-email" style={{ fontSize: '0.85rem', color: 'hsl(var(--text-muted))', margin: 0, marginTop: '2px' }}>
                 {profile?.email || user.email}
               </p>
               {profile?.createdAt && (
-                <p style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))', margin: 0, marginTop: '2px' }}>
+                <p className="header-member-since" style={{ fontSize: '0.8rem', color: 'hsl(var(--text-muted))', margin: 0, marginTop: '2px' }}>
                   Member since {formatMemberSince(profile.createdAt)}
                 </p>
               )}

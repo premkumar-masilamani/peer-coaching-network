@@ -269,7 +269,8 @@ export const SystemLogs: React.FC = () => {
             <p style={{ fontSize: '1rem', margin: 0 }}>No logs found matching selection.</p>
           </div>
         ) : (
-          <div className="admin-table-container">
+          <>
+            <div className="admin-table-container">
             <table className="admin-table">
               <thead>
                 <tr>
@@ -430,6 +431,99 @@ export const SystemLogs: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile System Logs Cards (< 768px) */}
+          <div className="admin-cards-list">
+            {logs.map((log) => {
+              const badge = getSeverityBadgeStyle(log.type);
+              const isExpanded = expandedLogId === log.id;
+
+              return (
+                <div
+                  key={log.id}
+                  className="glass-panel admin-log-card"
+                  style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      padding: '4px 10px',
+                      borderRadius: '20px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      ...badge
+                    }}>
+                      {badge.icon}
+                      {log.type}
+                    </span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                      {formatTimestamp(log.timestamp)}
+                    </span>
+                  </div>
+
+                  <div>
+                    <p style={{ fontWeight: 700, fontSize: '0.95rem', margin: 0, color: 'var(--text-primary)' }}>
+                      {log.event}
+                    </p>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>
+                      {log.userEmail || log.userId || 'System / Guest'}
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--border-light)', paddingTop: '8px' }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleExpand(log);
+                      }}
+                      style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                    >
+                      {isExpanded ? <EyeOff size={12} /> : <Eye size={12} />}
+                      <span>{isExpanded ? 'Hide Trace' : 'View Trace'}</span>
+                    </button>
+                  </div>
+
+                  {isExpanded && (
+                    <div style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '12px', borderRadius: '8px', marginTop: '6px' }}>
+                      {log.userId ? (
+                        loadingUserLogs[log.userId] ? (
+                          <p style={{ margin: 0, fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
+                            Loading activity trace...
+                          </p>
+                        ) : userLogsCache[log.userId]?.length ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <p style={{ margin: 0, fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                              Recent User Activity ({userLogsCache[log.userId].length})
+                            </p>
+                            {userLogsCache[log.userId].slice(0, 5).map((uLog, idx) => (
+                              <div key={idx} style={{ fontSize: '0.75rem', display: 'flex', justifyContent: 'space-between', gap: '8px' }}>
+                                <span style={{ color: 'var(--text-secondary)' }}>{uLog.event}</span>
+                                <span style={{ color: 'var(--text-muted)' }}>{formatTimestamp(uLog.timestamp)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p style={{ margin: 0, fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
+                            No additional trace entries found.
+                          </p>
+                        )
+                      ) : (
+                        <p style={{ margin: 0, fontSize: '0.8rem', color: 'hsl(var(--text-muted))' }}>
+                          System event (no associated user ID).
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          </>
         )}
       </div>
 
